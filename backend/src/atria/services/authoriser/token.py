@@ -36,6 +36,13 @@ class Claims:
     roles: tuple[str, ...]
     client_id: str
     raw: dict[str, Any]
+    # Written by the pre-token trigger from the person record (ADR 0017).
+    # Absent for an account that holds no membership or no patient profile.
+    staff_id: str | None = None
+    clinic_id: str | None = None
+    patient_profile_id: str | None = None
+    phone_verified: bool = False
+    languages: tuple[str, ...] = ()
 
 
 @lru_cache(maxsize=4)
@@ -80,6 +87,11 @@ def verify(token: str, *, issuer: str, audiences: tuple[str, ...]) -> Claims:
         # An account is not usable until the identity service has set these.
         raise Unauthenticated("the account is not provisioned")
 
+    def optional(name: str) -> str | None:
+        value = payload.get(name) or payload.get(f"{CUSTOM}{name}")
+        return str(value) if value else None
+
+    languages = optional("languages") or ""
     return Claims(
         subject=str(payload["sub"]),
         tenant_id=str(tenant_id),
@@ -87,4 +99,9 @@ def verify(token: str, *, issuer: str, audiences: tuple[str, ...]) -> Claims:
         roles=tuple(r.strip() for r in str(roles).split(",") if r.strip()),
         client_id=client_id,
         raw=payload,
+        staff_id=optional("staffId"),
+        clinic_id=optional("clinicId"),
+        patient_profile_id=optional("patientProfileId"),
+        phone_verified=str(payload.get("phoneVerified", "")).lower() == "true",
+        languages=tuple(x.strip() for x in languages.split(",") if x.strip()),
     )

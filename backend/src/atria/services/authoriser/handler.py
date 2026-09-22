@@ -95,15 +95,18 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     method_arn = str(event.get("methodArn", ""))
     try:
         claims = token_module.verify(bearer_token(event), issuer=ISSUER, audiences=AUDIENCES)
-        # The staff membership, its clinic and the patient profile are not in
-        # the token yet: they come from the person record, which the identity
-        # service writes. Until then a clinic scoped or own scoped check has
-        # nothing to match on and refuses, which is the safe direction. The
-        # lookup lands with staff provisioning (FR-ACC-05, FR-STF-01).
+        # The staff membership, its clinic and the patient profile reach the
+        # token through the pre-token trigger, which reads them from the person
+        # record (ADR 0017). Nothing is looked up on the request path.
         principal = Principal(
             person_id=claims.person_id,
             tenant_id=claims.tenant_id,
             roles=claims.roles,
+            staff_id=claims.staff_id,
+            clinic_id=claims.clinic_id,
+            patient_profile_id=claims.patient_profile_id,
+            phone_verified=claims.phone_verified,
+            languages=claims.languages,
         )
     except Unauthenticated as exc:
         logger.info("denied", extra={"reason": exc.message})

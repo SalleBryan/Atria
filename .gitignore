@@ -24,6 +24,12 @@ infra/cdk-outputs.json
 infra/.pytest_cache/
 **/__pycache__/
 *.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+**/.coverage
+htmlcov/
 
 # flutter and dart
 app/.dart_tool/

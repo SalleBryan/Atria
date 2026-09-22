@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atria-backend"
+version = "0.1.0"
+description = "Atria Rev B Lambda services, domain rules and data access"
+requires-python = ">=3.13"
+dependencies = [
+    "aws-lambda-powertools[tracer]>=3.0",
+    "pydantic>=2.9",
+    "atria-spec",
+]
+
+[project.optional-dependencies]
+dev = [
+    "boto3>=1.35",           # provided by the Lambda runtime, needed locally
+    "boto3-stubs[dynamodb,cognito-idp,sqs,sns,scheduler]>=1.35",
+    "moto[dynamodb]>=5.0",
+    "pyjwt[crypto]>=2.10",   # the authoriser verifies tokens; see infra/requirements-lambda.txt
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",     # pycodestyle, pyflakes
+    "I",               # import order
+    "UP",              # pyupgrade
+    "B",               # bugbear
+    "ANN",             # annotations
+    "S",               # bandit security checks
+    "PT",              # pytest style
+    "RET", "SIM", "TID", "N", "C4", "DTZ",
+]
+ignore = [
+    "ANN401",  # Any is occasionally the honest type for a Lambda event
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Asserts, loose annotations and fake token fields are fine in tests.
+"tests/**" = ["S101", "S105", "S106", "ANN001", "ANN002", "ANN003", "ANN201", "ANN202"]
+# The domain errors are named for what they mean at the API boundary: Conflict,
+# Forbidden, NotFound. An Error suffix on each would only add noise.
+"src/atria/core/errors.py" = ["N818"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+# The spec is installed editable, which mypy cannot follow, so point it at the
+# source folder as well.
+mypy_path = "src:../spec"
+packages = ["atria"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers --cov=atria --cov-report=term-missing"
+markers = [
+    "integration: needs DynamoDB Local or AWS credentials",
+]

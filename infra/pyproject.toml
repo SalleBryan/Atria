@@ -1,0 +1,40 @@
+[project]
+name = "atria-infra"
+version = "0.1.0"
+description = "Atria Rev B AWS infrastructure, as a CDK application in Python"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+extend-exclude = ["cdk.out", "build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "ANN", "RET", "SIM", "C4", "DTZ", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# CDK constructs take **kwargs typed as object and are positional by convention.
+"atria_infra/stacks/*.py" = ["ANN401"]
+"tests/**" = ["S101", "ANN001", "ANN201"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+mypy_path = "."
+exclude = ["cdk\\.out", "^build/"]
+
+[[tool.mypy.overrides]]
+module = ["cdk_nag.*"]
+ignore_missing_imports = true
+
+# The stack assertions read synthesised templates, which are plain nested dicts.
+# Annotating every assertion would add noise and catch nothing.
+[[tool.mypy.overrides]]
+module = ["tests.*", "test_stacks"]
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"

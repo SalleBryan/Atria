@@ -1,0 +1,115 @@
+"""IdentityStack: the Cognito user pool and its three app clients.
+
+Three clients because the three audiences differ: patients may sign in with
+Google, staff may not, and the administration console is separate again
+(ADR 0015, and the identity section of the Technical Document).
+
+Roles are fixed on the account at creation and are carried as claims, so a
+signed-in session cannot change role. The pre-token generation trigger that
+adds the tenant and role claims lands with the identity service; the custom
+attributes it reads are declared here.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from aws_cdk import Duration, RemovalPolicy, Stack
+from aws_cdk import aws_cognito as cognito
+from constructs import Construct
+
+from atria_infra.config import Environment
+
+
+class IdentityStack(Stack):
+    def __init__(self, scope: Construct, construct_id: str, settings: Environment, **kwargs: Any) -> None:
+        super().__init__(scope, construct_id, **kwargs)
+        self.settings = settings
+        retain = RemovalPolicy.RETAIN if settings.removal_protection else RemovalPolicy.DESTROY
+
+        self.user_pool = cognito.UserPool(
+            self,
+            "UserPool",
+            user_pool_name=f"{settings.prefix}-users",
+            self_sign_up_enabled=True,
+            sign_in_aliases=cognito.SignInAliases(email=True, phone=True),
+            sign_in_case_sensitive=False,
+            # The phone is verified by one-time code in the application, not by
+            # Cognito, because it must be verified whatever the identity
+            # provider returned (ADR 0009, FR-ACC-15).
+            auto_verify=cognito.AutoVerifiedAttrs(email=True),
+            standard_attributes=cognito.StandardAttributes(
+                given_name=cognito.StandardAttribute(required=True, mutable=True),
+                family_name=cognito.StandardAttribute(required=True, mutable=True),
+                phone_number=cognito.StandardAttribute(required=False, mutable=True),
+                email=cognito.StandardAttribute(required=False, mutable=True),
+                locale=cognito.StandardAttribute(required=False, mutable=True),
+            ),
+            custom_attributes={
+                # Set by the service when the account is created, read by the
+                # pre-token generation trigger. Immutable: a person's tenant and
+                # the person record behind the account do not change.
+                "tenantId": cognito.StringAttribute(min_len=1, max_len=64, mutable=False),
+                "personId": cognito.StringAttribute(min_len=1, max_len=64, mutable=False),
+                # Comma separated role names. Changed only by an administrator
+                # through the staff roles endpoint, effective at next sign-in.
+                "roles": cognito.StringAttribute(min_len=1, max_len=256, mutable=True),
+            },
+            password_policy=cognito.PasswordPolicy(
+                min_length=12,
+                require_lowercase=True,
+                require_uppercase=True,
+                require_digits=True,
+                require_symbols=False,
+                temp_password_validity=Duration.days(3),
+            ),
+            mfa=cognito.Mfa.OPTIONAL,
+            mfa_second_factor=cognito.MfaSecondFactor(sms=True, otp=True),
+            account_recovery=cognito.AccountRecovery.EMAIL_AND_PHONE_WITHOUT_MFA,
+            feature_plan=cognito.FeaturePlan.ESSENTIALS,
+            removal_policy=retain,
+        )
+
+        common_auth_flows = cognito.AuthFlow(user_srp=True, user_password=False)
+        refresh = Duration.days(30)
+        access = Duration.hours(1)
+
+        self.patient_client = self.user_pool.add_client(
+            "PatientClient",
+            user_pool_client_name=f"{settings.prefix}-patient",
+            auth_flows=common_auth_flows,
+            # Google is offered to patients only. Staff sign in to the account
+            # an administrator created for them.
+            supported_identity_providers=[cognito.UserPoolClientIdentityProvider.COGNITO],
+            access_token_validity=access,
+            id_token_validity=access,
+            refresh_token_validity=refresh,
+            prevent_user_existence_errors=True,
+            enable_token_revocation=True,
+        )
+
+        self.staff_client = self.user_pool.add_client(
+            "StaffClient",
+            user_pool_client_name=f"{settings.prefix}-staff",
+            auth_flows=common_auth_flows,
+            supported_identity_providers=[cognito.UserPoolClientIdentityProvider.COGNITO],
+            access_token_validity=access,
+            id_token_validity=access,
+            # Shorter than the patient client: a staff console runs on a shared
+            # desk machine.
+            refresh_token_validity=Duration.days(7),
+            prevent_user_existence_errors=True,
+            enable_token_revocation=True,
+        )
+
+        self.admin_client = self.user_pool.add_client(
+            "AdminClient",
+            user_pool_client_name=f"{settings.prefix}-admin",
+            auth_flows=common_auth_flows,
+            supported_identity_providers=[cognito.UserPoolClientIdentityProvider.COGNITO],
+            access_token_validity=Duration.minutes(30),
+            id_token_validity=Duration.minutes(30),
+            refresh_token_validity=Duration.days(1),
+            prevent_user_existence_errors=True,
+            enable_token_revocation=True,
+        )

@@ -1,0 +1,13 @@
+# Runtime dependencies for every Lambda function, published as a layer.
+#
+# The layer is built for the Lambda platform (see build.py), so compiled wheels
+# such as pydantic-core and cryptography arrive as the Linux builds the runtime
+# needs. Anything added here must publish a manylinux wheel.
+#
+# boto3 is deliberately absent: the Lambda runtime provides it.
+aws-lambda-powertools[tracer]==3.35.0
+pydantic==2.13.5
+
+# The authoriser verifies the Cognito token itself, against the pool's public
+# keys, and caches them between invocations.
+pyjwt[crypto]==2.14.0

@@ -1,0 +1,16 @@
+{
+  "app": "python app.py",
+  "watch": {
+    "include": ["app.py", "atria_infra/**", "build.py"],
+    "exclude": ["**/__pycache__", "build/**", "cdk.out/**"]
+  },
+  "context": {
+    "environment": "dev",
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/core:validateSnapshotRemovalPolicy": true,
+    "@aws-cdk/aws-apigateway:disableCloudWatchRole": false,
+    "@aws-cdk/core:target-partitions": ["aws"]
+  }
+}

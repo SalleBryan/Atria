@@ -103,6 +103,13 @@ class TestCreate:
         assert resolved.roles == ("RECEPTIONIST",)
         assert resolved.clinic_id == CLINIC
 
+    def test_a_second_account_with_the_same_phone_number_is_a_conflict(self, wired):
+        first = service.handler(admin_event("POST", "/admin/staff", BODY), None)
+        assert first["statusCode"] == 201
+        second = service.handler(admin_event("POST", "/admin/staff", BODY), None)
+        assert second["statusCode"] == 409
+        assert body_of(second)["code"] == "conflict"
+
     def test_a_receptionist_cannot_create_an_account(self, wired):
         event = admin_event("POST", "/admin/staff", BODY)
         event["requestContext"]["authorizer"]["roles"] = "RECEPTIONIST"

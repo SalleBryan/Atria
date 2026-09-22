@@ -23,6 +23,7 @@ from aws_cdk import aws_cognito as cognito
 from constructs import Construct
 
 from atria_infra.config import Environment
+from atria_infra.stacks.data import DataStack
 from atria_infra.stacks.platform import PlatformStack, service_function
 
 
@@ -34,6 +35,7 @@ class IdentityStack(Stack):
         settings: Environment,
         *,
         platform: PlatformStack,
+        data: DataStack,
         build_dir: pathlib.Path,
         **kwargs: Any,
     ) -> None:
@@ -136,7 +138,14 @@ class IdentityStack(Stack):
         )
 
         # Cognito must be able to resolve the caller from the access token, so
-        # the trigger copies the account's tenant, person and roles into it.
+        # the trigger reads the person record (ADR 0017) and copies the
+        # tenant, staff membership, clinic and patient profile it finds into
+        # the token. It falls back to the account's own attributes when there
+        # is no person record yet, but that fallback needs table access to
+        # even attempt the read; without it every sign-in silently takes the
+        # fallback path, which is fine for a patient completing sign-up and
+        # wrong for a provisioned staff account, which has no attributes to
+        # fall back to at all.
         self.pre_token = service_function(
             self,
             "PreToken",
@@ -149,10 +158,13 @@ class IdentityStack(Stack):
                 "POWERTOOLS_SERVICE_NAME": "atria",
                 "POWERTOOLS_LOG_LEVEL": "INFO",
                 "ENVIRONMENT": settings.name,
+                "MAIN_TABLE": data.main_table.table_name,
             },
             timeout_seconds=5,
             memory_mb=256,
         )
+        # Read only: the trigger never writes, and it must not be able to.
+        data.main_table.grant_read_data(self.pre_token)
         self.user_pool.add_trigger(
             cognito.UserPoolOperation.PRE_TOKEN_GENERATION_CONFIG,
             self.pre_token,

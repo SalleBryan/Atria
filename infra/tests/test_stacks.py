@@ -106,6 +106,24 @@ class TestIdentityStack:
         policy = pool["Properties"]["Policies"]["PasswordPolicy"]
         assert policy["MinimumLength"] >= 12
 
+    def test_the_pre_token_trigger_can_read_the_main_table(self, synthesised):
+        """Regression: without this, every sign-in silently used the token
+        attribute fallback, which a provisioned staff account has none of, so
+        it resolved with no roles at all and the authoriser refused it."""
+        template = template_for(synthesised, "identity")
+        functions = template.find_resources("AWS::Lambda::Function")
+        pre_token = next(
+            f
+            for f in functions.values()
+            if f["Properties"]["Handler"] == "atria.services.identity.pre_token.handler"
+        )
+        env = pre_token["Properties"]["Environment"]["Variables"]
+        assert "MAIN_TABLE" in env
+
+        policies = template.find_resources("AWS::IAM::Policy")
+        rendered = str(policies)
+        assert "dynamodb:GetItem" in rendered or "dynamodb:Query" in rendered
+
 
 class TestApiStack:
     def test_every_method_goes_through_the_authoriser(self, synthesised):

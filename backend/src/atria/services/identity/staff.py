@@ -25,7 +25,7 @@ from aws_lambda_powertools import Logger
 
 from atria.core import permissions
 from atria.core import staff as rules
-from atria.core.errors import AtriaError, Invalid
+from atria.core.errors import AtriaError, Conflict, Invalid
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
 from atria.data.people import People
@@ -105,19 +105,25 @@ def create(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
     username = sign_in_name(account)
     password = temporary_password()
     client = cognito()
-    created = client.admin_create_user(
-        UserPoolId=USER_POOL_ID,
-        Username=username,
-        TemporaryPassword=password,
-        MessageAction="SUPPRESS",
-        UserAttributes=[
-            {"Name": "given_name", "Value": account.given_name},
-            {"Name": "family_name", "Value": account.family_name},
-            {"Name": "phone_number", "Value": account.phone_e164},
-            *([{"Name": "email", "Value": account.email}] if account.email else []),
-            *([{"Name": "email_verified", "Value": "true"}] if account.email else []),
-        ],
-    )
+    try:
+        created = client.admin_create_user(
+            UserPoolId=USER_POOL_ID,
+            Username=username,
+            TemporaryPassword=password,
+            MessageAction="SUPPRESS",
+            UserAttributes=[
+                {"Name": "given_name", "Value": account.given_name},
+                {"Name": "family_name", "Value": account.family_name},
+                {"Name": "phone_number", "Value": account.phone_e164},
+                *([{"Name": "email", "Value": account.email}] if account.email else []),
+                *([{"Name": "email_verified", "Value": "true"}] if account.email else []),
+            ],
+        )
+    except client.exceptions.UsernameExistsException as exc:
+        # The phone number or email is already someone's sign-in name. Named
+        # generically: which account it collides with is not this caller's to
+        # learn.
+        raise Conflict("that phone number or email is already in use") from exc
     subject = next((a["Value"] for a in created["User"]["Attributes"] if a["Name"] == "sub"), None)
 
     try:

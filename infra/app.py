@@ -42,6 +42,7 @@ def main() -> cdk.App:
         env.stack_name("identity"),
         settings=env,
         platform=platform,
+        data=data,
         build_dir=build_dir,
         env=target,
     )

@@ -117,6 +117,26 @@ class TestVerify:
                 audiences=AUDIENCES,
             )
 
+    def test_the_plain_claim_names_from_the_trigger_are_read(self, signing_key):
+        """The access token carries tenantId, not custom:tenantId."""
+        plain = make_token(
+            signing_key,
+            **{
+                "custom:tenantId": None,
+                "custom:personId": None,
+                "custom:roles": None,
+                "tenantId": "t-cm-002",
+                "personId": "p-2",
+                "roles": "CLINICIAN",
+            },
+        )
+        claims = token_module.verify(plain, issuer=ISSUER, audiences=AUDIENCES)
+        assert (claims.tenant_id, claims.person_id, claims.roles) == (
+            "t-cm-002",
+            "p-2",
+            ("CLINICIAN",),
+        )
+
     def test_an_empty_token_is_refused(self):
         with pytest.raises(Unauthenticated):
             token_module.verify("", issuer=ISSUER, audiences=AUDIENCES)

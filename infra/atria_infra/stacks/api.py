@@ -23,10 +23,7 @@ from constructs import Construct
 from atria_infra.config import Environment
 from atria_infra.stacks.data import DataStack
 from atria_infra.stacks.identity import IdentityStack
-
-# Must match infra/build.py.
-RUNTIME = lambda_.Runtime.PYTHON_3_13
-ARCHITECTURE = lambda_.Architecture.X86_64
+from atria_infra.stacks.platform import PlatformStack, service_function
 
 
 class ApiStack(Stack):
@@ -38,22 +35,15 @@ class ApiStack(Stack):
         *,
         data: DataStack,
         identity: IdentityStack,
+        platform: PlatformStack,
         build_dir: pathlib.Path,
         **kwargs: Any,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
         self.settings = settings
 
-        self.layer = lambda_.LayerVersion(
-            self,
-            "DependencyLayer",
-            layer_version_name=f"{settings.prefix}-dependencies",
-            code=lambda_.Code.from_asset(str(build_dir / "layer")),
-            compatible_runtimes=[RUNTIME],
-            compatible_architectures=[ARCHITECTURE],
-            description="aws-lambda-powertools, pydantic, pyjwt",
-        )
-        self.code = lambda_.Code.from_asset(str(build_dir / "app"))
+        self.layer = platform.layer
+        self.build_dir = build_dir
 
         pool = identity.user_pool
         client_ids = ",".join(
@@ -68,7 +58,7 @@ class ApiStack(Stack):
             "MAIN_TABLE": data.main_table.table_name,
         }
 
-        self.authoriser = self._function(
+        self.authoriser = self._service(
             "Authoriser",
             handler="atria.services.authoriser.handler.handler",
             description="Verifies the Cognito token and resolves the caller",
@@ -79,7 +69,7 @@ class ApiStack(Stack):
             },
         )
 
-        self.identity_service = self._function(
+        self.identity_service = self._service(
             "IdentityService",
             handler="atria.services.identity.handler.handler",
             description="Profile completion, phone verification, staff provisioning",
@@ -146,7 +136,7 @@ class ApiStack(Stack):
             authorization_type=apigateway.AuthorizationType.CUSTOM,
         )
 
-    def _function(
+    def _service(
         self,
         name: str,
         *,
@@ -154,29 +144,13 @@ class ApiStack(Stack):
         description: str,
         environment: dict[str, str],
     ) -> lambda_.Function:
-        """One service function, with the shared layer and code asset."""
-        # An explicit log group, so retention is part of the stack rather than a
-        # custom resource, and deleting the stack deletes the logs.
-        log_group = logs.LogGroup(
-            self,
-            f"{name}Logs",
-            log_group_name=f"/aws/lambda/{self.settings.prefix}-{name.lower()}",
-            retention=logs.RetentionDays(self.settings.log_retention),
-            removal_policy=RemovalPolicy.DESTROY,
-        )
-        return lambda_.Function(
+        return service_function(
             self,
             name,
-            function_name=f"{self.settings.prefix}-{name.lower()}",
-            runtime=RUNTIME,
-            architecture=ARCHITECTURE,
-            code=self.code,
+            settings=self.settings,
+            build_dir=self.build_dir,
+            layer=self.layer,
             handler=handler,
             description=description,
-            layers=[self.layer],
             environment=environment,
-            memory_size=512,
-            timeout=Duration.seconds(10),
-            tracing=lambda_.Tracing.ACTIVE,
-            log_group=log_group,
         )

@@ -5,13 +5,17 @@ Google, staff may not, and the administration console is separate again
 (ADR 0015, and the identity section of the Technical Document).
 
 Roles are fixed on the account at creation and are carried as claims, so a
-signed-in session cannot change role. The pre-token generation trigger that
-adds the tenant and role claims lands with the identity service; the custom
-attributes it reads are declared here.
+signed-in session cannot change role.
+
+Cognito puts custom attributes in the id token but not the access token, and
+the API authorises on the access token, so a pre-token generation trigger adds
+the tenant, person and role claims. Without it the authoriser has a verified
+token it cannot resolve a caller from.
 """
 
 from __future__ import annotations
 
+import pathlib
 from typing import Any
 
 from aws_cdk import Duration, RemovalPolicy, Stack
@@ -19,10 +23,20 @@ from aws_cdk import aws_cognito as cognito
 from constructs import Construct
 
 from atria_infra.config import Environment
+from atria_infra.stacks.platform import PlatformStack, service_function
 
 
 class IdentityStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, settings: Environment, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        scope: Construct,
+        construct_id: str,
+        settings: Environment,
+        *,
+        platform: PlatformStack,
+        build_dir: pathlib.Path,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(scope, construct_id, **kwargs)
         self.settings = settings
         retain = RemovalPolicy.RETAIN if settings.removal_protection else RemovalPolicy.DESTROY
@@ -119,4 +133,28 @@ class IdentityStack(Stack):
             refresh_token_validity=Duration.days(1),
             prevent_user_existence_errors=True,
             enable_token_revocation=True,
+        )
+
+        # Cognito must be able to resolve the caller from the access token, so
+        # the trigger copies the account's tenant, person and roles into it.
+        self.pre_token = service_function(
+            self,
+            "PreToken",
+            settings=settings,
+            build_dir=build_dir,
+            layer=platform.layer,
+            handler="atria.services.identity.pre_token.handler",
+            description="Adds the tenant, person and role claims to the access token",
+            environment={
+                "POWERTOOLS_SERVICE_NAME": "atria",
+                "POWERTOOLS_LOG_LEVEL": "INFO",
+                "ENVIRONMENT": settings.name,
+            },
+            timeout_seconds=5,
+            memory_mb=256,
+        )
+        self.user_pool.add_trigger(
+            cognito.UserPoolOperation.PRE_TOKEN_GENERATION_CONFIG,
+            self.pre_token,
+            lambda_version=cognito.LambdaVersion.V2_0,
         )

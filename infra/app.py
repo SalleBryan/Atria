@@ -6,7 +6,7 @@
     cdk deploy atria-dev-api        deploy one
     cdk synth -c environment=dev    choose the environment explicitly
 
-Stacks land as their milestones do. Present: data, identity, api,
+Stacks land as their milestones do. Present: platform, data, identity, api,
 observability, cost guard. The async and network stacks in the Technical
 Document arrive with the reminder path and with web hosting.
 """
@@ -21,6 +21,7 @@ from atria_infra.stacks.cost_guard import CostGuardStack
 from atria_infra.stacks.data import DataStack
 from atria_infra.stacks.identity import IdentityStack
 from atria_infra.stacks.observability import ObservabilityStack
+from atria_infra.stacks.platform import PlatformStack
 from build import build
 
 
@@ -34,14 +35,23 @@ def main() -> cdk.App:
     # `cdk deploy` need no separate build step and no Docker.
     build_dir = build()
 
+    platform = PlatformStack(app, env.stack_name("platform"), settings=env, build_dir=build_dir, env=target)
     data = DataStack(app, env.stack_name("data"), settings=env, env=target)
-    identity = IdentityStack(app, env.stack_name("identity"), settings=env, env=target)
+    identity = IdentityStack(
+        app,
+        env.stack_name("identity"),
+        settings=env,
+        platform=platform,
+        build_dir=build_dir,
+        env=target,
+    )
     api = ApiStack(
         app,
         env.stack_name("api"),
         settings=env,
         data=data,
         identity=identity,
+        platform=platform,
         build_dir=build_dir,
         env=target,
     )

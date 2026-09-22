@@ -95,6 +95,11 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     method_arn = str(event.get("methodArn", ""))
     try:
         claims = token_module.verify(bearer_token(event), issuer=ISSUER, audiences=AUDIENCES)
+        # The staff membership, its clinic and the patient profile are not in
+        # the token yet: they come from the person record, which the identity
+        # service writes. Until then a clinic scoped or own scoped check has
+        # nothing to match on and refuses, which is the safe direction. The
+        # lookup lands with staff provisioning (FR-ACC-05, FR-STF-01).
         principal = Principal(
             person_id=claims.person_id,
             tenant_id=claims.tenant_id,

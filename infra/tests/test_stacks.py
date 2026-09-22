@@ -92,6 +92,14 @@ class TestIdentityStack:
             assert client["Properties"]["EnableTokenRevocation"] is True
             assert client["Properties"]["PreventUserExistenceErrors"] == "ENABLED"
 
+    def test_the_pre_token_trigger_is_attached_at_v2(self, synthesised):
+        """Only V2_0 can add claims to an access token, which is what the API reads."""
+        template = template_for(synthesised, "identity")
+        pool = next(iter(template.find_resources("AWS::Cognito::UserPool").values()))
+        config = pool["Properties"]["LambdaConfig"]["PreTokenGenerationConfig"]
+        assert config["LambdaVersion"] == "V2_0"
+        assert "LambdaArn" in config
+
     def test_the_password_policy_is_at_least_twelve_characters(self, synthesised):
         template = template_for(synthesised, "identity")
         pool = next(iter(template.find_resources("AWS::Cognito::UserPool").values()))

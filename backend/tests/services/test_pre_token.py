@@ -141,7 +141,9 @@ class TestResolveClaims:
         claims = pre_token.resolve_claims(event(sub="sub-2", **STAFF))
         assert claims == {"tenantId": "t-cm-001", "personId": "p-1", "roles": "RECEPTIONIST"}
 
-    def test_a_lookup_failure_falls_back_to_attributes_rather_than_failing_sign_in(self, monkeypatch):
+    def test_a_lookup_failure_falls_back_to_attributes_rather_than_failing_sign_in(
+        self, monkeypatch
+    ):
         fake = Mock()
         fake.resolve.side_effect = RuntimeError("table unavailable")
         monkeypatch.setattr(pre_token, "people", lambda: fake)

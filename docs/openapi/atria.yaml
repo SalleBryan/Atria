@@ -1,0 +1,225 @@
+openapi: 3.1.0
+
+info:
+  title: Atria API
+  version: 0.1.0
+  description: |
+    Atria Rev B. Healthcare appointment booking for Cameroon.
+
+    This document is the contract between the services and the two clients. It
+    grows one milestone at a time: an operation appears here before it is
+    implemented, and the routes still to come are listed in routes.md with the
+    permission each one needs.
+
+    Authorisation. Every operation needs a Cognito access token. The authoriser
+    verifies it and resolves the caller; whether that caller may act on a
+    particular record is decided in the service, against the permission matrix
+    in spec/atria_spec/roles.py. A refusal is 403 with no detail about the
+    record, and a record outside the caller's scope is 404 rather than 403, so
+    a refusal cannot be used to discover that a record exists.
+
+    Scopes. own, clinic, tenant. They bound what a permission reaches, and are
+    reported by GET /me so a client can hide what an account cannot do.
+
+servers:
+  - url: https://api.dev.atria.example/dev
+    description: Development. Synthetic data only.
+
+security:
+  - cognito: []
+
+tags:
+  - name: Identity and accounts
+    description: Who the caller is, profile completion, phone verification, staff accounts.
+
+paths:
+  /me:
+    get:
+      tags: [Identity and accounts]
+      operationId: getMe
+      summary: The signed-in caller and what this account may do
+      description: |
+        Returns the resolved caller together with the permissions the account's
+        roles carry and the screen each role lands on. Roles are fixed when the
+        account is created and cannot change during a session, so this is
+        stable for the life of the token.
+
+        Implements FR-ACC-13.
+      responses:
+        "200":
+          description: The caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+              examples:
+                patient:
+                  summary: A patient
+                  value:
+                    personId: p-01J9Z2
+                    tenantId: t-cm-001
+                    roles: [PATIENT]
+                    patientProfileId: pp-01J9Z3
+                    staffId: null
+                    clinicId: null
+                    phoneVerified: true
+                    languages: [fr, en]
+                    permissions:
+                      appointment.read: own
+                      appointment.create: own
+                      care_context.read: own
+                    landing: [Upcoming visits]
+                receptionist:
+                  summary: A receptionist at one clinic
+                  value:
+                    personId: p-01J9Z7
+                    tenantId: t-cm-001
+                    roles: [RECEPTIONIST]
+                    patientProfileId: null
+                    staffId: s-01J9Z8
+                    clinicId: c-douala-01
+                    phoneVerified: true
+                    languages: [fr]
+                    permissions:
+                      appointment.read: clinic
+                      appointment.check_in: clinic
+                    landing: [Today at this clinic]
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+components:
+  securitySchemes:
+    cognito:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        A Cognito access token from the patient, staff or admin app client. The
+        token carries the tenant, the person and the roles the account was
+        created with.
+
+  schemas:
+    Role:
+      type: string
+      enum: [PATIENT, RECEPTIONIST, CLINICIAN, CLINIC_MANAGER, TENANT_ADMIN]
+      description: Generated from spec/atria_spec/roles.py.
+
+    Scope:
+      type: string
+      enum: [own, clinic, tenant]
+      description: How far a granted permission reaches. Refused permissions are absent.
+
+    Me:
+      type: object
+      additionalProperties: false
+      required:
+        - personId
+        - tenantId
+        - roles
+        - phoneVerified
+        - languages
+        - permissions
+        - landing
+      properties:
+        personId:
+          type: string
+          description: The person behind the account. One human being.
+        tenantId:
+          type: string
+          description: The institution. Every record the caller can reach belongs to it.
+        roles:
+          type: array
+          items: { $ref: "#/components/schemas/Role" }
+        patientProfileId:
+          type: [string, "null"]
+          description: Present when this person holds a patient profile.
+        staffId:
+          type: [string, "null"]
+          description: Present when the account is a staff membership.
+        clinicId:
+          type: [string, "null"]
+          description: The clinic a staff membership belongs to. Bounds clinic scope.
+        phoneVerified:
+          type: boolean
+          description: Set only by the one-time code, whatever the identity provider returned.
+        languages:
+          type: array
+          items: { type: string }
+          description: Language tags from the region pack, for example fr and en.
+        permissions:
+          type: object
+          additionalProperties: { $ref: "#/components/schemas/Scope" }
+          description: |
+            Permission to scope, widest scope winning where an account holds
+            more than one role. A permission the account cannot use is absent
+            rather than present with a none scope.
+        landing:
+          type: array
+          items: { type: string }
+          description: The screen each role lands on after signing in.
+
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Machine readable reason, for example conflict or forbidden.
+        message:
+          type: string
+          description: One sentence, safe to show. Never names a record the caller cannot see.
+        detail:
+          type: object
+          additionalProperties: true
+          description: Present where it helps the caller act, for example the allowed states.
+        requestId:
+          type: string
+          description: The invocation, for tracing a report from a clinic.
+
+  responses:
+    Unauthenticated:
+      description: No usable token.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { code: unauthenticated, message: the request carries no resolved caller }
+
+    Forbidden:
+      description: |
+        The permission matrix or a guard rule refuses this action. The body
+        names the permission and nothing about the record.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            code: forbidden
+            message: that action is not permitted for this account
+            detail: { permission: appointment.reschedule }
+
+    NotFound:
+      description: |
+        No such record within the caller's scope. Returned for a record that
+        exists but is out of scope as well, so a refusal cannot be used to
+        discover it.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { code: not_found, message: no such appointment }
+
+    Conflict:
+      description: |
+        The state no longer allows the action, or a slot unit is taken. The
+        detail carries the states the lifecycle does allow.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            code: conflict
+            message: a appointment in PATIENT_CANCELLED cannot move to PATIENT_CANCELLED
+            detail:
+              from: PATIENT_CANCELLED
+              requested: PATIENT_CANCELLED
+              allowed: []

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atria-spec"
+version = "0.1.0"
+description = "Atria Rev B specification data: roles, permissions, data model, table design, lifecycles"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["atria_spec*"]
+
+[tool.setuptools.package-data]
+atria_spec = ["py.typed"]
+
+[tool.ruff]
+# Wider than the backend: the generator holds lines of TypeScript, and the data
+# tables read better unwrapped.
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+# The spec modules are data tables. Long descriptions are written as adjacent
+# string literals so the tables stay readable, which is why ISC is not selected.
+select = ["E", "F", "W", "I", "UP", "B", "ANN", "RET", "SIM", "C4"]
+
+[tool.ruff.format]
+# The spec is hand aligned data. Lint it, do not reflow it.
+exclude = ["atria_spec/*.py"]

@@ -1,0 +1,56 @@
+# dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# build output
+dist/
+build/
+out/
+*.tsbuildinfo
+coverage/
+.turbo/
+
+# python environments
+.venv/
+venv/
+*.egg-info/
+
+# cdk
+infra/.venv/
+infra/cdk.out/
+infra/build/
+infra/.pytest_cache/
+**/__pycache__/
+*.py[cod]
+
+# flutter and dart
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/build/
+app/ios/Pods/
+app/android/.gradle/
+app/android/local.properties
+
+# local state and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.aws-sam/
+local-dynamodb/
+
+# editors and os
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# logs
+*.log
+npm-debug.log*

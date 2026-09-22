@@ -64,13 +64,17 @@ class Repository:
         """Every item in one partition, optionally narrowed by sort key prefix."""
         expression = "#pk = :pk"
         values: dict[str, Any] = {":pk": pk}
+        # DynamoDB refuses an attribute name the expression does not use, so
+        # the sort key is declared only when it is being matched on.
+        names = {"#pk": "pk"}
         if sk_prefix is not None:
             expression += " AND begins_with(#sk, :sk)"
             values[":sk"] = sk_prefix
+            names["#sk"] = "sk"
         return list(
             self._paginate(
                 KeyConditionExpression=expression,
-                ExpressionAttributeNames={"#pk": "pk", "#sk": "sk"},
+                ExpressionAttributeNames=names,
                 ExpressionAttributeValues=values,
             )
         )

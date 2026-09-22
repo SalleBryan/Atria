@@ -100,6 +100,17 @@ class ApiStack(Stack):
             )
         )
 
+        self.booking_service = self._service(
+            "BookingService",
+            handler="atria.services.booking.appointments.handler",
+            description="Books appointments on the specialist line and holds their grid units",
+            environment=common_environment,
+        )
+        # Read and write on the one table: the booking transaction writes the
+        # appointment, its first event and a lock per grid unit, and reads the
+        # tenant, the appointment type, the patient and the clinician first.
+        data.main_table.grant_read_write_data(self.booking_service)
+
         self.access_log = logs.LogGroup(
             self,
             "AccessLog",
@@ -180,6 +191,17 @@ class ApiStack(Stack):
                 authorizer=self.request_authoriser,
                 authorization_type=apigateway.AuthorizationType.CUSTOM,
             )
+
+        # /appointments. A patient reaches this as well as staff, so the route
+        # is not under /admin; appointment.create and its scope are what decide
+        # who may book for whom (core.permissions, checked in the service).
+        appointments = self.api.root.add_resource("appointments")
+        appointments.add_method(
+            "POST",
+            apigateway.LambdaIntegration(self.booking_service, proxy=True),
+            authorizer=self.request_authoriser,
+            authorization_type=apigateway.AuthorizationType.CUSTOM,
+        )
 
     def _service(
         self,

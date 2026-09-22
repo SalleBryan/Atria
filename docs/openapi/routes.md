@@ -39,7 +39,6 @@ are in the contract and built (2026-09-22), so they are not repeated here.
 
 | Method | Path | Permission | Purpose |
 | --- | --- | --- | --- |
-| POST | `/appointments` | appointment.create | Specialist booking: type, clinician, start, channel, intake answers and consent. Locks N units atomically |
 | POST | `/sessions/{id}/tickets` | appointment.create | General line: issue a queue ticket; position assigned by the server |
 | GET | `/tickets/{id}` | appointment.read | Live position and arrival window |
 | POST | `/procedure-requests` | procedure.request | Raise a REQUESTED appointment with no time held |
@@ -53,6 +52,9 @@ are in the contract and built (2026-09-22), so they are not repeated here.
 | POST | `/sessions/{id}/next` | queue.assign_next | Assign the next ticket to the calling clinician |
 | GET and PUT | `/appointments/{id}/care-context` | care_context.read and care_context.write | Care context for the patient and the assigned clinician only |
 | POST | `/appointments/{id}/referral` | appointment.create | Referring facility and clinician, with a presigned upload for the note |
+
+`POST /appointments` is in the contract and built (2026-09-22), so it is not
+repeated here.
 
 ## People, quality and money
 

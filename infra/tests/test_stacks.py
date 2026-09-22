@@ -30,6 +30,28 @@ def template_for(app: cdk.App, stack: str) -> Template:
     return Template.from_stack(found)
 
 
+def routes(template: Template) -> set[tuple[str, str]]:
+    """Every (path part, method) the API serves.
+
+    Matched through each method's ResourceId rather than counted, so adding a
+    route somewhere else in the API cannot make an assertion about this one
+    start passing or failing for the wrong reason.
+    """
+    parts = {
+        logical: resource["Properties"]["PathPart"]
+        for logical, resource in template.find_resources("AWS::ApiGateway::Resource").items()
+    }
+    found: set[tuple[str, str]] = set()
+    for method in template.find_resources("AWS::ApiGateway::Method").values():
+        resource_id = method["Properties"].get("ResourceId")
+        if not isinstance(resource_id, dict):
+            continue
+        part = parts.get(str(resource_id.get("Ref")))
+        if part:
+            found.add((part, method["Properties"]["HttpMethod"]))
+    return found
+
+
 class TestDataStack:
     def test_one_main_table_and_one_care_context_table(self, synthesised):
         template_for(synthesised, "data").resource_count_is("AWS::DynamoDB::GlobalTable", 2)
@@ -156,13 +178,18 @@ class TestApiStack:
         assert {"admin", "staff", "{id}", "roles", "suspend"} <= parts
 
     def test_the_staff_routes_use_the_right_methods(self, synthesised):
-        template = template_for(synthesised, "api")
-        methods = template.find_resources("AWS::ApiGateway::Method")
-        by_method = [m["Properties"]["HttpMethod"] for m in methods.values()]
-        # POST /admin/staff, PATCH .../roles, POST .../suspend, plus GET /me.
-        assert by_method.count("POST") == 2
-        assert by_method.count("PATCH") == 1
-        assert by_method.count("GET") == 1
+        served = routes(template_for(synthesised, "api"))
+        assert ("staff", "POST") in served
+        assert ("roles", "PATCH") in served
+        assert ("suspend", "POST") in served
+        # A staff account is never deleted, only suspended.
+        assert not any(method == "DELETE" for _part, method in served)
+
+    def test_booking_is_served_on_its_own_route(self, synthesised):
+        """Not under /admin: a patient books too, and the matrix decides for whom."""
+        served = routes(template_for(synthesised, "api"))
+        assert ("appointments", "POST") in served
+        assert ("me", "GET") in served
 
     def test_the_staff_service_can_manage_pool_accounts(self, synthesised):
         """Scoped to admin create, delete and global sign out, nothing wider."""

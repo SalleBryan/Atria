@@ -224,6 +224,97 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /appointments:
+    post:
+      tags: [Booking]
+      operationId: bookAppointment
+      summary: Book an appointment on the specialist line
+      description: |
+        Permission appointment.create. A patient books for themselves, and
+        staff book for a patient of their own clinic; where the caller is
+        booking for their own patient profile every staff scope is dropped and
+        only the patient row applies, so staff tooling cannot be turned on
+        one's own record (guard SELF_SUBJECT_DROPS_STAFF_SCOPE).
+
+        The appointment holds its time by locking one item per grid unit it
+        covers, including the appointment type's buffer, all in one transaction
+        with the appointment and its first event. If any unit is already held
+        the whole request fails with 409 and nothing is written, so two
+        patients asking for one minute produce one booking.
+
+        clinicId is not accepted: the clinic comes from the chosen clinician's
+        membership, because it decides which staff scope reaches the record.
+        endAt, state and version are derived and are refused if supplied
+        (guard SERVER_ASSIGNED_ORDER).
+
+        Implements FR-BKG-01, FR-BKG-02, FR-BKG-05, FR-BKG-07.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookAppointment"
+            examples:
+              patient:
+                summary: A patient booking their own specialist appointment
+                value:
+                  appointmentTypeId: at-spec-first
+                  clinicianProfileId: s-clin-1
+                  startAt: "2026-03-04T08:00:00Z"
+              reception:
+                summary: The front desk booking for a patient by phone
+                value:
+                  patientProfileId: pp-1
+                  appointmentTypeId: at-spec-first
+                  clinicianProfileId: s-clin-1
+                  startAt: "2026-03-04T08:00:00Z"
+                  channel: PHONE
+      responses:
+        "201":
+          description: The appointment, with the reference the patient quotes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+        "400":
+          description: |
+            A field is missing or malformed, the start is off the grid unit
+            boundary, the start falls outside the type's notice or booking
+            window, or a derived field was supplied.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example:
+                code: invalid_request
+                message: startAt must fall on a grid unit boundary
+                detail: { gridUnitMinutes: 10 }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: |
+            No such clinician, patient or appointment type within the caller's
+            tenant. A record out of the caller's scope is reported the same
+            way, so a refusal cannot be used to discover that it exists.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: |
+            A grid unit the appointment needs is already held, or the clinician
+            is not currently taking appointments. Nothing was written.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example:
+                code: conflict
+                message: that time is no longer free
+                detail:
+                  clinicianProfileId: s-clin-1
+                  startAt: "2026-03-04T08:00:00Z"
+                  units: 4
+
 components:
   parameters:
     StaffId:
@@ -377,6 +468,99 @@ components:
         note:
           type: string
           description: A short note on what the caller should know, for example when a role change takes effect.
+
+    BookAppointment:
+      type: object
+      additionalProperties: false
+      required: [appointmentTypeId, clinicianProfileId, startAt]
+      description: |
+        clinicId is deliberately absent: it comes from the clinician's
+        membership. endAt, state, version and the other derived fields are
+        refused if supplied rather than being ignored.
+      properties:
+        patientProfileId:
+          type: string
+          description: |
+            Who the appointment is for. Required when staff book; ignored when
+            a patient books, because a patient books only for themselves.
+        appointmentTypeId:
+          type: string
+          description: Carries the duration and buffer in grid units, and the booking window.
+        clinicianProfileId:
+          type: string
+          description: The staff membership of the clinician being booked. Decides the clinic.
+        startAt:
+          type: string
+          format: date-time
+          description: |
+            An ISO 8601 instant carrying a UTC offset, on a grid unit boundary.
+            A value without an offset is refused rather than read as UTC.
+        channel:
+          type: string
+          enum: [ONLINE, WALK_IN, PHONE, REFERRAL]
+          default: ONLINE
+          description: How the booking reached the clinic. Independent of the type (D-12).
+        referralId:
+          type: string
+          description: Where a specialist appointment came from, where there is a referral.
+        careContextId:
+          type: string
+          description: What the patient chose to send ahead of this one visit.
+        reason:
+          type: string
+          description: Recorded on the appointment's first event.
+
+    Appointment:
+      type: object
+      additionalProperties: false
+      required: [appointmentId, reference, tenantId, clinicId, patientProfileId, startAt, endAt, state]
+      properties:
+        appointmentId: { type: string }
+        reference:
+          type: string
+          description: What the patient quotes at the desk, for example APT-0123456789.
+        tenantId: { type: string }
+        clinicId:
+          type: string
+          description: From the clinician's membership, not from the request.
+        patientProfileId: { type: string }
+        appointmentTypeId: { type: string }
+        clinicianProfileId:
+          type: [string, "null"]
+          description: Set on the specialist line. Null on the general line, which uses a session.
+        sessionId:
+          type: [string, "null"]
+          description: |
+            Set on the general line, and null here, because an appointment
+            holds either a clinician and a time or a session, never both.
+        startAt: { type: string, format: date-time }
+        endAt:
+          type: string
+          format: date-time
+          description: |
+            From the type's durationUnits. The type's buffer is locked after
+            this, so the next booking cannot start inside the turnaround, but
+            it is not part of the appointment the patient is told about.
+        state:
+          type: string
+          enum:
+            [REQUESTED, DECLINED, BOOKED, CONFIRMED, RESCHEDULED, DISRUPTED, ARRIVED,
+             IN_CONSULTATION, COMPLETED, AWAITING_FEEDBACK, CLINIC_CANCELLED,
+             PATIENT_CANCELLED, NO_SHOW]
+          description: BOOKED on creation. Confirmation is the patient's own act.
+        channel:
+          type: string
+          enum: [ONLINE, WALK_IN, PHONE, REFERRAL]
+        bookedByPersonId: { type: string }
+        bookedByRole:
+          type: [string, "null"]
+          description: The staff role used. Null where the patient booked for themselves.
+        referralId: { type: [string, "null"] }
+        careContextId: { type: [string, "null"] }
+        version:
+          type: integer
+          description: Optimistic concurrency for offline staff writes.
+        createdAt: { type: string, format: date-time }
 
     Error:
       type: object

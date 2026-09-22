@@ -16,6 +16,7 @@ from typing import Any
 
 from aws_cdk import Duration, RemovalPolicy, Stack
 from aws_cdk import aws_apigateway as apigateway
+from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_logs as logs
 from constructs import Construct
@@ -72,10 +73,32 @@ class ApiStack(Stack):
         self.identity_service = self._service(
             "IdentityService",
             handler="atria.services.identity.handler.handler",
-            description="Profile completion, phone verification, staff provisioning",
+            description="Profile completion, phone verification",
             environment=common_environment,
         )
         data.main_table.grant_read_write_data(self.identity_service)
+
+        self.staff_service = self._service(
+            "StaffService",
+            handler="atria.services.identity.staff.handler",
+            description="Tenant administrator creates, changes and suspends staff accounts",
+            environment={**common_environment, "USER_POOL_ID": pool.user_pool_id},
+        )
+        data.main_table.grant_read_write_data(self.staff_service)
+        # Scoped to this one pool and to exactly the calls the service makes:
+        # create an account, roll it back if the table write fails, and end a
+        # suspended account's sessions. Nothing wider, and no read of another
+        # pool's users.
+        self.staff_service.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "cognito-idp:AdminCreateUser",
+                    "cognito-idp:AdminDeleteUser",
+                    "cognito-idp:AdminUserGlobalSignOut",
+                ],
+                resources=[pool.user_pool_arn],
+            )
+        )
 
         self.access_log = logs.LogGroup(
             self,
@@ -135,6 +158,28 @@ class ApiStack(Stack):
             authorizer=self.request_authoriser,
             authorization_type=apigateway.AuthorizationType.CUSTOM,
         )
+
+        # /admin/staff, /admin/staff/{id}/roles, /admin/staff/{id}/suspend.
+        # Every route still goes through the same authoriser; staff.create,
+        # staff.update_roles and staff.suspend are what actually confine these
+        # to a tenant administrator (core.permissions, checked in the service).
+        staff_integration = apigateway.LambdaIntegration(self.staff_service, proxy=True)
+        admin = self.api.root.add_resource("admin")
+        staff = admin.add_resource("staff")
+        staff.add_method(
+            "POST",
+            staff_integration,
+            authorizer=self.request_authoriser,
+            authorization_type=apigateway.AuthorizationType.CUSTOM,
+        )
+        staff_member = staff.add_resource("{id}")
+        for path, method in (("roles", "PATCH"), ("suspend", "POST")):
+            staff_member.add_resource(path).add_method(
+                method,
+                staff_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
 
     def _service(
         self,

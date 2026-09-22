@@ -19,10 +19,10 @@ and becomes one operation per method and path when it is specified properly.
 | POST | `/me/guardian` | patient.update (own) | Link a guardian for a patient under 18 and record consent method |
 | GET and PUT | `/me/preferences` | patient.update (own) | Channels, lead times, proxy recipient, auto-accept for same-day offers |
 | GET and POST | `/me/consents and /me/export and /me/erasure` | patient.read (own) | Data subject rights |
-| POST | `/admin/staff` | staff.create | Create a staff account with its roles; fields per role are enforced in the service |
-| PATCH | `/admin/staff/{id}/roles` | staff.update_roles | Change the roles on an existing account; takes effect at next sign-in |
-| POST | `/admin/staff/{id}/suspend` | staff.suspend | Suspend an account and revoke its refresh tokens |
 | PUT | `/admin/staff/{id}/priority-allowance` | priority_allowance.grant | Grant or change a monthly priority quota |
+
+`POST /admin/staff`, `PATCH /admin/staff/{id}/roles` and `POST /admin/staff/{id}/suspend`
+are in the contract and built (2026-09-22), so they are not repeated here.
 
 ## Directory and capacity
 

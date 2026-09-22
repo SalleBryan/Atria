@@ -89,7 +89,150 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /admin/staff:
+    post:
+      tags: [Identity and accounts]
+      operationId: createStaffAccount
+      summary: Create a staff account with its roles
+      description: |
+        Only a tenant administrator reaches this (permission staff.create). No
+        staff account can carry the patient role: self-registration exists for
+        patients only. The fields required depend on the roles requested and
+        are read from spec/atria_spec/roles.py, not restated here; a clinician
+        needs specialty, registrationYear, ordreNumber and languages on top of
+        what every role needs.
+
+        Creates the Cognito pool account first, then the person, the staff
+        membership and any clinician profile in one transaction. If the second
+        step fails the pool account is removed again, so a failed call never
+        leaves a half made account.
+
+        Implements FR-ACC-03, FR-ACC-04.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStaffAccount"
+            examples:
+              receptionist:
+                summary: A receptionist
+                value:
+                  givenName: Amina
+                  familyName: Ngo
+                  phoneE164: "+237600000001"
+                  clinicId: c-douala-01
+                  roles: [RECEPTIONIST]
+              clinician:
+                summary: A clinician
+                value:
+                  givenName: Paul
+                  familyName: Etoa
+                  phoneE164: "+237600000002"
+                  clinicId: c-douala-01
+                  roles: [CLINICIAN]
+                  specialty: Paediatrics
+                  registrationYear: 2012
+                  ordreNumber: CM-ONMC-12345
+                  languages: [fr, en]
+      responses:
+        "201":
+          description: The account, with the sign-in name and a one-time temporary password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAccount"
+        "400":
+          description: A required field for the requested roles is missing, or a value is malformed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example:
+                code: invalid_request
+                message: required fields are missing
+                detail: { missing: [clinicId], roles: [RECEPTIONIST] }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/staff/{id}/roles:
+    patch:
+      tags: [Identity and accounts]
+      operationId: changeStaffRoles
+      summary: Change the roles on an existing account
+      description: |
+        Permission staff.update_roles, scoped to the account's own clinic for
+        a clinic scoped caller. Roles travel in the access token, so the
+        change applies at the account's next sign-in and not before
+        (ADR 0015). No staff account can be changed to hold the patient role.
+
+        Implements FR-ACC-18.
+      parameters:
+        - $ref: "#/components/parameters/StaffId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [roles]
+              properties:
+                roles:
+                  type: array
+                  items: { $ref: "#/components/schemas/Role" }
+      responses:
+        "200":
+          description: The account with its new roles, and when they take effect.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAccount"
+        "400":
+          $ref: "#/components/responses/Invalid"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/staff/{id}/suspend:
+    post:
+      tags: [Identity and accounts]
+      operationId: suspendStaffAccount
+      summary: Suspend an account and revoke its sessions
+      description: |
+        Permission staff.suspend. Sets the membership to SUSPENDED and calls
+        Cognito's global sign out for the account, so a console left open
+        elsewhere stops working immediately rather than when its token
+        expires.
+      parameters:
+        - $ref: "#/components/parameters/StaffId"
+      responses:
+        "200":
+          description: The account, suspended.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAccount"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
+  parameters:
+    StaffId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      description: The staff membership id, scoped to the caller's tenant.
+
   securitySchemes:
     cognito:
       type: http
@@ -160,6 +303,81 @@ components:
           items: { type: string }
           description: The screen each role lands on after signing in.
 
+    CreateStaffAccount:
+      type: object
+      additionalProperties: false
+      required: [givenName, familyName, phoneE164, roles]
+      description: |
+        Every field the requested roles require must be present; which fields
+        those are depends on the roles, and is read from
+        spec/atria_spec/roles.py REQUIRED_ON_CREATE.
+      properties:
+        givenName: { type: string }
+        familyName: { type: string }
+        phoneE164:
+          type: string
+          description: E.164, for example +237600000001.
+        roles:
+          type: array
+          items: { $ref: "#/components/schemas/Role" }
+          description: PATIENT is refused here; a staff account never carries it.
+        clinicId:
+          type: string
+          description: Required for a role scoped to a clinic (receptionist, clinician, clinic manager).
+        email:
+          type: string
+          description: Required for a tenant administrator; the sign-in name when there is no clinic.
+        employeeNumber: { type: string }
+        specialty:
+          type: string
+          description: Required for a clinician.
+        registrationYear:
+          type: integer
+          description: Required for a clinician. Year entered on the Order's roll.
+        ordreNumber:
+          type: string
+          description: Required for a clinician.
+        languages:
+          type: array
+          items: { type: string }
+          description: Required for a clinician.
+        qualifications:
+          type: array
+          items: { type: string }
+
+    StaffAccount:
+      type: object
+      additionalProperties: false
+      required: [staffId, personId, tenantId, roles, status]
+      properties:
+        staffId: { type: string }
+        personId: { type: string }
+        tenantId: { type: string }
+        clinicId: { type: [string, "null"] }
+        roles:
+          type: array
+          items: { $ref: "#/components/schemas/Role" }
+        status:
+          type: string
+          enum: [INVITED, ACTIVE, SUSPENDED, ENDED]
+        givenName: { type: [string, "null"] }
+        familyName: { type: [string, "null"] }
+        phoneE164: { type: [string, "null"] }
+        email: { type: [string, "null"] }
+        employeeNumber: { type: [string, "null"] }
+        signInName:
+          type: string
+          description: Present only on the create response. What the account signs in with.
+        temporaryPassword:
+          type: string
+          description: |
+            Present only on the create response, and only there: it is
+            returned once for the administrator to pass on out of band, never
+            stored and never logged.
+        note:
+          type: string
+          description: A short note on what the caller should know, for example when a role change takes effect.
+
     Error:
       type: object
       additionalProperties: false
@@ -180,6 +398,15 @@ components:
           description: The invocation, for tracing a report from a clinic.
 
   responses:
+    Invalid:
+      description: The request is malformed, or fails a validation rule.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            code: invalid_request
+            message: at least one role is required
+
     Unauthenticated:
       description: No usable token.
       content:

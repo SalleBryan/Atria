@@ -130,6 +130,50 @@ class TestApiStack:
         resources = template.find_resources("AWS::ApiGateway::Resource")
         assert any(r["Properties"]["PathPart"] == "me" for r in resources.values())
 
+    def test_the_staff_routes_exist(self, synthesised):
+        template = template_for(synthesised, "api")
+        parts = {
+            r["Properties"]["PathPart"] for r in template.find_resources("AWS::ApiGateway::Resource").values()
+        }
+        assert {"admin", "staff", "{id}", "roles", "suspend"} <= parts
+
+    def test_the_staff_routes_use_the_right_methods(self, synthesised):
+        template = template_for(synthesised, "api")
+        methods = template.find_resources("AWS::ApiGateway::Method")
+        by_method = [m["Properties"]["HttpMethod"] for m in methods.values()]
+        # POST /admin/staff, PATCH .../roles, POST .../suspend, plus GET /me.
+        assert by_method.count("POST") == 2
+        assert by_method.count("PATCH") == 1
+        assert by_method.count("GET") == 1
+
+    def test_the_staff_service_can_manage_pool_accounts(self, synthesised):
+        """Scoped to admin create, delete and global sign out, nothing wider."""
+        template = template_for(synthesised, "api")
+        policies = template.find_resources("AWS::IAM::Policy")
+        actions: set[str] = set()
+        for policy in policies.values():
+            for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
+                action = statement.get("Action")
+                if action:
+                    actions.update(action if isinstance(action, list) else [action])
+        assert "cognito-idp:AdminCreateUser" in actions
+        assert "cognito-idp:AdminDeleteUser" in actions
+        assert "cognito-idp:AdminUserGlobalSignOut" in actions
+        # The identity service (GET /me) must not carry these: it never
+        # touches the pool, only the token it was handed.
+        assert "cognito-idp:AdminSetUserPassword" not in actions
+
+    def test_the_staff_service_knows_its_pool(self, synthesised):
+        template = template_for(synthesised, "api")
+        functions = template.find_resources("AWS::Lambda::Function")
+        staff_fn = next(
+            f
+            for f in functions.values()
+            if f["Properties"]["Handler"] == "atria.services.identity.staff.handler"
+        )
+        env = staff_fn["Properties"]["Environment"]["Variables"]
+        assert "USER_POOL_ID" in env
+
     def test_the_functions_run_the_pinned_runtime(self, synthesised):
         template = template_for(synthesised, "api")
         for function in template.find_resources("AWS::Lambda::Function").values():

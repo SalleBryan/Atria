@@ -20,6 +20,7 @@ venv/
 infra/.venv/
 infra/cdk.out/
 infra/build/
+infra/cdk-outputs.json
 infra/.pytest_cache/
 **/__pycache__/
 *.py[cod]

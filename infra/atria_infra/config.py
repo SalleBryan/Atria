@@ -35,6 +35,14 @@ class Environment:
     removal_protection: bool = False
     """Development tables and pools are destroyed with the stack. Set for production."""
 
+    admin_password_auth: bool = False
+    """Allow ADMIN_USER_PASSWORD_AUTH on the staff client.
+
+    Development only, so a script can sign in without implementing SRP. It
+    lets anyone holding AWS credentials sign in as any user, which is why it
+    stays off everywhere else.
+    """
+
     tags: dict[str, str] = field(default_factory=dict)
 
     @property
@@ -51,6 +59,7 @@ DEV = Environment(
     account=DEV_ACCOUNT,
     region="us-east-1",
     budget_alert_emails=("bryanjakevita@gmail.com",),
+    admin_password_auth=True,
     tags={
         "Project": "Atria",
         "Environment": "dev",

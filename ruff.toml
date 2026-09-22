@@ -1,0 +1,9 @@
+# Defaults for Python that sits outside the three projects, which is the
+# operational scripts in tools/. backend/, infra/ and spec/ each carry their own
+# configuration and are unaffected by this file.
+line-length = 100
+target-version = "py313"
+extend-exclude = [".venv", "infra", "backend", "spec", "web", "app"]
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "ANN", "RET", "SIM", "C4", "DTZ", "S"]

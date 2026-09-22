@@ -70,7 +70,14 @@ class IdentityStack(Stack):
             removal_policy=retain,
         )
 
+        # SRP only: the password never crosses the wire. Development adds the
+        # admin password flow so a smoke test can sign in without SRP.
         common_auth_flows = cognito.AuthFlow(user_srp=True, user_password=False)
+        staff_auth_flows = cognito.AuthFlow(
+            user_srp=True,
+            user_password=False,
+            admin_user_password=settings.admin_password_auth,
+        )
         refresh = Duration.days(30)
         access = Duration.hours(1)
 
@@ -91,7 +98,7 @@ class IdentityStack(Stack):
         self.staff_client = self.user_pool.add_client(
             "StaffClient",
             user_pool_client_name=f"{settings.prefix}-staff",
-            auth_flows=common_auth_flows,
+            auth_flows=staff_auth_flows,
             supported_identity_providers=[cognito.UserPoolClientIdentityProvider.COGNITO],
             access_token_validity=access,
             id_token_validity=access,

@@ -38,3 +38,6 @@ disallow_untyped_calls = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
+# app.py and atria_infra sit here, not on the installed path, so the tests can
+# import them whether pytest is run as `pytest` or as `python -m pytest`.
+pythonpath = ["."]

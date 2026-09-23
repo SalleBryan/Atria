@@ -73,6 +73,14 @@ class DataStack(Stack):
             # reads (ADR 0014). New and old images, so an event can carry the
             # transition rather than just the result.
             dynamo_stream=dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
+            # Expiry applies only to items that carry the attribute, and the
+            # records this table keeps for years do not: an appointment, an
+            # event, a person and a membership have no expiresAt, so booking
+            # history is untouched (ADR 0008). What does carry it is a slot
+            # lock, which is meaningless once its minute has passed, and an
+            # idempotency record, which lives 24 hours. Without this the table
+            # would keep one row per booked minute for ever.
+            time_to_live_attribute="expiresAt",
             removal_policy=retain,
             deletion_protection=settings.removal_protection,
         )

@@ -101,14 +101,18 @@ class TestDataStack:
             replicas = table["Properties"]["Replicas"]
             assert all("SSESpecification" in replica for replica in replicas)
 
-    def test_care_context_expires_and_bookings_do_not(self, synthesised):
-        """ADR 0006: care context is purged sooner than booking history."""
+    def test_both_tables_expire_on_the_same_attribute(self, synthesised):
+        """ADR 0006 and ADR 0008. Expiry is per item, not per table: only an
+        item carrying expiresAt is removed, which is a slot lock or an
+        idempotency record and never an appointment, an event or a person. The
+        main table previously had no expiry at all, so the locks that were
+        written with an expiry never went anywhere."""
         template = template_for(synthesised, "data")
         tables = template.find_resources("AWS::DynamoDB::GlobalTable")
-        care = next(t for t in tables.values() if t["Properties"]["TableName"].endswith("-care-context"))
-        main = next(t for t in tables.values() if t["Properties"]["TableName"].endswith("-main"))
-        assert care["Properties"]["TimeToLiveSpecification"]["Enabled"] is True
-        assert "TimeToLiveSpecification" not in main["Properties"]
+        for table in tables.values():
+            spec = table["Properties"]["TimeToLiveSpecification"]
+            assert spec["Enabled"] is True
+            assert spec["AttributeName"] == "expiresAt"
 
     def test_care_context_has_its_own_key(self, synthesised):
         template_for(synthesised, "data").resource_count_is("AWS::KMS::Key", 2)

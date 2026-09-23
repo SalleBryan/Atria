@@ -11,6 +11,11 @@ dependencies = [
     "aws-lambda-powertools[tracer]>=3.0",
     "pydantic>=2.9",
     "atria-spec",
+    # zoneinfo reads the operating system's timezone database, which Windows
+    # has none of and a container may or may not carry. Clinic hours and
+    # reminder times are computed in Africa/Douala (FR-REM-05), so the data
+    # ships with the code rather than varying by host.
+    "tzdata>=2024.2",
 ]
 
 [project.optional-dependencies]

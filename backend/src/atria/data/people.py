@@ -25,6 +25,12 @@ from atria.data import keys
 from atria.data.repository import Item, Repository
 
 PERSON_INDEX = "PersonIndex"
+DIRECTORY_INDEX = "DirectoryIndex"
+
+# Statuses a clinician is listed in the directory under. The same two the
+# booking service will accept, so the directory cannot offer somebody booking
+# would refuse.
+LISTED_STATUSES = ("INVITED", "ACTIVE")
 
 
 def new_id(prefix: str) -> str:
@@ -102,17 +108,48 @@ def membership_item(
     }
 
 
+def directory_key(tenant_id: str) -> str:
+    """The DirectoryIndex partition: every bookable clinician of one tenant."""
+    return f"{keys.TENANT}{tenant_id}#CLINICIAN"
+
+
+def directory_sort(*, registration_year: int, family_name: str, staff_id: str) -> str:
+    """Sorts most senior first.
+
+    The year rather than the seniority band, because the band is derived at
+    creation and would say the wrong thing a decade later, while the year on
+    the Order's roll never changes. Ascending year is descending seniority.
+    """
+    return f"{registration_year}#{family_name}#{staff_id}"
+
+
 def clinician_item(
-    *, staff_id: str, tenant_id: str, account: rules.StaffAccount, current_year: int
+    *,
+    staff_id: str,
+    tenant_id: str,
+    account: rules.StaffAccount,
+    current_year: int,
+    listed: bool = True,
 ) -> Item:
-    """The bookable part of a membership: only facts a listing may carry."""
+    """The bookable part of a membership: only facts a listing may carry.
+
+    `listed` controls membership of the sparse DirectoryIndex. A suspended
+    clinician has to leave the directory, or a patient is offered somebody the
+    booking service will then refuse.
+    """
     if account.registration_year is None:
         raise Invalid("registrationYear is required for a clinician")
-    return {
+    item: Item = {
         "type": "CLINICIAN_PROFILE",
         "clinicianProfileId": staff_id,
         "staffMembershipId": staff_id,
         "tenantId": tenant_id,
+        # Carried here as well as on the membership so the directory can filter
+        # by clinic in one read. An account's clinic is set at creation and
+        # there is no path that moves it, so the two cannot drift.
+        "clinicId": account.clinic_id,
+        "familyName": account.family_name,
+        "givenName": account.given_name,
         "specialty": account.specialty,
         "qualifications": list(account.qualifications),
         "registrationYear": account.registration_year,
@@ -120,6 +157,14 @@ def clinician_item(
         "languages": list(account.languages),
         "seniorityBand": rules.seniority_band(account.registration_year, current_year=current_year),
     }
+    if listed:
+        item["directoryKey"] = directory_key(tenant_id)
+        item["directorySort"] = directory_sort(
+            registration_year=account.registration_year,
+            family_name=account.family_name,
+            staff_id=staff_id,
+        )
+    return item
 
 
 def patient_profile_item(
@@ -217,6 +262,43 @@ class People:
             languages=tuple(
                 [person["preferredLanguage"]] if person.get("preferredLanguage") else []
             ),
+        )
+
+    def clinicians(
+        self,
+        tenant_id: str,
+        *,
+        specialty: str | None = None,
+        clinic_id: str | None = None,
+        name: str | None = None,
+    ) -> list[Item]:
+        """The tenant's bookable clinicians, most senior first (FR-DIR-01).
+
+        The index is already ordered and already excludes suspended accounts,
+        so the filters are applied here rather than in the query: a tenant's
+        clinician list is small, and a filter expression would cost the same
+        read while making the ordering harder to reason about.
+        """
+        found = self._repo.query_index(
+            DIRECTORY_INDEX, "directoryKey", directory_key(tenant_id)
+        )
+        if specialty:
+            wanted = specialty.casefold()
+            found = [c for c in found if str(c.get("specialty", "")).casefold() == wanted]
+        if clinic_id:
+            found = [c for c in found if c.get("clinicId") == clinic_id]
+        if name:
+            needle = name.casefold()
+            found = [
+                c
+                for c in found
+                if needle in f"{c.get('givenName', '')} {c.get('familyName', '')}".casefold()
+            ]
+        return found
+
+    def clinician(self, tenant_id: str, clinician_profile_id: str) -> Item:
+        return self._repo.require(
+            keys.clinician_profile(tenant_id, clinician_profile_id), what="clinician"
         )
 
     def person_record(self, person_id: str) -> Item:
@@ -347,7 +429,44 @@ class People:
             what="staff account",
         )
         self._sync_person(membership["personId"], updated)
+        if "CLINICIAN" in membership.get("roles", []):
+            self._sync_directory(tenant_id, staff_id, status=status)
         return updated
+
+    def _sync_directory(self, tenant_id: str, staff_id: str, *, status: str) -> None:
+        """Take a clinician in or out of the directory as their status changes.
+
+        DirectoryIndex is sparse, so this is a matter of carrying its keys or
+        not. A suspended clinician that stayed listed would be offered to a
+        patient and then refused by the booking service.
+        """
+        profile = self._repo.get(keys.clinician_profile(tenant_id, staff_id))
+        if profile is None:
+            return
+        listed = status in LISTED_STATUSES
+        if listed:
+            year = profile.get("registrationYear")
+            if year is None:  # pragma: no cover  a profile always carries one
+                return
+            self._repo.update_existing(
+                keys.clinician_profile(tenant_id, staff_id),
+                set_values={
+                    "directoryKey": directory_key(tenant_id),
+                    "directorySort": directory_sort(
+                        registration_year=int(year),
+                        family_name=str(profile.get("familyName", "")),
+                        staff_id=staff_id,
+                    ),
+                },
+                what="clinician profile",
+            )
+            return
+        self._repo.update_existing(
+            keys.clinician_profile(tenant_id, staff_id),
+            set_values={},
+            remove=("directoryKey", "directorySort"),
+            what="clinician profile",
+        )
 
     def _sync_person(self, person_id: str, membership: Item) -> None:
         """Keep the person's summary in step with the membership record."""

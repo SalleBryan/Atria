@@ -79,6 +79,40 @@ class Repository:
             )
         )
 
+    def get_many(self, wanted: Sequence[Key]) -> dict[tuple[str, str], Item]:
+        """Read many items by key in as few calls as possible.
+
+        Needed because a slot lock is one item per grid unit in its own
+        partition (ADR 0004), so a day's locks cannot be reached by a query.
+        Returned by (pk, sk) rather than as a list, because the caller is
+        asking which of a known set exist.
+        """
+        if not wanted:
+            return {}
+        client = self._table.meta.client
+        found: dict[tuple[str, str], Item] = {}
+        # BatchGetItem takes at most 100 keys per call.
+        for start in range(0, len(wanted), 100):
+            pending: list[dict[str, str]] = [
+                key.as_item() for key in wanted[start : start + 100]
+            ]
+            while pending:
+                response = client.batch_get_item(
+                    RequestItems={self._table.name: {"Keys": pending}}
+                )
+                for item in response.get("Responses", {}).get(self._table.name, []):
+                    found[(str(item["pk"]), str(item["sk"]))] = dict(item)
+                # A throttled batch returns what it could not read, and the
+                # request has to be repeated for those keys alone.
+                unprocessed: dict[str, Any] = dict(
+                    response.get("UnprocessedKeys", {}).get(self._table.name, {})
+                )
+                pending = [
+                    {"pk": str(key["pk"]), "sk": str(key["sk"])}
+                    for key in unprocessed.get("Keys", [])
+                ]
+        return found
+
     def query_index(
         self, index: str, attribute: str, value: str, *, limit: int | None = None
     ) -> list[Item]:
@@ -131,31 +165,47 @@ class Repository:
         set_values: Item,
         what: str,
         expect: tuple[str, Any] | None = None,
+        remove: Sequence[str] = (),
     ) -> Item:
         """Change fields on an item that must already exist.
 
         `expect` adds an attribute equality condition, which is how a state
         change is made safe against two requests racing: the caller says which
         state it believed the record was in.
+
+        `remove` deletes attributes outright, which is how an item leaves a
+        sparse index: an index only holds items that carry its key, so removing
+        the key is what takes the item out of the listing.
         """
         names = {f"#f{i}": field for i, field in enumerate(set_values)}
         values = {f":v{i}": value for i, value in enumerate(set_values.values())}
-        assignments = ", ".join(f"{n} = :v{i}" for i, n in enumerate(names))
+        clauses = []
+        if set_values:
+            assignments = ", ".join(f"{n} = :v{i}" for i, n in enumerate(names))
+            clauses.append(f"SET {assignments}")
+        if remove:
+            gone = {f"#r{i}": field for i, field in enumerate(remove)}
+            names.update(gone)
+            clauses.append(f"REMOVE {', '.join(gone)}")
+        if not clauses:
+            raise ValueError("an update must set or remove something")
         condition = "attribute_exists(pk) AND attribute_exists(sk)"
         if expect is not None:
             field, expected = expect
             names["#expect"] = field
             values[":expect"] = expected
             condition += " AND #expect = :expect"
+        request: dict[str, Any] = {
+            "Key": key.as_item(),
+            "UpdateExpression": " ".join(clauses),
+            "ConditionExpression": condition,
+            "ExpressionAttributeNames": names,
+            "ReturnValues": "ALL_NEW",
+        }
+        if values:
+            request["ExpressionAttributeValues"] = values
         try:
-            response = self._table.update_item(
-                Key=key.as_item(),
-                UpdateExpression=f"SET {assignments}",
-                ConditionExpression=condition,
-                ExpressionAttributeNames=names,
-                ExpressionAttributeValues=values,
-                ReturnValues="ALL_NEW",
-            )
+            response = self._table.update_item(**request)
         except ClientError as exc:
             if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
                 if expect is None:

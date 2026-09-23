@@ -43,7 +43,15 @@ INDEXES = [
     ('ClinicDayIndex', 'clinicId#date', 'startAt', 'The clinic day, the week and the requests inbox'),
     ('PersonIndex', 'cognitoSub', 'none', 'Resolving the signed-in person on every request'),
     ('OutboxIndex', 'outboxShard', 'createdAt', 'Change capture into the FIFO outbox, keyed on appointment id'),
+    ('DirectoryIndex', 'directoryKey', 'directorySort', 'The bookable clinicians of one tenant, most senior first'),
 ]
+
+# DirectoryIndex is sparse on purpose. A clinician profile carries directoryKey
+# only while the account is bookable, so suspending an account drops it out of
+# the directory rather than leaving it listed for a patient to choose and the
+# booking service to refuse. directorySort is registrationYear#familyName#staffId,
+# which sorts most senior first without going stale as the years pass, unlike
+# the seniority band, which is derived at creation.
 
 MAIN_TABLE = "Main"
 CARE_CONTEXT_TABLE = "Care context table, own key, TTL"

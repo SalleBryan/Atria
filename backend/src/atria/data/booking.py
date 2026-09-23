@@ -144,6 +144,34 @@ class Booking:
     def appointment(self, tenant_id: str, appointment_id: str) -> Item:
         return self._repo.require(keys.appointment(tenant_id, appointment_id), what="appointment")
 
+    def clinic(self, tenant_id: str, clinic_id: str) -> Item:
+        return self._repo.require(keys.clinic(tenant_id, clinic_id), what="clinic")
+
+    def region_pack(self, code: str) -> Item | None:
+        return self._repo.get(keys.region_pack(code))
+
+    def locked_units(
+        self, tenant_id: str, clinician_profile_id: str, units: list[str]
+    ) -> set[str]:
+        """Which of these grid units are already held.
+
+        One read for the whole day: a lock is its own partition, so there is no
+        query that spans them and a batch get is the only way to ask.
+        """
+        wanted = [keys.slot_lock(tenant_id, clinician_profile_id, unit) for unit in units]
+        found = self._repo.get_many(wanted)
+        return {
+            unit
+            for unit, key in zip(units, wanted, strict=True)
+            if (key.pk, key.sk) in found
+        }
+
+    def exceptions(self, tenant_id: str, clinician_profile_id: str) -> list[Item]:
+        """A clinician's availability exceptions. Marking one starts a disruption (D-03)."""
+        return self._repo.query_partition(
+            f"{keys.TENANT}{tenant_id}#CLIN#{clinician_profile_id}", sk_prefix="EXC#"
+        )
+
     def bookable_clinician(self, tenant_id: str, clinician_profile_id: str) -> Item:
         """The clinician's membership, which is also where their clinic comes from.
 

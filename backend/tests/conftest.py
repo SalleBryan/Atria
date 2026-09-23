@@ -33,6 +33,16 @@ INDEXES = [
         ],
         "Projection": {"ProjectionType": "ALL"},
     },
+    {
+        # Sparse: only a bookable clinician profile carries these, which is how
+        # a suspended account leaves the directory.
+        "IndexName": "DirectoryIndex",
+        "KeySchema": [
+            {"AttributeName": "directoryKey", "KeyType": "HASH"},
+            {"AttributeName": "directorySort", "KeyType": "RANGE"},
+        ],
+        "Projection": {"ProjectionType": "ALL"},
+    },
 ]
 
 ATTRIBUTES = [
@@ -41,6 +51,8 @@ ATTRIBUTES = [
     {"AttributeName": "cognitoSub", "AttributeType": "S"},
     {"AttributeName": "patientProfileId", "AttributeType": "S"},
     {"AttributeName": "startAt", "AttributeType": "S"},
+    {"AttributeName": "directoryKey", "AttributeType": "S"},
+    {"AttributeName": "directorySort", "AttributeType": "S"},
 ]
 
 

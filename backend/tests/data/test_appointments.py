@@ -128,6 +128,17 @@ class TestBookSpecialist:
             lock = repository.get(keys.slot_lock(TENANT, CLINICIAN, unit))
             assert lock["appointmentId"] == appointment["appointmentId"]
 
+    def test_nothing_that_is_kept_carries_an_expiry(self, seeded, booking, repository):
+        """The table expires any item carrying expiresAt, so an appointment or
+        an event that acquired one would delete itself. Booking history is
+        retained for ten years (ADR 0008)."""
+        appointment, event = book(booking)
+        assert "expiresAt" not in appointment
+        assert "expiresAt" not in event
+        stored = repository.get(keys.appointment(TENANT, appointment["appointmentId"]))
+        assert stored is not None
+        assert "expiresAt" not in stored
+
     def test_a_lock_expires_after_the_time_it_guards(self, seeded, booking, repository):
         """A lock is meaningless once its minute has passed, so it is not kept."""
         held = occupancy()

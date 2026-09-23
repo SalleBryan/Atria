@@ -45,6 +45,7 @@ export const KEY_PATTERNS: readonly KeyPattern[] = [
   { entity: "Reminder", pk: "TENANT#t#APPT#id", sk: "REMINDER#sendAt", table: "Main" },
   { entity: "Message log", pk: "TENANT#t#MSG#yyyy-mm-dd", sk: "sentAt#messageId", table: "Main" },
   { entity: "Audit entry", pk: "TENANT#t#AUDIT#yyyy-mm-dd", sk: "ts#auditId", table: "Main" },
+  { entity: "Idempotency record", pk: "TENANT#t#IDEM#key", sk: "RECORD", table: "Main" },
   { entity: "Care context", pk: "TENANT#t#APPT#id", sk: "CARE", table: "Care context table, own key, TTL" },
 ];
 

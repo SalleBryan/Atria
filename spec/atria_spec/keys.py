@@ -34,6 +34,7 @@ KEYS = [
     ('Reminder', 'TENANT#t#APPT#id', 'REMINDER#sendAt', 'Main'),
     ('Message log', 'TENANT#t#MSG#yyyy-mm-dd', 'sentAt#messageId', 'Main'),
     ('Audit entry', 'TENANT#t#AUDIT#yyyy-mm-dd', 'ts#auditId', 'Main'),
+    ('Idempotency record', 'TENANT#t#IDEM#key', 'RECORD', 'Main'),
     ('Care context', 'TENANT#t#APPT#id', 'CARE', 'Care context table, own key, TTL'),
 ]
 

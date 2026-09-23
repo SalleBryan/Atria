@@ -60,8 +60,13 @@ def ok(body: object) -> dict[str, Any]:
     return response(200, body)
 
 
-def created(body: object, *, location: str | None = None) -> dict[str, Any]:
-    return response(201, body, headers={"Location": location} if location else None)
+def created(
+    body: object, *, location: str | None = None, headers: dict[str, str] | None = None
+) -> dict[str, Any]:
+    combined = dict(headers or {})
+    if location:
+        combined["Location"] = location
+    return response(201, body, headers=combined or None)
 
 
 def no_content() -> dict[str, Any]:

@@ -43,6 +43,7 @@ BUILT = {
     "Reminder": keys.reminder("t1", "a1", "2026-03-03T08:00:00Z"),
     "Message log": keys.message_log("t1", "2026-03-04", "2026-03-04T08:00:00Z", "m1"),
     "Audit entry": keys.audit_entry("t1", "2026-03-04", "2026-03-04T08:00:00Z", "au1"),
+    "Idempotency record": keys.idempotency("t1", "idem-0123456789"),
     "Care context": keys.care_context("t1", "a1"),
 }
 

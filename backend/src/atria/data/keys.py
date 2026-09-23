@@ -144,5 +144,14 @@ def message_log(tenant_id: str, day: str, sent_at: str, message_id: str) -> Key:
     return Key(f"{TENANT}{tenant_id}#MSG#{day}", f"{sent_at}#{message_id}")
 
 
+def idempotency(tenant_id: str, key: str) -> Key:
+    """One record per idempotency key, per tenant.
+
+    Scoped to the tenant so one tenant's key cannot collide with another's,
+    and expired by the table's TTL rather than deleted by anything (FR-BKG-04).
+    """
+    return Key(f"{TENANT}{tenant_id}#IDEM#{key}", "RECORD")
+
+
 def audit_entry(tenant_id: str, day: str, ts: str, audit_id: str) -> Key:
     return Key(f"{TENANT}{tenant_id}#AUDIT#{day}", f"{ts}#{audit_id}")

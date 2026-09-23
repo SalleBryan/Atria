@@ -240,6 +240,10 @@ class Repository:
             raise
         return dict(response["Attributes"])
 
+    def delete(self, key: Key) -> None:
+        """Remove one item. Absent is success: the caller wanted it gone."""
+        self._table.delete_item(Key=key.as_item())
+
     def change_together(
         self,
         *,

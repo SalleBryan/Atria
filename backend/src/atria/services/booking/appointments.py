@@ -21,10 +21,11 @@ from aws_lambda_powertools import Logger
 
 from atria.core import booking as rules
 from atria.core import lifecycle, permissions
-from atria.core.errors import AtriaError, Invalid
+from atria.core.errors import AtriaError, Conflict, Invalid
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
 from atria.data.booking import FUTURE_YEARS, HISTORY_YEARS, Booking
+from atria.data.idempotency import COMPLETED, Idempotency, validate_key
 from atria.data.repository import Repository
 from atria.http import requests, responses
 from atria.http.handler import api
@@ -33,7 +34,10 @@ logger = Logger(service="atria-booking")
 
 WHEN = ("upcoming", "past", "all")
 
+IDEMPOTENCY_HEADER = "Idempotency-Key"
+
 _booking: Booking | None = None
+_idempotency: Idempotency | None = None
 
 
 def booking() -> Booking:
@@ -41,6 +45,13 @@ def booking() -> Booking:
     if _booking is None:
         _booking = Booking(Repository())
     return _booking
+
+
+def idempotency() -> Idempotency:
+    global _idempotency
+    if _idempotency is None:
+        _idempotency = Idempotency(Repository())
+    return _idempotency
 
 
 # What the API returns. Listed rather than passing the record through, because
@@ -305,6 +316,46 @@ def create(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
     return appointment_view(appointment)
 
 
+def book(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    """POST /appointments, absorbing a retry that carries the same key.
+
+    Without a key this is simply a booking. With one, the key is claimed before
+    the work starts, so two requests arriving together cannot both proceed, and
+    a repeat is answered with the original appointment rather than the 409 the
+    slot locks would otherwise produce (FR-BKG-04).
+    """
+    body = requests.json_body(event)
+    supplied = requests.header(event, IDEMPOTENCY_HEADER)
+    if supplied is None:
+        return responses.created(create(principal, body))
+
+    key = validate_key(supplied)
+    store = idempotency()
+    held = store.claim(principal.tenant_id, key, request=body)
+    if held is not None:
+        if str(held.get("status")) != COMPLETED:
+            # The first attempt is still running. Retrying again later is the
+            # right answer; returning a half finished booking is not.
+            raise Conflict(
+                "a request with that Idempotency-Key is still being processed",
+                detail={"idempotencyKey": key},
+            )
+        logger.info("idempotent replay", extra={"idempotencyKey": key})
+        return responses.created(
+            held.get("response"), headers={"Idempotency-Replayed": "true"}
+        )
+
+    try:
+        booked = create(principal, body)
+    except Exception:
+        # The key goes back, or the client's retry would be refused for a day
+        # because of a failure that had nothing to do with the key.
+        store.release(principal.tenant_id, key)
+        raise
+    store.record(principal.tenant_id, key, response=booked)
+    return responses.created(booked)
+
+
 @api
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     """POST /appointments, GET /patients/me/appointments, GET /appointments/{id}"""
@@ -313,7 +364,7 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     resource = str(event.get("resource", ""))
 
     if method == "POST" and resource.endswith("/appointments"):
-        return responses.created(create(principal, requests.json_body(event)))
+        return book(principal, event)
     if method == "GET" and resource.endswith("/patients/me/appointments"):
         return responses.ok(mine(principal, event))
     if method == "GET" and resource.endswith("/appointments/{id}"):

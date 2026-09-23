@@ -65,6 +65,25 @@ def query_parameter(event: dict[str, Any], name: str, default: str | None = None
     return (event.get("queryStringParameters") or {}).get(name, default)
 
 
+def header(event: dict[str, Any], name: str) -> str | None:
+    """One request header, found whatever case the client sent it in.
+
+    HTTP header names are case insensitive and API Gateway passes through
+    whatever arrived, so matching on an exact spelling would work with one
+    client and quietly fail with the next.
+
+    Returns the value even when it is empty, so a caller can tell a header
+    that arrived blank from one that never arrived. A client that sends an
+    empty Idempotency-Key meant to send a key, and treating that as absent
+    would quietly book without the protection it asked for.
+    """
+    wanted = name.lower()
+    for key, value in (event.get("headers") or {}).items():
+        if str(key).lower() == wanted:
+            return str(value) if value is not None else ""
+    return None
+
+
 def _optional(value: object) -> str | None:
     """Authoriser context cannot carry null, so an empty string means absent."""
     text = str(value) if value is not None else ""

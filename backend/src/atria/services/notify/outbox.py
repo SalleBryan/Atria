@@ -1,0 +1,133 @@
+"""Change capture into the FIFO outbox.
+
+The table's stream is the only trustworthy source of what actually happened: a
+booking that committed cannot then fail to notify, which is exactly what would
+occur if the API enqueued the notice itself and then died. This reads the
+stream and puts one message on the outbox queue per state a patient should
+hear about.
+
+The queue is FIFO and grouped by appointment, so a booking and its cancellation
+cannot be composed out of order. Ordering across different appointments does
+not matter and grouping by appointment is what keeps one busy record from
+holding up everybody else's.
+
+Nothing is composed here. This decides only that something happened and which
+notice it owes (FR-MSG-01, FR-MSG-02).
+
+One deliberate simplification against the Technical Document, which sketches a
+second queue with a notification service composing between the two. The sender
+has to re-read the appointment and the patient's current contact details at
+send time regardless (FR-REM-02, FR-REM-03), so composing earlier would mean
+composing twice and acting on the earlier of two answers. Composition lives in
+the sender, and this queue is the durable hand-off the outbox was there to
+provide. The scheduled reminder path will put the same shape of job on the same
+queue.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from typing import Any
+
+import boto3
+from aws_lambda_powertools import Logger
+
+from atria.core import notices
+
+logger = Logger(service="atria-outbox")
+
+OUTBOX_QUEUE_URL = os.environ.get("OUTBOX_QUEUE_URL", "")
+
+APPOINTMENT = "APPOINTMENT"
+
+_sqs: Any = None
+
+
+def sqs() -> Any:
+    global _sqs
+    if _sqs is None:
+        _sqs = boto3.client("sqs")
+    return _sqs
+
+
+def plain(image: dict[str, Any] | None) -> dict[str, Any]:
+    """A stream image as ordinary values.
+
+    Stream records arrive in DynamoDB's own wire form, where every value is
+    wrapped in a type tag. Only the few fields this module reads are unwrapped,
+    because a general deserialiser here would be a second implementation of
+    something boto3 already does on the read path.
+    """
+    flat: dict[str, Any] = {}
+    for name, tagged in (image or {}).items():
+        if not isinstance(tagged, dict):  # pragma: no cover  defensive
+            continue
+        for tag, value in tagged.items():
+            if tag in ("S", "N"):
+                flat[name] = str(value)
+            elif tag == "NULL":
+                flat[name] = None
+            break
+    return flat
+
+
+def notices_due(record: dict[str, Any]) -> dict[str, Any] | None:
+    """The notice this one stream record owes, if any."""
+    change = record.get("dynamodb") or {}
+    new = plain(change.get("NewImage"))
+    if new.get("type") != APPOINTMENT:
+        return None
+
+    old = plain(change.get("OldImage"))
+    to_state = str(new.get("state") or "")
+    from_state = old.get("state")
+    kind = notices.kind_for(from_state, to_state)
+    if kind is None:
+        return None
+
+    return {
+        "kind": kind,
+        "channel": "EMAIL",
+        "tenantId": new.get("tenantId"),
+        "appointmentId": new.get("appointmentId"),
+        "fromState": from_state,
+        "toState": to_state,
+    }
+
+
+def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
+    """Put a message on the outbox for every change a patient should hear about.
+
+    Returns the partial batch response, so one record that cannot be handled is
+    retried and eventually parked on its own rather than dragging the whole
+    batch back through the stream (ADR 0014).
+    """
+    failures: list[dict[str, str]] = []
+    sent = 0
+    for record in event.get("Records", []):
+        try:
+            due = notices_due(record)
+            if due is None:
+                continue
+            sqs().send_message(
+                QueueUrl=OUTBOX_QUEUE_URL,
+                MessageBody=json.dumps(due, separators=(",", ":")),
+                # One group per appointment: its own events stay in order, and
+                # a slow one does not block another patient's.
+                MessageGroupId=str(due["appointmentId"]),
+                # The stream record identifier, so a stream retry of a record
+                # already accepted is deduplicated by the queue rather than
+                # sending a second notice.
+                MessageDeduplicationId=str(record.get("eventID")),
+            )
+            sent += 1
+        except Exception:
+            logger.exception(
+                "could not put a change on the outbox",
+                extra={"eventID": record.get("eventID")},
+            )
+            failures.append({"itemIdentifier": str(record.get("eventID"))})
+
+    logger.info("outbox dispatched", extra={"sent": sent, "failed": len(failures)})
+    return {"batchItemFailures": failures}

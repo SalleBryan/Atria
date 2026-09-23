@@ -24,6 +24,7 @@ these updates the record in the same pull request.
 | [0015](0015-roles-are-fixed-at-account-creation.md) | Roles are fixed at account creation | AD-15 |
 | [0016](0016-python-on-aws-typescript-in-the-browser.md) | Python on AWS, TypeScript in the browser | project |
 | [0017](0017-the-person-item-summarises-its-memberships.md) | The person item summarises its memberships | project |
+| [0018](0018-where-the-password-rules-live.md) | Where the password rules live | project |
 
 ## Constraints
 

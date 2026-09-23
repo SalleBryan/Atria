@@ -33,8 +33,10 @@ are in the contract and built (2026-09-22), so they are not repeated here.
 | GET and POST | `/sessions` | availability.read and session.publish | List or publish sessions with window and rostered GPs; capacity is derived |
 | POST | `/sessions/{id}/disrupt` | session.disrupt | Shift every ticket's arrival window and notify |
 
-`GET /clinicians` and `GET /clinicians/{id}/slots` are in the contract and
-built (2026-09-23), so they are not repeated here.
+`GET /clinicians`, `GET /clinicians/{id}/slots`, `GET /clinicians/{id}/calendar`
+and `GET /clinics/{id}/day` are in the contract and built (2026-09-23), so they
+are not repeated here. The last two were not in the Technical Document's route
+table; they are what FR-STF-01 needs from the two indexes built for it.
 
 ## Booking and the day
 

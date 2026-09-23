@@ -332,6 +332,126 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /clinicians/{id}/calendar:
+    get:
+      tags: [Schedule]
+      operationId: getClinicianCalendar
+      summary: One clinician's appointments over a range of dates
+      description: |
+        Permission appointment.read. A clinician reads their own calendar; a
+        receptionist or clinic manager reads any clinician's in their clinic;
+        a tenant administrator any in the tenant. A patient is refused.
+
+        Dates are the clinic's own dates in the region pack's timezone, and
+        both ends are included. With no range the calendar opens on the coming
+        week; the widest range is 31 days. A suspended clinician's calendar is
+        still readable, because the appointments already made still need to be
+        seen and moved.
+
+        Every state is returned, cancelled ones included, each with its state.
+
+        Implements FR-STF-01.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: The clinician's staff membership id.
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+          description: First date, YYYY-MM-DD. Defaults to today in the clinic.
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+          description: Last date, included. Defaults to six days after from.
+      responses:
+        "200":
+          description: The clinician's appointments in that range, earliest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [clinicianProfileId, from, to, timezone, count, appointments]
+                properties:
+                  clinicianProfileId: { type: string }
+                  clinicId: { type: string }
+                  from: { type: string, format: date }
+                  to: { type: string, format: date }
+                  timezone:
+                    type: string
+                    description: The zone the dates were read in, for example Africa/Douala.
+                  count: { type: integer }
+                  appointments:
+                    type: array
+                    items: { $ref: "#/components/schemas/Appointment" }
+        "400":
+          description: A date is malformed, the range is backwards, or it is wider than 31 days.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /clinics/{id}/day:
+    get:
+      tags: [Schedule]
+      operationId: getClinicDay
+      summary: Every appointment in one clinic on one date
+      description: |
+        Permission appointment.read at clinic scope: the front desk's list. A
+        clinician's scope is their own appointments, so a clinician is refused
+        here and reads their own calendar instead.
+
+        An appointment is on the list for its clinic's local date. In Douala an
+        appointment at 00:30 is on that date's list, although its UTC instant
+        falls on the day before.
+
+        Implements FR-STF-01.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: The clinic id, scoped to the caller's tenant.
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+          description: The date, YYYY-MM-DD. Defaults to today in the clinic.
+      responses:
+        "200":
+          description: That date's appointments across every clinician, earliest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [clinicId, date, timezone, count, appointments]
+                properties:
+                  clinicId: { type: string }
+                  date: { type: string, format: date }
+                  timezone: { type: string }
+                  count: { type: integer }
+                  appointments:
+                    type: array
+                    items: { $ref: "#/components/schemas/Appointment" }
+        "400":
+          description: The date is malformed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /appointments:
     post:
       tags: [Booking]

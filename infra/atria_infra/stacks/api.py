@@ -245,7 +245,21 @@ class ApiStack(Stack):
             authorizer=self.request_authoriser,
             authorization_type=apigateway.AuthorizationType.CUSTOM,
         )
-        clinicians.add_resource("{id}").add_resource("slots").add_method(
+        one_clinician = clinicians.add_resource("{id}")
+        # Free starts, and what is booked. Both read only, so both live on the
+        # directory function, which cannot write.
+        for path in ("slots", "calendar"):
+            one_clinician.add_resource(path).add_method(
+                "GET",
+                directory_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
+        # The front desk's day. appointment.read at clinic scope decides who
+        # reaches it; a clinician's scope is their own and is refused.
+        self.api.root.add_resource("clinics").add_resource("{id}").add_resource(
+            "day"
+        ).add_method(
             "GET",
             directory_integration,
             authorizer=self.request_authoriser,

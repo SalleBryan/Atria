@@ -277,6 +277,12 @@ class TestApiStack:
         assert ("/clinicians", "GET") in served
         assert ("/clinicians/{id}/slots", "GET") in served
 
+    def test_the_staff_calendar_routes_exist(self, synthesised):
+        """FR-STF-01, on the read only directory function."""
+        served = routes(template_for(synthesised, "api"))
+        assert ("/clinicians/{id}/calendar", "GET") in served
+        assert ("/clinics/{id}/day", "GET") in served
+
     def test_the_directory_service_cannot_write(self, synthesised):
         """It answers questions. Only a booking writes a lock."""
         template = template_for(synthesised, "api")

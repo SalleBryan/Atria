@@ -32,24 +32,39 @@ def template_for(app: cdk.App, stack: str) -> Template:
 
 
 def routes(template: Template) -> set[tuple[str, str]]:
-    """Every (path part, method) the API serves.
+    """Every (path, method) the API serves, as full paths.
 
-    Matched through each method's ResourceId rather than counted, so adding a
-    route somewhere else in the API cannot make an assertion about this one
-    start passing or failing for the wrong reason.
+    Built by walking each resource up to the root rather than reading its own
+    path part, because several resources are called "{id}": without the parents
+    an assertion about /appointments/{id} would also be satisfied by
+    /admin/staff/{id}.
     """
-    parts = {
-        logical: resource["Properties"]["PathPart"]
-        for logical, resource in template.find_resources("AWS::ApiGateway::Resource").items()
+    resources = template.find_resources("AWS::ApiGateway::Resource")
+    parents = {
+        logical: (
+            resource["Properties"]["PathPart"],
+            resource["Properties"].get("ParentId"),
+        )
+        for logical, resource in resources.items()
     }
+
+    def path_of(logical: str) -> str:
+        parts: list[str] = []
+        seen: set[str] = set()
+        current: str | None = logical
+        while current and current in parents and current not in seen:
+            seen.add(current)
+            part, parent = parents[current]
+            parts.append(part)
+            current = str(parent.get("Ref")) if isinstance(parent, dict) else None
+        return "/" + "/".join(reversed(parts))
+
     found: set[tuple[str, str]] = set()
     for method in template.find_resources("AWS::ApiGateway::Method").values():
         resource_id = method["Properties"].get("ResourceId")
-        if not isinstance(resource_id, dict):
+        if not isinstance(resource_id, dict) or "Ref" not in resource_id:
             continue
-        part = parts.get(str(resource_id.get("Ref")))
-        if part:
-            found.add((part, method["Properties"]["HttpMethod"]))
+        found.add((path_of(str(resource_id["Ref"])), method["Properties"]["HttpMethod"]))
     return found
 
 
@@ -233,22 +248,30 @@ class TestApiStack:
 
     def test_the_staff_routes_use_the_right_methods(self, synthesised):
         served = routes(template_for(synthesised, "api"))
-        assert ("staff", "POST") in served
-        assert ("roles", "PATCH") in served
-        assert ("suspend", "POST") in served
+        assert ("/admin/staff", "POST") in served
+        assert ("/admin/staff/{id}/roles", "PATCH") in served
+        assert ("/admin/staff/{id}/suspend", "POST") in served
         # A staff account is never deleted, only suspended.
-        assert not any(method == "DELETE" for _part, method in served)
+        assert ("/admin/staff/{id}", "DELETE") not in served
 
     def test_booking_is_served_on_its_own_route(self, synthesised):
         """Not under /admin: a patient books too, and the matrix decides for whom."""
         served = routes(template_for(synthesised, "api"))
-        assert ("appointments", "POST") in served
-        assert ("me", "GET") in served
+        assert ("/appointments", "POST") in served
+        assert ("/me", "GET") in served
+
+    def test_the_appointment_read_and_cancel_routes_exist(self, synthesised):
+        """Cancel is a DELETE because the time goes back, while the record
+        itself is retained in a terminal state (FR-VIS-08)."""
+        served = routes(template_for(synthesised, "api"))
+        assert ("/appointments/{id}", "GET") in served
+        assert ("/appointments/{id}", "DELETE") in served
+        assert ("/patients/me/appointments", "GET") in served
 
     def test_the_directory_and_slot_routes_exist(self, synthesised):
         served = routes(template_for(synthesised, "api"))
-        assert ("clinicians", "GET") in served
-        assert ("slots", "GET") in served
+        assert ("/clinicians", "GET") in served
+        assert ("/clinicians/{id}/slots", "GET") in served
 
     def test_the_directory_service_cannot_write(self, synthesised):
         """It answers questions. Only a booking writes a lock."""

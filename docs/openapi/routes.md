@@ -45,17 +45,16 @@ built (2026-09-23), so they are not repeated here.
 | POST | `/procedure-requests` | procedure.request | Raise a REQUESTED appointment with no time held |
 | POST | `/procedure-requests/{id}/placement` | procedure.size_and_place | Size and place a request for the patient to confirm |
 | POST | `/appointments/{id}/confirm` | appointment.read (own) | Patient confirms a placed procedure or a disruption offer |
-| GET | `/patients/me/appointments?range=&from=` | appointment.read (own) | Day, week, month or year; five-year default horizon |
-| GET | `/appointments/{id}` | appointment.read | One appointment within scope |
 | PATCH | `/appointments/{id}` | appointment.reschedule | Reschedule; staff must give a reason |
-| DELETE | `/appointments/{id}` | appointment.cancel | Cancel; returns the entitlement band; staff must give a reason |
 | POST | `/appointments/{id}/arrival and /no-show` | appointment.check_in and appointment.mark_no_show | Record attendance outcomes |
 | POST | `/sessions/{id}/next` | queue.assign_next | Assign the next ticket to the calling clinician |
 | GET and PUT | `/appointments/{id}/care-context` | care_context.read and care_context.write | Care context for the patient and the assigned clinician only |
 | POST | `/appointments/{id}/referral` | appointment.create | Referring facility and clinician, with a presigned upload for the note |
 
-`POST /appointments` is in the contract and built (2026-09-22), so it is not
-repeated here.
+`POST /appointments`, `GET /appointments/{id}`, `DELETE /appointments/{id}`
+and `GET /patients/me/appointments` are in the contract and built (2026-09-22
+and 2026-09-23), so they are not repeated here. The range views on the list are
+still to come: it answers upcoming, past or all for now.
 
 ## People, quality and money
 

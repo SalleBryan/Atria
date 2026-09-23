@@ -205,10 +205,31 @@ class ApiStack(Stack):
         # /appointments. A patient reaches this as well as staff, so the route
         # is not under /admin; appointment.create and its scope are what decide
         # who may book for whom (core.permissions, checked in the service).
+        # /appointments, /appointments/{id} and /patients/me/appointments.
+        # A patient reaches all three as well as staff, so none of them sit
+        # under /admin; appointment.create, .read and .cancel and their scopes
+        # are what decide who may act on whose record.
+        booking_integration = apigateway.LambdaIntegration(self.booking_service, proxy=True)
         appointments = self.api.root.add_resource("appointments")
         appointments.add_method(
             "POST",
-            apigateway.LambdaIntegration(self.booking_service, proxy=True),
+            booking_integration,
+            authorizer=self.request_authoriser,
+            authorization_type=apigateway.AuthorizationType.CUSTOM,
+        )
+        one_appointment = appointments.add_resource("{id}")
+        for method in ("GET", "DELETE"):
+            one_appointment.add_method(
+                method,
+                booking_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
+        self.api.root.add_resource("patients").add_resource("me").add_resource(
+            "appointments"
+        ).add_method(
+            "GET",
+            booking_integration,
             authorizer=self.request_authoriser,
             authorization_type=apigateway.AuthorizationType.CUSTOM,
         )

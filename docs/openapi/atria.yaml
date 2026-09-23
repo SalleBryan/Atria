@@ -423,8 +423,161 @@ paths:
                   startAt: "2026-03-04T08:00:00Z"
                   units: 4
 
+  /patients/me/appointments:
+    get:
+      tags: [Booking]
+      operationId: listMyAppointments
+      summary: A patient's own appointments, upcoming or past
+      description: |
+        Permission appointment.read at own scope. Ordered by start time,
+        earliest first. A patient's own past is shown five years back by
+        default; records are retained ten years, so the horizon is what is
+        shown and never what is kept (ADR 0008, subject to OI-12).
+
+        Queue tickets belong in this answer too and arrive with the session
+        queue: a ticket holds an arrival window rather than a start.
+
+        The four range views, day, week, month and year, are a later concern.
+
+        Implements FR-VIS-01.
+      parameters:
+        - name: when
+          in: query
+          schema:
+            type: string
+            enum: [upcoming, past, all]
+            default: all
+      responses:
+        "200":
+          description: The caller's own appointments in that window.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [when, from, to, count, appointments]
+                properties:
+                  when: { type: string, enum: [upcoming, past, all] }
+                  from: { type: string, format: date-time }
+                  to: { type: string, format: date-time }
+                  count: { type: integer }
+                  appointments:
+                    type: array
+                    items: { $ref: "#/components/schemas/Appointment" }
+        "400":
+          description: The account holds no patient profile, or `when` is unknown.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /appointments/{id}:
+    get:
+      tags: [Booking]
+      operationId: getAppointment
+      summary: One appointment within the caller's scope
+      description: |
+        Permission appointment.read. A patient sees their own, a clinician
+        their own, a receptionist or clinic manager any in their clinic, an
+        administrator any in the tenant. Where the caller is the patient on the
+        record, staff scope is dropped and only the patient row applies (guard
+        SELF_SUBJECT_DROPS_STAFF_SCOPE).
+
+        Implements FR-VIS-02.
+      parameters:
+        - $ref: "#/components/parameters/AppointmentId"
+      responses:
+        "200":
+          description: The appointment.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Booking]
+      operationId: cancelAppointment
+      summary: Cancel an appointment and give its time back
+      description: |
+        Permission appointment.cancel. The update is conditional on the state
+        the caller read, so a second cancellation is a 409 rather than a second
+        closure, and every slot lock the appointment held is released in the
+        same transaction so the time is genuinely free again.
+
+        The record is not deleted. It moves to PATIENT_CANCELLED or
+        CLINIC_CANCELLED and is retained (FR-VIS-08); DELETE refers to the
+        time, not the history.
+
+        Staff must say who cancelled, because the two land in different states
+        and owe the patient different things. A patient always cancels as the
+        patient and cannot declare a clinic cancellation.
+
+        The response carries the entitlement band. Nothing settles: no money
+        moves until a payment provider arrives (ADR 0007), and the fee ledger
+        that aggregates these is later work.
+
+        The reminder teardown and the cancellation email in FR-VIS-04 are not
+        implemented yet and arrive with the reminder and message work.
+
+        Implements FR-VIS-03.
+      parameters:
+        - $ref: "#/components/parameters/AppointmentId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                cancelledBy:
+                  type: string
+                  enum: [PATIENT, CLINIC]
+                  description: Required when staff cancel. Ignored when the patient does.
+                reason:
+                  type: string
+                  description: Recorded on the event. Mandatory for staff from Phase 2.
+      responses:
+        "200":
+          description: The cancelled appointment, with the outcome and entitlement.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CancelledAppointment" }
+        "400":
+          description: Staff did not say who cancelled.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: |
+            It is no longer in a state that can be cancelled, which is what a
+            second cancellation gets.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
 components:
   parameters:
+    AppointmentId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      description: The appointment id, scoped to the caller's tenant.
+
     StaffId:
       name: id
       in: path
@@ -727,6 +880,27 @@ components:
           type: integer
           description: Optimistic concurrency for offline staff writes.
         createdAt: { type: string, format: date-time }
+
+    CancelledAppointment:
+      allOf:
+        - $ref: "#/components/schemas/Appointment"
+        - type: object
+          required: [outcome, entitlement]
+          properties:
+            outcome:
+              type: string
+              enum: [CANCELLED_IN_WINDOW, CANCELLED_LATE, CLINIC_CANCELLED]
+              description: |
+                Which side cancelled, and whether a patient cancellation fell
+                inside the type's notice window.
+            entitlement:
+              type: string
+              enum: [NONE, PARTIAL, FULL]
+              description: |
+                FULL inside the window or whenever the clinic cancelled,
+                PARTIAL for a late patient cancellation. A record, not a
+                payment.
+            note: { type: string }
 
     Error:
       type: object

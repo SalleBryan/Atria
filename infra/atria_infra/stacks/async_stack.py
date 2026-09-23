@@ -9,8 +9,9 @@ Every queue has a dead letter queue, so a message that cannot be handled after
 its retries is parked where it can be looked at and redriven rather than
 disappearing.
 
-The scheduled reminder path joins the same outbox queue when it lands, which is
-why the sender reads a job rather than an appointment event.
+Reminders join the same outbox. The sender creates a one-time EventBridge
+schedule per booking, and at the fire time the schedule puts the reminder job
+on the outbox, where the sender picks it up like any other.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from aws_cdk import Duration, Stack
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_lambda_event_sources as sources
+from aws_cdk import aws_scheduler as scheduler
 from aws_cdk import aws_sqs as sqs
 from constructs import Construct
 
@@ -85,15 +87,17 @@ class AsyncStack(Stack):
 
         # FIFO and grouped by appointment, so a booking and the cancellation
         # that follows it cannot be sent out of order. Content based
-        # deduplication is off because the dispatcher supplies the stream
-        # record identifier, which is a better key than the body: two genuine
-        # notices for one appointment can have identical bodies.
+        # deduplication is on because EventBridge Scheduler, which puts
+        # reminders here, has no way to supply a deduplication id, and a FIFO
+        # queue refuses a message with neither. The dispatcher still supplies
+        # its own ids, and an explicit id takes precedence over the body, so
+        # two genuine notices with identical bodies are not merged.
         self.outbox = sqs.Queue(
             self,
             "Outbox",
             queue_name=f"{settings.prefix}-outbox.fifo",
             fifo=True,
-            content_based_deduplication=False,
+            content_based_deduplication=True,
             encryption=sqs.QueueEncryption.KMS_MANAGED,
             enforce_ssl=True,
             # Longer than the sender's timeout, or a slow send would be
@@ -104,6 +108,37 @@ class AsyncStack(Stack):
                 max_receive_count=MAX_ATTEMPTS, queue=self.outbox_dead_letters
             ),
         )
+
+        # Where a reminder goes if the scheduler cannot deliver it to the
+        # outbox within the hour. Standard, because a scheduler's dead letter
+        # queue may not be FIFO.
+        self.reminder_failures = sqs.Queue(
+            self,
+            "ReminderFailures",
+            queue_name=f"{settings.prefix}-reminder-failures",
+            encryption=sqs.QueueEncryption.KMS_MANAGED,
+            retention_period=Duration.days(14),
+            enforce_ssl=True,
+        )
+
+        self.reminder_group = scheduler.CfnScheduleGroup(
+            self, "ReminderGroup", name=f"{settings.prefix}-reminders"
+        )
+
+        # What the scheduler acts as when a reminder fires. It can put a job
+        # on the outbox and park one that fails, and nothing else: it never
+        # sees the table, the patient or a provider.
+        self.scheduler_role = iam.Role(
+            self,
+            "ReminderSchedulerRole",
+            assumed_by=iam.ServicePrincipal(
+                "scheduler.amazonaws.com",
+                conditions={"StringEquals": {"aws:SourceAccount": self.account}},
+            ),
+            description="EventBridge Scheduler puts a due reminder on the notice outbox",
+        )
+        self.outbox.grant_send_messages(self.scheduler_role)
+        self.reminder_failures.grant_send_messages(self.scheduler_role)
 
         self.dispatcher = service_function(
             self,
@@ -149,6 +184,10 @@ class AsyncStack(Stack):
             environment={
                 **common_environment,
                 "NOTICE_SENDER": settings.notice_sender,
+                "SCHEDULE_GROUP": self.reminder_group.name or "",
+                "SCHEDULER_ROLE_ARN": self.scheduler_role.role_arn,
+                "OUTBOX_QUEUE_ARN": self.outbox.queue_arn,
+                "REMINDER_FAILURES_ARN": self.reminder_failures.queue_arn,
             },
             timeout_seconds=60,
         )
@@ -169,6 +208,40 @@ class AsyncStack(Stack):
                 # would fail the deploy. Two is the lowest value allowed.
                 max_concurrency=2,
                 report_batch_item_failures=True,
+            )
+        )
+        # Reminders: create and remove one-time schedules in this group only,
+        # and hand the scheduler the one role above and no other.
+        self.sender.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["scheduler:CreateSchedule", "scheduler:DeleteSchedule"],
+                resources=[
+                    self.format_arn(
+                        service="scheduler",
+                        resource="schedule",
+                        resource_name=f"{self.reminder_group.name}/*",
+                    )
+                ],
+            )
+        )
+        self.sender.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["iam:PassRole"],
+                resources=[self.scheduler_role.role_arn],
+                conditions={"StringEquals": {"iam:PassedToService": "scheduler.amazonaws.com"}},
+            )
+        )
+        # SMS goes straight to a phone number, which has no ARN to scope to,
+        # so publishing is allowed broadly and publishing to a topic is denied:
+        # this function reaches patients, not subscribers.
+        self.sender.add_to_role_policy(
+            iam.PolicyStatement(actions=["sns:Publish"], resources=["*"])
+        )
+        self.sender.add_to_role_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.DENY,
+                actions=["sns:Publish"],
+                resources=[self.format_arn(service="sns", resource="*")],
             )
         )
         # Scoped to sending, and to the one verified identity. Nothing here

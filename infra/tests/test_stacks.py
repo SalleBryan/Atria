@@ -417,19 +417,15 @@ class TestAsyncStack:
     def test_every_failure_queue_keeps_what_it_holds_for_two_weeks(self, synthesised):
         """Long enough to notice, look and redrive before it expires."""
         template = template_for(synthesised, "async")
-        for suffix in ("-outbox-dlq.fifo", "-stream-failures"):
+        for suffix in ("-outbox-dlq.fifo", "-stream-failures", "-reminder-failures"):
             assert queue_named(template, suffix)["MessageRetentionPeriod"] == 14 * 24 * 3600
 
-    def test_the_outbox_deduplicates_on_the_key_the_dispatcher_supplies(self, synthesised):
-        """Not on the body: two genuine notices for one appointment can have
-        identical bodies, so content based deduplication would drop one."""
-        template = template_for(synthesised, "async")
-        outbox = next(
-            q
-            for q in template.find_resources("AWS::SQS::Queue").values()
-            if str(q["Properties"]["QueueName"]).endswith("-outbox.fifo")
-        )
-        assert outbox["Properties"].get("ContentBasedDeduplication") is not True
+    def test_the_outbox_deduplicates_by_content_for_the_scheduler(self, synthesised):
+        """EventBridge Scheduler cannot supply a deduplication id, and a FIFO
+        queue refuses a message with neither an id nor content deduplication.
+        The dispatcher's explicit ids still take precedence over the body."""
+        outbox = queue_named(template_for(synthesised, "async"), "-outbox.fifo")
+        assert outbox["ContentBasedDeduplication"] is True
 
     def test_the_visibility_timeout_outlives_the_sender(self, synthesised):
         """Otherwise a slow send is delivered again while still running, and
@@ -494,6 +490,109 @@ class TestAsyncStack:
         )
         env = sender["Properties"]["Environment"]["Variables"]
         assert env["NOTICE_SENDER"] == config.DEV.notice_sender
+
+    def policy_actions(self, template: Template, handler: str) -> dict[str, list[dict]]:
+        """Every statement on one function's role, keyed by action."""
+        role = next(
+            f["Properties"]["Role"]["Fn::GetAtt"][0]
+            for f in template.find_resources("AWS::Lambda::Function").values()
+            if f["Properties"]["Handler"] == handler
+        )
+        found: dict[str, list[dict]] = {}
+        for policy in template.find_resources("AWS::IAM::Policy").values():
+            if role not in str(policy["Properties"].get("Roles")):
+                continue
+            for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
+                action = statement.get("Action")
+                for name in action if isinstance(action, list) else [action]:
+                    found.setdefault(str(name), []).append(statement)
+        return found
+
+    def test_reminders_live_in_their_own_schedule_group(self, synthesised):
+        template = template_for(synthesised, "async")
+        groups = template.find_resources("AWS::Scheduler::ScheduleGroup")
+        assert [g["Properties"]["Name"] for g in groups.values()] == [
+            f"{config.DEV.prefix}-reminders"
+        ]
+
+    def test_the_scheduler_role_is_for_the_scheduler_alone(self, synthesised):
+        template = template_for(synthesised, "async")
+        role = next(
+            r
+            for logical, r in template.find_resources("AWS::IAM::Role").items()
+            if logical.startswith("ReminderSchedulerRole")
+        )
+        (statement,) = role["Properties"]["AssumeRolePolicyDocument"]["Statement"]
+        assert statement["Principal"] == {"Service": "scheduler.amazonaws.com"}
+        # Only schedules in this account may use it.
+        assert "aws:SourceAccount" in str(statement["Condition"])
+
+    def test_the_scheduler_can_only_reach_the_outbox_and_its_own_dead_letters(
+        self, synthesised
+    ):
+        template = template_for(synthesised, "async")
+        policy = next(
+            p
+            for p in template.find_resources("AWS::IAM::Policy").values()
+            if "ReminderSchedulerRole" in str(p["Properties"]["Roles"])
+        )
+        actions = {
+            a
+            for statement in policy["Properties"]["PolicyDocument"]["Statement"]
+            for a in (
+                statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]
+            )
+        }
+        assert {a for a in actions if not a.startswith("kms:")} <= {
+            "sqs:SendMessage",
+            "sqs:GetQueueAttributes",
+            "sqs:GetQueueUrl",
+        }
+
+    def test_the_sender_manages_schedules_only_in_the_reminder_group(self, synthesised):
+        template = template_for(synthesised, "async")
+        actions = self.policy_actions(template, "atria.services.notify.sender.handler")
+        (statement,) = actions["scheduler:CreateSchedule"]
+        assert "reminders/*" in str(statement["Resource"])
+        assert "scheduler:DeleteSchedule" in actions
+
+    def test_the_sender_may_pass_only_the_scheduler_role(self, synthesised):
+        template = template_for(synthesised, "async")
+        actions = self.policy_actions(template, "atria.services.notify.sender.handler")
+        (statement,) = actions["iam:PassRole"]
+        assert "ReminderSchedulerRole" in str(statement["Resource"])
+        assert statement["Condition"]["StringEquals"]["iam:PassedToService"] == (
+            "scheduler.amazonaws.com"
+        )
+
+    def test_the_sender_texts_phones_and_not_topics(self, synthesised):
+        """A phone number has no ARN, so publishing is broad; publishing to a
+        topic is denied, because this function reaches patients, not
+        subscribers."""
+        template = template_for(synthesised, "async")
+        statements = self.policy_actions(template, "atria.services.notify.sender.handler")[
+            "sns:Publish"
+        ]
+        effects = {s.get("Effect") for s in statements}
+        assert effects == {"Allow", "Deny"}
+        deny = next(s for s in statements if s["Effect"] == "Deny")
+        assert ":sns:" in str(deny["Resource"])
+
+    def test_the_sender_knows_where_reminders_go(self, synthesised):
+        template = template_for(synthesised, "async")
+        sender = next(
+            f
+            for f in template.find_resources("AWS::Lambda::Function").values()
+            if f["Properties"]["Handler"] == "atria.services.notify.sender.handler"
+        )
+        env = sender["Properties"]["Environment"]["Variables"]
+        for name in (
+            "SCHEDULE_GROUP",
+            "SCHEDULER_ROLE_ARN",
+            "OUTBOX_QUEUE_ARN",
+            "REMINDER_FAILURES_ARN",
+        ):
+            assert env.get(name), name
 
     def test_the_sender_takes_one_message_at_a_time(self, synthesised):
         """SES in the sandbox allows one a second; a batch would be throttled

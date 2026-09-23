@@ -35,6 +35,15 @@ class Environment:
     removal_protection: bool = False
     """Development tables and pools are destroyed with the stack. Set for production."""
 
+    default_tenant_id: str = "t-cm-001"
+    """The tenant a self-registering patient joins.
+
+    Phase 1 is one pilot clinic, and a patient signing themselves up has no
+    way to name a tenant that could be trusted: taking it from the request
+    would let anyone join any clinic. Choosing a tenant at sign-up is a Phase 2
+    concern, and it arrives with the second tenant, not before.
+    """
+
     admin_password_auth: bool = False
     """Allow ADMIN_USER_PASSWORD_AUTH on the staff client.
 

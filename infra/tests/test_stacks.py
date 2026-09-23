@@ -146,6 +146,49 @@ class TestIdentityStack:
         rendered = str(policies)
         assert "dynamodb:GetItem" in rendered or "dynamodb:Query" in rendered
 
+    def test_the_post_confirmation_trigger_is_attached(self, synthesised):
+        """Without it a confirmed patient has no person record, so the
+        pre-token trigger has nothing to resolve and the authoriser refuses a
+        token that looks perfectly valid."""
+        template = template_for(synthesised, "identity")
+        pool = next(iter(template.find_resources("AWS::Cognito::UserPool").values()))
+        assert "PostConfirmation" in pool["Properties"]["LambdaConfig"]
+
+    def test_the_post_confirmation_trigger_knows_its_table_and_tenant(self, synthesised):
+        template = template_for(synthesised, "identity")
+        functions = template.find_resources("AWS::Lambda::Function")
+        post_confirmation = next(
+            f
+            for f in functions.values()
+            if f["Properties"]["Handler"]
+            == "atria.services.identity.post_confirmation.handler"
+        )
+        env = post_confirmation["Properties"]["Environment"]["Variables"]
+        assert "MAIN_TABLE" in env
+        # It refuses to guess a tenant, so an unset value would fail every
+        # sign-up at runtime rather than quietly picking one.
+        assert env["DEFAULT_TENANT_ID"] == config.DEV.default_tenant_id
+
+    def test_only_the_post_confirmation_trigger_writes(self, synthesised):
+        """The pre-token trigger must stay read only: it resolves a caller and
+        has no business changing one."""
+        template = template_for(synthesised, "identity")
+        functions = template.find_resources("AWS::Lambda::Function")
+        roles = {
+            f["Properties"]["Handler"]: f["Properties"]["Role"]["Fn::GetAtt"][0]
+            for f in functions.values()
+        }
+        pre_token_role = roles["atria.services.identity.pre_token.handler"]
+        writes = set()
+        for policy in template.find_resources("AWS::IAM::Policy").values():
+            named = str(policy["Properties"].get("Roles"))
+            for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
+                action = statement.get("Action")
+                actions = action if isinstance(action, list) else [action]
+                if any(a and "PutItem" in str(a) for a in actions):
+                    writes.add(named)
+        assert not any(pre_token_role in w for w in writes)
+
 
 class TestApiStack:
     def test_every_method_goes_through_the_authoriser(self, synthesised):

@@ -170,3 +170,35 @@ class IdentityStack(Stack):
             self.pre_token,
             lambda_version=cognito.LambdaVersion.V2_0,
         )
+
+        # A patient registers with Cognito and confirms their email, which
+        # leaves an account in the pool and nothing in the table. The
+        # pre-token trigger then has nothing to resolve and the authoriser
+        # refuses the token, so this is what gives a confirmed patient the
+        # person and patient profile their sign-in needs (FR-ACC-01).
+        self.post_confirmation = service_function(
+            self,
+            "PostConfirmation",
+            settings=settings,
+            build_dir=build_dir,
+            layer=platform.layer,
+            handler="atria.services.identity.post_confirmation.handler",
+            description="Writes the person and patient profile for a newly confirmed patient",
+            environment={
+                "POWERTOOLS_SERVICE_NAME": "atria",
+                "POWERTOOLS_LOG_LEVEL": "INFO",
+                "ENVIRONMENT": settings.name,
+                "MAIN_TABLE": data.main_table.table_name,
+                "DEFAULT_TENANT_ID": settings.default_tenant_id,
+            },
+            timeout_seconds=10,
+            memory_mb=256,
+        )
+        # This one writes, unlike the pre-token trigger: it creates the person
+        # and the profile. It reads as well, to recognise a confirmation
+        # Cognito has already delivered once.
+        data.main_table.grant_read_write_data(self.post_confirmation)
+        self.user_pool.add_trigger(
+            cognito.UserPoolOperation.POST_CONFIRMATION,
+            self.post_confirmation,
+        )

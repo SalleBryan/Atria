@@ -224,6 +224,114 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /clinicians:
+    get:
+      tags: [Directory]
+      operationId: listClinicians
+      summary: The clinicians a patient can book
+      description: |
+        Readable by any signed-in account of the tenant. Ordered by the year on
+        the Order's roll, most senior first, and carrying a seniority band. No
+        response here contains a score or rating of any kind: a patient chooses
+        on specialty, qualifications and languages (ADR 0011).
+
+        Only bookable clinicians are listed. A suspended account leaves the
+        listing, so the directory cannot offer somebody the booking service
+        would then refuse.
+
+        Implements FR-DIR-01.
+      parameters:
+        - name: specialty
+          in: query
+          schema: { type: string }
+          description: Exact match, ignoring case.
+        - name: clinicId
+          in: query
+          schema: { type: string }
+        - name: name
+          in: query
+          schema: { type: string }
+          description: Matches part of the given or family name, ignoring case.
+      responses:
+        "200":
+          description: The tenant's bookable clinicians, most senior first.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [clinicians, count]
+                properties:
+                  count: { type: integer }
+                  clinicians:
+                    type: array
+                    items: { $ref: "#/components/schemas/ListedClinician" }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /clinicians/{id}/slots:
+    get:
+      tags: [Directory]
+      operationId: listFreeStarts
+      summary: The free start times for one clinician, date and appointment type
+      description: |
+        A start is offered when every grid unit the appointment occupies, the
+        type's buffer included, is inside the clinic's opening hours for that
+        weekday, not already locked, not blocked by an availability exception,
+        and at least the type's minimum notice from now.
+
+        Opening hours are local to the clinic, in the region pack's timezone,
+        while every instant returned is UTC. A clinic with no opening hours
+        recorded for that weekday is closed and returns no slots rather than
+        being given a default.
+
+        The locks read here are the same items a booking writes, so a start
+        offered by this route and taken by somebody else in between is refused
+        at booking with a 409 rather than double booked.
+
+        Implements FR-DIR-02.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: The clinician's staff membership id.
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          description: The calendar date to look at, as YYYY-MM-DD.
+        - name: typeId
+          in: query
+          required: true
+          schema: { type: string }
+          description: Required, because the duration and the notice come from the type.
+      responses:
+        "200":
+          description: The starts on offer, in time order. An empty list means none.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FreeStarts"
+        "400":
+          description: The date is malformed, or typeId was not given.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: That clinician is not currently taking appointments.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /appointments:
     post:
       tags: [Booking]
@@ -468,6 +576,64 @@ components:
         note:
           type: string
           description: A short note on what the caller should know, for example when a role change takes effect.
+
+    ListedClinician:
+      type: object
+      additionalProperties: false
+      required: [clinicianProfileId, familyName, seniorityBand]
+      description: |
+        What a directory listing may carry. Deliberately no score, no rating
+        and no aggregate of feedback, at any scope (ADR 0011).
+      properties:
+        clinicianProfileId: { type: string }
+        clinicId: { type: [string, "null"] }
+        givenName: { type: [string, "null"] }
+        familyName: { type: [string, "null"] }
+        specialty: { type: [string, "null"] }
+        qualifications:
+          type: array
+          items: { type: string }
+        registrationYear:
+          type: [integer, "null"]
+          description: The year entered on the Order's roll, which is what the ordering uses.
+        seniorityBand:
+          type: string
+          enum: [SENIOR, EXPERIENCED, ESTABLISHED, RECENT]
+          description: Derived from the registration year at account creation.
+        languages:
+          type: array
+          items: { type: string }
+
+    FreeStarts:
+      type: object
+      additionalProperties: false
+      required: [clinicianProfileId, date, appointmentTypeId, slots]
+      properties:
+        clinicianProfileId: { type: string }
+        clinicId:
+          type: string
+          description: From the clinician's membership.
+        date: { type: string, format: date }
+        appointmentTypeId: { type: string }
+        gridUnitMinutes:
+          type: integer
+          description: The tenant's calendar resolution, so a client can render the grid.
+        durationUnits:
+          type: integer
+          description: The type's duration in grid units, buffer excluded.
+        slots:
+          type: array
+          description: In time order. Empty when the clinic is closed or nothing is free.
+          items:
+            type: object
+            additionalProperties: false
+            required: [startAt, endAt]
+            properties:
+              startAt: { type: string, format: date-time }
+              endAt:
+                type: string
+                format: date-time
+                description: The duration end, which is what the patient is told, not the buffer.
 
     BookAppointment:
       type: object

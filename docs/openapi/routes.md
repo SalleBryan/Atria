@@ -28,12 +28,13 @@ are in the contract and built (2026-09-22), so they are not repeated here.
 
 | Method | Path | Permission | Purpose |
 | --- | --- | --- | --- |
-| GET | `/clinicians?specialty=&clinicId=` | any signed-in | Directory ordered by seniority band. Specialty, qualifications, registration year, languages, clinic; never a score |
-| GET | `/clinicians/{id}/slots?date=&typeId=` | any signed-in | Free start units for a type's duration and buffer |
 | GET and PUT | `/clinicians/{id}/availability` | availability.read and availability.write | Weekly template on the grid unit |
 | POST | `/clinicians/{id}/unavailability` | session.disrupt | Mark a clinician unavailable for a window; starts disruption |
 | GET and POST | `/sessions` | availability.read and session.publish | List or publish sessions with window and rostered GPs; capacity is derived |
 | POST | `/sessions/{id}/disrupt` | session.disrupt | Shift every ticket's arrival window and notify |
+
+`GET /clinicians` and `GET /clinicians/{id}/slots` are in the contract and
+built (2026-09-23), so they are not repeated here.
 
 ## Booking and the day
 

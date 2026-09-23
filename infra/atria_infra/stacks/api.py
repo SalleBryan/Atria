@@ -111,6 +111,16 @@ class ApiStack(Stack):
         # tenant, the appointment type, the patient and the clinician first.
         data.main_table.grant_read_write_data(self.booking_service)
 
+        self.directory_service = self._service(
+            "DirectoryService",
+            handler="atria.services.directory.clinicians.handler",
+            description="Lists the tenant's clinicians and the starts they are free for",
+            environment=common_environment,
+        )
+        # Read only. The directory and the slot search answer questions; the
+        # only thing that writes a lock is a booking.
+        data.main_table.grant_read_data(self.directory_service)
+
         self.access_log = logs.LogGroup(
             self,
             "AccessLog",
@@ -199,6 +209,24 @@ class ApiStack(Stack):
         appointments.add_method(
             "POST",
             apigateway.LambdaIntegration(self.booking_service, proxy=True),
+            authorizer=self.request_authoriser,
+            authorization_type=apigateway.AuthorizationType.CUSTOM,
+        )
+
+        # /clinicians and /clinicians/{id}/slots. Any signed-in account of the
+        # tenant reads these; the directory is what a patient chooses from, so
+        # it is not under /admin either.
+        directory_integration = apigateway.LambdaIntegration(self.directory_service, proxy=True)
+        clinicians = self.api.root.add_resource("clinicians")
+        clinicians.add_method(
+            "GET",
+            directory_integration,
+            authorizer=self.request_authoriser,
+            authorization_type=apigateway.AuthorizationType.CUSTOM,
+        )
+        clinicians.add_resource("{id}").add_resource("slots").add_method(
+            "GET",
+            directory_integration,
             authorizer=self.request_authoriser,
             authorization_type=apigateway.AuthorizationType.CUSTOM,
         )

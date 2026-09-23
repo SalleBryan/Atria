@@ -26,6 +26,9 @@ INDEX_KEYS = {
     "ClinicDayIndex": ("clinicDay", "startAt"),
     "PersonIndex": ("cognitoSub", None),
     "OutboxIndex": ("outboxShard", "createdAt"),
+    # Sparse: only a bookable clinician profile carries directoryKey, so
+    # suspending an account drops it out of the directory.
+    "DirectoryIndex": ("directoryKey", "directorySort"),
 }
 
 

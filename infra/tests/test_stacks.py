@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import aws_cdk as cdk
 import pytest
+from atria_spec import keys as keys_spec
 from aws_cdk.assertions import Match, Template
 
 import app as application
@@ -56,18 +57,28 @@ class TestDataStack:
     def test_one_main_table_and_one_care_context_table(self, synthesised):
         template_for(synthesised, "data").resource_count_is("AWS::DynamoDB::GlobalTable", 2)
 
-    def test_the_main_table_carries_the_five_specified_indexes(self, synthesised):
+    def test_the_main_table_carries_exactly_the_specified_indexes(self, synthesised):
+        """The specification is the source, so this reads it rather than
+        restating a list that then has to be kept in step by hand."""
         template = template_for(synthesised, "data")
         tables = template.find_resources("AWS::DynamoDB::GlobalTable")
         main = next(t for t in tables.values() if t["Properties"]["TableName"].endswith("-main"))
         names = {index["IndexName"] for index in main["Properties"]["GlobalSecondaryIndexes"]}
-        assert names == {
-            "PatientIndex",
-            "ClinicianIndex",
-            "ClinicDayIndex",
-            "PersonIndex",
-            "OutboxIndex",
-        }
+        assert names == {name for name, _pk, _sk, _answers in keys_spec.INDEXES}
+
+    def test_the_directory_index_is_sparse_on_its_own_keys(self, synthesised):
+        """A clinician profile carries directoryKey only while it is bookable,
+        which is how a suspended account leaves the listing."""
+        template = template_for(synthesised, "data")
+        tables = template.find_resources("AWS::DynamoDB::GlobalTable")
+        main = next(t for t in tables.values() if t["Properties"]["TableName"].endswith("-main"))
+        directory = next(
+            index
+            for index in main["Properties"]["GlobalSecondaryIndexes"]
+            if index["IndexName"] == "DirectoryIndex"
+        )
+        schema = {entry["KeyType"]: entry["AttributeName"] for entry in directory["KeySchema"]}
+        assert schema == {"HASH": "directoryKey", "RANGE": "directorySort"}
 
     def test_both_tables_use_a_customer_managed_key(self, synthesised):
         template = template_for(synthesised, "data")
@@ -233,6 +244,28 @@ class TestApiStack:
         served = routes(template_for(synthesised, "api"))
         assert ("appointments", "POST") in served
         assert ("me", "GET") in served
+
+    def test_the_directory_and_slot_routes_exist(self, synthesised):
+        served = routes(template_for(synthesised, "api"))
+        assert ("clinicians", "GET") in served
+        assert ("slots", "GET") in served
+
+    def test_the_directory_service_cannot_write(self, synthesised):
+        """It answers questions. Only a booking writes a lock."""
+        template = template_for(synthesised, "api")
+        functions = template.find_resources("AWS::Lambda::Function")
+        directory_role = next(
+            f["Properties"]["Role"]["Fn::GetAtt"][0]
+            for f in functions.values()
+            if f["Properties"]["Handler"] == "atria.services.directory.clinicians.handler"
+        )
+        for policy in template.find_resources("AWS::IAM::Policy").values():
+            if directory_role not in str(policy["Properties"].get("Roles")):
+                continue
+            for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
+                action = statement.get("Action")
+                actions = action if isinstance(action, list) else [action]
+                assert not any(a and "PutItem" in str(a) for a in actions)
 
     def test_the_staff_service_can_manage_pool_accounts(self, synthesised):
         """Scoped to admin create, delete and global sign out, nothing wider."""

@@ -11,3 +11,9 @@ pydantic==2.13.5
 # The authoriser verifies the Cognito token itself, against the pool's public
 # keys, and caches them between invocations.
 pyjwt[crypto]==2.14.0
+
+# zoneinfo reads the operating system's timezone database, and the Lambda
+# image is not guaranteed to carry one. Clinic opening hours and reminder
+# times are computed in Africa/Douala (FR-REM-05), so the data ships with the
+# code and behaves the same everywhere it runs.
+tzdata==2026.4

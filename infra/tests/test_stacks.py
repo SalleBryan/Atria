@@ -190,8 +190,7 @@ class TestIdentityStack:
         post_confirmation = next(
             f
             for f in functions.values()
-            if f["Properties"]["Handler"]
-            == "atria.services.identity.post_confirmation.handler"
+            if f["Properties"]["Handler"] == "atria.services.identity.post_confirmation.handler"
         )
         env = post_confirmation["Properties"]["Environment"]["Variables"]
         assert "MAIN_TABLE" in env
@@ -205,8 +204,7 @@ class TestIdentityStack:
         template = template_for(synthesised, "identity")
         functions = template.find_resources("AWS::Lambda::Function")
         roles = {
-            f["Properties"]["Handler"]: f["Properties"]["Role"]["Fn::GetAtt"][0]
-            for f in functions.values()
+            f["Properties"]["Handler"]: f["Properties"]["Role"]["Fn::GetAtt"][0] for f in functions.values()
         }
         pre_token_role = roles["atria.services.identity.pre_token.handler"]
         writes = set()
@@ -414,9 +412,7 @@ class TestAsyncStack:
         failures = queue_named(template, "-stream-failures")
         assert failures.get("FifoQueue") is not True
         mappings = template.find_resources("AWS::Lambda::EventSourceMapping")
-        stream = next(
-            m["Properties"] for logical, m in mappings.items() if "SqsEventSource" not in logical
-        )
+        stream = next(m["Properties"] for logical, m in mappings.items() if "SqsEventSource" not in logical)
         destination = str(stream["DestinationConfig"]["OnFailure"]["Destination"])
         assert "StreamFailures" in destination
 
@@ -517,9 +513,7 @@ class TestAsyncStack:
     def test_reminders_live_in_their_own_schedule_group(self, synthesised):
         template = template_for(synthesised, "async")
         groups = template.find_resources("AWS::Scheduler::ScheduleGroup")
-        assert [g["Properties"]["Name"] for g in groups.values()] == [
-            f"{config.DEV.prefix}-reminders"
-        ]
+        assert [g["Properties"]["Name"] for g in groups.values()] == [f"{config.DEV.prefix}-reminders"]
 
     def test_the_scheduler_role_is_for_the_scheduler_alone(self, synthesised):
         template = template_for(synthesised, "async")
@@ -533,9 +527,7 @@ class TestAsyncStack:
         # Only schedules in this account may use it.
         assert "aws:SourceAccount" in str(statement["Condition"])
 
-    def test_the_scheduler_can_only_reach_the_outbox_and_its_own_dead_letters(
-        self, synthesised
-    ):
+    def test_the_scheduler_can_only_reach_the_outbox_and_its_own_dead_letters(self, synthesised):
         template = template_for(synthesised, "async")
         policy = next(
             p
@@ -545,9 +537,7 @@ class TestAsyncStack:
         actions = {
             a
             for statement in policy["Properties"]["PolicyDocument"]["Statement"]
-            for a in (
-                statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]
-            )
+            for a in (statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]])
         }
         assert {a for a in actions if not a.startswith("kms:")} <= {
             "sqs:SendMessage",
@@ -567,18 +557,14 @@ class TestAsyncStack:
         actions = self.policy_actions(template, "atria.services.notify.sender.handler")
         (statement,) = actions["iam:PassRole"]
         assert "ReminderSchedulerRole" in str(statement["Resource"])
-        assert statement["Condition"]["StringEquals"]["iam:PassedToService"] == (
-            "scheduler.amazonaws.com"
-        )
+        assert statement["Condition"]["StringEquals"]["iam:PassedToService"] == ("scheduler.amazonaws.com")
 
     def test_the_sender_texts_phones_and_not_topics(self, synthesised):
         """A phone number has no ARN, so publishing is broad; publishing to a
         topic is denied, because this function reaches patients, not
         subscribers."""
         template = template_for(synthesised, "async")
-        statements = self.policy_actions(template, "atria.services.notify.sender.handler")[
-            "sns:Publish"
-        ]
+        statements = self.policy_actions(template, "atria.services.notify.sender.handler")["sns:Publish"]
         effects = {s.get("Effect") for s in statements}
         assert effects == {"Allow", "Deny"}
         deny = next(s for s in statements if s["Effect"] == "Deny")
@@ -633,9 +619,7 @@ class TestAsyncStack:
         yesterday's bookings and send a confirmation for each one again."""
         template = template_for(synthesised, "async")
         mappings = template.find_resources("AWS::Lambda::EventSourceMapping")
-        stream = next(
-            m["Properties"] for logical, m in mappings.items() if "SqsEventSource" not in logical
-        )
+        stream = next(m["Properties"] for logical, m in mappings.items() if "SqsEventSource" not in logical)
         assert stream["StartingPosition"] == "LATEST"
 
     def test_both_sources_report_failures_per_item(self, synthesised):

@@ -230,9 +230,7 @@ class Booking:
         tenant = self.tenant(tenant_id)
         return schedule.timezone_for(self.region_pack(str(tenant.get("regionPackCode") or "CM")))
 
-    def locked_units(
-        self, tenant_id: str, clinician_profile_id: str, units: list[str]
-    ) -> set[str]:
+    def locked_units(self, tenant_id: str, clinician_profile_id: str, units: list[str]) -> set[str]:
         """Which of these grid units are already held.
 
         One read for the whole day: a lock is its own partition, so there is no
@@ -240,11 +238,7 @@ class Booking:
         """
         wanted = [keys.slot_lock(tenant_id, clinician_profile_id, unit) for unit in units]
         found = self._repo.get_many(wanted)
-        return {
-            unit
-            for unit, key in zip(units, wanted, strict=True)
-            if (key.pk, key.sk) in found
-        }
+        return {unit for unit, key in zip(units, wanted, strict=True) if (key.pk, key.sk) in found}
 
     def exceptions(self, tenant_id: str, clinician_profile_id: str) -> list[Item]:
         """A clinician's availability exceptions. Marking one starts a disruption (D-03)."""
@@ -373,9 +367,7 @@ class Booking:
                     ("state", was),
                 )
             ],
-            deletes=[
-                keys.slot_lock(tenant_id, clinician_id, unit) for unit in occupancy.units
-            ],
+            deletes=[keys.slot_lock(tenant_id, clinician_id, unit) for unit in occupancy.units],
             conflict="that appointment is no longer in a state that can be cancelled",
         )
         return {**appointment, "state": cancellation.state}, event

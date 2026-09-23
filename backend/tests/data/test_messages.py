@@ -145,9 +145,7 @@ class TestReading:
 
     def test_the_day_is_ordered_earliest_first(self, repository, notice):
         for minute in (30, 10, 50):
-            Messages(
-                repository, clock=lambda m=minute: NOW.replace(minute=m)
-            ).scheduled(
+            Messages(repository, clock=lambda m=minute: NOW.replace(minute=m)).scheduled(
                 tenant_id=TENANT,
                 notice=notice,
                 recipient_person_id="p-1",

@@ -352,9 +352,7 @@ class TestFiring:
         repository, clinician, fakes = world
         put_appointment(repository, clinician)
         run(reminders.SCHEDULE)
-        repository.update_existing(
-            keys.person(PERSON), set_values={"phoneE164": ""}, what="person"
-        )
+        repository.update_existing(keys.person(PERSON), set_values={"phoneE164": ""}, what="person")
         assert fire(fakes)["batchItemFailures"] == []
         (row,) = rows(repository)
         assert row["deliveryState"] == FAILED

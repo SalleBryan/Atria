@@ -234,9 +234,7 @@ class AsyncStack(Stack):
         # SMS goes straight to a phone number, which has no ARN to scope to,
         # so publishing is allowed broadly and publishing to a topic is denied:
         # this function reaches patients, not subscribers.
-        self.sender.add_to_role_policy(
-            iam.PolicyStatement(actions=["sns:Publish"], resources=["*"])
-        )
+        self.sender.add_to_role_policy(iam.PolicyStatement(actions=["sns:Publish"], resources=["*"]))
         self.sender.add_to_role_policy(
             iam.PolicyStatement(
                 effect=iam.Effect.DENY,

@@ -383,9 +383,7 @@ class TestNotSending:
         """FR-MSG-01 sends where the patient has an address."""
         repository, clinician, fake_ses = wired
         put_appointment(repository, clinician)
-        repository.update_existing(
-            keys.person(PERSON), set_values={"email": ""}, what="person"
-        )
+        repository.update_existing(keys.person(PERSON), set_values={"email": ""}, what="person")
         assert sender.handler(job(), None)["batchItemFailures"] == []
         assert fake_ses.sent == []
 

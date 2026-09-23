@@ -66,9 +66,7 @@ def _time(value: object, *, what: str) -> dt.time:
         raise Invalid(f"the clinic's {what} is not a time in the form HH:MM") from exc
 
 
-def opening_window(
-    opening_hours: object, day: dt.date, *, zone: ZoneInfo
-) -> Window | None:
+def opening_window(opening_hours: object, day: dt.date, *, zone: ZoneInfo) -> Window | None:
     """The clinic's working span on one day, or None when it is closed.
 
     Opening hours are keyed by weekday, Monday as 0, matching

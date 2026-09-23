@@ -201,9 +201,7 @@ class TestDoubleBooking:
         """The unit after the last one held is free, so the next patient gets it."""
         first = occupancy(duration_units=3)
         book(booking, occupancy=first)
-        after = rules.occupancy(
-            first.held_until, duration_units=3, buffer_units=0, minutes=10
-        )
+        after = rules.occupancy(first.held_until, duration_units=3, buffer_units=0, minutes=10)
         appointment, _event = book(booking, occupancy=after)
         assert appointment["startAt"] == "2026-03-04T08:30:00Z"
 

@@ -183,8 +183,7 @@ class TestCancel:
 
         cancel(booked["appointmentId"])
         assert all(
-            repository.get(keys.slot_lock(TENANT, clinician, unit)) is None
-            for unit in held.units
+            repository.get(keys.slot_lock(TENANT, clinician, unit)) is None for unit in held.units
         )
 
     def test_the_same_start_can_be_booked_again_afterwards(self, wired):

@@ -124,15 +124,11 @@ class TestFreeStarts:
         assert "2026-03-04T09:00:00Z" in offered
 
     def test_the_minimum_notice_is_applied(self):
-        found = self.free(
-            now=dt.datetime(2026, 3, 4, 7, 0, tzinfo=dt.UTC), min_notice_minutes=60
-        )
+        found = self.free(now=dt.datetime(2026, 3, 4, 7, 0, tzinfo=dt.UTC), min_notice_minutes=60)
         assert found[0].start_at == dt.datetime(2026, 3, 4, 8, 0, tzinfo=dt.UTC)
 
     def test_a_day_beyond_the_booking_window_offers_nothing(self):
-        assert (
-            self.free(now=dt.datetime(2026, 1, 1, 6, 0, tzinfo=dt.UTC), max_advance_days=7) == []
-        )
+        assert self.free(now=dt.datetime(2026, 1, 1, 6, 0, tzinfo=dt.UTC), max_advance_days=7) == []
 
     def test_a_past_day_offers_nothing(self):
         assert self.free(now=dt.datetime(2026, 3, 5, 6, 0, tzinfo=dt.UTC)) == []

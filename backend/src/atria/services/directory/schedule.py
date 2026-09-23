@@ -41,9 +41,7 @@ MAX_DAYS = 31
 DEFAULT_DAYS = 7
 
 
-def local_range(
-    start_day: dt.date, end_day: dt.date, *, zone: Any
-) -> tuple[str, str]:
+def local_range(start_day: dt.date, end_day: dt.date, *, zone: Any) -> tuple[str, str]:
     """The UTC instants covering whole local dates, both ends included."""
     opens = dt.datetime.combine(start_day, dt.time.min, tzinfo=zone).astimezone(dt.UTC)
     closes = dt.datetime.combine(
@@ -87,9 +85,7 @@ def calendar(
     if end_day < start_day:
         raise Invalid("to is before from")
     if (end_day - start_day).days + 1 > MAX_DAYS:
-        raise Invalid(
-            "that range is wider than a calendar shows", detail={"maximumDays": MAX_DAYS}
-        )
+        raise Invalid("that range is wider than a calendar shows", detail={"maximumDays": MAX_DAYS})
 
     since, until = local_range(start_day, end_day, zone=zone)
     found = data.calendar(principal.tenant_id, clinician_id, since=since, until=until)
@@ -104,9 +100,7 @@ def calendar(
     }
 
 
-def clinic_day(
-    principal: Principal, event: dict[str, Any], *, data: Booking
-) -> dict[str, Any]:
+def clinic_day(principal: Principal, event: dict[str, Any], *, data: Booking) -> dict[str, Any]:
     """Every appointment in one clinic on one of its dates."""
     clinic_id = requests.path_parameter(event, "id")
     data.clinic(principal.tenant_id, clinic_id)
@@ -118,9 +112,7 @@ def clinic_day(
 
     zone = data.zone(principal.tenant_id)
     raw = requests.query_parameter(event, "date")
-    day = (
-        schedule.parse_date(raw, name="date") if raw else data.now().astimezone(zone).date()
-    )
+    day = schedule.parse_date(raw, name="date") if raw else data.now().astimezone(zone).date()
     found = data.clinic_day(principal.tenant_id, clinic_id, day.isoformat())
     return {
         "clinicId": clinic_id,

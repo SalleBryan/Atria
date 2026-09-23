@@ -204,7 +204,10 @@ class TestOneAppointment:
 
     def test_a_receptionist_cannot_open_one_in_another_clinic(self, seeded, wired):
         put_appointment(
-            wired, "a-elsewhere", patient=THEIRS, start=NOW + dt.timedelta(days=4),
+            wired,
+            "a-elsewhere",
+            patient=THEIRS,
+            start=NOW + dt.timedelta(days=4),
             clinic_id=YAOUNDE,
         )
         result = self.one(
@@ -228,7 +231,10 @@ class TestOneAppointment:
 
     def test_a_clinician_cannot_open_another_clinicians(self, seeded, wired):
         put_appointment(
-            wired, "a-other-clin", patient=THEIRS, start=NOW + dt.timedelta(days=5),
+            wired,
+            "a-other-clin",
+            patient=THEIRS,
+            start=NOW + dt.timedelta(days=5),
             clinician="s-clin-2",
         )
         result = self.one(

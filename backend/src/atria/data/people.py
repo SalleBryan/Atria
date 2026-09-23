@@ -167,9 +167,7 @@ def clinician_item(
     return item
 
 
-def patient_profile_item(
-    *, patient_profile_id: str, person_id: str, tenant_id: str
-) -> Item:
+def patient_profile_item(*, patient_profile_id: str, person_id: str, tenant_id: str) -> Item:
     """A person as a patient of one tenant.
 
     Nothing here is asked for at sign-up: names, date of birth and the
@@ -279,9 +277,7 @@ class People:
         clinician list is small, and a filter expression would cost the same
         read while making the ordering harder to reason about.
         """
-        found = self._repo.query_index(
-            DIRECTORY_INDEX, "directoryKey", directory_key(tenant_id)
-        )
+        found = self._repo.query_index(DIRECTORY_INDEX, "directoryKey", directory_key(tenant_id))
         if specialty:
             wanted = specialty.casefold()
             found = [c for c in found if str(c.get("specialty", "")).casefold() == wanted]

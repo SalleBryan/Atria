@@ -162,9 +162,7 @@ class TestDirectory:
         assert [c["familyName"] for c in found["clinicians"]] == ["Abena"]
 
     def test_a_suspended_clinician_is_not_offered(self, clinicians, wired):
-        People(wired).set_status(
-            tenant_id=TENANT, staff_id=clinicians["Etoa"], status="SUSPENDED"
-        )
+        People(wired).set_status(tenant_id=TENANT, staff_id=clinicians["Etoa"], status="SUSPENDED")
         found = body_of(service.handler(event("/clinicians"), None))
         assert "Etoa" not in {c["familyName"] for c in found["clinicians"]}
 
@@ -278,9 +276,7 @@ class TestSlots:
         assert result["statusCode"] == 404
 
     def test_a_suspended_clinician_offers_no_slots(self, clinicians, wired):
-        People(wired).set_status(
-            tenant_id=TENANT, staff_id=clinicians["Etoa"], status="SUSPENDED"
-        )
+        People(wired).set_status(tenant_id=TENANT, staff_id=clinicians["Etoa"], status="SUSPENDED")
         assert self.slots(clinicians)["statusCode"] == 409
 
     def test_a_request_with_no_caller_is_unauthenticated(self, clinicians):

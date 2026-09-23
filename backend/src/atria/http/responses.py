@@ -30,6 +30,7 @@ def _encode(value: object) -> object:
         return int(whole) if value == whole else float(value)
     return str(value)
 
+
 SECURITY_HEADERS = {
     "Cache-Control": "no-store",
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
@@ -50,9 +51,7 @@ def response(
         "headers": {"Content-Type": JSON_TYPE, **SECURITY_HEADERS, **(headers or {})},
         "isBase64Encoded": False,
     }
-    out["body"] = (
-        "" if body is None else json.dumps(body, separators=(",", ":"), default=_encode)
-    )
+    out["body"] = "" if body is None else json.dumps(body, separators=(",", ":"), default=_encode)
     return out
 
 

@@ -94,13 +94,9 @@ class Repository:
         found: dict[tuple[str, str], Item] = {}
         # BatchGetItem takes at most 100 keys per call.
         for start in range(0, len(wanted), 100):
-            pending: list[dict[str, str]] = [
-                key.as_item() for key in wanted[start : start + 100]
-            ]
+            pending: list[dict[str, str]] = [key.as_item() for key in wanted[start : start + 100]]
             while pending:
-                response = client.batch_get_item(
-                    RequestItems={self._table.name: {"Keys": pending}}
-                )
+                response = client.batch_get_item(RequestItems={self._table.name: {"Keys": pending}})
                 for item in response.get("Responses", {}).get(self._table.name, []):
                     found[(str(item["pk"]), str(item["sk"]))] = dict(item)
                 # A throttled batch returns what it could not read, and the

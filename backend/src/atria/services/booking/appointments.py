@@ -82,9 +82,7 @@ def role_used(principal: Principal, permission: str) -> str | None:
     if not principal.is_staff:
         return None
     granting = [
-        role
-        for role in principal.roles
-        if permissions.scope_for(role, permission) != "none"
+        role for role in principal.roles if permissions.scope_for(role, permission) != "none"
     ]
     if not granting:
         return None
@@ -314,9 +312,7 @@ def book(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
                 detail={"idempotencyKey": key},
             )
         logger.info("idempotent replay", extra={"idempotencyKey": key})
-        return responses.created(
-            held.get("response"), headers={"Idempotency-Replayed": "true"}
-        )
+        return responses.created(held.get("response"), headers={"Idempotency-Replayed": "true"})
 
     try:
         booked = create(principal, body)

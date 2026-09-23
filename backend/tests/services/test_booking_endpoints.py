@@ -195,9 +195,7 @@ class TestStaffBooking:
     def test_staff_booking_for_themselves_is_treated_as_a_patient(self, wired):
         """Guard SELF_SUBJECT_DROPS_STAFF_SCOPE: no staff tooling on one's own record."""
         body = {**BODY, "appointmentTypeId": "at-minor-proc"}
-        result = service.handler(
-            receptionist_event(body, patientProfileId=PATIENT), None
-        )
+        result = service.handler(receptionist_event(body, patientProfileId=PATIENT), None)
         assert result["statusCode"] == 400
 
     def test_staff_booking_for_themselves_records_no_staff_role(self, wired):

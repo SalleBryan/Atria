@@ -225,9 +225,7 @@ class ApiStack(Stack):
                 authorizer=self.request_authoriser,
                 authorization_type=apigateway.AuthorizationType.CUSTOM,
             )
-        self.api.root.add_resource("patients").add_resource("me").add_resource(
-            "appointments"
-        ).add_method(
+        self.api.root.add_resource("patients").add_resource("me").add_resource("appointments").add_method(
             "GET",
             booking_integration,
             authorizer=self.request_authoriser,
@@ -257,9 +255,7 @@ class ApiStack(Stack):
             )
         # The front desk's day. appointment.read at clinic scope decides who
         # reaches it; a clinician's scope is their own and is refused.
-        self.api.root.add_resource("clinics").add_resource("{id}").add_resource(
-            "day"
-        ).add_method(
+        self.api.root.add_resource("clinics").add_resource("{id}").add_resource("day").add_method(
             "GET",
             directory_integration,
             authorizer=self.request_authoriser,

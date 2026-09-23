@@ -122,6 +122,34 @@ def clinician_item(
     }
 
 
+def patient_profile_item(
+    *, patient_profile_id: str, person_id: str, tenant_id: str
+) -> Item:
+    """A person as a patient of one tenant.
+
+    Nothing here is asked for at sign-up: names, date of birth and the
+    notification preferences arrive at profile completion. What matters at this
+    point is that the profile exists, because it is what "own" means for a
+    patient and nothing the patient may do resolves without it.
+    """
+    return {
+        "type": "PATIENT_PROFILE",
+        "patientProfileId": patient_profile_id,
+        "personId": person_id,
+        "tenantId": tenant_id,
+        "noShowCount": 0,
+        "createdAt": now(),
+    }
+
+
+def patient_profile_summary(item: Item) -> Item:
+    """The part of a patient profile the sign-in path needs."""
+    return {
+        "tenantId": item["tenantId"],
+        "patientProfileId": item["patientProfileId"],
+    }
+
+
 def membership_summary(item: Item) -> Item:
     """The part of a membership the sign-in path needs."""
     return {
@@ -246,6 +274,57 @@ class People:
             )
         self._repo.write_together(writes)
         return person, membership
+
+    def create_patient_account(
+        self,
+        *,
+        tenant_id: str,
+        cognito_sub: str,
+        given_name: str = "",
+        family_name: str = "",
+        phone_e164: str = "",
+        email: str | None = None,
+    ) -> tuple[Item, Item]:
+        """Write the person and their patient profile at once.
+
+        Called from the post confirmation trigger, after Cognito has already
+        confirmed the account. Cognito does not undo a confirmation if this
+        fails, so a person who is confirmed but has no record here cannot sign
+        in usefully: the trigger retries rather than swallowing the failure,
+        and `patient_for` makes a retry harmless.
+        """
+        person_id = new_id("p")
+        profile_id = new_id("pp")
+
+        person = person_item(
+            person_id=person_id,
+            cognito_sub=cognito_sub,
+            given_name=given_name,
+            family_name=family_name,
+            phone_e164=phone_e164,
+            email=email,
+        )
+        profile = patient_profile_item(
+            patient_profile_id=profile_id, person_id=person_id, tenant_id=tenant_id
+        )
+        person["patientProfiles"] = [patient_profile_summary(profile)]
+
+        self._repo.write_together(
+            [
+                (keys.person(person_id), person),
+                (keys.patient_profile(tenant_id, profile_id), profile),
+            ]
+        )
+        return person, profile
+
+    def patient_for(self, cognito_sub: str) -> Item | None:
+        """The person behind a sign-in, if one was already written.
+
+        The post confirmation trigger can be delivered more than once for the
+        same sign-up, so it asks this first and does nothing the second time
+        rather than writing a second person for one human being.
+        """
+        return self.by_cognito_sub(cognito_sub)
 
     def set_roles(self, *, tenant_id: str, staff_id: str, roles: tuple[str, ...]) -> Item:
         """Change the roles on an account. Effective at its next sign-in."""

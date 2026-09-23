@@ -43,6 +43,7 @@ CLINIC_ID = "c-smoke-01"
 # the identifiers and the start time are unique per run.
 RUN = secrets.token_hex(4)
 PATIENT_PROFILE_ID = f"pp-smoke-{RUN}"
+PERSON_ID = f"p-smoke-{RUN}"
 APPOINTMENT_TYPE_ID = f"at-smoke-{RUN}"
 
 GRID_UNIT_MINUTES = 10
@@ -122,12 +123,29 @@ def seed(table) -> None:  # noqa: ANN001  boto3 table
             "active": True,
         }
     )
+    # A profile always belongs to a person, because registration writes both
+    # together. Seeding one without the other made every booking here a job
+    # the notice sender could not resolve, retried five times and parked on
+    # the dead letter queue. The person has no email, so the sender records
+    # that there is no address to write to and stops, which is the honest
+    # outcome for a synthetic patient.
+    table.put_item(
+        Item={
+            "pk": f"PERSON#{PERSON_ID}",
+            "sk": "PERSON",
+            "type": "PERSON",
+            "personId": PERSON_ID,
+            "givenName": "Smoke",
+            "familyName": "Patient",
+        }
+    )
     table.put_item(
         Item={
             "pk": f"TENANT#{TENANT_ID}#PAT#{PATIENT_PROFILE_ID}",
             "sk": "PROFILE",
             "type": "PATIENT_PROFILE",
             "patientProfileId": PATIENT_PROFILE_ID,
+            "personId": PERSON_ID,
             "tenantId": TENANT_ID,
         }
     )

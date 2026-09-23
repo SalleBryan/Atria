@@ -114,6 +114,22 @@ class TestOutcome:
         assert found[0]["deliveryState"] == SENT
 
 
+class TestSettled:
+    def test_every_outcome_records_when_it_was_reached(self, repository, notice):
+        """sentAt is when the message was queued and is part of the key; a
+        reminder queued two days before it fires needs the second time too."""
+        queued = Messages(repository, clock=lambda: NOW)
+        row = schedule(queued, notice)
+        later = NOW + dt.timedelta(days=2)
+        settled = Messages(repository, clock=lambda: later).sent(row, provider_message_id="x")
+        assert settled["sentAt"] == "2026-03-04T09:30:15Z"
+        assert settled["settledAt"] == "2026-03-06T09:30:15Z"
+
+    def test_failures_and_cancellations_are_timed_too(self, messages, notice):
+        assert "settledAt" in messages.failed(schedule(messages, notice), reason="x")
+        assert "settledAt" in messages.cancelled(schedule(messages, notice), reason="x")
+
+
 class TestReading:
     def test_a_day_is_one_query(self, messages, notice):
         schedule(messages, notice)

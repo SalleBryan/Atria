@@ -25,8 +25,13 @@ from atria.core.errors import Invalid
 # What happened, which is what FR-MSG-03 calls the kind.
 BOOKING_CONFIRMATION = "BOOKING_CONFIRMATION"
 BOOKING_CANCELLATION = "BOOKING_CANCELLATION"
+APPOINTMENT_REMINDER = "APPOINTMENT_REMINDER"
 
-KINDS = (BOOKING_CONFIRMATION, BOOKING_CANCELLATION)
+KINDS = (BOOKING_CONFIRMATION, BOOKING_CANCELLATION, APPOINTMENT_REMINDER)
+
+# One SMS segment in the GSM alphabet. Beyond it a message is billed as two, and
+# for a clinic paying per message in XAF that doubles the cost of every reminder.
+SMS_SEGMENT = 160
 
 CHANNELS = ("EMAIL", "SMS", "VOICE")
 
@@ -152,6 +157,42 @@ TEXT = {
 }
 
 
+# Short, and plain ASCII: an accent outside the GSM alphabet switches the whole
+# message to UCS-2, where a segment holds 70 characters instead of 160. Nothing
+# here names the reason for the visit or repeats an intake answer, because a
+# phone is read by whoever picks it up (FR-REM-04).
+SMS_TEXT = {
+    APPOINTMENT_REMINDER: {
+        "fr": "Rappel Atria: RDV le {date} a {time}, {clinic}, {clinician}. "
+        "Ref {reference}. Pour annuler: application Atria.",
+        "en": "Atria reminder: appointment {date} at {time}, {clinic}, {clinician}. "
+        "Ref {reference}. To cancel: Atria app.",
+    },
+    BOOKING_CONFIRMATION: {
+        "fr": "Atria: RDV confirme le {date} a {time}, {clinic}, {clinician}. "
+        "Ref {reference}. Pour annuler: application Atria.",
+        "en": "Atria: appointment confirmed {date} at {time}, {clinic}, {clinician}. "
+        "Ref {reference}. To cancel: Atria app.",
+    },
+}
+
+SMS_DATE = "%d/%m/%Y"
+
+
+def available(kind: str, channel: str) -> bool:
+    """Whether this notice exists on this channel.
+
+    A cancellation goes by email and a reminder by SMS; the only notice sent
+    both ways is the confirmation, by SMS when the booking is too close for a
+    reminder (FR-REM-06).
+    """
+    if channel == "EMAIL":
+        return kind in TEXT
+    if channel == "SMS":
+        return kind in SMS_TEXT
+    return False
+
+
 def compose(
     kind: str,
     *,
@@ -165,23 +206,38 @@ def compose(
     """Turn an appointment into the notice a patient receives.
 
     The reference is what a patient quotes at the desk, so it leads both the
-    subject and the body (FR-BKG-01).
+    subject and the body of an email, and is always in an SMS (FR-BKG-01).
     """
     if kind not in KINDS:
         raise Invalid("unknown notice kind", detail={"allowed": list(KINDS)})
     if channel not in CHANNELS:
         raise Invalid("unknown channel", detail={"allowed": list(CHANNELS)})
+    if not available(kind, channel):
+        raise Invalid(
+            "that notice is not sent on that channel",
+            detail={"kind": kind, "channel": channel},
+        )
     chosen = language_for(language)
     at = local(str(appointment.get("startAt", "")), zone=zone)
 
-    subject_template, body_template = TEXT[kind][chosen]
     values = {
         "reference": str(appointment.get("reference", "")),
-        "date": at.strftime(DATE_FORMATS[chosen]),
+        "date": at.strftime(SMS_DATE if channel == "SMS" else DATE_FORMATS[chosen]),
         "time": at.strftime("%H:%M"),
         "clinic": clinic_name,
         "clinician": clinician_name,
     }
+    if channel == "SMS":
+        return Notice(
+            kind=kind,
+            channel=channel,
+            language=chosen,
+            template=f"{kind.lower()}.sms.{chosen}",
+            subject="",
+            body=SMS_TEXT[kind][chosen].format(**values),
+        )
+
+    subject_template, body_template = TEXT[kind][chosen]
     return Notice(
         kind=kind,
         channel=channel,

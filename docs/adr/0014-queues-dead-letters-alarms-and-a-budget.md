@@ -45,4 +45,29 @@ Consequences that followed, and are worth knowing before changing any of this:
   books and cancels within seconds receives the cancellation and not a contradictory
   confirmation after it.
 
+Reminders, 2026-09-23, verified against acceptance test BR-08: the schedule fired 45 seconds
+after its time and a cancelled appointment's reminder was removed and logged CANCELLED.
+
+- A booking's reminder is a one-time EventBridge schedule named after the appointment, so a
+  retry cannot create a second one and a cancellation can remove it knowing only the
+  appointment. At its time it puts the reminder job on the same outbox and the same sender
+  handles it, re-reading the appointment and the current number first.
+- The outbox now deduplicates by content, reversing the note above. The scheduler cannot
+  supply a deduplication id and a FIFO queue refuses a message with neither. The dispatcher
+  still supplies explicit ids, which take precedence over the body.
+- A reminder's log row is written SCHEDULED when the schedule is created and carries a fixed
+  identity in the scheduled job, so firing, skipping and cancelling all land on one row. A
+  reminder already SENT keeps its row when the appointment is cancelled afterwards.
+- A refusal that no retry will change, such as an opted out number or a rejected address, is
+  logged FAILED and not retried. Five identical attempts would only fill the dead letter queue.
+- The scheduler has its own standard dead letter queue for a reminder it cannot deliver to the
+  outbox within an hour.
+
+What SENT means is worth stating exactly. It is recorded when the provider accepts the
+message. SNS accepts an SMS even in the sandbox and fails the delivery afterwards, so today
+the log can say SENT for an SMS that never arrived; SNS's own metrics show the failure.
+Delivery status, and the DELIVERED state with it, is Phase 2 under FR-MSG-03.
+
 Alarms on the dead letter queues are not yet in place and belong with the observability work.
+So is the per-tenant daily SMS spend cap named in the configuration, which nothing enforces yet;
+the account-level SNS monthly limit of one dollar is the only ceiling in development.

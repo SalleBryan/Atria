@@ -294,7 +294,9 @@ class TestOutbox:
             None,
         )
         assert fake.messages[0]["MessageGroupId"] == "a-7"
-        assert fake.messages[0]["MessageDeduplicationId"] == "e-99"
+        # The record id, suffixed with the job, because one record now owes
+        # two jobs and a shared id would have the second dropped.
+        assert fake.messages[0]["MessageDeduplicationId"] == f"e-99:{notices.BOOKING_CONFIRMATION}"
 
     def test_a_record_that_cannot_be_queued_is_reported_not_swallowed(self, monkeypatch):
         class Broken:

@@ -44,6 +44,15 @@ class Environment:
     concern, and it arrives with the second tenant, not before.
     """
 
+    notice_sender: str = ""
+    """The verified SES identity every notice is sent from.
+
+    SES refuses an unverified sender, and the account is in the sandbox, so in
+    development this is the one address that has been verified by hand. An
+    empty value fails every send at runtime rather than sending from something
+    that would bounce.
+    """
+
     admin_password_auth: bool = False
     """Allow ADMIN_USER_PASSWORD_AUTH on the staff client.
 
@@ -68,6 +77,10 @@ DEV = Environment(
     account=DEV_ACCOUNT,
     region="us-east-1",
     budget_alert_emails=("bryanjakevita@gmail.com",),
+    # The one identity verified in the development account. SES is in the
+    # sandbox there, so recipients are verified addresses and the mailbox
+    # simulator, which is what the acceptance test uses.
+    notice_sender="bryanjakevita@gmail.com",
     admin_password_auth=True,
     tags={
         "Project": "Atria",

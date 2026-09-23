@@ -7,8 +7,8 @@
     cdk synth -c environment=dev    choose the environment explicitly
 
 Stacks land as their milestones do. Present: platform, data, identity, api,
-observability, cost guard. The async and network stacks in the Technical
-Document arrive with the reminder path and with web hosting.
+async, observability, cost guard. The network stack in the Technical Document
+arrives with web hosting.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ import aws_cdk as cdk
 
 from atria_infra import config
 from atria_infra.stacks.api import ApiStack
+from atria_infra.stacks.async_stack import AsyncStack
 from atria_infra.stacks.cost_guard import CostGuardStack
 from atria_infra.stacks.data import DataStack
 from atria_infra.stacks.identity import IdentityStack
@@ -52,6 +53,15 @@ def main() -> cdk.App:
         settings=env,
         data=data,
         identity=identity,
+        platform=platform,
+        build_dir=build_dir,
+        env=target,
+    )
+    AsyncStack(
+        app,
+        env.stack_name("async"),
+        settings=env,
+        data=data,
         platform=platform,
         build_dir=build_dir,
         env=target,

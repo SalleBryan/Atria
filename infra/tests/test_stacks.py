@@ -379,6 +379,168 @@ class TestCostGuardStack:
         assert budget["Properties"]["Budget"]["BudgetLimit"]["Amount"] <= 50
 
 
+def queue_named(template: Template, suffix: str) -> dict:
+    return next(
+        q["Properties"]
+        for q in template.find_resources("AWS::SQS::Queue").values()
+        if str(q["Properties"]["QueueName"]).endswith(suffix)
+    )
+
+
+class TestAsyncStack:
+    def test_the_outbox_has_a_dead_letter_queue(self, synthesised):
+        """ADR 0014: a message that cannot be handled is parked, not lost."""
+        outbox = queue_named(template_for(synthesised, "async"), "-outbox.fifo")
+        assert "RedrivePolicy" in outbox
+
+    def test_the_outbox_and_its_dead_letters_are_fifo(self, synthesised):
+        """A booking and the cancellation after it must not be sent out of
+        order, and a FIFO queue's dead letter queue must be FIFO too."""
+        template = template_for(synthesised, "async")
+        assert queue_named(template, "-outbox.fifo")["FifoQueue"] is True
+        assert queue_named(template, "-outbox-dlq.fifo")["FifoQueue"] is True
+
+    def test_the_stream_failure_destination_is_a_standard_queue(self, synthesised):
+        """Regression. Lambda refuses a FIFO queue as a stream consumer's
+        on-failure destination. Synthesis accepted it and only the deploy
+        failed, so the rule is pinned here where it is cheap to catch."""
+        template = template_for(synthesised, "async")
+        failures = queue_named(template, "-stream-failures")
+        assert failures.get("FifoQueue") is not True
+        mappings = template.find_resources("AWS::Lambda::EventSourceMapping")
+        stream = next(
+            m["Properties"] for logical, m in mappings.items() if "SqsEventSource" not in logical
+        )
+        destination = str(stream["DestinationConfig"]["OnFailure"]["Destination"])
+        assert "StreamFailures" in destination
+
+    def test_every_failure_queue_keeps_what_it_holds_for_two_weeks(self, synthesised):
+        """Long enough to notice, look and redrive before it expires."""
+        template = template_for(synthesised, "async")
+        for suffix in ("-outbox-dlq.fifo", "-stream-failures"):
+            assert queue_named(template, suffix)["MessageRetentionPeriod"] == 14 * 24 * 3600
+
+    def test_the_outbox_deduplicates_on_the_key_the_dispatcher_supplies(self, synthesised):
+        """Not on the body: two genuine notices for one appointment can have
+        identical bodies, so content based deduplication would drop one."""
+        template = template_for(synthesised, "async")
+        outbox = next(
+            q
+            for q in template.find_resources("AWS::SQS::Queue").values()
+            if str(q["Properties"]["QueueName"]).endswith("-outbox.fifo")
+        )
+        assert outbox["Properties"].get("ContentBasedDeduplication") is not True
+
+    def test_the_visibility_timeout_outlives_the_sender(self, synthesised):
+        """Otherwise a slow send is delivered again while still running, and
+        the patient gets two emails."""
+        template = template_for(synthesised, "async")
+        outbox = next(
+            q
+            for q in template.find_resources("AWS::SQS::Queue").values()
+            if str(q["Properties"]["QueueName"]).endswith("-outbox.fifo")
+        )
+        sender = next(
+            f
+            for f in template.find_resources("AWS::Lambda::Function").values()
+            if f["Properties"]["Handler"] == "atria.services.notify.sender.handler"
+        )
+        assert outbox["Properties"]["VisibilityTimeout"] > sender["Properties"]["Timeout"]
+
+    def test_the_dispatcher_reads_the_stream_and_not_the_table(self, synthesised):
+        """It decides that something happened. It has no business reading rows."""
+        template = template_for(synthesised, "async")
+        dispatcher_role = next(
+            f["Properties"]["Role"]["Fn::GetAtt"][0]
+            for f in template.find_resources("AWS::Lambda::Function").values()
+            if f["Properties"]["Handler"] == "atria.services.notify.outbox.handler"
+        )
+        actions: set[str] = set()
+        for policy in template.find_resources("AWS::IAM::Policy").values():
+            if dispatcher_role not in str(policy["Properties"].get("Roles")):
+                continue
+            for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
+                action = statement.get("Action")
+                actions.update(action if isinstance(action, list) else [action])
+        assert "dynamodb:GetRecords" in actions
+        assert "dynamodb:GetItem" not in actions
+        assert "dynamodb:PutItem" not in actions
+
+    def test_the_sender_may_only_send_and_only_as_the_one_identity(self, synthesised):
+        template = template_for(synthesised, "async")
+        sender_role = next(
+            f["Properties"]["Role"]["Fn::GetAtt"][0]
+            for f in template.find_resources("AWS::Lambda::Function").values()
+            if f["Properties"]["Handler"] == "atria.services.notify.sender.handler"
+        )
+        ses_actions: set[str] = set()
+        for policy in template.find_resources("AWS::IAM::Policy").values():
+            if sender_role not in str(policy["Properties"].get("Roles")):
+                continue
+            for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
+                action = statement.get("Action")
+                for name in action if isinstance(action, list) else [action]:
+                    if name and str(name).startswith("ses:"):
+                        ses_actions.add(str(name))
+        assert ses_actions == {"ses:SendEmail"}
+
+    def test_the_sender_knows_which_identity_to_send_as(self, synthesised):
+        """An unset value would fail every send, so it is pinned here."""
+        template = template_for(synthesised, "async")
+        sender = next(
+            f
+            for f in template.find_resources("AWS::Lambda::Function").values()
+            if f["Properties"]["Handler"] == "atria.services.notify.sender.handler"
+        )
+        env = sender["Properties"]["Environment"]["Variables"]
+        assert env["NOTICE_SENDER"] == config.DEV.notice_sender
+
+    def test_the_sender_takes_one_message_at_a_time(self, synthesised):
+        """SES in the sandbox allows one a second; a batch would be throttled
+        into retries and the whole batch redelivered."""
+        template = template_for(synthesised, "async")
+        mappings = template.find_resources("AWS::Lambda::EventSourceMapping")
+        by_source = {
+            ("sqs" if "SqsEventSource" in logical else "stream"): mapping["Properties"]
+            for logical, mapping in mappings.items()
+        }
+        assert by_source["sqs"]["BatchSize"] == 1
+        # The stream is read in batches: reading one change at a time would
+        # fall behind a busy clinic.
+        assert by_source["stream"]["BatchSize"] > 1
+
+    def test_the_sender_is_capped_without_reserving_concurrency(self, synthesised):
+        """Different appointments are different FIFO groups, so an uncapped
+        queue drives many senders at once and bursts past the SES sandbox rate.
+        Reserving concurrency instead would fail the deploy: the development
+        account's limit is 10 and AWS keeps all 10 unreserved."""
+        template = template_for(synthesised, "async")
+        mappings = template.find_resources("AWS::Lambda::EventSourceMapping")
+        queue_mapping = next(
+            m["Properties"] for logical, m in mappings.items() if "SqsEventSource" in logical
+        )
+        assert queue_mapping["ScalingConfig"]["MaximumConcurrency"] == 2
+        for function in template.find_resources("AWS::Lambda::Function").values():
+            assert "ReservedConcurrentExecutions" not in function["Properties"]
+
+    def test_the_stream_is_read_from_now_and_not_from_the_horizon(self, synthesised):
+        """The stream holds 24 hours. Starting at the horizon would replay
+        yesterday's bookings and send a confirmation for each one again."""
+        template = template_for(synthesised, "async")
+        mappings = template.find_resources("AWS::Lambda::EventSourceMapping")
+        stream = next(
+            m["Properties"] for logical, m in mappings.items() if "SqsEventSource" not in logical
+        )
+        assert stream["StartingPosition"] == "LATEST"
+
+    def test_both_sources_report_failures_per_item(self, synthesised):
+        """One bad record is retried and parked alone rather than dragging the
+        whole batch back through."""
+        template = template_for(synthesised, "async")
+        for mapping in template.find_resources("AWS::Lambda::EventSourceMapping").values():
+            assert mapping["Properties"]["FunctionResponseTypes"] == ["ReportBatchItemFailures"]
+
+
 class TestObservabilityStack:
     def test_alarms_cover_errors_latency_and_the_authoriser(self, synthesised):
         template = template_for(synthesised, "observability")

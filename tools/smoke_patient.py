@@ -191,19 +191,26 @@ def sign_in(idp, pool_id: str, client_id: str, username: str, password: str) -> 
 
 
 def call(
-    url: str, token: str | None, *, method: str = "GET", body: object = None
-) -> tuple[int, str]:
+    url: str,
+    token: str | None,
+    *,
+    method: str = "GET",
+    body: object = None,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, str, dict[str, str]]:
     data = json.dumps(body).encode() if body is not None else None
     request = urllib.request.Request(url, method=method, data=data)  # noqa: S310  https only
     if data is not None:
         request.add_header("Content-Type", "application/json")
     if token:
         request.add_header("Authorization", f"Bearer {token}")
+    for name, value in (headers or {}).items():
+        request.add_header(name, value)
     try:
         with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310
-            return response.status, response.read().decode()
+            return response.status, response.read().decode(), dict(response.headers)
     except urllib.error.HTTPError as exc:
-        return exc.code, exc.read().decode()
+        return exc.code, exc.read().decode(), dict(exc.headers or {})
 
 
 def register_patient(idp, pool_id: str, patient_client_id: str) -> tuple[str, str, str]:  # noqa: ANN001
@@ -261,7 +268,7 @@ def main() -> int:
 
     admin_password = ensure_admin(idp, pool_id)
     admin_token = sign_in(idp, pool_id, staff_client_id, ADMIN_USERNAME, admin_password)
-    status, raw = call(
+    status, raw, _h = call(
         f"{base}/admin/staff",
         admin_token,
         method="POST",
@@ -304,20 +311,20 @@ def main() -> int:
     patient_token = sign_in(idp, pool_id, staff_client_id, email, password)
     print("patient signed in")
 
-    status, raw = call(f"{base}/me", patient_token)
+    status, raw, _h = call(f"{base}/me", patient_token)
     print(f"\nGET /me: {status}")
     me = json.loads(raw) if raw else {}
     print(json.dumps(me, indent=2))
 
     # The directory, which is how a patient finds the clinician at all.
-    dir_status, dir_raw = call(f"{base}/clinicians", patient_token)
+    dir_status, dir_raw, _h = call(f"{base}/clinicians", patient_token)
     directory = json.loads(dir_raw) if dir_status == 200 else {}
     print(f"\nGET /clinicians: {dir_status}, {directory.get('count')} listed")
     listed_ids = {c["clinicianProfileId"] for c in directory.get("clinicians", [])}
 
     # The free starts for that clinician, which is how a patient picks a time.
     day = (dt.datetime.now(tz=dt.UTC) + dt.timedelta(days=3)).date().isoformat()
-    slot_status, slot_raw = call(
+    slot_status, slot_raw, _h = call(
         f"{base}/clinicians/{clinician_id}/slots?date={day}&typeId={APPOINTMENT_TYPE_ID}",
         patient_token,
     )
@@ -329,15 +336,18 @@ def main() -> int:
     # here: that is what a client would do, and it is the only way to know the
     # two routes agree.
     start = offered[0] if offered else start_at()
-    status, raw = call(
+    booking_body = {
+        "appointmentTypeId": APPOINTMENT_TYPE_ID,
+        "clinicianProfileId": clinician_id,
+        "startAt": start,
+    }
+    idempotency_key = f"smoke-{RUN}-{secrets.token_hex(4)}"
+    status, raw, _h = call(
         f"{base}/appointments",
         patient_token,
         method="POST",
-        body={
-            "appointmentTypeId": APPOINTMENT_TYPE_ID,
-            "clinicianProfileId": clinician_id,
-            "startAt": start,
-        },
+        body=booking_body,
+        headers={"Idempotency-Key": idempotency_key},
     )
     print(f"\nPOST /appointments as the patient: {status}")
     print(raw)
@@ -345,7 +355,7 @@ def main() -> int:
 
     # The same request naming somebody else. A patient books only for
     # themselves, so the profile on the record must still be their own.
-    other_status, other_raw = call(
+    other_status, other_raw, _h = call(
         f"{base}/appointments",
         patient_token,
         method="POST",
@@ -360,7 +370,7 @@ def main() -> int:
     print(f"\nPOST /appointments naming another patient: {other_status}")
 
     # The same day again. The start just booked must no longer be offered.
-    after_status, after_raw = call(
+    after_status, after_raw, _h = call(
         f"{base}/clinicians/{clinician_id}/slots?date={day}&typeId={APPOINTMENT_TYPE_ID}",
         patient_token,
     )
@@ -371,19 +381,44 @@ def main() -> int:
     )
     print(f"the same day after booking: {len(still_offered)} free")
 
+    # The same booking again, carrying the key it was first sent with. It must
+    # come back as the original appointment rather than the 409 the locks would
+    # otherwise give.
+    replay_status, replay_raw, replay_headers = call(
+        f"{base}/appointments",
+        patient_token,
+        method="POST",
+        body=booking_body,
+        headers={"Idempotency-Key": idempotency_key},
+    )
+    replayed = json.loads(replay_raw) if replay_status == 201 else {}
+    print(f"\nPOST /appointments again with the same Idempotency-Key: {replay_status}")
+    print(f"Idempotency-Replayed: {replay_headers.get('Idempotency-Replayed')}")
+
+    # The same key against a different start. A client bug, and answering it
+    # with the earlier appointment would be worse than refusing it.
+    reused_status, _reused_raw, _h = call(
+        f"{base}/appointments",
+        patient_token,
+        method="POST",
+        body={**booking_body, "startAt": offered[6] if len(offered) > 6 else start_at()},
+        headers={"Idempotency-Key": idempotency_key},
+    )
+    print(f"the same key for a different start: {reused_status}")
+
     # Retrieve, which is the middle of BR-06.
-    list_status, list_raw = call(f"{base}/patients/me/appointments", patient_token)
+    list_status, list_raw, _h = call(f"{base}/patients/me/appointments", patient_token)
     listing = json.loads(list_raw) if list_status == 200 else {}
     listed_appointments = {a["appointmentId"] for a in listing.get("appointments", [])}
     print(f"\nGET /patients/me/appointments: {list_status}, {listing.get('count')} listed")
 
-    one_status, one_raw = call(
+    one_status, one_raw, _h = call(
         f"{base}/appointments/{appointment.get('appointmentId')}", patient_token
     )
     print(f"GET /appointments/{{id}}: {one_status}")
 
     # Cancel, then cancel again. The second must be refused.
-    cancel_status, cancel_raw = call(
+    cancel_status, cancel_raw, _h = call(
         f"{base}/appointments/{appointment.get('appointmentId')}",
         patient_token,
         method="DELETE",
@@ -391,7 +426,7 @@ def main() -> int:
     cancelled = json.loads(cancel_raw) if cancel_status == 200 else {}
     print(f"\nDELETE /appointments/{{id}}: {cancel_status}")
     print(cancel_raw)
-    again_status, _again_raw = call(
+    again_status, _again_raw, _h = call(
         f"{base}/appointments/{appointment.get('appointmentId')}",
         patient_token,
         method="DELETE",
@@ -399,7 +434,7 @@ def main() -> int:
     print(f"DELETE again: {again_status}")
 
     # The cancelled time has to be on offer once more.
-    freed_status, freed_raw = call(
+    freed_status, freed_raw, _h = call(
         f"{base}/clinicians/{clinician_id}/slots?date={day}&typeId={APPOINTMENT_TYPE_ID}",
         patient_token,
     )
@@ -412,6 +447,10 @@ def main() -> int:
 
     checks = {
         "one person record, not two": person_count == 1,
+        "a retry with the same key returns the original": replay_status == 201
+        and replayed.get("appointmentId") == appointment.get("appointmentId"),
+        "the retry is marked as a replay": replay_headers.get("Idempotency-Replayed") == "true",
+        "the same key for a different request is refused": reused_status == 409,
         "the appointment is in the patient's own list": appointment.get("appointmentId")
         in listed_appointments,
         "the appointment can be opened on its own": one_status == 200,

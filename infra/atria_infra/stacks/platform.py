@@ -47,7 +47,7 @@ class PlatformStack(Stack):
             code=lambda_.Code.from_asset(str(build_dir / "layer")),
             compatible_runtimes=[RUNTIME],
             compatible_architectures=[ARCHITECTURE],
-            description="aws-lambda-powertools, pydantic, pyjwt",
+            description="aws-lambda-powertools, pydantic, pyjwt, tzdata",
         )
 
 

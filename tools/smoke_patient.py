@@ -99,7 +99,7 @@ def main_table():  # noqa: ANN201  boto3 resource
 
 
 def seed(table) -> None:  # noqa: ANN001  boto3 table
-    """The tenant and the appointment type, which have no endpoints yet."""
+    """The tenant, the clinic and the appointment type, which have no endpoints yet."""
     table.put_item(
         Item={
             "pk": f"TENANT#{TENANT_ID}",
@@ -107,6 +107,29 @@ def seed(table) -> None:  # noqa: ANN001  boto3 table
             "type": "TENANT",
             "tenantId": TENANT_ID,
             "gridUnitMinutes": GRID_UNIT_MINUTES,
+            "regionPackCode": "CM",
+        }
+    )
+    table.put_item(
+        Item={
+            "pk": "REGION#CM",
+            "sk": "PACK",
+            "type": "REGION_PACK",
+            "code": "CM",
+            "timezone": "Africa/Douala",
+            "currency": "XAF",
+        }
+    )
+    # Open every weekday, so the slot search does not depend on which day the
+    # script happens to pick.
+    table.put_item(
+        Item={
+            "pk": f"TENANT#{TENANT_ID}#CLINIC#{CLINIC_ID}",
+            "sk": "PROFILE",
+            "type": "CLINIC",
+            "clinicId": CLINIC_ID,
+            "tenantId": TENANT_ID,
+            "openingHours": {str(day): {"start": "08:00", "end": "17:00"} for day in range(7)},
         }
     )
     table.put_item(
@@ -286,7 +309,26 @@ def main() -> int:
     me = json.loads(raw) if raw else {}
     print(json.dumps(me, indent=2))
 
-    start = start_at()
+    # The directory, which is how a patient finds the clinician at all.
+    dir_status, dir_raw = call(f"{base}/clinicians", patient_token)
+    directory = json.loads(dir_raw) if dir_status == 200 else {}
+    print(f"\nGET /clinicians: {dir_status}, {directory.get('count')} listed")
+    listed_ids = {c["clinicianProfileId"] for c in directory.get("clinicians", [])}
+
+    # The free starts for that clinician, which is how a patient picks a time.
+    day = (dt.datetime.now(tz=dt.UTC) + dt.timedelta(days=3)).date().isoformat()
+    slot_status, slot_raw = call(
+        f"{base}/clinicians/{clinician_id}/slots?date={day}&typeId={APPOINTMENT_TYPE_ID}",
+        patient_token,
+    )
+    slots = json.loads(slot_raw) if slot_status == 200 else {}
+    offered = [s["startAt"] for s in slots.get("slots", [])]
+    print(f"GET /clinicians/{{id}}/slots for {day}: {slot_status}, {len(offered)} free")
+
+    # Book the first start the API itself offered, rather than one invented
+    # here: that is what a client would do, and it is the only way to know the
+    # two routes agree.
+    start = offered[0] if offered else start_at()
     status, raw = call(
         f"{base}/appointments",
         patient_token,
@@ -317,8 +359,39 @@ def main() -> int:
     other = json.loads(other_raw) if other_status == 201 else {}
     print(f"\nPOST /appointments naming another patient: {other_status}")
 
+    # The same day again. The start just booked must no longer be offered.
+    after_status, after_raw = call(
+        f"{base}/clinicians/{clinician_id}/slots?date={day}&typeId={APPOINTMENT_TYPE_ID}",
+        patient_token,
+    )
+    still_offered = (
+        [s["startAt"] for s in json.loads(after_raw).get("slots", [])]
+        if after_status == 200
+        else []
+    )
+    print(f"the same day after booking: {len(still_offered)} free")
+
     checks = {
         "one person record, not two": person_count == 1,
+        "the clinician is in the directory": dir_status == 200
+        and clinician_id in listed_ids,
+        "the directory carries no score": all(
+            "score" not in c and "rating" not in c for c in directory.get("clinicians", [])
+        ),
+        "free starts are offered": slot_status == 200 and bool(offered),
+        "every start offered is on the grid": bool(offered)
+        and all(
+            dt.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
+            .replace(tzinfo=dt.UTC)
+            .minute
+            % GRID_UNIT_MINUTES
+            == 0
+            for s in offered
+        ),
+        "the start offered could be booked": status == 201,
+        "the booked start is no longer offered": start not in still_offered,
+        "booking freed nothing else": after_status == 200
+        and len(still_offered) < len(offered),
         "the profile is in the configured tenant": person.get("patientProfiles", [{}])[0].get(
             "tenantId"
         )

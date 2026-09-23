@@ -186,6 +186,57 @@ def require_bookable(
         )
 
 
+CANCELLED_BY = ("PATIENT", "CLINIC")
+
+# What the outcome entitles the patient to. Recorded, never settled: no money
+# moves until a payment provider arrives (ADR 0007).
+ENTITLEMENTS = {
+    "CANCELLED_IN_WINDOW": "FULL",
+    "CANCELLED_LATE": "PARTIAL",
+    "CLINIC_CANCELLED": "FULL",
+}
+
+
+@dataclass(frozen=True, slots=True)
+class Cancellation:
+    """Why an appointment ended, and what the patient is owed for it."""
+
+    state: str
+    outcome: str
+    entitlement: str
+
+
+def cancellation(
+    *,
+    cancelled_by: str,
+    start_at: dt.datetime,
+    now: dt.datetime,
+    cancellation_window_minutes: int,
+) -> Cancellation:
+    """Which terminal state a cancellation lands in, and the entitlement band.
+
+    A clinic cancellation is always FULL, because the clinic caused it. A
+    patient cancellation is FULL inside the type's notice window and PARTIAL
+    after it, which is the only thing that window decides (D-07).
+
+    The band is computed and recorded on the event. Writing a fee ledger entry
+    and settling it belong with the money, which is later work.
+    """
+    if cancelled_by not in CANCELLED_BY:
+        raise Invalid("unknown cancelledBy", detail={"allowed": list(CANCELLED_BY)})
+    if cancelled_by == "CLINIC":
+        return Cancellation(
+            state="CLINIC_CANCELLED",
+            outcome="CLINIC_CANCELLED",
+            entitlement=ENTITLEMENTS["CLINIC_CANCELLED"],
+        )
+    late = now > start_at - dt.timedelta(minutes=max(0, cancellation_window_minutes))
+    outcome = "CANCELLED_LATE" if late else "CANCELLED_IN_WINDOW"
+    return Cancellation(
+        state="PATIENT_CANCELLED", outcome=outcome, entitlement=ENTITLEMENTS[outcome]
+    )
+
+
 def validate(
     body: dict[str, object], *, by_patient: bool, own_patient_profile_id: str | None
 ) -> BookingRequest:

@@ -17,6 +17,7 @@ import datetime as dt
 from typing import Any
 
 from atria.core import booking as rules
+from atria.core import lifecycle
 from atria.core.errors import Conflict, Invalid
 from atria.data import keys
 from atria.data.people import new_id
@@ -25,6 +26,16 @@ from atria.data.repository import Item, Repository
 # Statuses a clinician may be booked in. A suspended or ended membership is
 # refused: the account cannot be seen by a patient, so it cannot be given one.
 BOOKABLE_STATUSES = ("INVITED", "ACTIVE")
+
+PATIENT_INDEX = "PatientIndex"
+
+# What a patient is shown of their own past by default. Records are retained
+# for ten years and shown for five (ADR 0008, subject to OI-12), so the
+# horizon is a view concern and never a deletion.
+HISTORY_YEARS = 5
+
+# Far enough ahead to cover anything a booking window allows.
+FUTURE_YEARS = 2
 
 # Long enough that a lock outlives any clock skew between the booking and the
 # appointment it guards.
@@ -65,6 +76,11 @@ def appointment_item(
         "sessionId": None,
         "startAt": rules.instant(occupancy.start_at),
         "endAt": rules.instant(occupancy.end_at),
+        # ClinicDayIndex reads this. Written now rather than when the clinic
+        # day view is built, because an index only holds items that carried its
+        # key when they were written: adding it later would leave every
+        # appointment booked before then invisible to that view.
+        "clinicDay": f"{clinic_id}#{rules.instant(occupancy.start_at)[:10]}",
         "state": "BOOKED",
         "channel": request.channel,
         "bookedByPersonId": booked_by_person_id,
@@ -144,6 +160,29 @@ class Booking:
     def appointment(self, tenant_id: str, appointment_id: str) -> Item:
         return self._repo.require(keys.appointment(tenant_id, appointment_id), what="appointment")
 
+    def appointments_for_patient(
+        self, tenant_id: str, patient_profile_id: str, *, since: str, until: str
+    ) -> list[Item]:
+        """A patient's own appointments in a window, earliest first (FR-VIS-01).
+
+        The index is keyed on the patient profile alone, and a profile belongs
+        to one tenant, so in practice this cannot reach across tenants. The
+        tenant is checked anyway rather than inferred from that: isolation is
+        a rule (FR-TEN-01), not a consequence of identifiers being random.
+
+        Queue tickets belong in this answer too, but they arrive with the
+        session queue: a ticket holds an arrival window rather than a start, so
+        it is not in this index yet.
+        """
+        found = self._repo.query_index(
+            PATIENT_INDEX,
+            "patientProfileId",
+            patient_profile_id,
+            sort_attribute="startAt",
+            between=(since, until),
+        )
+        return [item for item in found if item.get("tenantId") == tenant_id]
+
     def clinic(self, tenant_id: str, clinic_id: str) -> Item:
         return self._repo.require(keys.clinic(tenant_id, clinic_id), what="clinic")
 
@@ -191,6 +230,88 @@ class Booking:
         return membership
 
     # ----------------------------------------------------------------- writes
+    def cancel(
+        self,
+        *,
+        tenant_id: str,
+        appointment: Item,
+        cancellation: rules.Cancellation,
+        actor_person_id: str,
+        actor_role: str | None,
+        reason: str | None,
+        minutes: int,
+    ) -> tuple[Item, Item]:
+        """Release the time and close the appointment, or do neither.
+
+        The update is conditional on the state the caller read, so a second
+        cancellation is a 409 rather than a second closure. The locks go in the
+        same transaction, because an appointment closed with its units still
+        held would lose that time for good (FR-VIS-03).
+        """
+        appointment_id = str(appointment["appointmentId"])
+        was = str(appointment["state"])
+        lifecycle.require("appointment", was, cancellation.state)
+
+        occurred_at = rules.instant(self._clock())
+        # The units this appointment holds, recomputed from what it recorded
+        # rather than stored, so there is one source for the occupancy.
+        start_at = rules.parse_instant(appointment["startAt"], name="startAt")
+        end_at = rules.parse_instant(appointment["endAt"], name="endAt")
+        duration_units = round((end_at - start_at).total_seconds() / 60 / minutes)
+        held = self.appointment_type(tenant_id, str(appointment["appointmentTypeId"]))
+        occupancy = rules.occupancy(
+            start_at,
+            duration_units=duration_units,
+            buffer_units=int(held.get("bufferUnits") or 0),
+            minutes=minutes,
+        )
+
+        event = event_item(
+            appointment_id=appointment_id,
+            tenant_id=tenant_id,
+            kind="CANCELLED",
+            from_state=was,
+            to_state=cancellation.state,
+            actor_person_id=actor_person_id,
+            actor_role=actor_role,
+            reason=reason,
+            occurred_at=occurred_at,
+        )
+        # The band lives on the event. It is derived from the outcome and the
+        # type's window, and the fee ledger that aggregates it comes later.
+        event["outcome"] = cancellation.outcome
+        event["entitlement"] = cancellation.entitlement
+
+        clinician_id = str(appointment["clinicianProfileId"])
+        self._repo.change_together(
+            creates=[
+                (
+                    keys.appointment_event(
+                        tenant_id, appointment_id, occurred_at, str(event["appointmentEventId"])
+                    ),
+                    event,
+                )
+            ],
+            updates=[
+                (
+                    keys.appointment(tenant_id, appointment_id),
+                    {
+                        "state": cancellation.state,
+                        "cancelledAt": occurred_at,
+                        "outcome": cancellation.outcome,
+                        "entitlement": cancellation.entitlement,
+                        "version": int(appointment.get("version", 1)) + 1,
+                    },
+                    ("state", was),
+                )
+            ],
+            deletes=[
+                keys.slot_lock(tenant_id, clinician_id, unit) for unit in occupancy.units
+            ],
+            conflict="that appointment is no longer in a state that can be cancelled",
+        )
+        return {**appointment, "state": cancellation.state}, event
+
     def book_specialist(
         self,
         *,
@@ -250,7 +371,12 @@ class Booking:
         ]
         writes.append((keys.appointment(tenant_id, appointment_id), appointment))
         writes.append(
-            (keys.appointment_event(tenant_id, appointment_id, occurred_at), event)
+            (
+                keys.appointment_event(
+                    tenant_id, appointment_id, occurred_at, str(event["appointmentEventId"])
+                ),
+                event,
+            )
         )
 
         try:

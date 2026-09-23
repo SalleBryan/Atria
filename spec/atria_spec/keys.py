@@ -27,7 +27,7 @@ KEYS = [
     ('Queue ticket', 'TENANT#t#SESSION#id', 'TICKET#requestTs#ticketId', 'Main'),
     ('Slot lock', 'TENANT#t#LOCK#clinicianId#unitStart', 'LOCK', 'Main'),
     ('Appointment', 'TENANT#t#APPT#id', 'APPT', 'Main'),
-    ('Appointment event', 'TENANT#t#APPT#id', 'EVENT#ts', 'Main'),
+    ('Appointment event', 'TENANT#t#APPT#id', 'EVENT#ts#eventId', 'Main'),
     ('Referral', 'TENANT#t#APPT#id', 'REFERRAL', 'Main'),
     ('Fee ledger entry', 'TENANT#t#APPT#id', 'LEDGER', 'Main'),
     ('Feedback', 'TENANT#t#APPT#id', 'FEEDBACK', 'Main'),

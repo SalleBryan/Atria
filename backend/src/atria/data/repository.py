@@ -25,6 +25,7 @@ from atria.data.keys import Key
 
 if TYPE_CHECKING:  # pragma: no cover
     from mypy_boto3_dynamodb.service_resource import Table
+    from mypy_boto3_dynamodb.type_defs import TransactWriteItemTypeDef
 
 Item = dict[str, Any]
 
@@ -114,14 +115,39 @@ class Repository:
         return found
 
     def query_index(
-        self, index: str, attribute: str, value: str, *, limit: int | None = None
+        self,
+        index: str,
+        attribute: str,
+        value: str,
+        *,
+        limit: int | None = None,
+        sort_attribute: str | None = None,
+        between: tuple[str, str] | None = None,
+        ascending: bool = True,
     ) -> list[Item]:
-        """Every item an index points at for one key value."""
+        """Every item an index points at for one key value.
+
+        `between` narrows the result on the index's sort key, which is what
+        makes a range view one query rather than a read of everything the
+        person has ever had.
+        """
+        names = {"#k": attribute}
+        values: dict[str, Any] = {":v": value}
+        condition = "#k = :v"
+        if between is not None:
+            if sort_attribute is None:
+                raise ValueError("a range needs the sort attribute it applies to")
+            names["#s"] = sort_attribute
+            values[":from"] = between[0]
+            values[":to"] = between[1]
+            condition += " AND #s BETWEEN :from AND :to"
+
         kwargs: dict[str, Any] = {
             "IndexName": index,
-            "KeyConditionExpression": "#k = :v",
-            "ExpressionAttributeNames": {"#k": attribute},
-            "ExpressionAttributeValues": {":v": value},
+            "KeyConditionExpression": condition,
+            "ExpressionAttributeNames": names,
+            "ExpressionAttributeValues": values,
+            "ScanIndexForward": ascending,
         }
         if limit is not None:
             kwargs["Limit"] = limit
@@ -213,6 +239,82 @@ class Repository:
                 raise Conflict(f"that {what} is no longer in the expected state") from exc
             raise
         return dict(response["Attributes"])
+
+    def change_together(
+        self,
+        *,
+        creates: Sequence[tuple[Key, Item]] = (),
+        updates: Sequence[tuple[Key, Item, tuple[str, Any] | None]] = (),
+        deletes: Sequence[Key] = (),
+        conflict: str,
+    ) -> None:
+        """Create, change and delete items in one transaction, or do none of it.
+
+        What `write_together` is to a booking, this is to releasing one: a
+        cancellation has to move the appointment, record the event and drop
+        every lock it held, and any of those happening without the others
+        would leave the time either double booked or lost.
+
+        Each update is (key, fields to set, an optional expected attribute).
+        The expectation is what makes a repeated request safe: the second
+        cancellation finds the state it expected already gone and is refused
+        with `conflict` rather than cancelling twice.
+        """
+        items: list[TransactWriteItemTypeDef] = []
+        table = self._table.name
+
+        for key, item in creates:
+            items.append(
+                {
+                    "Put": {
+                        "TableName": table,
+                        "Item": {**item, **key.as_item()},
+                        "ConditionExpression": (
+                            "attribute_not_exists(pk) AND attribute_not_exists(sk)"
+                        ),
+                    }
+                }
+            )
+
+        for key, set_values, expect in updates:
+            if not set_values:
+                raise ValueError("an update must set something")
+            names = {f"#f{i}": field for i, field in enumerate(set_values)}
+            values = {f":v{i}": value for i, value in enumerate(set_values.values())}
+            # Built from the fields alone, before the expectation is added, so
+            # the placeholders cannot drift out of step with the values.
+            assignments = ", ".join(f"#f{i} = :v{i}" for i in range(len(set_values)))
+            condition = "attribute_exists(pk) AND attribute_exists(sk)"
+            if expect is not None:
+                field, expected = expect
+                names["#expect"] = field
+                values[":expect"] = expected
+                condition += " AND #expect = :expect"
+            items.append(
+                {
+                    "Update": {
+                        "TableName": table,
+                        "Key": key.as_item(),
+                        "UpdateExpression": f"SET {assignments}",
+                        "ConditionExpression": condition,
+                        "ExpressionAttributeNames": names,
+                        "ExpressionAttributeValues": values,
+                    }
+                }
+            )
+
+        for key in deletes:
+            items.append({"Delete": {"TableName": table, "Key": key.as_item()}})
+
+        if not items:
+            raise ValueError("a transaction must do something")
+
+        try:
+            self._table.meta.client.transact_write_items(TransactItems=items)
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "TransactionCanceledException":
+                raise Conflict(conflict) from exc
+            raise
 
     def write_together(self, creates: Sequence[tuple[Key, Item]]) -> list[Item]:
         """Create several items in one transaction, or none of them.

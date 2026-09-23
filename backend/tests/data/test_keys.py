@@ -36,7 +36,7 @@ BUILT = {
     "Queue ticket": keys.queue_ticket("t1", "se1", "2026-03-04T08:01:02Z", "tk1"),
     "Slot lock": keys.slot_lock("t1", "s1", "2026-03-04T08:10:00Z"),
     "Appointment": keys.appointment("t1", "a1"),
-    "Appointment event": keys.appointment_event("t1", "a1", "2026-03-04T08:10:00Z"),
+    "Appointment event": keys.appointment_event("t1", "a1", "2026-03-04T08:10:00Z", "ae1"),
     "Referral": keys.referral("t1", "a1"),
     "Fee ledger entry": keys.fee_ledger_entry("t1", "a1"),
     "Feedback": keys.feedback("t1", "a1"),

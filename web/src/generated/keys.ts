@@ -38,7 +38,7 @@ export const KEY_PATTERNS: readonly KeyPattern[] = [
   { entity: "Queue ticket", pk: "TENANT#t#SESSION#id", sk: "TICKET#requestTs#ticketId", table: "Main" },
   { entity: "Slot lock", pk: "TENANT#t#LOCK#clinicianId#unitStart", sk: "LOCK", table: "Main" },
   { entity: "Appointment", pk: "TENANT#t#APPT#id", sk: "APPT", table: "Main" },
-  { entity: "Appointment event", pk: "TENANT#t#APPT#id", sk: "EVENT#ts", table: "Main" },
+  { entity: "Appointment event", pk: "TENANT#t#APPT#id", sk: "EVENT#ts#eventId", table: "Main" },
   { entity: "Referral", pk: "TENANT#t#APPT#id", sk: "REFERRAL", table: "Main" },
   { entity: "Fee ledger entry", pk: "TENANT#t#APPT#id", sk: "LEDGER", table: "Main" },
   { entity: "Feedback", pk: "TENANT#t#APPT#id", sk: "FEEDBACK", table: "Main" },

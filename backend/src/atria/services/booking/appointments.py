@@ -21,15 +21,17 @@ from aws_lambda_powertools import Logger
 
 from atria.core import booking as rules
 from atria.core import lifecycle, permissions
-from atria.core.errors import AtriaError
+from atria.core.errors import AtriaError, Invalid
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
-from atria.data.booking import Booking
+from atria.data.booking import FUTURE_YEARS, HISTORY_YEARS, Booking
 from atria.data.repository import Repository
 from atria.http import requests, responses
 from atria.http.handler import api
 
 logger = Logger(service="atria-booking")
+
+WHEN = ("upcoming", "past", "all")
 
 _booking: Booking | None = None
 
@@ -106,6 +108,135 @@ def role_used(principal: Principal, permission: str) -> str | None:
     return max(granting, key=lambda r: permissions.SCOPE_RANK[permissions.scope_for(r, permission)])
 
 
+def subject_of(appointment: dict[str, Any]) -> Subject:
+    """The record an action is aimed at, as the matrix needs to see it."""
+    return Subject(
+        tenant_id=str(appointment.get("tenantId", "")),
+        patient_profile_id=appointment.get("patientProfileId"),
+        clinician_profile_id=appointment.get("clinicianProfileId"),
+        clinic_id=appointment.get("clinicId"),
+    )
+
+
+def mine(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    """A patient's own appointments, upcoming or past, earliest first (FR-VIS-01).
+
+    The four range views are a later concern; what this answers is the
+    question a patient actually starts with, which is what is coming up and
+    what has already happened.
+    """
+    if principal.patient_profile_id is None:
+        raise Invalid("this account holds no patient profile")
+    permissions.require(
+        principal,
+        "appointment.read",
+        Subject(
+            tenant_id=principal.tenant_id,
+            patient_profile_id=principal.patient_profile_id,
+        ),
+    )
+
+    when = (requests.query_parameter(event, "when") or "all").lower()
+    if when not in WHEN:
+        raise Invalid("unknown value for when", detail={"allowed": list(WHEN)})
+
+    data = booking()
+    now = rules.instant(data.now())
+    horizon = data.now().replace(year=data.now().year - HISTORY_YEARS)
+    future = data.now().replace(year=data.now().year + FUTURE_YEARS)
+    since, until = {
+        "upcoming": (now, rules.instant(future)),
+        "past": (rules.instant(horizon), now),
+        "all": (rules.instant(horizon), rules.instant(future)),
+    }[when]
+
+    found = data.appointments_for_patient(
+        principal.tenant_id, principal.patient_profile_id, since=since, until=until
+    )
+    return {
+        "when": when,
+        "from": since,
+        "to": until,
+        "count": len(found),
+        "appointments": [appointment_view(a) for a in found],
+    }
+
+
+def one(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    """One appointment, if it is inside the caller's scope (FR-VIS-02)."""
+    appointment_id = requests.path_parameter(event, "id")
+    appointment = booking().appointment(principal.tenant_id, appointment_id)
+    subject = subject_of(appointment)
+    # A staff member reading their own appointment is a patient here, the same
+    # as when booking it (guard SELF_SUBJECT_DROPS_STAFF_SCOPE).
+    permissions.require(
+        permissions.effective_principal(principal, subject), "appointment.read", subject
+    )
+    return appointment_view(appointment)
+
+
+def cancel(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    """Cancel a booked appointment and free its time (FR-VIS-03).
+
+    A patient cancels their own; staff cancel within their clinic and have to
+    say whether the patient or the clinic called it off, because the two land
+    in different states and owe the patient different things. A patient can
+    only ever cancel as the patient.
+    """
+    appointment_id = requests.path_parameter(event, "id")
+    data = booking()
+    appointment = data.appointment(principal.tenant_id, appointment_id)
+    subject = subject_of(appointment)
+    caller = permissions.effective_principal(principal, subject)
+    permissions.require(caller, "appointment.cancel", subject)
+
+    body = requests.json_body(event) if event.get("body") else {}
+    if caller.is_staff:
+        cancelled_by = str(body.get("cancelledBy") or "").upper()
+        if not cancelled_by:
+            raise Invalid(
+                "cancelledBy is required, because the entitlement depends on it",
+                detail={"allowed": list(rules.CANCELLED_BY)},
+            )
+    else:
+        # A patient cannot declare that the clinic cancelled.
+        cancelled_by = "PATIENT"
+
+    appointment_type = data.appointment_type(
+        principal.tenant_id, str(appointment["appointmentTypeId"])
+    )
+    decided = rules.cancellation(
+        cancelled_by=cancelled_by,
+        start_at=rules.parse_instant(appointment["startAt"], name="startAt"),
+        now=data.now(),
+        cancellation_window_minutes=int(appointment_type.get("cancellationWindowMinutes") or 0),
+    )
+
+    cancelled, _event = data.cancel(
+        tenant_id=principal.tenant_id,
+        appointment=appointment,
+        cancellation=decided,
+        actor_person_id=caller.person_id,
+        actor_role=role_used(caller, "appointment.cancel"),
+        reason=str(body.get("reason") or "") or None,
+        minutes=rules.grid_unit_minutes(data.tenant(principal.tenant_id)),
+    )
+    logger.info(
+        "appointment cancelled",
+        extra={
+            "appointmentId": appointment_id,
+            "state": decided.state,
+            "entitlement": decided.entitlement,
+        },
+    )
+    return {
+        **appointment_view(cancelled),
+        "outcome": decided.outcome,
+        "entitlement": decided.entitlement,
+        "note": "The time is free again. Nothing is settled; the entitlement is a record.",
+    }
+
+
 def create(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
     """Book a specialist appointment, holding its grid units in one transaction."""
     caller, by_patient = actor(principal, body)
@@ -176,13 +307,19 @@ def create(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
 
 @api
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
-    """POST /appointments"""
+    """POST /appointments, GET /patients/me/appointments, GET /appointments/{id}"""
     principal = requests.principal_from(event)
     method = str(event.get("httpMethod", "")).upper()
     resource = str(event.get("resource", ""))
 
     if method == "POST" and resource.endswith("/appointments"):
         return responses.created(create(principal, requests.json_body(event)))
+    if method == "GET" and resource.endswith("/patients/me/appointments"):
+        return responses.ok(mine(principal, event))
+    if method == "GET" and resource.endswith("/appointments/{id}"):
+        return responses.ok(one(principal, event))
+    if method == "DELETE" and resource.endswith("/appointments/{id}"):
+        return responses.ok(cancel(principal, event))
 
     # Every route on this function is listed above, so this is a wiring mistake
     # in the API stack rather than anything the caller did.

@@ -107,8 +107,15 @@ def appointment(tenant_id: str, appointment_id: str) -> Key:
     return Key(f"{TENANT}{tenant_id}#APPT#{appointment_id}", "APPT")
 
 
-def appointment_event(tenant_id: str, appointment_id: str, ts: str) -> Key:
-    return Key(f"{TENANT}{tenant_id}#APPT#{appointment_id}", f"EVENT#{ts}")
+def appointment_event(tenant_id: str, appointment_id: str, ts: str, event_id: str) -> Key:
+    """One item per transition, ordered by when it happened.
+
+    The identifier is part of the sort key because two transitions can land in
+    the same second, and a key that collided would make the second one cancel
+    the transaction it arrived in. Queue tickets, message log entries and audit
+    entries are keyed the same way, for the same reason.
+    """
+    return Key(f"{TENANT}{tenant_id}#APPT#{appointment_id}", f"EVENT#{ts}#{event_id}")
 
 
 def referral(tenant_id: str, appointment_id: str) -> Key:

@@ -15,9 +15,10 @@ from __future__ import annotations
 
 import datetime as dt
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from atria.core import booking as rules
-from atria.core import lifecycle
+from atria.core import lifecycle, schedule
 from atria.core.errors import Conflict, Invalid
 from atria.data import keys
 from atria.data.people import new_id
@@ -28,6 +29,8 @@ from atria.data.repository import Item, Repository
 BOOKABLE_STATUSES = ("INVITED", "ACTIVE")
 
 PATIENT_INDEX = "PatientIndex"
+CLINICIAN_INDEX = "ClinicianIndex"
+CLINIC_DAY_INDEX = "ClinicDayIndex"
 
 # What a patient is shown of their own past by default. Records are retained
 # for ten years and shown for five (ADR 0008, subject to OI-12), so the
@@ -62,8 +65,14 @@ def appointment_item(
     booked_by_person_id: str,
     booked_by_role: str | None,
     created_at: str,
+    local_day: str,
 ) -> Item:
-    """The appointment record. A specialist booking, so it carries no session."""
+    """The appointment record. A specialist booking, so it carries no session.
+
+    `local_day` is the date on the clinic's own calendar. It is not the UTC
+    date of the start: in Douala an appointment at 00:30 is 23:30 UTC the day
+    before, and filing it under that day would put it on the wrong day list.
+    """
     return {
         "type": "APPOINTMENT",
         "appointmentId": appointment_id,
@@ -76,11 +85,10 @@ def appointment_item(
         "sessionId": None,
         "startAt": rules.instant(occupancy.start_at),
         "endAt": rules.instant(occupancy.end_at),
-        # ClinicDayIndex reads this. Written now rather than when the clinic
-        # day view is built, because an index only holds items that carried its
-        # key when they were written: adding it later would leave every
-        # appointment booked before then invisible to that view.
-        "clinicDay": f"{clinic_id}#{rules.instant(occupancy.start_at)[:10]}",
+        # ClinicDayIndex reads this, on the clinic's local date. An index only
+        # holds items that carried its key when they were written, so a wrong
+        # value here cannot be corrected later without rewriting the item.
+        "clinicDay": f"{clinic_id}#{local_day}",
         "state": "BOOKED",
         "channel": request.channel,
         "bookedByPersonId": booked_by_person_id,
@@ -183,11 +191,44 @@ class Booking:
         )
         return [item for item in found if item.get("tenantId") == tenant_id]
 
+    def calendar(
+        self, tenant_id: str, clinician_profile_id: str, *, since: str, until: str
+    ) -> list[Item]:
+        """One clinician's appointments in a window, earliest first (FR-STF-01).
+
+        Filtered by tenant rather than trusting the identifier to be unique
+        across tenants, for the same reason as the patient's own list.
+        """
+        found = self._repo.query_index(
+            CLINICIAN_INDEX,
+            "clinicianProfileId",
+            clinician_profile_id,
+            sort_attribute="startAt",
+            between=(since, until),
+        )
+        return [item for item in found if item.get("tenantId") == tenant_id]
+
+    def clinic_day(self, tenant_id: str, clinic_id: str, day: str) -> list[Item]:
+        """Every appointment in one clinic on one local date, earliest first.
+
+        The index partitions on the clinic and the date alone. A clinic
+        identifier is not guaranteed to be unique across tenants, so the tenant
+        is checked here; without it one tenant's front desk could read
+        another's day if two clinics shared a name.
+        """
+        found = self._repo.query_index(CLINIC_DAY_INDEX, "clinicDay", f"{clinic_id}#{day}")
+        return [item for item in found if item.get("tenantId") == tenant_id]
+
     def clinic(self, tenant_id: str, clinic_id: str) -> Item:
         return self._repo.require(keys.clinic(tenant_id, clinic_id), what="clinic")
 
     def region_pack(self, code: str) -> Item | None:
         return self._repo.get(keys.region_pack(code))
+
+    def zone(self, tenant_id: str) -> ZoneInfo:
+        """The tenant's clock, from its region pack (FR-REM-05)."""
+        tenant = self.tenant(tenant_id)
+        return schedule.timezone_for(self.region_pack(str(tenant.get("regionPackCode") or "CM")))
 
     def locked_units(
         self, tenant_id: str, clinician_profile_id: str, units: list[str]
@@ -348,6 +389,7 @@ class Booking:
         occupancy: rules.Occupancy,
         actor_person_id: str,
         actor_role: str | None,
+        local_day: str,
     ) -> tuple[Item, Item]:
         """Lock every unit and write the appointment, or do none of it.
 
@@ -370,6 +412,7 @@ class Booking:
             booked_by_person_id=actor_person_id,
             booked_by_role=actor_role,
             created_at=occurred_at,
+            local_day=local_day,
         )
         event = event_item(
             appointment_id=appointment_id,

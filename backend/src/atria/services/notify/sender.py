@@ -30,7 +30,7 @@ import boto3
 from aws_lambda_powertools import Logger
 from botocore.exceptions import ClientError
 
-from atria.core import notices, reminders, schedule
+from atria.core import notices, reminders
 from atria.core.errors import Conflict
 from atria.data.booking import Booking
 from atria.data.messages import SCHEDULED, Messages
@@ -156,9 +156,7 @@ def recipient_for(profile: Item, channel: str) -> tuple[Item, str | None]:
 
 
 def zone_for(tenant_id: str) -> Any:
-    data = booking()
-    tenant = data.tenant(tenant_id)
-    return schedule.timezone_for(data.region_pack(str(tenant.get("regionPackCode") or "CM")))
+    return booking().zone(tenant_id)
 
 
 def compose_for(

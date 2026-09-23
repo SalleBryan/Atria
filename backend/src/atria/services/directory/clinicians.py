@@ -2,6 +2,7 @@
 
     GET /clinicians?specialty=&clinicId=&name=      who can be booked
     GET /clinicians/{id}/slots?date=&typeId=        when they are free
+    GET /clinicians/{id}/calendar and /clinics/{id}/day, in atria.services.directory.schedule
 
 Both are readable by any signed-in account of the tenant. The directory is
 ordered by seniority band and carries no score of any kind: a patient chooses
@@ -31,6 +32,7 @@ from atria.data.people import People
 from atria.data.repository import Repository
 from atria.http import requests, responses
 from atria.http.handler import api
+from atria.services.directory import schedule as schedule_views
 
 logger = Logger(service="atria-directory")
 
@@ -110,9 +112,8 @@ def list_slots(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     )
 
     appointment_type = data.appointment_type(principal.tenant_id, str(type_id))
-    tenant = data.tenant(principal.tenant_id)
-    minutes = rules.grid_unit_minutes(tenant)
-    zone = schedule.timezone_for(data.region_pack(str(tenant.get("regionPackCode") or "CM")))
+    minutes = rules.grid_unit_minutes(data.tenant(principal.tenant_id))
+    zone = data.zone(principal.tenant_id)
 
     clinic = data.clinic(principal.tenant_id, clinic_id)
     window = schedule.opening_window(clinic.get("openingHours"), day, zone=zone)
@@ -166,13 +167,19 @@ def list_slots(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
 
 @api
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
-    """GET /clinicians and GET /clinicians/{id}/slots"""
+    """The directory, free starts, a clinician's calendar and a clinic's day."""
     principal = requests.principal_from(event)
     method = str(event.get("httpMethod", "")).upper()
     resource = str(event.get("resource", ""))
 
     if method == "GET" and resource.endswith("/slots"):
         return responses.ok(list_slots(principal, event))
+    if method == "GET" and resource.endswith("/calendar"):
+        return responses.ok(
+            schedule_views.calendar(principal, event, data=booking(), people=people())
+        )
+    if method == "GET" and resource.endswith("/day"):
+        return responses.ok(schedule_views.clinic_day(principal, event, data=booking()))
     if method == "GET" and resource.endswith("/clinicians"):
         return responses.ok(list_clinicians(principal, event))
 

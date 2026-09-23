@@ -19,6 +19,7 @@ import pytest
 
 from atria.data import keys
 from atria.data.booking import Booking
+from atria.http import views
 from atria.services.booking import appointments as service
 
 pytestmark = pytest.mark.usefixtures("table")
@@ -136,7 +137,7 @@ class TestPatientBooking:
     def test_the_response_carries_only_what_the_contract_describes(self, wired):
         """The stored record also holds storage fields, which are not the contract."""
         booked = body_of(service.handler(patient_event(), None))
-        assert set(booked) == set(service.VIEW_FIELDS)
+        assert set(booked) == set(views.VIEW_FIELDS)
         assert "type" not in booked
         assert "pk" not in booked
 

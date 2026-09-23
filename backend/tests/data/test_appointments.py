@@ -87,6 +87,7 @@ def book(booking: Booking, **overrides):
         occupancy=overrides.pop("occupancy", occupancy()),
         actor_person_id=overrides.pop("actor_person_id", ACTOR),
         actor_role=overrides.pop("actor_role", "RECEPTIONIST"),
+        local_day=overrides.pop("local_day", "2026-03-04"),
     )
 
 

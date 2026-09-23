@@ -18,6 +18,7 @@ import pytest
 from atria.core import booking as rules
 from atria.data import keys
 from atria.data.booking import Booking
+from atria.http import views
 from atria.services.booking import appointments as service
 
 pytestmark = pytest.mark.usefixtures("table")
@@ -168,7 +169,7 @@ class TestMyAppointments:
 
     def test_the_listing_carries_only_contract_fields(self, seeded):
         for entry in body_of(mine())["appointments"]:
-            assert set(entry) == set(service.VIEW_FIELDS)
+            assert set(entry) == set(views.VIEW_FIELDS)
 
     def test_a_number_read_back_from_the_table_is_still_a_number(self, seeded):
         """DynamoDB returns Decimals, and stringifying them put "1" on the wire

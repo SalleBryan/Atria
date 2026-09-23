@@ -29,6 +29,7 @@ from atria.data.idempotency import COMPLETED, Idempotency, validate_key
 from atria.data.repository import Repository
 from atria.http import requests, responses
 from atria.http.handler import api
+from atria.http.views import appointment_view
 
 logger = Logger(service="atria-booking")
 
@@ -52,35 +53,6 @@ def idempotency() -> Idempotency:
     if _idempotency is None:
         _idempotency = Idempotency(Repository())
     return _idempotency
-
-
-# What the API returns. Listed rather than passing the record through, because
-# the record also carries storage fields that are not part of the contract.
-VIEW_FIELDS = (
-    "appointmentId",
-    "reference",
-    "tenantId",
-    "clinicId",
-    "patientProfileId",
-    "appointmentTypeId",
-    "clinicianProfileId",
-    "sessionId",
-    "startAt",
-    "endAt",
-    "state",
-    "channel",
-    "bookedByPersonId",
-    "bookedByRole",
-    "referralId",
-    "careContextId",
-    "version",
-    "createdAt",
-)
-
-
-def appointment_view(appointment: dict[str, Any]) -> dict[str, Any]:
-    """The appointment as the contract describes it, and nothing further."""
-    return {name: appointment.get(name) for name in VIEW_FIELDS}
 
 
 def actor(principal: Principal, body: dict[str, Any]) -> tuple[Principal, bool]:
@@ -304,6 +276,7 @@ def create(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
         occupancy=occupancy,
         actor_person_id=caller.person_id,
         actor_role=role_used(caller, "appointment.create"),
+        local_day=occupancy.start_at.astimezone(data.zone(caller.tenant_id)).date().isoformat(),
     )
     logger.info(
         "appointment booked",

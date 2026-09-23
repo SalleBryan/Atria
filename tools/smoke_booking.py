@@ -31,6 +31,7 @@ import urllib.error
 import urllib.request
 
 import boto3
+import devkit
 
 REGION = "us-east-1"
 PREFIX = "atria-dev"
@@ -52,8 +53,8 @@ BUFFER_UNITS = 1
 
 
 def phone() -> str:
-    """A synthetic Cameroon mobile number that no earlier run has used."""
-    return f"+2376{secrets.randbelow(10**8):08d}"
+    """Reserved for fiction, so no run can text a real person (see tools/devkit.py)."""
+    return devkit.fictional_phone()
 
 
 def start_at() -> str:
@@ -96,15 +97,7 @@ def main_table():  # noqa: ANN201  boto3 resource
 
 def seed(table) -> None:  # noqa: ANN001  boto3 table
     """The three records the booking path reads and no endpoint writes yet."""
-    table.put_item(
-        Item={
-            "pk": f"TENANT#{TENANT_ID}",
-            "sk": "META",
-            "type": "TENANT",
-            "tenantId": TENANT_ID,
-            "gridUnitMinutes": GRID_UNIT_MINUTES,
-        }
-    )
+    devkit.put_tenant(table, TENANT_ID)
     table.put_item(
         Item={
             "pk": f"TENANT#{TENANT_ID}#TYPE#{APPOINTMENT_TYPE_ID}",

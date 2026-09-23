@@ -24,6 +24,7 @@ import urllib.error
 import urllib.request
 
 import boto3
+import devkit
 
 REGION = "us-east-1"
 PREFIX = "atria-dev"
@@ -35,7 +36,7 @@ ADMIN_PERSON_ID = "p-smoke-admin"
 RECEPTIONIST_BODY = {
     "givenName": "Smoke",
     "familyName": "Receptionist",
-    "phoneE164": "+237600000099",
+    "phoneE164": devkit.fictional_phone(),
     "clinicId": "c-smoke-01",
     "roles": ["RECEPTIONIST"],
 }

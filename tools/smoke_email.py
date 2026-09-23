@@ -39,6 +39,7 @@ import urllib.error
 import urllib.request
 
 import boto3
+import devkit
 
 REGION = "us-east-1"
 PREFIX = "atria-dev"
@@ -60,7 +61,8 @@ WAIT_SECONDS = 480
 
 
 def phone() -> str:
-    return f"+2376{secrets.randbelow(10**8):08d}"
+    """Reserved for fiction, so no run can text a real person (see tools/devkit.py)."""
+    return devkit.fictional_phone()
 
 
 def find_user_pool(idp) -> str:  # noqa: ANN001  boto3 client
@@ -145,25 +147,9 @@ def ensure_admin(idp, pool_id: str) -> str:  # noqa: ANN001  boto3 client
 
 def seed(table) -> None:  # noqa: ANN001  boto3 table
     """The records no endpoint writes yet, and a patient addressed to the simulator."""
-    table.put_item(
-        Item={
-            "pk": f"TENANT#{TENANT_ID}",
-            "sk": "META",
-            "type": "TENANT",
-            "tenantId": TENANT_ID,
-            "gridUnitMinutes": 10,
-            "regionPackCode": "CM",
-        }
-    )
-    table.put_item(
-        Item={
-            "pk": "REGION#CM",
-            "sk": "PACK",
-            "type": "REGION_PACK",
-            "code": "CM",
-            "timezone": "Africa/Douala",
-        }
-    )
+    devkit.put_tenant(table, TENANT_ID)
+    # The whole pack from the specification (FR-TEN-08), never a partial copy.
+    devkit.put_region_pack(table)
     table.put_item(
         Item={
             "pk": f"TENANT#{TENANT_ID}#CLINIC#{CLINIC_ID}",
@@ -237,7 +223,8 @@ def logged(table, appointment_ids: set[str]) -> list[dict[str, object]]:  # noqa
             ExpressionAttributeValues={":pk": f"TENANT#{TENANT_ID}#MSG#{day.isoformat()}"},
         )
         found.extend(
-            dict(item) for item in response.get("Items", [])
+            dict(item)
+            for item in response.get("Items", [])
             if item.get("appointmentId") in appointment_ids
         )
     return found

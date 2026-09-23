@@ -39,6 +39,7 @@ import urllib.error
 import urllib.request
 
 import boto3
+import devkit
 
 REGION = "us-east-1"
 PREFIX = "atria-dev"
@@ -58,7 +59,8 @@ BUFFER_UNITS = 1
 
 
 def phone() -> str:
-    return f"+2376{secrets.randbelow(10**8):08d}"
+    """Reserved for fiction, so no run can text a real person (see tools/devkit.py)."""
+    return devkit.fictional_phone()
 
 
 def start_at() -> str:
@@ -100,26 +102,9 @@ def main_table():  # noqa: ANN201  boto3 resource
 
 def seed(table) -> None:  # noqa: ANN001  boto3 table
     """The tenant, the clinic and the appointment type, which have no endpoints yet."""
-    table.put_item(
-        Item={
-            "pk": f"TENANT#{TENANT_ID}",
-            "sk": "META",
-            "type": "TENANT",
-            "tenantId": TENANT_ID,
-            "gridUnitMinutes": GRID_UNIT_MINUTES,
-            "regionPackCode": "CM",
-        }
-    )
-    table.put_item(
-        Item={
-            "pk": "REGION#CM",
-            "sk": "PACK",
-            "type": "REGION_PACK",
-            "code": "CM",
-            "timezone": "Africa/Douala",
-            "currency": "XAF",
-        }
-    )
+    devkit.put_tenant(table, TENANT_ID)
+    # The whole pack from the specification (FR-TEN-08), never a partial copy.
+    devkit.put_region_pack(table)
     # Open every weekday, so the slot search does not depend on which day the
     # script happens to pick.
     table.put_item(
@@ -455,31 +440,27 @@ def main() -> int:
         in listed_appointments,
         "the appointment can be opened on its own": one_status == 200,
         "cancelling succeeds": cancel_status == 200,
-        "cancelling reports the entitlement band": cancelled.get("entitlement") in
-        ("FULL", "PARTIAL", "NONE"),
+        "cancelling reports the entitlement band": cancelled.get("entitlement")
+        in ("FULL", "PARTIAL", "NONE"),
         "cancelling closes the record rather than deleting it": cancelled.get("state")
         == "PATIENT_CANCELLED",
         "a second cancel is refused": again_status == 409,
         "the cancelled time is free again": start in freed,
-        "the clinician is in the directory": dir_status == 200
-        and clinician_id in listed_ids,
+        "the clinician is in the directory": dir_status == 200 and clinician_id in listed_ids,
         "the directory carries no score": all(
             "score" not in c and "rating" not in c for c in directory.get("clinicians", [])
         ),
         "free starts are offered": slot_status == 200 and bool(offered),
         "every start offered is on the grid": bool(offered)
         and all(
-            dt.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
-            .replace(tzinfo=dt.UTC)
-            .minute
+            dt.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.UTC).minute
             % GRID_UNIT_MINUTES
             == 0
             for s in offered
         ),
         "the start offered could be booked": status == 201,
         "the booked start is no longer offered": start not in still_offered,
-        "booking freed nothing else": after_status == 200
-        and len(still_offered) < len(offered),
+        "booking freed nothing else": after_status == 200 and len(still_offered) < len(offered),
         "the profile is in the configured tenant": person.get("patientProfiles", [{}])[0].get(
             "tenantId"
         )

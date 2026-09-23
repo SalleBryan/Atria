@@ -40,6 +40,7 @@ import urllib.error
 import urllib.request
 
 import boto3
+import devkit
 
 REGION = "us-east-1"
 PREFIX = "atria-dev"
@@ -87,7 +88,8 @@ def on_grid_after(moment: dt.datetime) -> dt.datetime:
 
 
 def phone() -> str:
-    return f"+2376{secrets.randbelow(10**8):08d}"
+    """Reserved for fiction, so no run can text a real person (see tools/devkit.py)."""
+    return devkit.fictional_phone()
 
 
 def find(idp) -> tuple[str, str]:  # noqa: ANN001  boto3 client
@@ -160,17 +162,10 @@ def ensure_admin(idp, pool: str) -> str:  # noqa: ANN001  boto3 client
 
 
 def seed(table) -> None:  # noqa: ANN001  boto3 table
+    devkit.put_tenant(table, TENANT_ID)
+    # The whole pack from the specification (FR-TEN-08), never a partial copy.
+    devkit.put_region_pack(table)
     items = [
-        {
-            "pk": f"TENANT#{TENANT_ID}",
-            "sk": "META",
-            "type": "TENANT",
-            "tenantId": TENANT_ID,
-            "gridUnitMinutes": GRID,
-            "regionPackCode": "CM",
-        },
-        {"pk": "REGION#CM", "sk": "PACK", "type": "REGION_PACK", "code": "CM",
-         "timezone": "Africa/Douala"},
         {
             "pk": f"TENANT#{TENANT_ID}#CLINIC#{CLINIC_ID}",
             "sk": "PROFILE",
@@ -333,8 +328,10 @@ def main() -> int:
     kept_name = f"reminder-{booked['kept']}"
     cancelled_name = f"reminder-{booked['cancelled']}"
     scheduled = wait_until(
-        lambda: bool(appointment_record(table, booked["kept"]).get("reminderSchedule"))
-        and bool(appointment_record(table, booked["cancelled"]).get("reminderSchedule")),
+        lambda: (
+            bool(appointment_record(table, booked["kept"]).get("reminderSchedule"))
+            and bool(appointment_record(table, booked["cancelled"]).get("reminderSchedule"))
+        ),
         timeout=120,
     )
     kept_schedule = schedule_exists(scheduler, kept_name)
@@ -357,10 +354,12 @@ def main() -> int:
     wait = max(0.0, (fire_at + WITHIN + dt.timedelta(seconds=30) - utc_now()).total_seconds())
     print(f"\nwaiting {int(wait)}s for the kept reminder to fire")
     settled = wait_until(
-        lambda: (reminder_row(table, appointment_record(table, booked["kept"])) or {}).get(
-            "deliveryState"
-        )
-        not in (None, "SCHEDULED"),
+        lambda: (
+            (reminder_row(table, appointment_record(table, booked["kept"])) or {}).get(
+                "deliveryState"
+            )
+            not in (None, "SCHEDULED")
+        ),
         timeout=wait + 180,
         every=15,
     )

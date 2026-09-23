@@ -170,6 +170,12 @@ class TestMyAppointments:
         for entry in body_of(mine())["appointments"]:
             assert set(entry) == set(service.VIEW_FIELDS)
 
+    def test_a_number_read_back_from_the_table_is_still_a_number(self, seeded):
+        """DynamoDB returns Decimals, and stringifying them put "1" on the wire
+        where the contract says an integer."""
+        for entry in body_of(mine())["appointments"]:
+            assert isinstance(entry["version"], int)
+
 
 class TestOneAppointment:
     def one(self, appointment_id: str, **context):

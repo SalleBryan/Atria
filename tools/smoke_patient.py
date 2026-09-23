@@ -371,8 +371,57 @@ def main() -> int:
     )
     print(f"the same day after booking: {len(still_offered)} free")
 
+    # Retrieve, which is the middle of BR-06.
+    list_status, list_raw = call(f"{base}/patients/me/appointments", patient_token)
+    listing = json.loads(list_raw) if list_status == 200 else {}
+    listed_appointments = {a["appointmentId"] for a in listing.get("appointments", [])}
+    print(f"\nGET /patients/me/appointments: {list_status}, {listing.get('count')} listed")
+
+    one_status, one_raw = call(
+        f"{base}/appointments/{appointment.get('appointmentId')}", patient_token
+    )
+    print(f"GET /appointments/{{id}}: {one_status}")
+
+    # Cancel, then cancel again. The second must be refused.
+    cancel_status, cancel_raw = call(
+        f"{base}/appointments/{appointment.get('appointmentId')}",
+        patient_token,
+        method="DELETE",
+    )
+    cancelled = json.loads(cancel_raw) if cancel_status == 200 else {}
+    print(f"\nDELETE /appointments/{{id}}: {cancel_status}")
+    print(cancel_raw)
+    again_status, _again_raw = call(
+        f"{base}/appointments/{appointment.get('appointmentId')}",
+        patient_token,
+        method="DELETE",
+    )
+    print(f"DELETE again: {again_status}")
+
+    # The cancelled time has to be on offer once more.
+    freed_status, freed_raw = call(
+        f"{base}/clinicians/{clinician_id}/slots?date={day}&typeId={APPOINTMENT_TYPE_ID}",
+        patient_token,
+    )
+    freed = (
+        [s["startAt"] for s in json.loads(freed_raw).get("slots", [])]
+        if freed_status == 200
+        else []
+    )
+    print(f"the same day after cancelling: {len(freed)} free")
+
     checks = {
         "one person record, not two": person_count == 1,
+        "the appointment is in the patient's own list": appointment.get("appointmentId")
+        in listed_appointments,
+        "the appointment can be opened on its own": one_status == 200,
+        "cancelling succeeds": cancel_status == 200,
+        "cancelling reports the entitlement band": cancelled.get("entitlement") in
+        ("FULL", "PARTIAL", "NONE"),
+        "cancelling closes the record rather than deleting it": cancelled.get("state")
+        == "PATIENT_CANCELLED",
+        "a second cancel is refused": again_status == 409,
+        "the cancelled time is free again": start in freed,
         "the clinician is in the directory": dir_status == 200
         and clinician_id in listed_ids,
         "the directory carries no score": all(

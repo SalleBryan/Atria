@@ -9,11 +9,26 @@ in a way that reveals whether a record exists (see core.errors.NotFound).
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 from typing import Any
 
 from atria.core.errors import AtriaError
 
 JSON_TYPE = "application/json"
+
+
+def _encode(value: object) -> object:
+    """Render a value json.dumps cannot.
+
+    DynamoDB returns every number as a Decimal, and falling back to str turned
+    them into quoted strings on the wire: an appointment read back from the
+    table reported "version": "1" where the same record on creation reported
+    1. Numbers stay numbers, and a whole number stays whole.
+    """
+    if isinstance(value, Decimal):
+        whole = value.to_integral_value()
+        return int(whole) if value == whole else float(value)
+    return str(value)
 
 SECURITY_HEADERS = {
     "Cache-Control": "no-store",
@@ -35,7 +50,9 @@ def response(
         "headers": {"Content-Type": JSON_TYPE, **SECURITY_HEADERS, **(headers or {})},
         "isBase64Encoded": False,
     }
-    out["body"] = "" if body is None else json.dumps(body, separators=(",", ":"), default=str)
+    out["body"] = (
+        "" if body is None else json.dumps(body, separators=(",", ":"), default=_encode)
+    )
     return out
 
 

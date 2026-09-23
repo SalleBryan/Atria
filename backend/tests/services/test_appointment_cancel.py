@@ -281,6 +281,15 @@ class TestEntitlement:
         assert found["state"] == "CLINIC_CANCELLED"
         assert found["entitlement"] == "FULL"
 
+    def test_the_version_stays_a_number_after_a_round_trip(self, wired):
+        """The cancelled record is read back from the table, where every number
+        is a Decimal; stringifying it broke the contract the create obeyed."""
+        _repo, clinician = wired
+        booked = book(clinician)
+        assert isinstance(booked["version"], int)
+        cancelled = body_of(cancel(booked["appointmentId"]))
+        assert isinstance(cancelled["version"], int)
+
     def test_nothing_is_settled(self, wired):
         """ADR 0007: the entitlement is a record, not money moved."""
         _repo, clinician = wired

@@ -33,7 +33,7 @@ def test_every_stack_is_read(templates: dict[str, Template]) -> None:
 
 
 def test_no_function_environment_holds_a_secret(templates: dict[str, Template]) -> None:
-    findings = []
+    findings: list[str] = []
     for stack, template in templates.items():
         for logical, function in template.find_resources("AWS::Lambda::Function").items():
             variables = function["Properties"].get("Environment", {}).get("Variables", {})

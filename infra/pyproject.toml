@@ -21,7 +21,9 @@ select = ["E", "F", "W", "I", "UP", "B", "ANN", "RET", "SIM", "C4", "DTZ", "S"]
 python_version = "3.13"
 strict = true
 warn_unreachable = true
-mypy_path = "."
+# The spec is installed editable in CI, which mypy cannot follow, so it is
+# named here by path.
+mypy_path = [".", "../spec"]
 exclude = ["cdk\\.out", "^build/"]
 
 [[tool.mypy.overrides]]

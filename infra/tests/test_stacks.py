@@ -11,6 +11,8 @@ authorised), FR-TEN-01 (the single table design and its indexes) and ADR 0014
 
 from __future__ import annotations
 
+from typing import Any
+
 import aws_cdk as cdk
 import pytest
 from atria_spec import keys as keys_spec
@@ -383,7 +385,7 @@ class TestCostGuardStack:
         assert budget["Properties"]["Budget"]["BudgetLimit"]["Amount"] <= 50
 
 
-def queue_named(template: Template, suffix: str) -> dict:
+def queue_named(template: Template, suffix: str) -> dict[str, Any]:
     return next(
         q["Properties"]
         for q in template.find_resources("AWS::SQS::Queue").values()
@@ -493,14 +495,14 @@ class TestAsyncStack:
         env = sender["Properties"]["Environment"]["Variables"]
         assert env["NOTICE_SENDER"] == config.DEV.notice_sender
 
-    def policy_actions(self, template: Template, handler: str) -> dict[str, list[dict]]:
+    def policy_actions(self, template: Template, handler: str) -> dict[str, list[dict[str, Any]]]:
         """Every statement on one function's role, keyed by action."""
         role = next(
             f["Properties"]["Role"]["Fn::GetAtt"][0]
             for f in template.find_resources("AWS::Lambda::Function").values()
             if f["Properties"]["Handler"] == handler
         )
-        found: dict[str, list[dict]] = {}
+        found: dict[str, list[dict[str, Any]]] = {}
         for policy in template.find_resources("AWS::IAM::Policy").values():
             if role not in str(policy["Properties"].get("Roles")):
                 continue

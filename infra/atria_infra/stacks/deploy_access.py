@@ -51,7 +51,7 @@ class DeployAccessStack(Stack):
                     "StringEquals": {
                         f"{GITHUB_ISSUER}:aud": "sts.amazonaws.com",
                         f"{GITHUB_ISSUER}:sub": (
-                            f"repo:{settings.github_repository}:environment:{DEPLOY_ENVIRONMENT}"
+                            f"{settings.github_subject}:environment:{DEPLOY_ENVIRONMENT}"
                         ),
                     }
                 },

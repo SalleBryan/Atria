@@ -82,7 +82,16 @@ class Environment:
     oauth_logout_urls: tuple[str, ...] = ()
 
     github_repository: str = ""
-    """owner/name of the repository whose main branch may deploy (BR-11)."""
+    """owner/name of the repository that may deploy (BR-11)."""
+
+    github_subject: str = ""
+    """How GitHub names that repository in its OpenID Connect tokens.
+
+    This repository uses GitHub's immutable subject, owner and repository by
+    their numeric IDs, so a rename or a new repository reusing the name can
+    never match. `gh api repos/OWNER/REPO/actions/oidc/customization/sub`
+    prints it as sub_claim_prefix.
+    """
 
     tags: dict[str, str] = field(default_factory=dict)
 
@@ -111,6 +120,7 @@ DEV = Environment(
     oauth_callback_urls=("http://localhost:5173/auth/callback",),
     oauth_logout_urls=("http://localhost:5173/",),
     github_repository="SalleBryan/Atria",
+    github_subject="repo:SalleBryan@111648793/Atria@1365951066",
     tags={
         "Project": "Atria",
         "Environment": "dev",

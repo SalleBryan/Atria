@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import aws_cdk as cdk
 import pytest
 from aws_cdk.assertions import Template
@@ -17,7 +19,7 @@ def identity() -> Template:
     return Template.from_stack(found)
 
 
-def clients(template: Template) -> dict[str, dict]:
+def clients(template: Template) -> dict[str, dict[str, Any]]:
     return {
         c["Properties"]["ClientName"].rsplit("-", 1)[-1]: c["Properties"]
         for c in template.find_resources("AWS::Cognito::UserPoolClient").values()
@@ -57,6 +59,6 @@ def test_only_the_repository_dev_environment_can_deploy() -> None:
     role = next(r for r in roles if r["Properties"].get("RoleName", "").endswith("-github-deploy"))
     condition = role["Properties"]["AssumeRolePolicyDocument"]["Statement"][0]["Condition"]
     assert condition["StringEquals"]["token.actions.githubusercontent.com:sub"] == (
-        f"repo:{config.DEV.github_repository}:environment:dev"
+        f"{config.DEV.github_subject}:environment:dev"
     )
     assert "StringLike" not in condition

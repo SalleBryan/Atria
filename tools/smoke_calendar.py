@@ -44,6 +44,14 @@ def entries(raw: str) -> list[dict[str, object]]:
     return list(json.loads(raw).get("appointments", []))
 
 
+def named(raw: str, patient: str) -> dict:
+    """The name the list gives one patient profile."""
+    try:
+        return dict(json.loads(raw).get("patients", {}).get(patient) or {})
+    except ValueError:
+        return {}
+
+
 def main() -> int:
     idp = devkit.cognito()
     pool = devkit.user_pool(idp)
@@ -173,6 +181,8 @@ def main() -> int:
         "no entry leaks a storage field": all(
             "clinicDay" not in a and "pk" not in a for a in day + own
         ),
+        "the day names its patient, and only by name": named(day_raw, patient)
+        == {"givenName": "Amina", "familyName": "Ngo"},
     }
 
     print()

@@ -6,6 +6,7 @@
 import { Route } from "react-router-dom";
 
 import { DaySchedule } from "./DaySchedule";
+import { StaffAccounts } from "./StaffAccounts";
 import { StaffShell } from "./StaffShell";
 import { VisitPage } from "./VisitPage";
 import { WeekView } from "./WeekView";
@@ -15,5 +16,6 @@ export const staffRoutes = (
     <Route path="/console" element={<DaySchedule />} />
     <Route path="/console/week" element={<WeekView />} />
     <Route path="/console/visits/:id" element={<VisitPage />} />
+    <Route path="/console/staff" element={<StaffAccounts />} />
   </Route>
 );

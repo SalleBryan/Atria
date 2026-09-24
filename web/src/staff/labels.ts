@@ -38,6 +38,13 @@ export const BOOKED_BY: Record<string, string> = {
   CLINIC_MANAGER: "Booked by the clinic manager",
 };
 
+/** The API words its errors as fragments ("that appointment is already cancelled"); the desk reads sentences. */
+export function sentence(text: string): string {
+  const trimmed = text.trim();
+  const capitalised = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  return /[.!?]$/.test(capitalised) ? capitalised : `${capitalised}.`;
+}
+
 export const CHANNEL: Record<string, string> = {
   ONLINE: "Atria web",
   WEB: "Atria web",

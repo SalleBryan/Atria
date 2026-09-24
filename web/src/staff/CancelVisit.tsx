@@ -21,15 +21,9 @@ import { Alert, Close, Mail } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { type Appointment, type AppointmentType, type Clinician, clock, initials } from "../patient/data";
 import { doctor, fullName, noonOf, type PatientName } from "./data";
+import { sentence } from "./labels";
 
 type CancelledBy = "PATIENT" | "CLINIC";
-
-/** The API words its errors as fragments ("that appointment is already cancelled"); the desk reads sentences. */
-function sentence(text: string): string {
-  const trimmed = text.trim();
-  const capitalised = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
-  return /[.!?]$/.test(capitalised) ? capitalised : `${capitalised}.`;
-}
 
 const REASONS: { label: string; by: CancelledBy | null }[] = [
   { label: "Clinician unavailable", by: "CLINIC" },

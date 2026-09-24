@@ -270,6 +270,30 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       });
     }
   }
+  if (method === "POST" && path === "/admin/staff") {
+    const request = body as { givenName: string; familyName: string; phoneE164: string; email?: string; clinicId?: string; roles: string[] };
+    if (usedPhones.has(request.phoneE164)) return json(409, { code: "conflict", message: "that phone number or email is already in use" }, 600);
+    usedPhones.add(request.phoneE164);
+    return json(
+      201,
+      {
+        staffId: `s-${Math.random().toString(16).slice(2, 10)}`,
+        personId: `p-${Math.random().toString(16).slice(2, 10)}`,
+        tenantId: "t-cm-001",
+        clinicId: request.clinicId ?? null,
+        roles: request.roles,
+        status: "INVITED",
+        givenName: request.givenName,
+        familyName: request.familyName,
+        phoneE164: request.phoneE164,
+        email: request.email ?? null,
+        signInName: request.email ?? request.phoneE164,
+        temporaryPassword: `Tmp-${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}`,
+        note: "The account signs in with the temporary password and must change it.",
+      },
+      800,
+    );
+  }
   if (method === "POST" && path === "/appointments") {
     const request = body as { clinicianProfileId: string; appointmentTypeId: string; startAt: string };
     const date = request.startAt ? new Date(new Date(request.startAt).getTime() + OFFSET_MS).toISOString().slice(0, 10) : "";
@@ -287,6 +311,8 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
 }
 
 let conflictShown = false;
+// A second account with the same number is refused, as the pool refuses it.
+const usedPhones = new Set<string>(["+12025550142"]);
 
 export function installMockApi(): void {
   const real = window.fetch.bind(window);

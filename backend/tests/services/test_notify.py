@@ -340,12 +340,22 @@ class TestSending:
         assert "Clinique de Douala" in body
         assert "Paul Etoa" in body
 
+    def test_the_email_is_sent_as_html_and_as_text(self, wired):
+        """ADR 0020: the look, with the text beside it for a client that shows only text."""
+        repository, clinician, fake_ses = wired
+        put_appointment(repository, clinician)
+        sender.handler(job(), None)
+        body = fake_ses.sent[0]["Content"]["Simple"]["Body"]
+        assert body["Html"]["Data"].startswith("<!DOCTYPE html>")
+        assert "09:00" in body["Html"]["Data"]
+        assert body["Text"]["Data"]
+
     def test_fr_msg_02_a_cancellation_is_sent(self, wired):
         repository, clinician, fake_ses = wired
         put_appointment(repository, clinician, state="PATIENT_CANCELLED")
         sender.handler(job(notices.BOOKING_CANCELLATION), None)
         subject = fake_ses.sent[0]["Content"]["Simple"]["Subject"]["Data"]
-        assert "annule" in subject.lower()
+        assert "annulé" in subject.lower()
 
     def test_fr_msg_03_the_message_is_logged_as_sent(self, wired):
         repository, clinician, _ses = wired
@@ -358,11 +368,12 @@ class TestSending:
         assert logged[0]["appointmentId"] == "a-1"
         assert logged[0]["channel"] == "EMAIL"
 
-    def test_the_sender_is_the_verified_identity(self, wired):
+    def test_the_sender_is_the_verified_identity_named_atria(self, wired):
+        """SES checks the address; the inbox shows the name."""
         repository, clinician, fake_ses = wired
         put_appointment(repository, clinician)
         sender.handler(job(), None)
-        assert fake_ses.sent[0]["FromEmailAddress"] == "atria@atria.invalid"
+        assert fake_ses.sent[0]["FromEmailAddress"] == "Atria <atria@atria.invalid>"
 
 
 class TestNotSending:

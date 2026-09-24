@@ -53,6 +53,15 @@ class Environment:
     that would bounce.
     """
 
+    app_url: str = ""
+    """The web client's public origin, such as https://app.example.
+
+    Every email links into it and shows the brand mark it serves
+    (/email/atria-mark.png, ADR 0020). Empty until the site is hosted, and
+    then emails carry the wordmark alone and no button: a link to a
+    development server on someone's laptop is not one to put in an inbox.
+    """
+
     admin_password_auth: bool = False
     """Allow ADMIN_USER_PASSWORD_AUTH on the staff client.
 

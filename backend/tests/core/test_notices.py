@@ -104,6 +104,58 @@ class TestContent:
                 assert "{" not in notice.body
 
 
+class TestHtml:
+    """ADR 0020: an email is also sent as HTML in the platform's look."""
+
+    def test_an_email_has_an_html_part_and_an_sms_does_not(self):
+        assert compose().html.startswith("<!DOCTYPE html>")
+        assert compose(notices.APPOINTMENT_REMINDER, channel="SMS").html == ""
+
+    def test_the_html_says_what_the_text_says(self):
+        html = compose().html
+        for expected in (
+            "APT-0123456789",
+            "09:00",
+            "04/03/2026",
+            "Clinique de Douala",
+            "Dr Paul Etoa",
+        ):
+            assert expected in html
+
+    def test_the_html_is_in_the_clinics_time_too(self):
+        assert "08:00" not in compose().html
+
+    def test_a_name_cannot_inject_markup(self):
+        html = compose(clinic_name="<script>x</script>").html
+        assert "<script>" not in html
+
+    def test_no_placeholder_survives_into_the_html(self):
+        for kind in (notices.BOOKING_CONFIRMATION, notices.BOOKING_CANCELLATION):
+            for language in notices.LANGUAGES:
+                assert "{" not in compose(kind, language=language).html
+
+    def test_a_cancellation_looks_cancelled(self):
+        assert "#8b97ae" in compose(notices.BOOKING_CANCELLATION).html
+
+    def test_there_is_no_button_until_the_site_has_an_address(self):
+        assert "Voir mon rendez-vous" not in compose().html
+
+    def test_the_confirmation_button_opens_that_visit(self):
+        html = compose(app_url="https://app.atria.example").html
+        assert 'href="https://app.atria.example/visits/a-1"' in html
+
+    def test_the_cancellation_button_offers_to_book_again(self):
+        html = compose(
+            notices.BOOKING_CANCELLATION, language="en", app_url="https://app.atria.example/"
+        ).html
+        assert 'href="https://app.atria.example/find-care"' in html
+        assert "Book again" in html
+
+    def test_email_french_keeps_its_accents(self):
+        """Only an SMS is held to ASCII; an email is UTF-8 end to end."""
+        assert compose(notices.BOOKING_CANCELLATION).subject.startswith("Rendez-vous annulé")
+
+
 class TestLanguage:
     @pytest.mark.parametrize("preferred", ["fr", "FR", "fr-CM", "  fr  "])
     def test_french_is_recognised_however_it_is_written(self, preferred):

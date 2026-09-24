@@ -247,3 +247,28 @@ class IdentityStack(Stack):
             cognito.UserPoolOperation.POST_CONFIRMATION,
             self.post_confirmation,
         )
+
+        # Cognito's own emails, the codes and the invitation, written in the
+        # same layout as every booking email (ADR 0020). It reads nothing and
+        # writes nothing: everything it needs arrives in the event.
+        self.custom_message = service_function(
+            self,
+            "CustomMessage",
+            settings=settings,
+            build_dir=build_dir,
+            layer=platform.layer,
+            handler="atria.services.identity.custom_message.handler",
+            description="Writes Cognito's code and invitation emails in Atria's look",
+            environment={
+                "POWERTOOLS_SERVICE_NAME": "atria",
+                "POWERTOOLS_LOG_LEVEL": "INFO",
+                "ENVIRONMENT": settings.name,
+                "APP_URL": settings.app_url,
+            },
+            timeout_seconds=5,
+            memory_mb=256,
+        )
+        self.user_pool.add_trigger(
+            cognito.UserPoolOperation.CUSTOM_MESSAGE,
+            self.custom_message,
+        )

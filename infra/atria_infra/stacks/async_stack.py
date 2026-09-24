@@ -184,6 +184,7 @@ class AsyncStack(Stack):
             environment={
                 **common_environment,
                 "NOTICE_SENDER": settings.notice_sender,
+                "APP_URL": settings.app_url,
                 "SCHEDULE_GROUP": self.reminder_group.name or "",
                 "SCHEDULER_ROLE_ARN": self.scheduler_role.role_arn,
                 "OUTBOX_QUEUE_ARN": self.outbox.queue_arn,

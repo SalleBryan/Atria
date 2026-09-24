@@ -200,6 +200,27 @@ class TestIdentityStack:
         # sign-up at runtime rather than quietly picking one.
         assert env["DEFAULT_TENANT_ID"] == config.DEV.default_tenant_id
 
+    def test_cognitos_emails_are_written_by_the_custom_message_trigger(self, synthesised):
+        """Without it the codes arrive as Cognito's one unstyled line (ADR 0020)."""
+        template = template_for(synthesised, "identity")
+        pool = next(iter(template.find_resources("AWS::Cognito::UserPool").values()))
+        assert "CustomMessage" in pool["Properties"]["LambdaConfig"]
+
+    def test_the_custom_message_trigger_touches_no_table(self, synthesised):
+        """Everything it writes arrives in the event, so it is given nothing."""
+        template = template_for(synthesised, "identity")
+        role = next(
+            f["Properties"]["Role"]["Fn::GetAtt"][0]
+            for f in template.find_resources("AWS::Lambda::Function").values()
+            if f["Properties"]["Handler"] == "atria.services.identity.custom_message.handler"
+        )
+        for policy in template.find_resources("AWS::IAM::Policy").values():
+            if role not in str(policy["Properties"].get("Roles")):
+                continue
+            for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
+                assert "dynamodb" not in str(statement.get("Action"))
+                assert "kms" not in str(statement.get("Action"))
+
     def test_only_the_post_confirmation_trigger_writes(self, synthesised):
         """The pre-token trigger must stay read only: it resolves a caller and
         has no business changing one."""
@@ -500,6 +521,8 @@ class TestAsyncStack:
         )
         env = sender["Properties"]["Environment"]["Variables"]
         assert env["NOTICE_SENDER"] == config.DEV.notice_sender
+        # Emails link into the web client only once it has a public address.
+        assert env["APP_URL"] == config.DEV.app_url
 
     def policy_actions(self, template: Template, handler: str) -> dict[str, list[dict[str, Any]]]:
         """Every statement on one function's role, keyed by action."""

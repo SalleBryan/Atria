@@ -24,6 +24,7 @@ import contextlib
 import datetime as dt
 import json
 import os
+from email.utils import formataddr
 from typing import Any
 
 import boto3
@@ -42,6 +43,13 @@ logger = Logger(service="atria-sender")
 # The verified identity every email is sent from. SES refuses an unverified
 # sender, so an unset value is a deployment fault and not a runtime choice.
 SENDER = os.environ.get("NOTICE_SENDER", "")
+
+# How the sender reads in an inbox. SES checks the address, not this name.
+SENDER_NAME = "Atria"
+
+# The web client's public origin, which an email links into. Empty until the
+# site is hosted, and then an email simply has no button.
+APP_URL = os.environ.get("APP_URL", "")
 
 SCHEDULE_GROUP = os.environ.get("SCHEDULE_GROUP", "")
 SCHEDULER_ROLE_ARN = os.environ.get("SCHEDULER_ROLE_ARN", "")
@@ -179,6 +187,7 @@ def compose_for(
         language=person.get("preferredLanguage"),
         zone=zone,
         channel=channel,
+        app_url=APP_URL,
     )
 
 
@@ -188,13 +197,17 @@ def provider_send(notice: notices.Notice, recipient: str) -> str:
     if notice.channel == "EMAIL":
         if not SENDER:
             raise RuntimeError("NOTICE_SENDER is not configured")
+        # Both parts, so a client that shows only text still reads the notice.
+        body = {"Text": {"Data": notice.body, "Charset": "UTF-8"}}
+        if notice.html:
+            body["Html"] = {"Data": notice.html, "Charset": "UTF-8"}
         response = ses().send_email(
-            FromEmailAddress=SENDER,
+            FromEmailAddress=formataddr((SENDER_NAME, SENDER)),
             Destination={"ToAddresses": [recipient]},
             Content={
                 "Simple": {
                     "Subject": {"Data": notice.subject, "Charset": "UTF-8"},
-                    "Body": {"Text": {"Data": notice.body, "Charset": "UTF-8"}},
+                    "Body": body,
                 }
             },
         )

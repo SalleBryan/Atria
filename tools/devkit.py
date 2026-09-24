@@ -303,6 +303,9 @@ def put_clinic(
         "address": f"{city}, {region}",
         "phone": fictional_phone(),
         "openingHours": hours or weekday_hours(),
+        # Listed in the tenant's directory, as atria.data.catalogue.clinic_listing does.
+        "directoryKey": f"TENANT#{tenant_id}#CLINIC",
+        "directorySort": f"{name.casefold()}#{clinic_id}",
     }
     table.put_item(Item=item)
     return item
@@ -357,6 +360,10 @@ def put_appointment_type(
         "active": True,
         **overrides,
     }
+    # Listed while active, as atria.data.catalogue.appointment_type_listing does.
+    if item.get("active"):
+        item["directoryKey"] = f"TENANT#{tenant_id}#TYPE"
+        item["directorySort"] = f"{str(item['name']).casefold()}#{type_id}"
     item = {name: value for name, value in item.items() if value is not None}
     table.put_item(Item=item)
     return item

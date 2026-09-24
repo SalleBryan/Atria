@@ -3,8 +3,10 @@
     GET /clinicians?specialty=&clinicId=&name=      who can be booked
     GET /clinicians/{id}/slots?date=&typeId=        when they are free
     GET /clinicians/{id}/calendar and /clinics/{id}/day, in atria.services.directory.schedule
+    GET /clinics                                    where the tenant's clinics are
+    GET /appointment-types                          what can be booked, and for how long
 
-Both are readable by any signed-in account of the tenant. The directory is
+All are readable by any signed-in account of the tenant. The directory is
 ordered by seniority band and carries no score of any kind: a patient chooses
 on specialty, qualifications and languages, never on a rating (ADR 0011).
 
@@ -28,6 +30,7 @@ from atria.core.errors import AtriaError, Invalid
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
 from atria.data.booking import Booking
+from atria.data.catalogue import Catalogue, as_listed
 from atria.data.people import People
 from atria.data.repository import Repository
 from atria.http import requests, responses
@@ -50,8 +53,27 @@ LISTED_FIELDS = (
     "languages",
 )
 
+# A clinic as a patient chooses between them and finds their way there.
+CLINIC_FIELDS = ("clinicId", "name", "address", "phone", "openingHours")
+
+# An appointment type as a client needs it to ask for free starts and to say
+# what is being booked: its length and buffer are in the tenant's grid units.
+TYPE_FIELDS = (
+    "appointmentTypeId",
+    "code",
+    "name",
+    "serviceLine",
+    "durationUnits",
+    "bufferUnits",
+    "bookableBy",
+    "minNoticeMinutes",
+    "maxAdvanceDays",
+    "cancellationWindowMinutes",
+)
+
 _people: People | None = None
 _booking: Booking | None = None
+_catalogue: Catalogue | None = None
 
 
 def people() -> People:
@@ -68,6 +90,13 @@ def booking() -> Booking:
     return _booking
 
 
+def catalogue() -> Catalogue:
+    global _catalogue
+    if _catalogue is None:
+        _catalogue = Catalogue(Repository())
+    return _catalogue
+
+
 def listed(clinician: dict[str, Any]) -> dict[str, Any]:
     return {name: clinician.get(name) for name in LISTED_FIELDS}
 
@@ -82,6 +111,31 @@ def list_clinicians(principal: Principal, event: dict[str, Any]) -> dict[str, An
         name=requests.query_parameter(event, "name"),
     )
     return {"clinicians": [listed(c) for c in found], "count": len(found)}
+
+
+def list_clinics(principal: Principal) -> dict[str, Any]:
+    """The tenant's clinics, by name, so a listing can say where (FR-DIR-01)."""
+    permissions.require(principal, "patient.read")
+    found = catalogue().clinics(principal.tenant_id)
+    return {"clinics": [as_listed(c, CLINIC_FIELDS) for c in found], "count": len(found)}
+
+
+def list_appointment_types(principal: Principal) -> dict[str, Any]:
+    """What the caller can book, with the grid its lengths are counted in.
+
+    A patient is shown only what a patient may book: a procedure is sized and
+    placed by staff (ADR 0005), so offering it would only lead to a refusal.
+    """
+    permissions.require(principal, "patient.read")
+    found = catalogue().appointment_types(principal.tenant_id)
+    if not principal.is_staff:
+        found = [t for t in found if str(t.get("bookableBy", "BOTH")).upper() != "STAFF"]
+    minutes = rules.grid_unit_minutes(booking().tenant(principal.tenant_id))
+    return {
+        "gridUnitMinutes": minutes,
+        "appointmentTypes": [as_listed(t, TYPE_FIELDS) for t in found],
+        "count": len(found),
+    }
 
 
 def list_slots(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
@@ -182,6 +236,10 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         return responses.ok(schedule_views.clinic_day(principal, event, data=booking()))
     if method == "GET" and resource.endswith("/clinicians"):
         return responses.ok(list_clinicians(principal, event))
+    if method == "GET" and resource == "/clinics":
+        return responses.ok(list_clinics(principal))
+    if method == "GET" and resource == "/appointment-types":
+        return responses.ok(list_appointment_types(principal))
 
     # Every route on this function is listed above, so this is a wiring mistake
     # in the API stack rather than anything the caller did.

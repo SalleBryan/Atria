@@ -8,8 +8,20 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
+from atria.data import keys
+from atria.data.people import People
 from atria.http import responses
 from atria.services.identity import handler as identity
+
+pytestmark = pytest.mark.usefixtures("table")
+
+
+@pytest.fixture(autouse=True)
+def wired(monkeypatch, repository):
+    monkeypatch.setattr(identity, "_people", People(repository))
+    return repository
 
 
 def event(**context: str) -> dict[str, object]:
@@ -82,3 +94,18 @@ class TestErrorHandling:
         body = body_of(result)
         assert body["code"] == "internal_error"
         assert "fire" not in json.dumps(body)
+
+
+class TestNames:
+    def test_the_person_record_names_the_caller(self, wired):
+        wired.put(
+            keys.person("p-1"),
+            {"type": "PERSON", "personId": "p-1", "givenName": "Amina", "familyName": "Ngo"},
+        )
+        body = body_of(identity.handler(event(patientProfileId="pp-1"), None))
+        assert (body["givenName"], body["familyName"]) == ("Amina", "Ngo")
+
+    def test_an_account_with_no_person_record_has_no_names(self):
+        body = body_of(identity.handler(event(patientProfileId="pp-1"), None))
+        assert body["givenName"] is None
+        assert body["familyName"] is None

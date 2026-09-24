@@ -55,5 +55,5 @@ export const INDEXES: readonly IndexDefinition[] = [
   { name: "ClinicDayIndex", pk: "clinicId#date", sk: "startAt", answers: "The clinic day, the week and the requests inbox" },
   { name: "PersonIndex", pk: "cognitoSub", sk: "none", answers: "Resolving the signed-in person on every request" },
   { name: "OutboxIndex", pk: "outboxShard", sk: "createdAt", answers: "Change capture into the FIFO outbox, keyed on appointment id" },
-  { name: "DirectoryIndex", pk: "directoryKey", sk: "directorySort", answers: "The bookable clinicians of one tenant, most senior first" },
+  { name: "DirectoryIndex", pk: "directoryKey", sk: "directorySort", answers: "A tenant's bookable clinicians, clinics and offered types" },
 ];

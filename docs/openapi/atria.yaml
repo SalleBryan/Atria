@@ -271,6 +271,68 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /clinics:
+    get:
+      tags: [Directory]
+      operationId: listClinics
+      summary: The tenant's clinics
+      description: |
+        Readable by any signed-in account of the tenant, ordered by name. What
+        a patient needs to choose a clinic and find their way there; nothing
+        internal to the clinic is listed.
+
+        Implements FR-DIR-01.
+      responses:
+        "200":
+          description: The tenant's clinics, by name.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [clinics, count]
+                properties:
+                  count: { type: integer }
+                  clinics:
+                    type: array
+                    items: { $ref: "#/components/schemas/ListedClinic" }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /appointment-types:
+    get:
+      tags: [Directory]
+      operationId: listAppointmentTypes
+      summary: What the caller can book, and for how long
+      description: |
+        The tenant's active appointment types, by name. A patient is shown
+        only the types a patient may book: a procedure is sized and placed by
+        staff (ADR 0005). Lengths are in grid units, and the grid comes with
+        them, so a client can say how long a visit is and ask for free starts.
+
+        Implements FR-BKG-01.
+      responses:
+        "200":
+          description: The types the caller may book, by name.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [gridUnitMinutes, appointmentTypes, count]
+                properties:
+                  gridUnitMinutes: { type: integer, example: 10 }
+                  count: { type: integer }
+                  appointmentTypes:
+                    type: array
+                    items: { $ref: "#/components/schemas/ListedAppointmentType" }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /clinicians/{id}/slots:
     get:
       tags: [Directory]
@@ -769,6 +831,12 @@ components:
         personId:
           type: string
           description: The person behind the account. One human being.
+        givenName:
+          type: [string, "null"]
+          description: From the person record. Null for an account with none yet.
+        familyName:
+          type: [string, "null"]
+          description: From the person record. Null for an account with none yet.
         tenantId:
           type: string
           description: The institution. Every record the caller can reach belongs to it.
@@ -904,6 +972,48 @@ components:
         languages:
           type: array
           items: { type: string }
+
+    ListedClinic:
+      type: object
+      additionalProperties: false
+      required: [clinicId, name]
+      properties:
+        clinicId: { type: string }
+        name: { type: string }
+        address: { type: [string, "null"] }
+        phone: { type: [string, "null"] }
+        openingHours:
+          type: [object, "null"]
+          description: Local opening and closing times by weekday, 0 for Monday.
+          additionalProperties:
+            type: object
+            properties:
+              start: { type: string, example: "08:00" }
+              end: { type: string, example: "17:00" }
+
+    ListedAppointmentType:
+      type: object
+      additionalProperties: false
+      required: [appointmentTypeId, name, serviceLine, bookableBy]
+      properties:
+        appointmentTypeId: { type: string }
+        code: { type: [string, "null"] }
+        name: { type: string }
+        serviceLine:
+          type: string
+          enum: [GENERAL, SPECIALIST, PROCEDURE]
+        durationUnits:
+          type: [integer, "null"]
+          description: In grid units. Null for a queued general consultation.
+        bufferUnits: { type: [integer, "null"] }
+        bookableBy:
+          type: string
+          enum: [PATIENT, STAFF, BOTH]
+        minNoticeMinutes: { type: [integer, "null"] }
+        maxAdvanceDays: { type: [integer, "null"] }
+        cancellationWindowMinutes:
+          type: [integer, "null"]
+          description: Cancelling at least this long before the start is in window (D-07).
 
     FreeStarts:
       type: object

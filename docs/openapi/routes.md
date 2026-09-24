@@ -38,6 +38,11 @@ and `GET /clinics/{id}/day` are in the contract and built (2026-09-23), so they
 are not repeated here. The last two were not in the Technical Document's route
 table; they are what FR-STF-01 needs from the two indexes built for it.
 
+`GET /clinics` and `GET /appointment-types` (2026-09-24) were not in that table
+either. A patient cannot book on their own without them: the free starts need a
+type, and a listing needs the clinic's name. Both are read only; creating and
+changing clinics and types stays with the administration routes below.
+
 ## Booking and the day
 
 | Method | Path | Permission | Purpose |

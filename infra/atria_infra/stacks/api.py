@@ -253,9 +253,20 @@ class ApiStack(Stack):
                 authorizer=self.request_authoriser,
                 authorization_type=apigateway.AuthorizationType.CUSTOM,
             )
+        # /clinics lists where the tenant's clinics are; /appointment-types
+        # what can be booked and for how long. Both read only, and both what a
+        # patient needs to book without the front desk.
+        clinics = self.api.root.add_resource("clinics")
+        for resource in (clinics, self.api.root.add_resource("appointment-types")):
+            resource.add_method(
+                "GET",
+                directory_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
         # The front desk's day. appointment.read at clinic scope decides who
         # reaches it; a clinician's scope is their own and is refused.
-        self.api.root.add_resource("clinics").add_resource("{id}").add_resource("day").add_method(
+        clinics.add_resource("{id}").add_resource("day").add_method(
             "GET",
             directory_integration,
             authorizer=self.request_authoriser,

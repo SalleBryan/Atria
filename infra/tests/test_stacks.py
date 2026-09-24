@@ -283,6 +283,12 @@ class TestApiStack:
         assert ("/clinicians/{id}/calendar", "GET") in served
         assert ("/clinics/{id}/day", "GET") in served
 
+    def test_the_catalogue_routes_are_served(self, synthesised):
+        """What a patient needs to book on their own: clinics and types."""
+        served = routes(template_for(synthesised, "api"))
+        assert ("/clinics", "GET") in served
+        assert ("/appointment-types", "GET") in served
+
     def test_the_directory_service_cannot_write(self, synthesised):
         """It answers questions. Only a booking writes a lock."""
         template = template_for(synthesised, "api")

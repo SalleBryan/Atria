@@ -18,7 +18,7 @@ from __future__ import annotations
 import pathlib
 from typing import Any
 
-from aws_cdk import Duration, RemovalPolicy, Stack
+from aws_cdk import Duration, RemovalPolicy, SecretValue, Stack
 from aws_cdk import aws_cognito as cognito
 from constructs import Construct
 
@@ -97,19 +97,64 @@ class IdentityStack(Stack):
         refresh = Duration.days(30)
         access = Duration.hours(1)
 
+        # Google, for patients only (FR-ACC-02). Both halves of the OAuth
+        # client are resolved from Secrets Manager by CloudFormation at deploy
+        # time, so the template carries a reference and never the value
+        # (BR-10, guarded by infra/tests/test_secrets.py).
+        patient_providers = [cognito.UserPoolClientIdentityProvider.COGNITO]
+        self.google: cognito.UserPoolIdentityProviderGoogle | None = None
+        if settings.auth_domain_prefix:
+            self.domain = self.user_pool.add_domain(
+                "Domain",
+                cognito_domain=cognito.CognitoDomainOptions(domain_prefix=settings.auth_domain_prefix),
+            )
+        if settings.google_secret_name:
+
+            def google_field(name: str) -> SecretValue:
+                return SecretValue.secrets_manager(settings.google_secret_name, json_field=name)
+
+            self.google = cognito.UserPoolIdentityProviderGoogle(
+                self,
+                "Google",
+                user_pool=self.user_pool,
+                client_id=google_field("clientId").unsafe_unwrap(),
+                client_secret_value=google_field("clientSecret"),
+                scopes=["openid", "email", "profile"],
+                # What the post-confirmation trigger needs to write the person.
+                # Google supplies no phone; it is verified in the app instead
+                # (ADR 0009), whatever the provider.
+                attribute_mapping=cognito.AttributeMapping(
+                    email=cognito.ProviderAttribute.GOOGLE_EMAIL,
+                    email_verified=cognito.ProviderAttribute.other("email_verified"),
+                    given_name=cognito.ProviderAttribute.GOOGLE_GIVEN_NAME,
+                    family_name=cognito.ProviderAttribute.GOOGLE_FAMILY_NAME,
+                ),
+            )
+            patient_providers.append(cognito.UserPoolClientIdentityProvider.GOOGLE)
+
         self.patient_client = self.user_pool.add_client(
             "PatientClient",
             user_pool_client_name=f"{settings.prefix}-patient",
             auth_flows=common_auth_flows,
             # Google is offered to patients only. Staff sign in to the account
             # an administrator created for them.
-            supported_identity_providers=[cognito.UserPoolClientIdentityProvider.COGNITO],
+            supported_identity_providers=patient_providers,
+            o_auth=cognito.OAuthSettings(
+                flows=cognito.OAuthFlows(authorization_code_grant=True),
+                scopes=[cognito.OAuthScope.OPENID, cognito.OAuthScope.EMAIL, cognito.OAuthScope.PROFILE],
+                callback_urls=list(settings.oauth_callback_urls) or None,
+                logout_urls=list(settings.oauth_logout_urls) or None,
+            )
+            if self.google
+            else None,
             access_token_validity=access,
             id_token_validity=access,
             refresh_token_validity=refresh,
             prevent_user_existence_errors=True,
             enable_token_revocation=True,
         )
+        if self.google:
+            self.patient_client.node.add_dependency(self.google)
 
         self.staff_client = self.user_pool.add_client(
             "StaffClient",

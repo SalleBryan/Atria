@@ -61,6 +61,29 @@ class Environment:
     stays off everywhere else.
     """
 
+    auth_domain_prefix: str = ""
+    """The Cognito sign-in domain, <prefix>.auth.<region>.amazoncognito.com.
+
+    Google returns a patient here, so the same address is registered as the
+    redirect URI on the Google OAuth client. Empty means no hosted domain and
+    no federated sign-in.
+    """
+
+    google_secret_name: str = ""
+    """The Secrets Manager secret holding the Google OAuth client, as JSON
+    with clientId and clientSecret (FR-ACC-02, BR-10). Resolved by
+    CloudFormation at deploy time, so neither value is ever in a template or
+    in this repository. Empty means Google sign-in is off.
+    """
+
+    oauth_callback_urls: tuple[str, ...] = ()
+    """Where the patient client may be sent back to after a hosted sign-in."""
+
+    oauth_logout_urls: tuple[str, ...] = ()
+
+    github_repository: str = ""
+    """owner/name of the repository whose main branch may deploy (BR-11)."""
+
     tags: dict[str, str] = field(default_factory=dict)
 
     @property
@@ -82,6 +105,12 @@ DEV = Environment(
     # simulator, which is what the acceptance test uses.
     notice_sender="bryanjakevita@gmail.com",
     admin_password_auth=True,
+    auth_domain_prefix="atria-dev-cm",
+    google_secret_name="atria/dev/google-oauth",  # noqa: S106  the name of a secret, not one
+    # The web client's development server.
+    oauth_callback_urls=("http://localhost:5173/auth/callback",),
+    oauth_logout_urls=("http://localhost:5173/",),
+    github_repository="SalleBryan/Atria",
     tags={
         "Project": "Atria",
         "Environment": "dev",

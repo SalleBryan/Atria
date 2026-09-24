@@ -21,6 +21,8 @@ const ME: Me = {
   personId: "p-preview",
   givenName: "Amina",
   familyName: "Ngo",
+  email: "amina.ngo@example.com",
+  phoneE164: "+12025550142",
   tenantId: "t-cm-001",
   roles: ["PATIENT"],
   patientProfileId: "pp-preview",

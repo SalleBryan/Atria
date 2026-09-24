@@ -5,11 +5,11 @@
 
 import { Route } from "react-router-dom";
 
+import { Account } from "./Account";
 import { Booked } from "./Booked";
 import { FindCare } from "./FindCare";
 import { PatientHome } from "./PatientHome";
 import { PatientShell } from "./PatientShell";
-import { Soon } from "./Soon";
 import { Visits } from "./Visits";
 
 export const patientRoutes = (
@@ -19,6 +19,6 @@ export const patientRoutes = (
     <Route path="/booked/:id" element={<Booked />} />
     <Route path="/visits" element={<Visits />} />
     <Route path="/visits/:id" element={<Visits />} />
-    <Route path="/account" element={<Soon title="Account" />} />
+    <Route path="/account" element={<Account />} />
   </Route>
 );

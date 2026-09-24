@@ -47,6 +47,8 @@ export interface Me {
   personId: string;
   givenName: string | null;
   familyName: string | null;
+  email: string | null;
+  phoneE164: string | null;
   tenantId: string;
   roles: string[];
   patientProfileId: string | null;

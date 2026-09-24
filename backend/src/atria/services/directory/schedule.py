@@ -97,10 +97,18 @@ def calendar(
         "timezone": str(zone),
         "count": len(found),
         "appointments": [appointment_view(a) for a in found],
+        "patients": people.patient_names(principal.tenant_id, patients_in(found)),
     }
 
 
-def clinic_day(principal: Principal, event: dict[str, Any], *, data: Booking) -> dict[str, Any]:
+def patients_in(found: list[dict[str, Any]]) -> list[str]:
+    """Every patient profile on a list, which the list then names."""
+    return [str(a["patientProfileId"]) for a in found if a.get("patientProfileId")]
+
+
+def clinic_day(
+    principal: Principal, event: dict[str, Any], *, data: Booking, people: People
+) -> dict[str, Any]:
     """Every appointment in one clinic on one of its dates."""
     clinic_id = requests.path_parameter(event, "id")
     data.clinic(principal.tenant_id, clinic_id)
@@ -120,4 +128,5 @@ def clinic_day(principal: Principal, event: dict[str, Any], *, data: Booking) ->
         "timezone": str(zone),
         "count": len(found),
         "appointments": [appointment_view(a) for a in found],
+        "patients": people.patient_names(principal.tenant_id, patients_in(found)),
     }

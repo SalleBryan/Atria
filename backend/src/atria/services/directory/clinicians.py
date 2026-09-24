@@ -233,7 +233,9 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
             schedule_views.calendar(principal, event, data=booking(), people=people())
         )
     if method == "GET" and resource.endswith("/day"):
-        return responses.ok(schedule_views.clinic_day(principal, event, data=booking()))
+        return responses.ok(
+            schedule_views.clinic_day(principal, event, data=booking(), people=people())
+        )
     if method == "GET" and resource.endswith("/clinicians"):
         return responses.ok(list_clinicians(principal, event))
     if method == "GET" and resource == "/clinics":

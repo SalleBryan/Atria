@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -299,6 +300,34 @@ class People:
 
     def person_record(self, person_id: str) -> Item:
         return self._repo.require(keys.person(person_id), what="person")
+
+    def patient_names(
+        self, tenant_id: str, patient_profile_ids: Iterable[str]
+    ) -> dict[str, dict[str, str | None]]:
+        """The name behind each patient profile, for a staff list (FR-STF-01).
+
+        Two batch reads however long the list: the profiles, then the people
+        they belong to. Names only, because a list of the day has no business
+        carrying anyone's contact details. A profile or person that cannot be
+        found still gets an entry, of nulls, so the caller never has an
+        appointment it cannot label.
+        """
+        wanted = sorted({str(p) for p in patient_profile_ids if p})
+        profiles = self._repo.get_many([keys.patient_profile(tenant_id, p) for p in wanted])
+        person_of: dict[str, str] = {}
+        for item in profiles.values():
+            if item.get("tenantId") == tenant_id and item.get("personId"):
+                person_of[str(item["patientProfileId"])] = str(item["personId"])
+        people = self._repo.get_many([keys.person(p) for p in sorted(set(person_of.values()))])
+        named: dict[str, dict[str, str | None]] = {}
+        for profile_id in wanted:
+            key = keys.person(person_of.get(profile_id, ""))
+            person = people.get((key.pk, key.sk), {})
+            named[profile_id] = {
+                "givenName": str(person.get("givenName") or "") or None,
+                "familyName": str(person.get("familyName") or "") or None,
+            }
+        return named
 
     def staff(self, tenant_id: str, staff_id: str) -> Item:
         return self._repo.require(keys.staff_membership(tenant_id, staff_id), what="staff account")

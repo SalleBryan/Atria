@@ -411,6 +411,10 @@ paths:
         seen and moved.
 
         Every state is returned, cancelled ones included, each with its state.
+        Each patient is named once in `patients`, by profile, because a
+        calendar of identifiers is one nobody at a desk can use. Names only:
+        whoever can read an appointment can already read its patient
+        (patient.read has the same scope as appointment.read for every role).
 
         Implements FR-STF-01.
       parameters:
@@ -435,7 +439,7 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [clinicianProfileId, from, to, timezone, count, appointments]
+                required: [clinicianProfileId, from, to, timezone, count, appointments, patients]
                 properties:
                   clinicianProfileId: { type: string }
                   clinicId: { type: string }
@@ -448,6 +452,7 @@ paths:
                   appointments:
                     type: array
                     items: { $ref: "#/components/schemas/Appointment" }
+                  patients: { $ref: "#/components/schemas/PatientNames" }
         "400":
           description: A date is malformed, the range is backwards, or it is wider than 31 days.
           content:
@@ -472,7 +477,8 @@ paths:
 
         An appointment is on the list for its clinic's local date. In Douala an
         appointment at 00:30 is on that date's list, although its UTC instant
-        falls on the day before.
+        falls on the day before. Patients are named in `patients`, as on the
+        calendar.
 
         Implements FR-STF-01.
       parameters:
@@ -493,7 +499,7 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [clinicId, date, timezone, count, appointments]
+                required: [clinicId, date, timezone, count, appointments, patients]
                 properties:
                   clinicId: { type: string }
                   date: { type: string, format: date }
@@ -502,6 +508,7 @@ paths:
                   appointments:
                     type: array
                     items: { $ref: "#/components/schemas/Appointment" }
+                  patients: { $ref: "#/components/schemas/PatientNames" }
         "400":
           description: The date is malformed.
           content:
@@ -1092,6 +1099,21 @@ components:
         reason:
           type: string
           description: Recorded on the appointment's first event.
+
+    PatientNames:
+      type: object
+      description: |
+        The name of every patient on a staff list, keyed by patient profile id.
+        A profile whose person has no name on record yet maps to nulls rather
+        than being left out, so a list never has an appointment it cannot
+        label.
+      additionalProperties:
+        type: object
+        additionalProperties: false
+        required: [givenName, familyName]
+        properties:
+          givenName: { type: [string, "null"] }
+          familyName: { type: [string, "null"] }
 
     Appointment:
       type: object

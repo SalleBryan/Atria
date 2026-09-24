@@ -422,3 +422,50 @@ class TestClinicDay:
         _repository, _ids, _made = booked
         result = get("/clinics/{id}/day", DOUALA, {"date": "Monday"}, **as_receptionist())
         assert result["statusCode"] == 400
+
+
+class TestPatientNames:
+    """A list of identifiers is one nobody at a desk can use."""
+
+    def name_the_patient(self, repository) -> None:
+        repository.put(
+            keys.person("p-ama"),
+            {
+                "type": "PERSON",
+                "personId": "p-ama",
+                "givenName": "Ama",
+                "familyName": "Darko",
+                "email": "ama@atria.invalid",
+                "phoneE164": "+12025550140",
+            },
+        )
+        repository.update_existing(
+            keys.patient_profile(TENANT, PATIENT), set_values={"personId": "p-ama"}, what="patient"
+        )
+
+    def test_fr_stf_01_the_day_names_its_patients(self, booked):
+        repository, _ids, _made = booked
+        self.name_the_patient(repository)
+        found = body_of(day("2026-03-02"))
+        assert found["patients"] == {PATIENT: {"givenName": "Ama", "familyName": "Darko"}}
+
+    def test_the_calendar_names_them_too(self, booked):
+        repository, ids, _made = booked
+        self.name_the_patient(repository)
+        found = body_of(get("/clinicians/{id}/calendar", ids["etoa"], **as_clinician(ids["etoa"])))
+        assert found["patients"][PATIENT]["givenName"] == "Ama"
+
+    def test_names_only_and_no_contact_details(self, booked):
+        repository, _ids, _made = booked
+        self.name_the_patient(repository)
+        text = json.dumps(body_of(day("2026-03-02"))["patients"])
+        assert "ama@atria.invalid" not in text
+        assert "5550140" not in text
+
+    def test_a_patient_with_no_name_on_record_is_still_listed(self, booked):
+        """So the client never meets an appointment it cannot label."""
+        found = body_of(day("2026-03-02"))
+        assert found["patients"] == {PATIENT: {"givenName": None, "familyName": None}}
+
+    def test_an_empty_day_names_nobody(self, booked):
+        assert body_of(day("2026-03-05"))["patients"] == {}

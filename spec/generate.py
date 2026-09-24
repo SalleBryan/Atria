@@ -14,16 +14,19 @@ Outputs:
     web/src/generated/lifecycle.ts
     web/src/generated/entities.ts
     web/src/generated/keys.ts
+    web/src/generated/regionPacks.ts
 """
 
 from __future__ import annotations
 
+import json
 import pathlib
 import sys
 
 from atria_spec import keys as KEYS_SPEC
 from atria_spec import lifecycle as LC
 from atria_spec import model as MODEL_SPEC
+from atria_spec import region_packs as PACKS
 from atria_spec import roles as RL
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -290,11 +293,29 @@ def keys_ts() -> str:
     return "\n".join(out)
 
 
+# ----------------------------------------------------------------- region packs
+def region_packs_ts() -> str:
+    """The packs as data, so a screen validates a phone number against the
+    same pattern the service does rather than a copy typed into the client."""
+    fields = [name for name, *_ in MODEL_SPEC.MODEL["Tenancy and configuration"]["REGION_PACK"][1]]
+    out = [BANNER, "", "export interface RegionPack {"]
+    ts = {"list": "readonly unknown[]", "bool": "boolean"}
+    for name, kind, *_ in MODEL_SPEC.MODEL["Tenancy and configuration"]["REGION_PACK"][1]:
+        out.append(f"  readonly {name}: {ts.get(kind, 'string')} | null;")
+    out += ["}", "", "export const REGION_PACKS: Readonly<Record<string, RegionPack>> = {"]
+    for code, pack in PACKS.REGION_PACKS.items():
+        body = json.dumps({name: pack[name] for name in fields}, indent=2, ensure_ascii=False)
+        out.append(f"  {quote(code)}: " + body.replace("\n", "\n  ") + ",")
+    out += ["};", ""]
+    return "\n".join(out)
+
+
 TARGETS = {
     "web/src/generated/permissions.ts": permissions_ts,
     "web/src/generated/lifecycle.ts": lifecycle_ts,
     "web/src/generated/entities.ts": entities_ts,
     "web/src/generated/keys.ts": keys_ts,
+    "web/src/generated/regionPacks.ts": region_packs_ts,
 }
 
 

@@ -40,7 +40,10 @@ export function AuthLayout({ product, brand, footer, children, paneWidth = 620, 
       <main className="form-pane">
         <span className="orb orb-form-top" aria-hidden="true" />
         <span className="orb orb-form-bottom" aria-hidden="true" />
-        <div className="auth-box">{children}</div>
+        {/* The orbs sit outside the scrolling layer, so they never add scroll. */}
+        <div className="form-scroll">
+          <div className="auth-box">{children}</div>
+        </div>
       </main>
     </div>
   );

@@ -225,7 +225,6 @@
 /* ----------------------------------------------------------------- main */
 
 .patient-main {
-  position: relative;
   min-width: 0;
   height: 100%;
   overflow-y: auto;

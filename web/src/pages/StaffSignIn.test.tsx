@@ -55,7 +55,7 @@ describe("StaffSignIn", () => {
     session.refresh.mockResolvedValue({ status: "signed-in", me: { staffId: "s-1" } });
     renderAt("/staff/sign-in", <StaffSignIn />);
     await signInAs();
-    expect(await screen.findByTestId("landed")).toHaveTextContent("/home");
+    expect(await screen.findByTestId("landed")).toHaveTextContent("/console");
   });
 
   it("turns a patient account away and ends its session", async () => {
@@ -111,7 +111,7 @@ describe("StaffFirstSignIn", () => {
     const user = await choose("Douala-Front-Desk-9");
     await user.click(screen.getByRole("button", { name: "Save and continue" }));
     expect(auth.confirmSignIn).toHaveBeenCalledWith({ challengeResponse: "Douala-Front-Desk-9" });
-    expect(await screen.findByTestId("landed")).toHaveTextContent("/home");
+    expect(await screen.findByTestId("landed")).toHaveTextContent("/console");
     expect(firstSignIn.peek()).toBeNull();
   });
 

@@ -52,7 +52,7 @@ export function StaffFirstSignIn() {
         return;
       }
       const state = await refresh("staff");
-      navigate(state.status === "signed-in" ? "/home" : "/staff/sign-in", { replace: true });
+      navigate(state.status === "signed-in" ? "/console" : "/staff/sign-in", { replace: true });
     } catch (caught) {
       setError(messageFor(caught));
     } finally {

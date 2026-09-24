@@ -12,12 +12,14 @@ import { Button, Notice, StatusPill } from "../components/controls";
 import { CheckMark } from "../components/icons";
 import { Waiting } from "../components/Waiting";
 
-export function Home() {
+/** The staff console's landing, until its screens are built. Patients have their own home. */
+export function Console() {
   const { state, signOut } = useSession();
   if (state.status === "loading") return <Waiting />;
   if (state.status !== "signed-in") return <Navigate to="/sign-in" replace />;
   const { me, audience } = state;
   const staff = audience === "staff";
+  if (!staff) return <Navigate to="/home" replace />;
   return (
     <AuthLayout
       product={staff ? "CLINIC CONSOLE" : "PATIENT ACCOUNT"}

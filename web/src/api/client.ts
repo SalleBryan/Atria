@@ -20,8 +20,10 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
-  const session = await fetchAuthSession();
-  const token = session.tokens?.accessToken?.toString();
+  // No session, or none that can be read, sends the request without a token:
+  // the authoriser then refuses it, which is the honest answer.
+  const session = await fetchAuthSession().catch(() => undefined);
+  const token = session?.tokens?.accessToken?.toString();
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
   let body = init.body;
@@ -43,6 +45,8 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
 /** GET /me: the caller as the API resolves them. */
 export interface Me {
   personId: string;
+  givenName: string | null;
+  familyName: string | null;
   tenantId: string;
   roles: string[];
   patientProfileId: string | null;

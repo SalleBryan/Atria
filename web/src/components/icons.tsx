@@ -120,3 +120,82 @@ export const ArrowLeft = (p: IconProps) => (
     <path d="M19 12H5M11 6l-6 6 6 6" />
   </Icon>
 );
+export const Home = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M4 10.5 12 4l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5H15v-6H9v6H5.5A1.5 1.5 0 0 1 4 19Z" />
+  </Icon>
+);
+export const Search = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m16 16 4.5 4.5" />
+  </Icon>
+);
+export const Plus = (p: IconProps) => (
+  <Icon strokeWidth={2} {...p}>
+    <path d="M12 5v14M5 12h14" />
+  </Icon>
+);
+export const Repeat = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5" />
+    <path d="M20 4v4.5h-4.5M20 12a8 8 0 0 1-13.7 5.6L4 15.5" />
+    <path d="M4 20v-4.5h4.5" />
+  </Icon>
+);
+export const Clipboard = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <rect x="5" y="4.5" width="14" height="16" rx="2.5" />
+    <path d="M9 4.5V3.5h6v1M9 10h6M9 14h6M9 18h3" />
+  </Icon>
+);
+export const Pin = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z" />
+    <circle cx="12" cy="10" r="2.3" />
+  </Icon>
+);
+export const Clock = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </Icon>
+);
+export const Download = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14" />
+  </Icon>
+);
+export const ChevronRight = (p: IconProps) => (
+  <Icon strokeWidth={2} {...p}>
+    <path d="m9.5 6 6 6-6 6" />
+  </Icon>
+);
+export const ChevronLeft = (p: IconProps) => (
+  <Icon strokeWidth={2} {...p}>
+    <path d="m14.5 6-6 6 6 6" />
+  </Icon>
+);
+export const SignOut = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M14 4.5h3.5A1.5 1.5 0 0 1 19 6v12a1.5 1.5 0 0 1-1.5 1.5H14" />
+    <path d="M10 8 6 12l4 4M6 12h9.5" />
+  </Icon>
+);
+export const Close = (p: IconProps) => (
+  <Icon strokeWidth={2} {...p}>
+    <path d="m6.5 6.5 11 11M17.5 6.5l-11 11" />
+  </Icon>
+);
+export const Filter = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M4.5 7h15M7.5 12h9M10.5 17h3" />
+  </Icon>
+);
+export const Stethoscope = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M6 3.5v5a4 4 0 0 0 8 0v-5" />
+    <path d="M10 12.5v2a5 5 0 0 0 10 0v-2" />
+    <circle cx="20" cy="10.5" r="2" />
+  </Icon>
+);

@@ -60,7 +60,7 @@ export function StaffSignIn() {
       }
       const state = await refresh("staff");
       if (state.status === "signed-in" && state.me.staffId) {
-        navigate("/home", { replace: true });
+        navigate("/console", { replace: true });
       } else if (state.status === "signed-in") {
         // A patient account signed in through the staff client: it has no
         // console, and must not keep a staff-client session.

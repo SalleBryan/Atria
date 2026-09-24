@@ -27,7 +27,8 @@ interface Session {
   signOut: () => Promise<void>;
 }
 
-const SessionContext = createContext<Session | null>(null);
+/** Exported for the development preview (src/dev), which supplies a fixed session. */
+export const SessionContext = createContext<Session | null>(null);
 
 async function resolve(audience: Audience): Promise<State> {
   configureFor(audience);

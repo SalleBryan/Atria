@@ -7,9 +7,10 @@ permissions their roles carry, which is what a client uses to decide what to
 show. The client hides what a role cannot do; the authoriser and the services
 are what refuse it (guard rule D-10).
 
-The person's names come from their person record, so a screen can greet them.
-The token carries who they are, not what they are called; an account with no
-person record yet, such as one resolved from its attributes alone, has none.
+The person's names and contact details come from their person record, so a
+screen can greet them and show them what Atria holds. The token carries who
+they are, not what they are called; an account with no person record yet,
+such as one resolved from its attributes alone, has none of these.
 """
 
 from __future__ import annotations
@@ -34,15 +35,16 @@ def people() -> People:
     return _people
 
 
-def names(person_id: str) -> dict[str, str | None]:
+PERSON_FIELDS = ("givenName", "familyName", "email", "phoneE164")
+
+
+def person_details(person_id: str) -> dict[str, str | None]:
+    """The caller's own names, email and mobile, from their person record."""
     try:
         person = people().person_record(person_id)
     except NotFound:
-        return {"givenName": None, "familyName": None}
-    return {
-        "givenName": str(person.get("givenName") or "") or None,
-        "familyName": str(person.get("familyName") or "") or None,
-    }
+        return dict.fromkeys(PERSON_FIELDS)
+    return {name: str(person.get(name) or "") or None for name in PERSON_FIELDS}
 
 
 def me(principal: Principal) -> dict[str, Any]:
@@ -65,4 +67,4 @@ def me(principal: Principal) -> dict[str, Any]:
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     """GET /me"""
     principal = requests.principal_from(event)
-    return responses.ok({**me(principal), **names(principal.person_id)})
+    return responses.ok({**me(principal), **person_details(principal.person_id)})

@@ -837,6 +837,12 @@ components:
         familyName:
           type: [string, "null"]
           description: From the person record. Null for an account with none yet.
+        email:
+          type: [string, "null"]
+          description: The caller's own email, from the person record.
+        phoneE164:
+          type: [string, "null"]
+          description: The caller's own mobile, from the person record.
         tenantId:
           type: string
           description: The institution. Every record the caller can reach belongs to it.

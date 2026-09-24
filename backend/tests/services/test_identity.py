@@ -100,12 +100,21 @@ class TestNames:
     def test_the_person_record_names_the_caller(self, wired):
         wired.put(
             keys.person("p-1"),
-            {"type": "PERSON", "personId": "p-1", "givenName": "Amina", "familyName": "Ngo"},
+            {
+                "type": "PERSON",
+                "personId": "p-1",
+                "givenName": "Amina",
+                "familyName": "Ngo",
+                "email": "amina@example.com",
+                "phoneE164": "+12025550142",
+            },
         )
         body = body_of(identity.handler(event(patientProfileId="pp-1"), None))
         assert (body["givenName"], body["familyName"]) == ("Amina", "Ngo")
+        assert (body["email"], body["phoneE164"]) == ("amina@example.com", "+12025550142")
 
     def test_an_account_with_no_person_record_has_no_names(self):
         body = body_of(identity.handler(event(patientProfileId="pp-1"), None))
         assert body["givenName"] is None
         assert body["familyName"] is None
+        assert body["email"] is None

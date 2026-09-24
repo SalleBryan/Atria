@@ -13,8 +13,8 @@ A styled email is never worth a failed sign-up. Cognito fails the whole
 operation when this trigger fails, so anything unexpected here returns the
 event untouched and Cognito sends its plain default instead.
 
-The language is the account's `locale`, falling back to the region pack's
-default exactly as a booking notice does.
+The language is the account's `locale`, falling back to the same default as
+a booking notice (atria.core.notices.DEFAULT_LANGUAGE).
 """
 
 from __future__ import annotations

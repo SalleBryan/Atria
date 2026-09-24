@@ -31,7 +31,9 @@ operation, a sign-up included, when its trigger fails.
    heading, rows, closing), and both bodies are written from the same parts, so they cannot say
    different things. Email French keeps its accents; only SMS is held to ASCII.
 4. **The language is the person's**, from `preferredLanguage` for a notice and `locale` for
-   Cognito, falling back to the region pack's default (French) for both.
+   Cognito. With none on record, both fall back to English: no screen lets a patient choose a
+   language yet, and the product owner chose English over imposing the region pack's French
+   with no way to change it (2026-09-24).
 5. **The mark and the buttons wait for the hosted site.** Email clients will not show SVG, so
    `tools/email_mark.py` draws the sidebar mark as `web/public/email/atria-mark.png`. An email
    loads it, and links into the app, from `Environment.app_url`. Until the site is hosted that
@@ -47,5 +49,5 @@ operation, a sign-up included, when its trigger fails.
 - Cognito still sends from its own address until the pool sends through SES, which needs SES
   production access: in the sandbox, SES would only reach verified addresses and patients could
   not sign up.
-- A patient who has never chosen a language reads French, including one who signed up in the
-  English interface, until sign-up records the interface language as the account's `locale`.
+- Every patient reads English until language switching lands. A preference on record already
+  wins, so switching needs only a screen that records it, and no change to either sender.

@@ -13,7 +13,7 @@ import { type ComponentType, useState } from "react";
 
 import { useSession } from "../auth/session";
 import { Bell, Calendar, CheckMark, Mail, Phone, Pin, Shield, User } from "../components/icons";
-import { clinicianName, clock, join, upcoming, usePatientData } from "./data";
+import { clock, join, upcoming, usePatientData } from "./data";
 
 type Section = "details" | "notifications" | "clinics";
 
@@ -25,10 +25,21 @@ const SECTIONS: { id: Section; label: string; icon: ComponentType<{ size?: numbe
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-/** The SMS reminder, as atria.core.notices writes it (French is the pack's default). */
+/**
+ * The SMS reminder, word for word as atria.core.notices writes it: English
+ * until a patient can choose a language, the date as dd/mm/yyyy on the
+ * clinic's clock, and the clinician by name without a title.
+ */
 function reminderText(date: string, time: string, clinic: string, clinician: string, reference: string): string {
-  return `Rappel Atria: RDV le ${date} a ${time}, ${clinic}, ${clinician}. Ref ${reference}. Pour annuler: application Atria.`;
+  return `Atria reminder: appointment ${date} at ${time}, ${clinic}, ${clinician}. Ref ${reference}. To cancel: Atria app.`;
 }
+
+const SMS_DATE = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Douala",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
 
 function masked(phone: string | null | undefined): string {
   if (!phone) return "Not given";
@@ -190,13 +201,13 @@ function Notifications() {
   const sample =
     next && joined
       ? reminderText(
-          new Intl.DateTimeFormat("fr-FR", { timeZone: "Africa/Douala" }).format(new Date(next.startAt)),
+          SMS_DATE.format(new Date(next.startAt)),
           clock.time(next.startAt),
-          joined.clinic?.name ?? "la clinique",
-          clinicianName(joined.clinician),
+          joined.clinic?.name ?? "the clinic",
+          [joined.clinician?.givenName, joined.clinician?.familyName].filter(Boolean).join(" "),
           next.reference,
         )
-      : reminderText("26/09/2026", "10:00", "Clinique d'Akwa", "Dr Esther Mbarga", "APT-4958");
+      : reminderText("26/09/2026", "10:00", "Clinique d'Akwa", "Esther Mbarga", "APT-4958");
 
   return (
     <>

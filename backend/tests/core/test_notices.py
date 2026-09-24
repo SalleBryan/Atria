@@ -169,6 +169,13 @@ class TestLanguage:
         """A patient should still hear about their appointment."""
         assert notices.language_for(preferred) == notices.DEFAULT_LANGUAGE
 
+    def test_english_until_a_patient_can_choose(self):
+        """No screen sets a language yet, so French would be imposed with no
+        way out. A preference on record still wins."""
+        assert notices.language_for(None) == "en"
+        assert compose(language=None).subject.startswith("Appointment confirmed")
+        assert compose(language="fr").subject.startswith("Rendez-vous confirmé")
+
     def test_the_template_records_which_wording_was_used(self):
         assert compose(language="en").template == "booking_confirmation.en"
         assert compose(language="fr").template == "booking_confirmation.fr"

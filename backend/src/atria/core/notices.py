@@ -36,10 +36,15 @@ SMS_SEGMENT = 160
 
 CHANNELS = ("EMAIL", "SMS", "VOICE")
 
-# The region pack's languages for Cameroon. French first, which is the default
-# where a person has expressed no preference.
+# The region pack's languages for Cameroon.
 LANGUAGES = ("fr", "en")
-DEFAULT_LANGUAGE = "fr"
+
+# The language for a person who has stated no preference. The region pack puts
+# French first, but no screen lets a patient choose a language yet, so every
+# patient would be written to in French with no way to change it. Until they
+# can choose, the product owner's call (2026-09-24) is English. A preference
+# that is on record still wins, so language switching needs no change here.
+DEFAULT_LANGUAGE = "en"
 
 
 # Which notice a change of state owes the patient. A state not listed here

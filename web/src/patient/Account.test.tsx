@@ -69,7 +69,9 @@ describe("Account", () => {
   it("previews the reminder in the words the SMS really uses", async () => {
     renderAccount();
     await userEvent.setup().click(await screen.findByRole("button", { name: /Notifications/ }));
-    expect(await screen.findByText(/^Rappel Atria: RDV le .* Clinique d'Akwa, Dr Esther Mbarga\. Ref APT-1\. Pour annuler: application Atria\.$/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/^Atria reminder: appointment \d{2}\/\d{2}\/\d{4} at \d{2}:\d{2}, Clinique d'Akwa, Esther Mbarga\. Ref APT-1\. To cancel: Atria app\.$/),
+    ).toBeInTheDocument();
   });
 
   it("lists the clinics with their hours", async () => {

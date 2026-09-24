@@ -63,14 +63,14 @@ class TestEveryOccasion:
 
 
 class TestLanguage:
-    def test_french_by_default(self):
-        """The region pack's default, as for every notice."""
+    def test_english_until_a_person_can_choose(self):
+        """The same default as every notice."""
         result = custom_message.handler(event(), None)
-        assert result["response"]["emailSubject"] == "Votre code de vérification Atria"
-
-    def test_english_when_the_account_says_so(self):
-        result = custom_message.handler(event(locale="en-GB"), None)
         assert result["response"]["emailSubject"] == "Your Atria verification code"
+
+    def test_french_when_the_account_says_so(self):
+        result = custom_message.handler(event(locale="fr-CM"), None)
+        assert result["response"]["emailSubject"] == "Votre code de vérification Atria"
 
 
 class TestPerson:

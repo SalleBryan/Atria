@@ -7,9 +7,11 @@ import { Route } from "react-router-dom";
 
 import { DaySchedule } from "./DaySchedule";
 import { StaffShell } from "./StaffShell";
+import { VisitPage } from "./VisitPage";
 
 export const staffRoutes = (
   <Route element={<StaffShell />}>
     <Route path="/console" element={<DaySchedule />} />
+    <Route path="/console/visits/:id" element={<VisitPage />} />
   </Route>
 );

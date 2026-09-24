@@ -1,0 +1,142 @@
+/*
+ * Atria design tokens, read from the Figma file "Atria - Product UI"
+ * (ZDPTMHC5AD5LgZH7lDx2lO): its 42 local variables, 7 text styles and 4
+ * effect styles. Names follow the Figma variable paths, so a value can be
+ * traced back to the design in one search.
+ *
+ * Rev A's look is signed off. Change a value here only when the design
+ * changes, never to tidy it up.
+ */
+
+:root {
+  /* Atria colour / blue */
+  --blue-100: #e3edfe;
+  --blue-200: #bfd5fe;
+  --blue-350: #8cb6ff;
+  --blue-400: #7aa8fa;
+  --blue-450: #6098ff;
+  --blue-500: #4a83f0;
+  --blue-600: #2f6be4;
+  --blue-650: #1e52c4;
+  --blue-700: #2461db;
+  --blue-800: #1b4fb8;
+  --blue-850: #1b3a72;
+  --blue-900: #0b2b6b;
+
+  /* Atria colour / surface */
+  --surface-white: #ffffff;
+  --surface-ground: #e9f0fd;
+  --surface-panel: #f6f9ff;
+  --surface-field: #edf2fb;
+  --surface-tint: #d8e1f0;
+
+  /* Atria colour / ink */
+  --ink-primary: #0d1b34;
+  --ink-900: #16233f;
+  --ink-800: #2c3d60;
+  --ink-700: #41547c;
+  --ink-650: #4b5d80;
+  --ink-600: #54658a;
+  --ink-550: #63769a;
+  --ink-muted: #5a6c8e;
+  --ink-450: #7c8cab;
+  --ink-soft: #7181a0;
+  --ink-400: #8b97ae;
+  --ink-350: #9aa9c4;
+  --ink-300: #a6b3cb;
+  --ink-inverse: #ffffff;
+
+  /* Atria colour / line */
+  --line-hairline: #e3eaf8;
+  --line-soft: #c8d5ec;
+  --line-strong: #8497b8;
+
+  /* Atria colour / status */
+  --status-confirmed: #0e9c6b;
+  --status-confirmed-ink: #0b7a53;
+  --status-awaiting: #d98324;
+  --status-awaiting-light: #f5b942;
+  --status-awaiting-strong: #a9670f;
+  --status-awaiting-ink: #9b5e0e;
+  --status-cancelled: #d6485a;
+  --status-cancelled-strong: #c33c4e;
+  --status-cancelled-ink: #b93b4c;
+  --status-booked-ink: #2a5bc2;
+
+  /* Atria colour / admin: the console's purple identity */
+  --admin-base: #5b34c4;
+  --admin-light: #8b5cf0;
+  --admin-ink: #3e2a78;
+
+  /* Atria shape & space */
+  --radius-s: 14px;
+  --radius-m: 22px;
+  --radius-l: 30px;
+  --radius-xl: 38px;
+  --radius-full: 999px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --touch-target-min: 46px;
+  --control-height-m: 46px;
+  --control-height-l: 54px;
+
+  /* Effect styles */
+  --shadow-panel: 0 4px 22px rgba(16, 42, 94, 0.1);
+  --shadow-raised: 0 10px 30px rgba(16, 42, 94, 0.16);
+  --shadow-primary: 0 10px 22px rgba(36, 97, 219, 0.32);
+  --shadow-danger: 0 10px 22px rgba(200, 56, 74, 0.3);
+
+  /* Gradients as the screens use them */
+  --gradient-page: linear-gradient(150deg, #dbe7fe 0%, #eff4fe 42%, #e2ebfd 100%);
+  --gradient-brand: linear-gradient(164deg, #123a8c 0%, #2c63de 40%, #4a83f0 78%, #6d9ef4 100%);
+  --gradient-primary: linear-gradient(140deg, var(--blue-500) 0%, var(--blue-700) 100%);
+  --gradient-disabled: linear-gradient(140deg, #c2cfe6 0%, #a9b9d6 100%);
+  --gradient-confirmed: linear-gradient(140deg, #18b87c 0%, #0b8f5e 100%);
+  --glass-card: linear-gradient(150deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.78) 100%);
+  --glass-switch: linear-gradient(140deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.66) 100%);
+  --glass-on-blue: linear-gradient(140deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.11) 100%);
+  --glass-logo: linear-gradient(145deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.72) 100%);
+
+  /* Type: Atria/Display ... Atria/Caption */
+  --font-display: "Outfit", system-ui, sans-serif;
+  --font-body: "Plus Jakarta Sans", system-ui, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-primary);
+  background: var(--surface-ground);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid rgba(74, 131, 240, 0.45);
+  outline-offset: 2px;
+}

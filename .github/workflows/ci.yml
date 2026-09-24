@@ -109,3 +109,38 @@ jobs:
       - name: Synthesise
         working-directory: infra
         run: npx --yes aws-cdk@2 synth --quiet
+
+  web:
+    name: Web client
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Types
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      # The IDs the page needs are read from AWS at deploy time, not built in,
+      # so the bundle is proven here with placeholders.
+      - name: Build
+        env:
+          VITE_REGION: us-east-1
+          VITE_USER_POOL_ID: us-east-1_placeholder
+          VITE_PATIENT_CLIENT_ID: placeholder
+          VITE_STAFF_CLIENT_ID: placeholder
+          VITE_AUTH_DOMAIN: placeholder.auth.us-east-1.amazoncognito.com
+        run: npx vite build

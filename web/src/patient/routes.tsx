@@ -10,14 +10,15 @@ import { FindCare } from "./FindCare";
 import { PatientHome } from "./PatientHome";
 import { PatientShell } from "./PatientShell";
 import { Soon } from "./Soon";
+import { Visits } from "./Visits";
 
 export const patientRoutes = (
   <Route element={<PatientShell />}>
     <Route path="/home" element={<PatientHome />} />
     <Route path="/find-care" element={<FindCare />} />
     <Route path="/booked/:id" element={<Booked />} />
-    <Route path="/visits" element={<Soon title="My visits" />} />
-    <Route path="/visits/:id" element={<Soon title="Visit" />} />
+    <Route path="/visits" element={<Visits />} />
+    <Route path="/visits/:id" element={<Visits />} />
     <Route path="/account" element={<Soon title="Account" />} />
   </Route>
 );

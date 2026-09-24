@@ -1,0 +1,314 @@
+/*
+ * My visits and the cancel dialog, from the Rev A frames "Desktop · Visits +
+ * detail" (142:2) and "Desktop · Cancel dialog" (147:2), at their own sizes.
+ * The panes reuse Find care's (booking.css); what differs is here.
+ */
+
+.find-care.visits { grid-template-columns: 404px minmax(0, 1fr); }
+
+/* Upcoming and past: a segmented control whose pill slides. */
+.visits-tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid #ffffff;
+  border-radius: 20px;
+  background: var(--surface-field);
+}
+.visits-pill {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 5px;
+  width: calc(50% - 7.5px);
+  border-radius: 20px;
+  background: var(--gradient-primary);
+  box-shadow: 0 6px 14px rgba(36, 97, 219, 0.3);
+  transition: transform var(--move);
+}
+.visits-tabs button {
+  position: relative;
+  z-index: 1;
+  height: 42px;
+  border: 0;
+  border-radius: 15px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-650);
+  background: transparent;
+  cursor: pointer;
+  transition: color var(--fade);
+}
+.visits-tabs button[aria-selected="true"] { color: #ffffff; }
+
+.visit-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1.5px solid transparent;
+  border-radius: 22px;
+  color: inherit;
+  text-decoration: none;
+  background: #ffffff;
+  box-shadow: 0 1px 6px rgba(16, 42, 94, 0.06);
+  transition: transform var(--move-fast), box-shadow var(--fade), border-color var(--fade), border-radius var(--move-fast);
+}
+.visit-item:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(16, 42, 94, 0.1); }
+.visit-item:active { transform: scale(0.98); border-radius: 16px; }
+.visit-item-on {
+  border-color: var(--blue-500);
+  background: linear-gradient(180deg, #f2f7ff, #ffffff);
+  box-shadow: 0 8px 20px rgba(47, 107, 228, 0.18);
+}
+.visit-item .chip { display: inline-block; margin-top: 6px; }
+
+/* ------------------------------------------------------------ the detail */
+
+.visit-detail { gap: 16px; }
+.visit-hero {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  padding: 22px;
+  border-radius: 28px;
+  color: #ffffff;
+  background: linear-gradient(140deg, var(--blue-500) 0%, var(--blue-600) 50%, var(--blue-650) 100%);
+  box-shadow:
+    0 12px 28px rgba(30, 82, 196, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  animation: rise var(--move) both, fade-in var(--fade) both;
+  transition: background var(--fade-slow);
+}
+.visit-hero > *:not(.hero-bloom) { position: relative; }
+.visit-hero-cancelled { background: linear-gradient(140deg, #8b97ae, #63769a); box-shadow: 0 12px 28px rgba(16, 42, 94, 0.2); }
+.visit-hero-neutral { background: linear-gradient(140deg, #5a8ce8, #3e6cc8); }
+.visit-hero-awaiting { background: linear-gradient(140deg, #e3a04a, #b8761e); }
+.visit-hero h2 {
+  margin: 12px 0 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 32px;
+  letter-spacing: -0.022em;
+}
+.visit-hero p { margin: 5px 0 0; font-size: 12.5px; }
+.visit-cells {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 18px 0 0;
+  border: 1px solid #ffffff;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.18);
+}
+.visit-cells > div { padding: 12px 16px; animation: rise var(--move) both, fade-in var(--fade) both; }
+.visit-cells > div + div { border-left: 1px solid rgba(255, 255, 255, 0.35); }
+.visit-cells > div:nth-child(2) { animation-delay: 50ms, 50ms; }
+.visit-cells > div:nth-child(3) { animation-delay: 100ms, 100ms; }
+.visit-cells > div:nth-child(4) { animation-delay: 150ms, 150ms; }
+.visit-cells dt { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; }
+.visit-cells dd { margin: 4px 0 0; font-family: var(--font-display); font-weight: 600; font-size: 15px; white-space: nowrap; }
+
+.visit-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+.inner-card {
+  border: 1px solid #ffffff;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 1px 8px rgba(16, 42, 94, 0.06);
+  animation: rise var(--move-slow) both 100ms, fade-in var(--fade-slow) both 100ms;
+}
+.inner-card + .inner-card { animation-delay: 160ms, 160ms; }
+.inner-card h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14.5px;
+  letter-spacing: -0.01em;
+  color: var(--ink-primary);
+}
+.who { display: flex; align-items: center; gap: 13px; }
+.who-sub { display: block; margin-top: 2px; font-size: 11.5px; color: var(--ink-550); }
+.facts-list { margin: 0; }
+.facts-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-hairline);
+  font-size: 12.5px;
+}
+.facts-list dt { color: var(--ink-muted); }
+.facts-list dd { margin: 0; font-weight: 600; text-align: right; color: var(--ink-primary); }
+
+.timeline { margin: 0; padding: 0; list-style: none; flex: 1; }
+.timeline li {
+  position: relative;
+  display: flex;
+  gap: 11px;
+  padding-bottom: 14px;
+  animation: rise var(--move) both, fade-in var(--fade) both;
+}
+.timeline li:nth-child(2) { animation-delay: 60ms, 60ms; }
+.timeline li:nth-child(3) { animation-delay: 120ms, 120ms; }
+.timeline li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 20px;
+  bottom: 2px;
+  width: 1.5px;
+  background: var(--blue-400);
+  transform-origin: top;
+  animation: draw-down var(--move-slow) both 300ms;
+}
+.timeline-dot {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+.dot-blue-tint { color: var(--blue-600); background: rgba(47, 107, 228, 0.16); }
+.dot-amber-tint { color: var(--status-awaiting); background: rgba(217, 131, 36, 0.18); }
+.dot-red { color: #ffffff; background: var(--status-cancelled); }
+.timeline .dot-done { color: #ffffff; background: var(--blue-600); }
+.timeline-title { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-primary); }
+.timeline-sub { display: block; margin-top: 2px; font-size: 11px; color: var(--ink-muted); }
+
+.visit-actions { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
+.outline-danger {
+  height: 46px;
+  border: 1.5px solid var(--status-cancelled);
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--status-cancelled-strong);
+  background: #ffffff;
+  cursor: pointer;
+  transition: background var(--fade), border-radius var(--move-fast), transform var(--move-fast);
+}
+.outline-danger:hover { background: #fff3f4; }
+.outline-danger:active { border-radius: 10px; transform: scale(0.97); }
+.directions { justify-content: center; width: 100%; text-decoration: none; }
+
+/* ------------------------------------------------------------ the dialog */
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(16, 42, 94, 0.35);
+  backdrop-filter: blur(6px);
+  animation: fade-in var(--fade-slow) both;
+}
+.dialog {
+  width: 100%;
+  max-width: 458px;
+  max-height: 100%;
+  overflow: auto;
+  padding: 26px;
+  border: 1px solid #ffffff;
+  border-radius: 30px;
+  background: linear-gradient(160deg, #ffffff, #f6f9ff);
+  box-shadow: 0 30px 70px rgba(10, 30, 70, 0.3);
+  animation: dialog-in var(--move) both, fade-in var(--fade) both;
+}
+@keyframes dialog-in {
+  from { transform: translateY(24px) scale(0.92); }
+}
+.dialog-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  color: #ffffff;
+  background: linear-gradient(140deg, #e46272, var(--status-cancelled-strong));
+  box-shadow: var(--shadow-danger);
+  animation: pop-in var(--move-fast) both 120ms;
+}
+.dialog h2 {
+  margin: 18px 0 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+  color: var(--ink-primary);
+}
+.dialog-lede { margin: 8px 0 0; font-size: 13px; line-height: 1.6; color: var(--ink-600); }
+.dialog-visit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--line-hairline);
+  border-radius: 20px;
+  background: #f6f9ff;
+}
+.dialog-visit .clinician-avatar { width: 42px; height: 42px; border-radius: 14px; font-size: 13px; }
+.dialog-visit-text { flex: 1; min-width: 0; }
+.dialog-when { display: flex; flex-direction: column; align-items: flex-end; flex: none; }
+.dialog-when span:first-child { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--ink-primary); }
+.dialog-when span:last-child { font-size: 11px; color: var(--ink-muted); }
+.dialog-label { margin: 18px 0 10px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; color: var(--ink-muted); }
+.dialog .chip-choice { animation: pop-in var(--move-fast) both; }
+.dialog .chip-choice:nth-child(2) { animation-delay: 30ms; }
+.dialog .chip-choice:nth-child(3) { animation-delay: 60ms; }
+.dialog .chip-choice:nth-child(4) { animation-delay: 90ms; }
+.dialog .chip-choice:nth-child(5) { animation-delay: 120ms; }
+.dialog-note {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--status-awaiting);
+  border-radius: 16px;
+  color: #8a5a16;
+  background: rgba(217, 131, 36, 0.14);
+}
+.dialog-note > svg { flex: none; margin-top: 1px; }
+.dialog-note p { margin: 0; font-size: 12px; line-height: 1.55; }
+.dialog-note-late { border-color: var(--status-cancelled); color: var(--status-cancelled-ink); background: rgba(214, 72, 90, 0.1); }
+.dialog form > .notice { margin-top: 12px; }
+.dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+.dialog-actions .outline-button { height: 52px; margin: 0; }
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 52px;
+  border: 0;
+  border-radius: 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  background: linear-gradient(140deg, #e46272, var(--status-cancelled-strong));
+  box-shadow: var(--shadow-danger);
+  cursor: pointer;
+  transition: border-radius var(--move-fast), transform var(--move-fast), box-shadow var(--fade);
+}
+.danger-button:hover { box-shadow: 0 14px 28px rgba(200, 56, 74, 0.38); }
+.danger-button:active { border-radius: 12px; transform: scale(0.97); }
+.danger-button:disabled { cursor: progress; }
+
+@media (max-width: 959px) {
+  .find-care.visits { grid-template-columns: minmax(0, 1fr); }
+  .visit-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .visit-cells > div:nth-child(3) { border-left: 0; }
+  .visit-cols { grid-template-columns: minmax(0, 1fr); }
+  .scrim { position: fixed; }
+}

@@ -26,6 +26,8 @@ export default defineConfig(({ mode }) => {
       environment: "jsdom",
       globals: true,
       setupFiles: ["src/test/setup.ts"],
+      // Typing a whole form with user-event is slow on a synced folder.
+      testTimeout: 20000,
     },
   };
 });

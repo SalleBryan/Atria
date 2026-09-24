@@ -21,7 +21,21 @@ interface AuthLayoutProps {
 
 export function AuthLayout({ product, brand, footer, children, paneWidth = 620, boxWidth = 480 }: AuthLayoutProps) {
   return (
-    <div className="auth" style={{ "--pane": `${paneWidth}px`, "--box": `${boxWidth}px` } as CSSProperties}>
+    <div
+      className="auth"
+      style={
+        {
+          "--pane": `${paneWidth}px`,
+          // The pane's share of the 1440px frame it was drawn in.
+          "--pane-share": `${(paneWidth / 1440) * 100}%`,
+          "--box": `${boxWidth}px`,
+          // The box's share of the frame, measured against the whole canvas
+          // (src/layout/fit.ts), because a percentage max-width would resolve
+          // against the form column instead.
+          "--box-share": `calc(var(--fit-width, 100vw) * ${boxWidth / 1440})`,
+        } as CSSProperties
+      }
+    >
       <aside className="brand-pane">
         <span className="orb orb-white" aria-hidden="true" />
         <span className="orb orb-blue" aria-hidden="true" />

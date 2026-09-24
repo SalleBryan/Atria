@@ -13,7 +13,11 @@
 
 .auth {
   display: grid;
-  grid-template-columns: var(--pane) 1fr;
+  /* The brand pane keeps its share of the frame's width (620 of 1440 for a
+     patient), so a window wider in proportion than the frame spreads its
+     extra width the way the frame does, rather than leaving it all to the
+     right. Never narrower than the frame's own pane. */
+  grid-template-columns: max(var(--pane), var(--pane-share)) 1fr;
   width: var(--fit-width, 100vw);
   height: var(--fit-height, 100vh);
   overflow: hidden;
@@ -29,7 +33,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 52px;
+  /* 52px in the 620px frame pane, so its share when the pane widens. */
+  padding: 52px max(48px, 8.4%);
   color: var(--ink-inverse);
   background: var(--gradient-brand);
 }
@@ -41,7 +46,7 @@
   opacity: 0.6;
   pointer-events: none;
 }
-.orb-white { width: 400px; height: 400px; left: calc(var(--pane) - 250px); top: -150px; background: #ffffff; }
+.orb-white { width: 400px; height: 400px; right: -150px; top: -150px; background: #ffffff; }
 .orb-blue { width: 340px; height: 340px; left: -130px; bottom: -110px; background: var(--blue-400); }
 .orb-form-top { width: 380px; height: 380px; right: -130px; top: -120px; background: var(--blue-400); filter: blur(64px); }
 .orb-form-bottom { width: 340px; height: 340px; left: 10px; bottom: -210px; background: var(--blue-350); filter: blur(64px); }
@@ -248,12 +253,16 @@
   flex-direction: column;
   height: 100%;
   overflow-y: auto;
-  padding: 48px 72px;
+  /* Only matters once a form is taller than the window: the box is centred
+     otherwise. Kept short so the fit (src/layout/fit.ts) holds every form. */
+  padding: 24px 72px;
 }
 
 .auth-box {
   width: 100%;
-  max-width: var(--box);
+  /* The frame's box (480 of 1440 for sign-in), widening with the window in
+     the same proportion as the brand pane, never narrower than drawn. */
+  max-width: max(var(--box), var(--box-share));
   /* Centred while it fits; from the top, and scrolling, once it does not. */
   margin: auto;
 }

@@ -219,6 +219,56 @@ export function useSchedule(url: string | undefined) {
   return { state, reload };
 }
 
+/**
+ * Several schedules read together and merged, such as a clinic's week as
+ * seven of its days. Keyed by the joined addresses, so a new week starts from
+ * loading and a refresh of the same one keeps its blocks on screen.
+ */
+export function useSchedules(urls: string[] | undefined) {
+  const key = urls?.join("|");
+  const [state, setState] = useState<Loading<Schedule>>({ status: "loading" });
+  const [fresh, setFresh] = useState(0);
+  const shown = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!key) return;
+    let live = true;
+    if (shown.current !== key) setState({ status: "loading" });
+    shown.current = key;
+    Promise.all(key.split("|").map((url) => api<Schedule>(url)))
+      .then((parts) => {
+        if (!live) return;
+        const seen = new Set<string>();
+        const appointments = parts
+          .flatMap((part) => part.appointments)
+          .filter((a) => !seen.has(a.appointmentId) && seen.add(a.appointmentId))
+          .sort((a, b) => a.startAt.localeCompare(b.startAt));
+        setState({ status: "ready", data: { appointments, patients: Object.assign({}, ...parts.map((p) => p.patients)) } });
+      })
+      .catch(
+        (error: unknown) =>
+          live &&
+          setState({
+            status: "failed",
+            message: error instanceof Error ? error.message : "The week could not be loaded.",
+          }),
+      );
+    return () => {
+      live = false;
+    };
+  }, [key, fresh]);
+
+  const reload = useCallback(() => setFresh((n) => n + 1), []);
+  return { state, reload };
+}
+
+/** The Monday of a clinic date's week. */
+export function mondayOf(date: string): string {
+  const [year, month, day] = date.split("-").map(Number) as [number, number, number];
+  const weekday = (new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7;
+  return shiftDate(date, -weekday);
+}
+
 /** Where the list for a date comes from, for the caller's role. */
 export function scheduleUrl(role: StaffRole, me: Me, clinicId: string | undefined, from: string, to = from) {
   if (readsOwnCalendar(role)) return `/clinicians/${me.staffId}/calendar?from=${from}&to=${to}`;

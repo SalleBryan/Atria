@@ -4,6 +4,7 @@ import "./styles/motion.css";
 import "./styles/patient.css";
 import "./styles/booking.css";
 import "./styles/visits.css";
+import "./styles/staff.css";
 // Finishes a Google sign-in when Cognito returns the browser to the app.
 import "aws-amplify/auth/enable-oauth-listener";
 

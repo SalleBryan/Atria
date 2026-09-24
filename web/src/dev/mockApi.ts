@@ -95,6 +95,7 @@ function appointment(
   start: Date,
   state: string,
   createdDaysAgo: number,
+  who: { patient?: string; bookedByRole?: string; channel?: string } = {},
 ): Record<string, unknown> {
   const clinic = clinicians.find((c) => c.clinicianProfileId === clinician)?.clinicId;
   const duration = (types.find((t) => t.appointmentTypeId === type)?.durationUnits ?? 3) * GRID;
@@ -104,16 +105,16 @@ function appointment(
     reference: `APT-${sequence}`,
     tenantId: "t-cm-001",
     clinicId: clinic,
-    patientProfileId: "pp-preview",
+    patientProfileId: who.patient ?? "pp-preview",
     appointmentTypeId: type,
     clinicianProfileId: clinician,
     sessionId: null,
     startAt: iso(start),
     endAt: iso(new Date(start.getTime() + duration * 60000)),
     state,
-    channel: "WEB",
+    channel: who.channel ?? "WEB",
     bookedByPersonId: "p-preview",
-    bookedByRole: "PATIENT",
+    bookedByRole: who.bookedByRole ?? "PATIENT",
     referralId: null,
     careContextId: null,
     version: 1,
@@ -121,12 +122,55 @@ function appointment(
   };
 }
 
+/** The people on the staff side's lists. Invented, like everything here. */
+const patients: Record<string, { givenName: string; familyName: string }> = {
+  "pp-preview": { givenName: "Amina", familyName: "Ngo" },
+  "pp-tagne": { givenName: "Brice", familyName: "Tagne" },
+  "pp-ekambi": { givenName: "Chantal", familyName: "Ekambi" },
+  "pp-foka": { givenName: "Didier", familyName: "Foka" },
+  "pp-nana": { givenName: "Estelle", familyName: "Nana" },
+  "pp-mvondo": { givenName: "Fabrice", familyName: "Mvondo" },
+  "pp-atangana": { givenName: "Gisele", familyName: "Atangana" },
+  "pp-kamga": { givenName: "Herve", familyName: "Kamga" },
+  "pp-beyala": { givenName: "Ines", familyName: "Beyala" },
+  "pp-essomba": { givenName: "Joel", familyName: "Essomba" },
+};
+
+const desk = { bookedByRole: "RECEPTIONIST", channel: "WALK_IN" };
+
 const appointments: Record<string, unknown>[] = [
+  // The patient preview's own visits.
   appointment("s-mbarga", "at-spec-first", local(2, 10), "BOOKED", 1),
   appointment("s-bello", "at-spec-follow", local(8, 14, 20), "BOOKED", 3),
   appointment("s-nkoulou", "at-spec-first", local(-20, 9), "COMPLETED", 27),
   appointment("s-fonkou", "at-spec-first", local(-5, 11, 30), "PATIENT_CANCELLED", 12),
+  // A day at the Clinique d'Akwa, for the staff console.
+  appointment("s-mbarga", "at-spec-follow", local(0, 8, 30), "BOOKED", 3, { patient: "pp-tagne" }),
+  appointment("s-nkoulou", "at-spec-first", local(0, 9), "BOOKED", 10, { patient: "pp-ekambi" }),
+  appointment("s-fonkou", "at-spec-follow", local(0, 9, 40), "PATIENT_CANCELLED", 5, { patient: "pp-foka" }),
+  appointment("s-mbarga", "at-spec-first", local(0, 10, 30), "BOOKED", 2, { patient: "pp-nana", ...desk }),
+  appointment("s-nkoulou", "at-spec-follow", local(0, 11, 20), "BOOKED", 0.5, { patient: "pp-mvondo", ...desk, channel: "PHONE" }),
+  appointment("s-fonkou", "at-spec-first", local(0, 13, 30), "BOOKED", 6, { patient: "pp-atangana" }),
+  appointment("s-mbarga", "at-spec-follow", local(0, 14, 20), "CLINIC_CANCELLED", 4, { patient: "pp-kamga" }),
+  appointment("s-nkoulou", "at-spec-first", local(0, 15), "BOOKED", 1, { patient: "pp-beyala" }),
+  appointment("s-fonkou", "at-spec-follow", local(0, 16, 10), "BOOKED", 2, { patient: "pp-essomba", ...desk }),
+  appointment("s-mbarga", "at-spec-follow", local(1, 9, 20), "BOOKED", 4, { patient: "pp-ekambi" }),
+  appointment("s-nkoulou", "at-spec-first", local(1, 11), "BOOKED", 2, { patient: "pp-foka" }),
+  appointment("s-fonkou", "at-spec-first", local(1, 14), "BOOKED", 3, { patient: "pp-nana", ...desk }),
+  appointment("s-mbarga", "at-spec-first", local(-1, 10), "BOOKED", 6, { patient: "pp-beyala" }),
+  appointment("s-nkoulou", "at-spec-follow", local(-1, 15, 30), "BOOKED", 3, { patient: "pp-tagne" }),
+  appointment("s-mbarga", "at-spec-follow", local(3, 8, 40), "BOOKED", 2, { patient: "pp-atangana" }),
+  appointment("s-fonkou", "at-spec-first", local(4, 10, 20), "BOOKED", 1, { patient: "pp-kamga", ...desk }),
 ];
+
+/** yyyy-mm-dd of an instant on the clinic's calendar. */
+const clinicDate = (instant: unknown) => new Date(new Date(String(instant)).getTime() + OFFSET_MS).toISOString().slice(0, 10);
+
+function named(found: Record<string, unknown>[]) {
+  return Object.fromEntries(found.map((a) => [a.patientProfileId, patients[String(a.patientProfileId)] ?? { givenName: null, familyName: null }]));
+}
+
+const byStart = (a: Record<string, unknown>, b: Record<string, unknown>) => String(a.startAt).localeCompare(String(b.startAt));
 
 /** A few starts each day look taken, the same ones every time. */
 function looksTaken(clinician: string, start: Date): boolean {
@@ -183,7 +227,24 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     return json(200, { gridUnitMinutes: GRID, appointmentTypes: types, count: types.length });
   }
   if (method === "GET" && path === "/patients/me/appointments") {
-    return json(200, { when: "all", count: appointments.length, appointments: [...appointments] });
+    const mine = appointments.filter((a) => a.patientProfileId === "pp-preview");
+    return json(200, { when: "all", count: mine.length, appointments: mine });
+  }
+  const day = path.match(/^\/clinics\/([^/]+)\/day$/);
+  if (method === "GET" && day) {
+    const date = url.searchParams.get("date") ?? clinicDate(new Date());
+    const found = appointments.filter((a) => a.clinicId === day[1] && clinicDate(a.startAt) === date).sort(byStart);
+    return json(200, { clinicId: day[1], date, timezone: "Africa/Douala", count: found.length, appointments: found, patients: named(found) }, 380);
+  }
+  const calendar = path.match(/^\/clinicians\/([^/]+)\/calendar$/);
+  if (method === "GET" && calendar) {
+    const from = url.searchParams.get("from") ?? clinicDate(new Date());
+    const to = url.searchParams.get("to") ?? from;
+    const found = appointments
+      .filter((a) => a.clinicianProfileId === calendar[1] && clinicDate(a.startAt) >= from && clinicDate(a.startAt) <= to)
+      .sort(byStart);
+    const clinicId = clinicians.find((c) => c.clinicianProfileId === calendar[1])?.clinicId;
+    return json(200, { clinicianProfileId: calendar[1], clinicId, from, to, timezone: "Africa/Douala", count: found.length, appointments: found, patients: named(found) }, 380);
   }
   const slots = path.match(/^\/clinicians\/([^/]+)\/slots$/);
   if (method === "GET" && slots) {
@@ -198,12 +259,13 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     if (method === "GET") return json(200, found);
     if (method === "DELETE") {
       const late = new Date(String(found.startAt)).getTime() - Date.now() < DAY_MS;
-      found.state = "PATIENT_CANCELLED";
+      const byClinic = String((body as { cancelledBy?: string } | undefined)?.cancelledBy ?? "").toUpperCase() === "CLINIC";
+      found.state = byClinic ? "CLINIC_CANCELLED" : "PATIENT_CANCELLED";
       found.version = Number(found.version) + 1;
       return json(200, {
         ...found,
-        outcome: late ? "CANCELLED_LATE" : "CANCELLED_IN_WINDOW",
-        entitlement: late ? "PARTIAL" : "FULL",
+        outcome: byClinic ? "CLINIC_CANCELLED" : late ? "CANCELLED_LATE" : "CANCELLED_IN_WINDOW",
+        entitlement: byClinic || !late ? "FULL" : "PARTIAL",
         note: "The time is free again. Nothing is settled; the entitlement is a record.",
       });
     }

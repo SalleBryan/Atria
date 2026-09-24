@@ -1,0 +1,450 @@
+/*
+ * The staff console. It shares the patient app's frame, sidebar, glass and
+ * chips (patient.css, visits.css); what is here is the staff screens' own,
+ * with values read from the Rev A frame "Desktop · Day schedule" (65:2).
+ * Motion uses the springs in motion.css.
+ */
+
+/* ------------------------------------------------------------ the day */
+
+.staff-day {
+  display: grid;
+  grid-template-rows: 66px 76px minmax(0, 1fr);
+  gap: 16px;
+  height: 100%;
+}
+.staff-day > * { animation: rise var(--move-slow) both, fade-in var(--fade-slow) both; }
+.staff-day > :nth-child(2) { animation-delay: 60ms, 60ms; }
+.staff-day > :nth-child(3) { animation-delay: 120ms, 120ms; }
+
+.staff-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 20px;
+  border-radius: 24px;
+}
+.staff-nav { display: flex; gap: 8px; }
+.square-button,
+.today-button {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  height: 38px;
+  border: 1.5px solid var(--line-hairline);
+  border-radius: 12px;
+  color: var(--ink-800);
+  background: #ffffff;
+  cursor: pointer;
+  transition: border-radius var(--move-fast), transform var(--move-fast), opacity var(--fade);
+}
+.square-button { width: 38px; }
+.today-button { padding: 0 15px; font-size: 13px; font-weight: 600; }
+.square-button::before,
+.today-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity var(--fade-fast);
+}
+.square-button:hover::before,
+.today-button:hover:not(:disabled)::before { opacity: 0.06; }
+.square-button:active,
+.today-button:active:not(:disabled) { border-radius: 8px; transform: scale(0.94); }
+.today-button:disabled { opacity: 0.55; cursor: default; }
+.staff-title { min-width: 0; margin: 0 auto 0 6px; }
+.staff-title h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 19px;
+  line-height: 25px;
+  letter-spacing: -0.02em;
+  color: var(--ink-primary);
+}
+.staff-title p { margin: 2px 0 0; font-size: 12px; color: var(--ink-muted); }
+.clinic-picker { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 600; color: var(--ink-muted); }
+.clinic-picker select {
+  height: 40px;
+  padding: 0 12px;
+  border: 1.5px solid var(--line-hairline);
+  border-radius: 13px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-primary);
+  background: #ffffff;
+}
+
+/* --------------------------------------------------------------- tiles */
+
+.staff-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  animation: none !important;
+}
+.staff-tile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 18px;
+  border-radius: 22px;
+  animation: rise var(--move-slow) both, fade-in var(--fade-slow) both;
+}
+.staff-tile:nth-child(1) { animation-delay: 80ms, 80ms; }
+.staff-tile:nth-child(2) { animation-delay: 120ms, 120ms; }
+.staff-tile:nth-child(3) { animation-delay: 160ms, 160ms; }
+.staff-tile:nth-child(4) { animation-delay: 200ms, 200ms; }
+.staff-tile-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  transition: transform var(--move-fast);
+}
+.staff-tile:hover .staff-tile-icon { transform: rotate(-6deg) scale(1.06); }
+.staff-tile-value {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 24px;
+  color: var(--ink-primary);
+  animation: pop-in var(--move-fast) both 260ms;
+}
+.staff-tile-label { display: block; margin-top: 4px; font-size: 12px; font-weight: 500; color: var(--ink-muted); }
+
+/* ------------------------------------------------------- the two columns */
+
+.staff-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 368px;
+  gap: 16px;
+  min-height: 0;
+}
+.staff-card,
+.staff-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: 28px;
+}
+.staff-card { padding: 20px 20px 0; }
+.staff-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.staff-card-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16.5px;
+  letter-spacing: -0.015em;
+  color: var(--ink-primary);
+}
+
+/* ---------------------------------------------------------------- rows */
+
+.day-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  flex: 1;
+  min-height: 0;
+  margin: 14px -4px 0;
+  padding: 0 4px 20px;
+  overflow-y: auto;
+  list-style: none;
+}
+.day-rows { scrollbar-width: thin; scrollbar-color: var(--line-soft) transparent; }
+/* The frame's "Front desk · Staff" line, beside the sign-out button the frame does not have. */
+.staff-app .side-me { gap: 10px; }
+.staff-app .side-me .icon-button { width: 30px; }
+.staff-app .side-me-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.day-rows > li { animation: rise var(--move) both, fade-in var(--fade) both; animation-delay: calc(var(--i, 0) * 40ms + 150ms); }
+.day-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 66px;
+  padding: 0 15px;
+  border: 1.5px solid #ffffff;
+  border-radius: 16px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: #ffffff;
+  box-shadow: 0 1px 6px rgba(16, 42, 94, 0.05);
+  cursor: pointer;
+  transition:
+    border-color var(--fade),
+    box-shadow var(--fade),
+    border-radius var(--move-fast),
+    transform var(--move-fast);
+}
+.day-row:hover { box-shadow: 0 6px 16px rgba(16, 42, 94, 0.1); }
+.day-row:active { transform: scale(0.99); border-radius: 12px; }
+.day-row-on {
+  border-color: var(--blue-500);
+  background: linear-gradient(180deg, #f5f9ff, #ffffff);
+  box-shadow: 0 8px 20px rgba(47, 107, 228, 0.18);
+}
+.day-row-off .day-name,
+.day-row-off .day-time { color: var(--ink-450); }
+.day-when { display: flex; flex-direction: column; flex: none; width: 74px; }
+.day-time { font-family: var(--font-display); font-weight: 600; font-size: 15px; line-height: 18px; color: var(--ink-primary); }
+.day-length { margin-top: 2px; font-size: 11px; color: var(--ink-muted); }
+.day-bar {
+  flex: none;
+  width: 4px;
+  height: 38px;
+  margin: 0 14px;
+  border-radius: 2px;
+  transform-origin: center;
+  animation: grow var(--move) both 250ms;
+}
+.bar-booked { background: var(--blue-600); }
+.bar-confirmed { background: var(--status-confirmed); }
+.bar-awaiting { background: var(--status-awaiting); }
+.bar-cancelled { background: var(--status-cancelled); }
+.bar-neutral { background: var(--ink-300); }
+.day-avatar,
+.panel-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: #ffffff;
+  background: linear-gradient(140deg, #3e78ea, var(--blue-800));
+}
+.day-avatar { width: 40px; height: 40px; border-radius: 13px; font-size: 13px; }
+.day-text { flex: 1; min-width: 0; margin: 0 14px; }
+.day-name,
+.day-sub { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.day-name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink-primary); }
+.day-sub { margin-top: 2px; font-size: 12px; color: var(--ink-muted); }
+.chip-booked { color: var(--status-booked-ink); background: rgba(47, 107, 228, 0.14); }
+.day-row-skeleton { height: 66px; border-radius: 16px; }
+.day-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  padding: 40px 20px;
+  text-align: center;
+}
+.day-empty-title { margin: 6px 0 0; font-family: var(--font-display); font-weight: 600; font-size: 15px; color: var(--ink-primary); }
+.day-empty-sub { margin: 0; font-size: 12.5px; color: var(--ink-muted); }
+
+/* --------------------------------------------------------------- panel */
+
+.staff-panel { padding: 22px; animation-delay: 180ms, 180ms; }
+.staff-panel > * { animation: fade-in var(--fade-slow) both; }
+.panel-person { display: flex; align-items: center; gap: 13px; animation: rise var(--move) both, fade-in var(--fade) both; }
+.panel-avatar { width: 56px; height: 56px; border-radius: 18px; font-size: 17px; box-shadow: 0 8px 18px rgba(33, 89, 210, 0.25); }
+.panel-name {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 18.5px;
+  line-height: 23px;
+  letter-spacing: -0.02em;
+  color: var(--ink-primary);
+}
+.panel-sub { display: block; margin-top: 3px; font-size: 12px; color: var(--ink-muted); }
+.panel-facts {
+  margin: 16px 0 0;
+  padding: 4px 16px;
+  border: 1px solid var(--line-hairline);
+  border-radius: 18px;
+  background: var(--surface-panel);
+  animation: rise var(--move) both 60ms, fade-in var(--fade) both 60ms;
+}
+.panel-facts > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; }
+.panel-facts > div + div { border-top: 1px solid var(--line-hairline); }
+.panel-facts dt { font-size: 12.5px; color: var(--ink-muted); }
+.panel-facts dd { margin: 0; overflow: hidden; font-size: 13px; font-weight: 600; text-align: right; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-primary); }
+.status-booked { color: var(--status-booked-ink) !important; }
+.status-confirmed { color: var(--status-confirmed-ink) !important; }
+.status-awaiting { color: var(--status-awaiting-ink) !important; }
+.status-cancelled { color: var(--status-cancelled-ink) !important; }
+.status-neutral { color: var(--ink-650) !important; }
+.panel-label { margin: 18px 0 12px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: var(--ink-muted); }
+.panel-timeline { flex: 0 1 auto; }
+.panel-actions { display: flex; flex-direction: column; gap: 9px; margin-top: auto; padding-top: 12px; }
+.staff-primary {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  height: 48px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 16px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  color: #ffffff;
+  background: var(--gradient-primary);
+  box-shadow: 0 10px 22px rgba(36, 97, 219, 0.3);
+  cursor: pointer;
+  transition: border-radius var(--move-fast), transform var(--move-fast), box-shadow var(--fade);
+}
+.staff-primary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: #ffffff;
+  opacity: 0;
+  transition: opacity var(--fade-fast);
+}
+.staff-primary:hover::before { opacity: 0.1; }
+.staff-primary:active { border-radius: 11px; transform: scale(0.98); }
+.panel-actions .outline-danger { height: 48px; }
+.staff-panel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+button.bottom-item { border: 0; font: inherit; background: transparent; cursor: pointer; }
+
+/* --------------------------------------------------------------- narrow */
+
+@media (max-width: 959px) {
+  .staff-day { display: flex; flex-direction: column; height: auto; }
+  .staff-top { flex-wrap: wrap; padding: 14px 16px; }
+  .staff-title { order: 3; flex-basis: 100%; margin: 4px 0 0; }
+  .staff-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .staff-tile { height: 72px; }
+  .staff-cols { grid-template-columns: minmax(0, 1fr); }
+  .staff-card { padding: 16px 14px 0; }
+  .day-rows { overflow: visible; }
+  /* As the mobile frames have it, a visit opens on its own page (174:2 to 180:2). */
+  .staff-panel { display: none; }
+}
+@media (max-width: 520px) {
+  .staff-card-head { flex-wrap: wrap; }
+  /* The status goes under the name, so a long one never squeezes the name. */
+  .day-row {
+    display: grid;
+    grid-template-columns: 52px auto minmax(0, 1fr);
+    align-items: center;
+    row-gap: 6px;
+    height: auto;
+    min-height: 66px;
+    padding: 11px 12px;
+  }
+  .day-when { grid-row: 1 / 3; width: auto; }
+  .day-bar { grid-row: 1 / 3; align-self: stretch; height: auto; min-height: 38px; margin: 0 10px; }
+  .day-avatar { display: none; }
+  .day-text { grid-column: 3; margin: 0; }
+  .day-row .chip { grid-column: 3; justify-self: start; }
+}
+
+/* ------------------------------------------------------- cancel dialog */
+
+.staff-dialog { max-width: 490px; }
+.staff-dialog .chips { gap: 8px; }
+.who-called {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  animation: rise var(--move) both, fade-in var(--fade) both;
+}
+.dialog-text {
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--line-hairline);
+  border-radius: 16px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-primary);
+  background: #ffffff;
+  resize: vertical;
+  transition: border-color var(--fade), box-shadow var(--move-fast);
+}
+.dialog-text:focus {
+  outline: 0;
+  border-color: var(--blue-500);
+  box-shadow: 0 0 0 4px rgba(74, 131, 240, 0.15);
+}
+.staff-dialog .dialog-note { margin-top: 12px; animation: rise var(--move) both, fade-in var(--fade) both; }
+.tell-box {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1.5px solid rgba(74, 131, 240, 0.4);
+  border-radius: 18px;
+  background: rgba(74, 131, 240, 0.08);
+}
+.tell-title { margin: 0 0 8px; font-size: 12.5px; font-weight: 700; color: var(--blue-800); }
+.tell-row { display: flex; align-items: center; gap: 11px; }
+.tell-row .activity-icon { width: 32px; height: 32px; border-radius: 11px; }
+.tell-row .setting-text { flex: 1; min-width: 0; }
+
+/* ------------------------------------------------------------ snackbar */
+
+.snackbar-slot {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 40;
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.snackbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 10px 14px 18px;
+  border-radius: 16px;
+  font-size: 13px;
+  color: #ffffff;
+  background: var(--ink-900);
+  box-shadow: 0 12px 28px rgba(13, 27, 52, 0.28);
+  pointer-events: auto;
+  animation: rise var(--move-fast) both, fade-in var(--fade) both;
+}
+.snackbar > svg { flex: none; color: #8ce0bd; }
+.snackbar span { flex: 1; line-height: 1.45; }
+.snackbar button {
+  flex: none;
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--blue-350);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--fade-fast);
+}
+.snackbar button:hover { background: rgba(255, 255, 255, 0.08); }
+@media (max-width: 959px) { .snackbar-slot { bottom: calc(96px + env(safe-area-inset-bottom)); } }
+/* Waiting for a reason, the confirm button says so; busy, it keeps its colour. */
+.staff-dialog .danger-button:disabled:not([aria-busy]) { opacity: 0.45; box-shadow: none; cursor: not-allowed; }

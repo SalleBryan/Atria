@@ -774,6 +774,9 @@
     min-height: 100vh;
     min-height: 100dvh;
     overflow: visible;
+    /* The drifting orbs reach past the edges; clipped, not hidden, so the page
+       still scrolls as a whole and nothing becomes a scroll container. */
+    overflow-x: clip;
     zoom: 1;
   }
   .side-margin { display: none; }

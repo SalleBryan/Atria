@@ -25,6 +25,7 @@ these updates the record in the same pull request.
 | [0016](0016-python-on-aws-typescript-in-the-browser.md) | Python on AWS, TypeScript in the browser | project |
 | [0017](0017-the-person-item-summarises-its-memberships.md) | The person item summarises its memberships | project |
 | [0018](0018-where-the-password-rules-live.md) | Where the password rules live | project |
+| [0019](0019-motion-is-material-3-expressive-springs.md) | Motion is Material 3 Expressive springs | project |
 
 ## Constraints
 

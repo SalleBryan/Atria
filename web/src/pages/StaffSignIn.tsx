@@ -78,7 +78,7 @@ export function StaffSignIn() {
   }
 
   return (
-    <AuthLayout product="CLINIC CONSOLE" brand={<StaffBrand />} footer={STAFF_FOOTER} paneWidth={600}>
+    <AuthLayout product="CLINIC CONSOLE" brandKey="staff" brand={<StaffBrand />} footer={STAFF_FOOTER} paneWidth={600}>
       <StatusPill tone="booked" icon={Lock}>
         Staff access only
       </StatusPill>

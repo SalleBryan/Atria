@@ -78,6 +78,7 @@ export function ResetPassword({ audience = "patient" }: { audience?: Audience })
   return (
     <AuthLayout
       product={staff ? "CLINIC CONSOLE" : "PATIENT ACCOUNT"}
+      brandKey="recovery"
       paneWidth={520}
       boxWidth={520}
       footer="Account recovery"

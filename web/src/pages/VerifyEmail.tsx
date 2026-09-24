@@ -19,6 +19,7 @@ import { AuthLayout, StepsBrand } from "../components/AuthLayout";
 import { CodeInput, isComplete } from "../components/CodeInput";
 import { Notice } from "../components/controls";
 import { Info, Mail } from "../components/icons";
+import { LoadingIndicator } from "../components/LoadingIndicator";
 
 const RESEND_AFTER = 60;
 
@@ -88,6 +89,7 @@ export function VerifyEmail() {
   return (
     <AuthLayout
       product="PATIENT ACCOUNT"
+      brandKey="verify"
       paneWidth={520}
       boxWidth={560}
       footer="Step 2 of 3"
@@ -123,10 +125,21 @@ export function VerifyEmail() {
         <CodeInput value={code} onChange={setCode} label="Confirmation code" invalid={Boolean(error)} />
         <div className="actions">
           <button type="submit" className="action action-primary" disabled={!isComplete(code) || busy} aria-busy={busy || undefined}>
+            {busy ? <LoadingIndicator size={22} label="Checking" /> : null}
             {busy ? "Checking" : "Verify and continue"}
           </button>
           <button type="button" className="action" disabled={left > 0} onClick={() => void resend()}>
-            {left > 0 ? `Resend in ${minutes}:${seconds}` : "Resend code"}
+            {left > 0 ? (
+              <>
+                Resend in {minutes}:
+                {/* Keyed by the second, so each new second rolls in. */}
+                <span key={left} className="tick">
+                  {seconds}
+                </span>
+              </>
+            ) : (
+              "Resend code"
+            )}
           </button>
           <Link className="action" to="/create-account">
             Change email

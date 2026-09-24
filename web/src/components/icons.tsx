@@ -94,6 +94,15 @@ export const Check = (p: IconProps) => (
     <path d="m5 12.5 4.5 4.5L19 7.5" />
   </Icon>
 );
+/**
+ * A check drawn as one stroke with a path length of 1, so CSS can draw it in
+ * (stroke-dashoffset 1 to 0) when a box is ticked or a rule is met.
+ */
+export const CheckMark = (p: IconProps) => (
+  <Icon strokeWidth={2.4} {...p}>
+    <path className="check-path" pathLength={1} d="m5 12.5 4.5 4.5L19 7.5" />
+  </Icon>
+);
 export const Info = (p: IconProps) => (
   <Icon strokeWidth={1.5} {...p}>
     <circle cx="12" cy="12" r="9" />

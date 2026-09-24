@@ -1,5 +1,6 @@
 import "./styles/tokens.css";
 import "./styles/auth.css";
+import "./styles/motion.css";
 // Finishes a Google sign-in when Cognito returns the browser to the app.
 import "aws-amplify/auth/enable-oauth-listener";
 
@@ -10,7 +11,9 @@ import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { SessionProvider } from "./auth/session";
 import { fitToWindow } from "./layout/fit";
+import { installMotion } from "./motion/springs";
 
+installMotion();
 fitToWindow();
 
 createRoot(document.getElementById("root") as HTMLElement).render(

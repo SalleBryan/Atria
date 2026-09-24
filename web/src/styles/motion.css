@@ -1,0 +1,606 @@
+/*
+ * Material 3 Expressive motion for the sign-in screens.
+ *
+ * Every movement here runs on one of Material's six expressive springs,
+ * solved in src/motion/springs.ts and installed as custom properties:
+ *
+ *   --spring-spatial-{fast,default,slow}   position, size, shape: may overshoot
+ *   --spring-effects-{fast,default,slow}   colour, opacity: never overshoot
+ *
+ * each with a matching -duration. Small things use fast springs and bounce
+ * the most; large things use slow ones and barely bounce, as Material says.
+ * The defaults below stand in until the springs are installed.
+ *
+ * What moves, smallest to largest:
+ *   state layers on everything pressable (hover 8%, focus and press 10%)
+ *   ripples from the pointer, and a pressed shape morph on buttons
+ *   focus rings that spring open, icons that turn in, links that underline
+ *   check marks that draw themselves, rule dots and code digits that pop
+ *   strength segments that fill, notices and errors that grow in and nudge
+ *   the segmented pill that slides, the loading indicator that morphs
+ *   screens that rise in, or slide along the Sign in / Create account axis
+ *   the brand pane's staggered entrance, and light that drifts behind glass
+ */
+
+:root {
+  --spring-spatial-fast: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --spring-spatial-fast-duration: 360ms;
+  --spring-spatial-default: cubic-bezier(0.34, 1.2, 0.64, 1);
+  --spring-spatial-default-duration: 435ms;
+  --spring-spatial-slow: cubic-bezier(0.34, 1.2, 0.64, 1);
+  --spring-spatial-slow-duration: 600ms;
+  --spring-effects-fast: cubic-bezier(0.2, 0, 0, 1);
+  --spring-effects-fast-duration: 150ms;
+  --spring-effects-default: cubic-bezier(0.2, 0, 0, 1);
+  --spring-effects-default-duration: 231ms;
+  --spring-effects-slow: cubic-bezier(0.2, 0, 0, 1);
+  --spring-effects-slow-duration: 327ms;
+
+  /* Shorthands: <property> <duration> <easing> */
+  --move-fast: var(--spring-spatial-fast-duration) var(--spring-spatial-fast);
+  --move: var(--spring-spatial-default-duration) var(--spring-spatial-default);
+  --move-slow: var(--spring-spatial-slow-duration) var(--spring-spatial-slow);
+  --fade-fast: var(--spring-effects-fast-duration) var(--spring-effects-fast);
+  --fade: var(--spring-effects-default-duration) var(--spring-effects-default);
+  --fade-slow: var(--spring-effects-slow-duration) var(--spring-effects-slow);
+
+  /* Height can animate to and from auto where the browser allows it. */
+  interpolate-size: allow-keywords;
+}
+
+/* ================================================================ state layers */
+
+/* Material's state layer: the element's own ink, laid over it at 8% on hover
+   and 10% on focus and press, fading on the effects spring. */
+.button,
+.action,
+.mode-switch a,
+.input-reveal,
+.checkbox-box,
+.link {
+  position: relative;
+}
+.button::before,
+.action::before,
+.mode-switch a::before,
+.input-reveal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--fade-fast);
+}
+.button:hover:not(:disabled)::before,
+.action:hover:not(:disabled)::before,
+.mode-switch a:hover::before,
+.input-reveal:hover::before {
+  opacity: 0.08;
+}
+.button:focus-visible::before,
+.action:focus-visible::before,
+.mode-switch a:focus-visible::before,
+.input-reveal:focus-visible::before,
+.button:active:not(:disabled)::before,
+.action:active:not(:disabled)::before,
+.mode-switch a:active::before,
+.input-reveal:active::before {
+  opacity: 0.1;
+}
+.mode-switch a[aria-current="page"]::before { display: none; }
+
+/* Focus outlines settle in rather than snapping on. */
+:focus-visible {
+  transition: outline-offset var(--move-fast);
+}
+
+/* ===================================================================== buttons */
+
+.button,
+.action {
+  isolation: isolate;
+  overflow: hidden;
+  transition:
+    border-radius var(--move-fast),
+    transform var(--move-fast),
+    box-shadow var(--fade),
+    color var(--fade);
+}
+/* The state layer, the disabled layer and the ripples all sit beneath the
+   button's content, as Material layers them: z-index -1 inside the button's
+   own stacking context paints over its background and under its text,
+   including a label that is a bare text node. */
+.button::before,
+.action::before,
+.button-primary::after,
+.action-primary::after,
+.ripple {
+  z-index: -1;
+}
+
+/* Expressive shape morph: pressed, a button squares its corners and gives a
+   little, then springs back when released. */
+.button:active:not(:disabled),
+.action:active:not(:disabled) {
+  border-radius: 10px;
+  transform: scale(0.98);
+}
+
+.button-primary:hover:not(:disabled),
+.action-primary:hover:not(:disabled) {
+  box-shadow: 0 16px 30px rgba(36, 97, 219, 0.38);
+}
+.button-secondary:hover:not(:disabled),
+.action:not(.action-primary):hover:not(:disabled) {
+  box-shadow: 0 6px 18px rgba(16, 42, 94, 0.1);
+}
+
+/* Enabled and disabled are the same button with a grey layer faded over it,
+   so a form becoming ready is seen, not just switched. */
+.button-primary:disabled,
+.action-primary:disabled {
+  background: var(--gradient-primary);
+}
+.button-primary::after,
+.action-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--gradient-disabled);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--fade-slow);
+}
+.button-primary:disabled::after,
+.action-primary:disabled::after {
+  opacity: 1;
+}
+
+/* Ripples, from where the pointer went down (controls.tsx). */
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: currentColor;
+  pointer-events: none;
+  transform: scale(0);
+  opacity: 0.2;
+  animation:
+    ripple-grow var(--move-slow) forwards,
+    ripple-fade 650ms var(--spring-effects-slow) forwards;
+}
+@keyframes ripple-grow { to { transform: scale(1); } }
+@keyframes ripple-fade { 0%, 45% { opacity: 0.2; } 100% { opacity: 0; } }
+
+.button .loading-indicator,
+.action .loading-indicator {
+  animation: pop-in var(--move-fast) both;
+}
+
+/* ============================================================ segmented pill */
+
+.mode-switch {
+  position: relative;
+}
+.mode-switch a {
+  position: relative;
+  z-index: 1;
+  transition: color var(--fade);
+}
+.mode-switch a[aria-current="page"] {
+  background: none;
+  box-shadow: none;
+}
+.mode-pill {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 5px;
+  width: calc(50% - 7.5px);
+  border-radius: 23px;
+  background: var(--gradient-primary);
+  box-shadow: 0 6px 16px rgba(36, 97, 219, 0.32);
+  transition: transform var(--move);
+}
+
+/* ==================================================================== inputs */
+
+.input {
+  transition:
+    border-color var(--fade),
+    box-shadow var(--move-fast),
+    background-color var(--fade);
+}
+.input:hover:not(:focus-within) {
+  border-color: var(--line-soft);
+}
+.input-icon {
+  transition: color var(--fade), transform var(--move-fast);
+}
+.input:focus-within .input-icon {
+  transform: scale(1.1);
+}
+.field-label {
+  transition: color var(--fade);
+}
+.field:focus-within .field-label {
+  color: var(--blue-600);
+}
+
+/* The show and hide icon turns in when it changes (controls.tsx keys it). */
+.swap-in {
+  display: grid;
+  animation: turn-in var(--move-fast) both;
+}
+@keyframes turn-in {
+  from { transform: rotate(-90deg) scale(0.4); opacity: 0; }
+}
+
+/* A new error nudges its field (controls.tsx restarts this). */
+.input-nudge,
+.code-invalid {
+  animation: nudge 420ms var(--spring-effects-default);
+}
+@keyframes nudge {
+  0% { transform: translateX(0); }
+  18% { transform: translateX(-7px); }
+  38% { transform: translateX(6px); }
+  58% { transform: translateX(-4px); }
+  78% { transform: translateX(2px); }
+  100% { transform: translateX(0); }
+}
+
+/* ==================================================================== links */
+
+.link {
+  text-decoration: none;
+  background: linear-gradient(currentColor, currentColor) 0 100% / 0 1.5px no-repeat;
+  transition: background-size var(--move);
+}
+.link:hover,
+.link:focus-visible {
+  text-decoration: none;
+  background-size: 100% 1.5px;
+}
+
+/* ============================================================ check marks */
+
+.check-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+/* The tick box: squeezes when pressed, pops when ticked, and the mark draws. */
+.checkbox-box {
+  transition:
+    background-color var(--fade),
+    border-color var(--fade),
+    transform var(--move-fast);
+}
+.checkbox:active .checkbox-box {
+  transform: scale(0.86);
+}
+.checkbox .check-path {
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset var(--fade-slow);
+}
+.checkbox input:checked + .checkbox-box {
+  animation: pop var(--move-fast);
+}
+.checkbox input:checked + .checkbox-box .check-path {
+  stroke-dashoffset: 0;
+  transition-delay: 60ms;
+}
+
+/* Password rules: the dot pops and the mark draws as each rule is met. */
+.rule {
+  transition: color var(--fade);
+}
+.rule-dot {
+  transition:
+    background-color var(--fade),
+    border-color var(--fade);
+}
+.rule .check-path {
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset var(--fade-slow);
+}
+.rule-met .rule-dot {
+  animation: pop var(--move-fast);
+}
+.rule-met .check-path {
+  stroke-dashoffset: 0;
+  transition-delay: 60ms;
+}
+
+/* Done steps draw their mark as the pane arrives. */
+.step-done .check-path {
+  animation: draw var(--fade-slow) both;
+  animation-delay: 420ms;
+}
+@keyframes draw {
+  from { stroke-dashoffset: 1; }
+}
+
+/* =========================================================== strength bar */
+
+.strength span {
+  position: relative;
+  overflow: hidden;
+}
+.strength span.on {
+  background: var(--line-hairline);
+}
+.strength span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--blue-500);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--move);
+}
+.strength span.on::after {
+  transform: scaleX(1);
+}
+
+/* ============================================================== code boxes */
+
+/* A typed digit pops its box, which rounds out as the Rev A frame draws a
+   filled box (32px against an empty box's 24px): a small shape morph. */
+.code-box {
+  transition:
+    border-color var(--fade),
+    box-shadow var(--move-fast),
+    border-radius var(--move-fast),
+    transform var(--move-fast);
+}
+.code-filled {
+  animation: pop var(--move-fast);
+}
+.code:not(.form-card .code) .code-filled {
+  border-radius: 32px;
+}
+.code-box:focus {
+  transform: translateY(-2px);
+}
+
+/* The countdown rolls each second in (VerifyEmail keys it). */
+.tick {
+  display: inline-block;
+  animation: roll-in var(--move-fast) both;
+}
+@keyframes roll-in {
+  from { transform: translateY(60%); opacity: 0; }
+}
+
+/* ========================================================= notices, errors */
+
+/* They grow into place, pushing what is below them aside smoothly, rather
+   than appearing with a jump. Height animates where the browser supports
+   animating to auto; elsewhere they still fade and settle. */
+.notice,
+.note,
+.field-error {
+  animation:
+    grow var(--move) both,
+    fade-in var(--fade-slow) both;
+}
+@keyframes grow {
+  from {
+    height: 0;
+    padding-block: 0;
+    margin-block: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+.notice,
+.note {
+  overflow: hidden;
+}
+
+/* ================================================================ one-offs */
+
+@keyframes pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.14); }
+  100% { transform: scale(1); }
+}
+@keyframes pop-in {
+  from { transform: scale(0.4); opacity: 0; }
+}
+
+/* =================================================================== loading */
+
+.loading-indicator {
+  flex: none;
+  overflow: visible;
+}
+.loading-shape {
+  fill: currentColor;
+}
+.loading-contained .loading-container {
+  fill: rgba(47, 107, 228, 0.16);
+}
+.loading-contained .loading-shape {
+  fill: var(--blue-600);
+}
+.waiting {
+  display: flex;
+  justify-content: center;
+  margin-top: 32px;
+  animation: pop-in var(--move) both;
+}
+.page-waiting {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--gradient-page);
+}
+
+/* ======================================================= screen entrances */
+
+/* The form side: children arrive one after another. A fresh visit rises; the
+   Sign in / Create account axis slides, forward to the right, back to the
+   left, as Material's shared axis transition does. The segmented control
+   stays put on a slide, because its pill is what moves. */
+.auth-box[data-enter] > * {
+  animation:
+    var(--enter-move, rise) var(--move-slow) both,
+    fade-in var(--fade-slow) both;
+}
+.auth-box[data-enter="forward"] { --enter-move: from-right; }
+.auth-box[data-enter="back"] { --enter-move: from-left; }
+.auth-box[data-enter="forward"] > .mode-switch,
+.auth-box[data-enter="back"] > .mode-switch {
+  animation: none;
+}
+.auth-box[data-enter] > :nth-child(2) { animation-delay: 45ms, 45ms; }
+.auth-box[data-enter] > :nth-child(3) { animation-delay: 90ms, 90ms; }
+.auth-box[data-enter] > :nth-child(4) { animation-delay: 135ms, 135ms; }
+.auth-box[data-enter] > :nth-child(5) { animation-delay: 180ms, 180ms; }
+.auth-box[data-enter] > :nth-child(n + 6) { animation-delay: 225ms, 225ms; }
+
+/* Tiles and pills arrive with a bounce, not a slide. */
+.auth-box[data-enter] > .icon-tile,
+.auth-box[data-enter] > .status-pill {
+  animation:
+    pop-in var(--move-fast) both,
+    fade-in var(--fade) both;
+}
+.auth-box[data-enter] > .icon-tile svg {
+  animation: tilt-in var(--move-slow) both 120ms;
+}
+@keyframes tilt-in {
+  from { transform: rotate(-24deg) scale(0.6); }
+}
+
+@keyframes rise {
+  from { transform: translateY(22px); }
+}
+@keyframes from-right {
+  from { transform: translateX(56px); }
+}
+@keyframes from-left {
+  from { transform: translateX(-56px); }
+}
+
+/* The brand pane, only when what it shows has changed: the logo pops, then
+   its content follows in a cascade, cards last. */
+.brand-pane[data-enter] .logo-mark {
+  animation:
+    pop-in var(--move-fast) both,
+    fade-in var(--fade) both;
+}
+.brand-pane[data-enter] .logo-text,
+.brand-pane[data-enter] .brand-body > *,
+.brand-pane[data-enter] .props > li,
+.brand-pane[data-enter] .steps > li,
+.brand-pane[data-enter] .brand-footer {
+  animation:
+    rise var(--move-slow) both,
+    fade-in var(--fade-slow) both;
+}
+.brand-pane[data-enter] .logo-text { animation-delay: 60ms, 60ms; }
+.brand-pane[data-enter] .brand-body > :nth-child(1) { animation-delay: 110ms, 110ms; }
+.brand-pane[data-enter] .brand-body > :nth-child(2) { animation-delay: 170ms, 170ms; }
+.brand-pane[data-enter] .brand-body > :nth-child(3) { animation-delay: 230ms, 230ms; }
+.brand-pane[data-enter] .brand-body > :nth-child(4) { animation-delay: 290ms, 290ms; }
+.brand-pane[data-enter] .props > li:nth-child(1),
+.brand-pane[data-enter] .steps > li:nth-child(1) { animation-delay: 260ms, 260ms; }
+.brand-pane[data-enter] .props > li:nth-child(2),
+.brand-pane[data-enter] .steps > li:nth-child(2) { animation-delay: 330ms, 330ms; }
+.brand-pane[data-enter] .props > li:nth-child(3),
+.brand-pane[data-enter] .steps > li:nth-child(3) { animation-delay: 400ms, 400ms; }
+.brand-pane[data-enter] .brand-footer { animation-delay: 460ms, 460ms; }
+/* The lists move as their items, not as one block. */
+.brand-pane[data-enter] .brand-body > .props,
+.brand-pane[data-enter] .brand-body > .steps {
+  animation: none;
+}
+
+/* Step rail: each connector draws down to the next step. */
+.brand-pane[data-enter] .step:not(:last-child)::after {
+  transform-origin: top;
+  animation: draw-down var(--move-slow) both;
+  animation-delay: 520ms;
+}
+@keyframes draw-down {
+  from { transform: scaleY(0); }
+}
+
+/* The current step breathes, so the eye finds where it is. */
+.step-current .step-dot {
+  animation: breathe 2600ms var(--spring-effects-slow) infinite;
+}
+@keyframes breathe {
+  0%, 100% { box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.18); }
+  50% { box-shadow: 0 0 0 11px rgba(255, 255, 255, 0.08); }
+}
+
+/* Light sweeps once across the glass cards after they land. */
+.prop {
+  position: relative;
+  overflow: hidden;
+}
+.brand-pane[data-enter] .prop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.28) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: sheen 1100ms var(--spring-effects-slow) both;
+}
+.brand-pane[data-enter] .props > li:nth-child(1)::after { animation-delay: 700ms; }
+.brand-pane[data-enter] .props > li:nth-child(2)::after { animation-delay: 800ms; }
+.brand-pane[data-enter] .props > li:nth-child(3)::after { animation-delay: 900ms; }
+@keyframes sheen {
+  to { transform: translateX(120%); }
+}
+
+/* ===================================================== ambient background */
+
+/* The blurred lights behind the glass drift, slowly and out of step, so the
+   page is never quite still. Long, gentle loops, not springs: nothing here
+   responds to anything. */
+.orb-white { animation: drift-a 22s ease-in-out infinite alternate; }
+.orb-blue { animation: drift-b 26s ease-in-out infinite alternate; }
+.orb-form-top { animation: drift-b 24s ease-in-out infinite alternate-reverse; }
+.orb-form-bottom { animation: drift-a 28s ease-in-out infinite alternate-reverse; }
+@keyframes drift-a {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-36px, 28px) scale(1.08); }
+  100% { transform: translate(24px, -18px) scale(0.96); }
+}
+@keyframes drift-b {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30px, -24px) scale(0.94); }
+  100% { transform: translate(-22px, 20px) scale(1.06); }
+}
+
+/* ============================================================ less motion */
+
+/* Anyone who has asked their system for less motion gets the end states,
+   reached with the briefest fade: nothing slides, bounces or drifts. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 80ms !important;
+    transition-delay: 0ms !important;
+  }
+  .button:active:not(:disabled),
+  .action:active:not(:disabled) {
+    transform: none;
+  }
+}

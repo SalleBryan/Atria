@@ -3,11 +3,18 @@
  * the left, the form on a pale gradient on the right, each with soft blurred
  * orbs behind. Below 960px the brand pane folds into a header strip, as the
  * tablet and mobile frames do.
+ *
+ * Motion (src/styles/motion.css): the form side arrives on every screen, by
+ * rising on a fresh visit or sliding along the axis between Sign in and
+ * Create account; the brand pane plays its entrance only when what it shows
+ * changes, so switching tabs does not replay it.
  */
 
-import type { ComponentType, CSSProperties, ReactNode } from "react";
+import { type ComponentType, type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 
-import { Bell, Calendar, Check, Pulse, Shield } from "./icons";
+import { brandEnters, enterFrom, remember } from "../motion/memory";
+import { Bell, Calendar, CheckMark, Pulse, Shield } from "./icons";
 
 interface AuthLayoutProps {
   product: "PATIENT ACCOUNT" | "CLINIC CONSOLE";
@@ -17,9 +24,24 @@ interface AuthLayoutProps {
   /** The brand pane's width at desktop size: 620 for patients, narrower for staff. */
   paneWidth?: 520 | 600 | 620;
   boxWidth?: 480 | 520 | 560;
+  /** What the brand pane shows; its entrance replays only when this changes. */
+  brandKey: string;
 }
 
-export function AuthLayout({ product, brand, footer, children, paneWidth = 620, boxWidth = 480 }: AuthLayoutProps) {
+export function AuthLayout({
+  product,
+  brand,
+  footer,
+  children,
+  paneWidth = 620,
+  boxWidth = 480,
+  brandKey,
+}: AuthLayoutProps) {
+  const { pathname } = useLocation();
+  const [enter] = useState(() => enterFrom(pathname));
+  const [brandEnter] = useState(() => brandEnters(brandKey));
+  useEffect(() => remember.screen(pathname, brandKey), [pathname, brandKey]);
+
   return (
     <div
       className="auth"
@@ -36,7 +58,7 @@ export function AuthLayout({ product, brand, footer, children, paneWidth = 620, 
         } as CSSProperties
       }
     >
-      <aside className="brand-pane">
+      <aside className="brand-pane" data-enter={brandEnter ? "" : undefined}>
         <span className="orb orb-white" aria-hidden="true" />
         <span className="orb orb-blue" aria-hidden="true" />
         <div className="logo">
@@ -56,7 +78,9 @@ export function AuthLayout({ product, brand, footer, children, paneWidth = 620, 
         <span className="orb orb-form-bottom" aria-hidden="true" />
         {/* The orbs sit outside the scrolling layer, so they never add scroll. */}
         <div className="form-scroll">
-          <div className="auth-box">{children}</div>
+          <div className="auth-box" data-enter={enter}>
+            {children}
+          </div>
         </div>
       </main>
     </div>
@@ -126,7 +150,7 @@ export function StepsBrand({ steps }: { steps: Step[] }) {
       {steps.map((step, index) => (
         <li key={step.title} className={`step step-${step.state}`}>
           <span className="step-dot" aria-hidden="true">
-            {step.state === "done" ? <Check size={15} /> : index + 1}
+            {step.state === "done" ? <CheckMark size={15} /> : index + 1}
           </span>
           <span>
             <span className="step-title">{step.title}</span>

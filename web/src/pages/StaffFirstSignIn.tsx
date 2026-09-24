@@ -63,6 +63,7 @@ export function StaffFirstSignIn() {
   return (
     <AuthLayout
       product="CLINIC CONSOLE"
+      brandKey="first-sign-in"
       paneWidth={520}
       boxWidth={520}
       footer="Step 3 of 3 · first sign-in"

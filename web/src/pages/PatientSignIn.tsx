@@ -75,7 +75,7 @@ export function PatientSignIn() {
   }
 
   return (
-    <AuthLayout product="PATIENT ACCOUNT" brand={<PatientBrand />} footer={PATIENT_FOOTER}>
+    <AuthLayout product="PATIENT ACCOUNT" brandKey="patient" brand={<PatientBrand />} footer={PATIENT_FOOTER}>
       <PatientModeSwitch />
       <h1 className="title">Welcome back.</h1>
       <p className="lede">Pick up where you left off. Your visits, reminders and records follow you across every device.</p>

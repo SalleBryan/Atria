@@ -99,8 +99,8 @@ export function CreateAccount() {
   }
 
   return (
-    <AuthLayout product="PATIENT ACCOUNT" brand={<PatientBrand />} footer={PATIENT_FOOTER}>
-      <PatientModeSwitch createFirst />
+    <AuthLayout product="PATIENT ACCOUNT" brandKey="patient" brand={<PatientBrand />} footer={PATIENT_FOOTER}>
+      <PatientModeSwitch />
       <h1 className="title">Create your Atria account.</h1>
       <p className="lede">A few details and you are done.</p>
       <form className="form-card" onSubmit={submit} noValidate>

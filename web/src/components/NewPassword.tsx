@@ -7,7 +7,7 @@
 
 import { passwordRules, type Rule } from "../auth/passwordRules";
 import { Field } from "./controls";
-import { Check, Lock } from "./icons";
+import { CheckMark, Lock } from "./icons";
 
 export function NewPassword({
   password,
@@ -66,7 +66,7 @@ export function RuleList({ rules }: { rules: readonly Rule[] }) {
       {rules.map((rule) => (
         <li key={rule.id} className={`rule${rule.met ? " rule-met" : ""}`}>
           <span className="rule-dot" aria-hidden="true">
-            <Check size={11} />
+            <CheckMark size={11} />
           </span>
           {rule.label}
           <span className="visually-hidden">{rule.met ? ", met" : ", not met yet"}</span>

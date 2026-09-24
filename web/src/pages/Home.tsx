@@ -9,22 +9,24 @@ import { Navigate } from "react-router-dom";
 import { useSession } from "../auth/session";
 import { AuthLayout, PatientBrand, StaffBrand } from "../components/AuthLayout";
 import { Button, Notice, StatusPill } from "../components/controls";
-import { Check } from "../components/icons";
+import { CheckMark } from "../components/icons";
+import { Waiting } from "../components/Waiting";
 
 export function Home() {
   const { state, signOut } = useSession();
-  if (state.status === "loading") return null;
+  if (state.status === "loading") return <Waiting />;
   if (state.status !== "signed-in") return <Navigate to="/sign-in" replace />;
   const { me, audience } = state;
   const staff = audience === "staff";
   return (
     <AuthLayout
       product={staff ? "CLINIC CONSOLE" : "PATIENT ACCOUNT"}
+      brandKey={staff ? "home-staff" : "home-patient"}
       brand={staff ? <StaffBrand /> : <PatientBrand />}
       footer={staff ? "Access is logged for audit." : "Atria clinics in Douala and Yaounde."}
       paneWidth={staff ? 600 : 620}
     >
-      <StatusPill tone="booked" icon={Check}>
+      <StatusPill tone="booked" icon={CheckMark}>
         Signed in
       </StatusPill>
       <h1 className="title">{staff ? "You are in the console." : "You are signed in."}</h1>

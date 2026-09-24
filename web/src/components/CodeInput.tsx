@@ -60,7 +60,7 @@ export function CodeInput({
   }
 
   return (
-    <div className="code" role="group" aria-label={label}>
+    <div className={`code${invalid ? " code-invalid" : ""}`} role="group" aria-label={label}>
       {digits.map((digit, index) => (
         <input
           key={index}

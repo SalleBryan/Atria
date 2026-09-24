@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { useSession } from "./auth/session";
+import { Waiting } from "./components/Waiting";
 import { AuthCallback } from "./pages/AuthCallback";
 import { CreateAccount } from "./pages/CreateAccount";
 import { Home } from "./pages/Home";
@@ -12,7 +13,7 @@ import { StaffSignIn } from "./pages/StaffSignIn";
 
 function Landing() {
   const { state } = useSession();
-  if (state.status === "loading") return null;
+  if (state.status === "loading") return <Waiting />;
   return <Navigate to={state.status === "signed-in" ? "/home" : "/sign-in"} replace />;
 }
 

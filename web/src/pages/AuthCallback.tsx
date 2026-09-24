@@ -12,6 +12,7 @@ import { Link, Navigate } from "react-router-dom";
 import { useSession } from "../auth/session";
 import { AuthLayout, PatientBrand } from "../components/AuthLayout";
 import { Notice } from "../components/controls";
+import { LoadingIndicator } from "../components/LoadingIndicator";
 import { PATIENT_FOOTER } from "./PatientSignIn";
 
 export function AuthCallback() {
@@ -34,11 +35,16 @@ export function AuthCallback() {
   if (state.status === "signed-in") return <Navigate to="/home" replace />;
 
   return (
-    <AuthLayout product="PATIENT ACCOUNT" brand={<PatientBrand />} footer={PATIENT_FOOTER}>
+    <AuthLayout product="PATIENT ACCOUNT" brandKey="patient" brand={<PatientBrand />} footer={PATIENT_FOOTER}>
       <h1 className="title">{failed ? "Google sign-in stopped." : "Signing you in."}</h1>
       <p className="lede">
         {failed ? "Nothing was changed. You can try again or sign in with your email." : "One moment while Atria finishes with Google."}
       </p>
+      {!failed && state.status !== "unresolved" && (
+        <div className="waiting">
+          <LoadingIndicator size={52} contained label="Signing you in" />
+        </div>
+      )}
       {failed && (
         <>
           <Notice tone="error">{failed}</Notice>

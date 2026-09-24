@@ -9,6 +9,9 @@ import { BrowserRouter } from "react-router-dom";
 
 import { App } from "./App";
 import { SessionProvider } from "./auth/session";
+import { fitToWindow } from "./layout/fit";
+
+fitToWindow();
 
 createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>

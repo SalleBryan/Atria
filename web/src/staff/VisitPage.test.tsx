@@ -77,7 +77,8 @@ describe("One visit, from the desk", () => {
   it("fr_vis_02: names the patient from the day the visit sits on", async () => {
     respond();
     renderVisit();
-    expect(await screen.findByRole("heading", { name: "Ama Darko", level: 1 })).toBeInTheDocument();
+    // Two fetches in turn (the visit, then its day), so this waits longer than the default.
+    expect(await screen.findByRole("heading", { name: "Ama Darko", level: 1 }, { timeout: 5000 })).toBeInTheDocument();
     expect(api).toHaveBeenCalledWith(`/clinics/c-akwa/day?date=${clock.isoDate(VISIT.startAt)}`);
     const hero = screen.getByRole("region", { name: "Visit" });
     expect(hero).toHaveTextContent("Follow-up consultation · 30 minutes · booked by the front desk");

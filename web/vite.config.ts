@@ -26,6 +26,15 @@ export default defineConfig(({ mode }) => {
       environment: "jsdom",
       globals: true,
       setupFiles: ["src/test/setup.ts"],
+      // Placeholders, so no test reads a real pool and a run without
+      // web/.env.local (as in CI) behaves exactly like one with it.
+      env: {
+        VITE_REGION: "us-east-1",
+        VITE_USER_POOL_ID: "us-east-1_TESTPOOL",
+        VITE_PATIENT_CLIENT_ID: "test-patient-client",
+        VITE_STAFF_CLIENT_ID: "test-staff-client",
+        VITE_AUTH_DOMAIN: "atria-test.auth.us-east-1.amazoncognito.com",
+      },
       // Typing a whole form with user-event is slow on a synced folder.
       testTimeout: 20000,
     },

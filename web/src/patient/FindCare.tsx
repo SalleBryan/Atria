@@ -609,6 +609,12 @@ function Conflict({
 
   return (
     <div className="find-care conflict">
+      <div className="phone-bar">
+        <button type="button" className="square-button" aria-label="Back to all times" onClick={onBack}>
+          <ChevronLeft size={18} />
+        </button>
+        <span>Slot unavailable</span>
+      </div>
       <div className="conflict-left">
         <section className="conflict-card" role="alert">
           <span className="conflict-icon" aria-hidden="true">

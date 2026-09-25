@@ -63,6 +63,9 @@
   .detail-bio { grid-column: 1 / -1; order: 1; }
   .detail-facts { grid-column: 1 / -1; order: 2; justify-content: space-around; margin-top: 15px; }
   .detail-facts > div { flex: 1; }
+
+  /* Booked (47:115) fits the tablet frame whole; only its light ran over. */
+  .booked-screen { overflow: hidden; }
 }
 
 /* =============================================================== mobile */
@@ -181,6 +184,50 @@
   .find-care[data-step="detail"] .detail-copy h2 { font-size: 23px; line-height: 28px; }
   .find-care[data-step="detail"] .dock-button { width: auto; flex: none; }
   .clinician { border-radius: 22px; }
+
+  /* Slot conflict (Mobile · Slot conflict, 35:2): its own bar, a compact
+     card with the icon beside the words, the openings, and the hold dock in
+     place of the navigation. Why it happens is the desktop's aside. */
+  .find-care.conflict { display: flex; flex-direction: column; gap: 16px; }
+  .find-care.conflict > .phone-bar { margin-bottom: 0; }
+  .find-care.conflict .why { display: none; }
+  .patient-app:has(.find-care.conflict) .bottom-nav { display: none; }
+  .conflict-card { display: grid; grid-template-columns: 52px minmax(0, 1fr); column-gap: 14px; padding: 18px; border-radius: 24px; }
+  .conflict-icon { grid-row: 1 / span 3; width: 52px; height: 52px; border-radius: 16px; }
+  .conflict-card h1 { margin: 0; font-size: 18px; line-height: 24px; }
+  .conflict-card p { margin-top: 6px; font-size: 12.5px; line-height: 1.5; }
+  .conflict-chip { justify-self: start; margin-top: 10px; }
+  .find-care.conflict > .find-detail { padding: 0; border: 0; background: none; box-shadow: none; backdrop-filter: none; }
+  .find-care.conflict .dock {
+    position: sticky;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    z-index: 5;
+    border-color: #ffffff;
+    border-radius: 24px;
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.86));
+    box-shadow: 0 12px 30px rgba(16, 42, 94, 0.16);
+  }
+  .find-care.conflict .dock-row { flex-wrap: nowrap; align-items: center; }
+  .find-care.conflict .dock-button { width: auto; flex: none; }
+  .find-care.conflict .dock-selection { flex: 1; min-width: 0; }
+  .find-care.conflict .dock-label,
+  .find-care.conflict .dock-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .find-care.conflict .openings-head h2 { font-size: 17px; }
+
+  /* Booked (Mobile · Booking confirmed, 35:89): the check, heading and lede
+     centred, then the ticket, then what happens next, then the actions. */
+  .booked-screen { display: flex; flex-direction: column; align-items: stretch; gap: 18px; padding: 44px 20px 32px; }
+  .booked-copy { display: contents; }
+  .booked-screen > *,
+  .booked-copy > * { flex-shrink: 0; }
+  .booked-tile { order: 1; align-self: center; width: 84px; height: 84px; }
+  .booked-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .booked-button { justify-content: center; }
+  #booked-title { order: 2; margin: 0; text-align: center; font-size: 30px; line-height: 36px; }
+  .booked-lede { order: 3; margin: -8px 0 0; text-align: center; }
+  .booked-screen > .ticket { order: 4; }
+  .booked-next { order: 5; margin: 0; }
+  .booked-actions { order: 6; margin: 0; }
 
   /* Home (28:2): the person, search, the next appointment, and who has an
      opening today. The desktop columns give way to that list. */

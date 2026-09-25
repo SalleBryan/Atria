@@ -4,8 +4,11 @@
  * (FR-ACC-03, FR-ACC-04). Only an administrator reaches this; the API
  * decides that too (staff.create).
  *
- * The Rev A list of accounts (94:2) needs a listing that Phase 1 does not
- * have, so the page states what it does and opens the form. Where the form
+ * The list is "Admin · Staff accounts" (94:2), from GET /admin/staff: every
+ * account with its group, status and role, filtered as the frame filters, and
+ * the two actions Phase 1 has on an account, changing its role (FR-ACC-18)
+ * and suspending it. Last sign-in is not recorded in Phase 1, so that column
+ * gives the role and clinic instead. Where the form
  * differs from the frame it follows the API: a given and a family name rather
  * than one, a mobile number (required), an employee number in place of a job
  * title, and the clinician's roll details when the role is Clinician. Which
@@ -16,16 +19,17 @@
  * never kept by the console.
  */
 
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 
 import { api } from "../api/client";
 import { PACK, normalisePhone } from "../auth/phone";
 import { useSession } from "../auth/session";
 import { Field, Notice } from "../components/controls";
-import { CheckMark, Clipboard, Close, Plus, User } from "../components/icons";
+import { CheckMark, Clipboard, Close, Plus, Repeat, Shield, User } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { MATRIX, REQUIRED_ON_CREATE, type Role } from "../generated/permissions";
+import { initials } from "../patient/data";
 import { roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
 import { Snackbar } from "./Snackbar";
@@ -64,67 +68,355 @@ interface Created {
   temporaryPassword: string;
 }
 
+interface Listed {
+  staffId: string;
+  givenName: string | null;
+  familyName: string | null;
+  signInName: string | null;
+  clinicId: string | null;
+  roles: StaffRole[];
+  status: "INVITED" | "ACTIVE" | "SUSPENDED" | "ENDED";
+  mustSetPassword: boolean | null;
+}
+
+type Filter = "all" | "awaiting" | "admins" | "suspended";
+
+const FILTERS: { id: Filter; label: string; keep: (a: Listed) => boolean }[] = [
+  { id: "all", label: "All users", keep: () => true },
+  { id: "awaiting", label: "Awaiting first sign-in", keep: (a) => a.mustSetPassword === true && a.status !== "SUSPENDED" },
+  { id: "admins", label: "Administrators", keep: (a) => a.roles.includes("TENANT_ADMIN") },
+  { id: "suspended", label: "Suspended", keep: (a) => a.status === "SUSPENDED" },
+];
+
+const ROLE_NAME: Record<StaffRole, string> = {
+  RECEPTIONIST: "Front desk",
+  CLINICIAN: "Clinician",
+  CLINIC_MANAGER: "Clinic manager",
+  TENANT_ADMIN: "Administrator",
+};
+
+/** Roles an account can move between without new details: both work at one clinic and need nothing more. */
+const INTERCHANGEABLE: StaffRole[] = ["RECEPTIONIST", "CLINIC_MANAGER"];
+
 export function StaffAccounts() {
   const { state } = useSession();
-  const [open, setOpen] = useState(false);
+  const { state: directory } = useStaffData();
+  const [accounts, setAccounts] = useState<Listed[] | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [fresh, setFresh] = useState(0);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [creating, setCreating] = useState(false);
+  const [changing, setChanging] = useState<Listed | null>(null);
+  const [suspending, setSuspending] = useState<Listed | null>(null);
   const [said, setSaid] = useState<string | null>(null);
+  const admin = state.status === "signed-in" && roleOf(state.me) === "TENANT_ADMIN";
+
+  useEffect(() => {
+    if (!admin) return;
+    let live = true;
+    api<{ accounts: Listed[] }>("/admin/staff")
+      .then((found) => live && setAccounts(found.accounts))
+      .catch((error: unknown) => live && setFailure(error instanceof Error ? sentence(error.message) : "The accounts could not be loaded."));
+    return () => {
+      live = false;
+    };
+  }, [admin, fresh]);
+
   if (state.status !== "signed-in") return null;
-  if (roleOf(state.me) !== "TENANT_ADMIN") return <Navigate to="/console" replace />;
+  if (!admin) return <Navigate to="/console" replace />;
+
+  const clinicName = (id: string | null) =>
+    directory.status === "ready" ? directory.data.clinics.find((c) => c.clinicId === id)?.name : undefined;
+  const shown = (accounts ?? []).filter(FILTERS.find((f) => f.id === filter)!.keep);
+  const awaiting = (accounts ?? []).filter((a) => a.mustSetPassword === true && a.status !== "SUSPENDED").length;
+  const done = (message: string) => {
+    setSaid(message);
+    setFresh((n) => n + 1);
+  };
 
   return (
     <div className="accounts-page">
-      <header className="glass accounts-head">
-        <span className="accounts-icon" aria-hidden="true">
-          <User size={22} />
-        </span>
-        <div className="staff-title">
-          <h1>Staff accounts</h1>
-          <p>Every account is created here, with its role. There is no sign-up and no invitation to accept.</p>
+      <header className="accounts-top">
+        <div>
+          <h1>Console users</h1>
+          <p>Everyone who can sign in to the clinic console</p>
         </div>
-        <button type="button" className="staff-primary accounts-new" onClick={() => setOpen(true)}>
+        <button type="button" className="staff-primary accounts-new" onClick={() => setCreating(true)}>
           <Plus size={16} />
           Create staff account
         </button>
       </header>
 
-      <section className="glass accounts-how" aria-labelledby="how-title">
-        <h2 id="how-title">How an account starts</h2>
-        <ol className="accounts-steps">
-          <li>
-            <span className="accounts-step">1</span>
-            <span>
-              <span className="timeline-title">You create it, with one role</span>
-              <span className="timeline-sub">The role is fixed on the account. A change takes effect at their next sign-in.</span>
-            </span>
-          </li>
-          <li>
-            <span className="accounts-step">2</span>
-            <span>
-              <span className="timeline-title">You hand over the sign-in name and temporary password</span>
-              <span className="timeline-sub">In person. The password is shown once, and works for 3 days.</span>
-            </span>
-          </li>
-          <li>
-            <span className="accounts-step">3</span>
-            <span>
-              <span className="timeline-title">They choose their own password</span>
-              <span className="timeline-sub">At first sign-in, on the staff sign-in page. It must differ from the temporary one.</span>
-            </span>
-          </li>
-        </ol>
-        <p className="week-note">Listing, changing roles and suspending accounts arrive with the rest of the administration console.</p>
+      <p className="accounts-banner">
+        <Shield size={18} />
+        Only administrators see this page. Staff accounts are created here and nowhere else, there is no sign-up for the
+        console, and patients never appear in this list.
+      </p>
+
+      <div className="accounts-filters">
+        <div className="chips" role="radiogroup" aria-label="Show">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              role="radio"
+              aria-checked={filter === f.id}
+              className={`week-chip${filter === f.id ? " week-chip-on" : ""}`}
+              onClick={() => setFilter(f.id)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <span className="accounts-count">{accounts ? `${shown.length} of ${accounts.length} users` : ""}</span>
+      </div>
+
+      <section className="glass accounts-card" aria-label="Staff accounts">
+        {failure ? (
+          <Notice tone="error">{failure} Check your connection and try again.</Notice>
+        ) : !accounts ? (
+          <div className="day-rows" aria-busy="true">
+            {[0, 1, 2, 3].map((n) => (
+              <span key={n} className="skeleton day-row-skeleton" />
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className="accounts-head" aria-hidden="true">
+              <span>USER</span>
+              <span>GROUP</span>
+              <span>ACCOUNT STATUS</span>
+              <span>ROLE</span>
+            </div>
+            <ul className="accounts-rows">
+              {shown.map((account, index) => {
+                const off = account.status === "SUSPENDED" || account.status === "ENDED";
+                const adminRole = account.roles.includes("TENANT_ADMIN");
+                const self = state.me.staffId === account.staffId;
+                const status = off
+                  ? { label: "Suspended", tone: "neutral" }
+                  : account.mustSetPassword
+                    ? { label: "Must set password", tone: "awaiting" }
+                    : account.mustSetPassword === false
+                      ? { label: "Active", tone: "confirmed" }
+                      : { label: "Unknown", tone: "neutral" };
+                const name = [account.givenName, account.familyName].filter(Boolean).join(" ") || "Unnamed account";
+                return (
+                  <li key={account.staffId} className={`account-row${off ? " account-row-off" : ""}`} style={{ "--i": index } as CSSProperties}>
+                    <span className="account-who">
+                      <span className={`account-avatar${adminRole ? " account-avatar-admin" : ""}`} aria-hidden="true">
+                        {initials(account.givenName, account.familyName) || "?"}
+                      </span>
+                      <span className="account-text">
+                        <span className="account-name">{name}</span>
+                        <span className="account-sub">{account.signInName ?? "No sign-in name"}</span>
+                      </span>
+                    </span>
+                    <span>
+                      <span className={`chip ${adminRole ? "chip-admin" : "chip-booked"}`}>{adminRole ? "ADMIN" : "STAFF"}</span>
+                    </span>
+                    <span>
+                      <span className={`chip chip-${status.tone}`}>{status.label}</span>
+                    </span>
+                    <span className="account-role">
+                      <span>{account.roles.map((r) => ROLE_NAME[r] ?? r).join(", ")}</span>
+                      <span>{clinicName(account.clinicId) ?? (adminRole ? "Every clinic" : "")}</span>
+                    </span>
+                    <span className="account-actions">
+                      <button
+                        type="button"
+                        className="square-button"
+                        aria-label={`Change ${name}'s role`}
+                        title="Change role"
+                        disabled={off || self}
+                        onClick={() => setChanging(account)}
+                      >
+                        <Repeat size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        className="square-button account-suspend"
+                        aria-label={`Suspend ${name}`}
+                        title="Suspend"
+                        disabled={off || self}
+                        onClick={() => setSuspending(account)}
+                      >
+                        <Close size={15} />
+                      </button>
+                    </span>
+                  </li>
+                );
+              })}
+              {!shown.length && <li className="today-empty">No accounts match.</li>}
+            </ul>
+            {awaiting > 0 && (
+              <p className="accounts-foot">
+                {awaiting === 1 ? "1 account has" : `${awaiting} accounts have`} a temporary password and must set their own
+                on first sign-in.
+              </p>
+            )}
+          </>
+        )}
       </section>
 
-      {open && (
+      {creating && (
         <CreateStaff
-          onClose={() => setOpen(false)}
+          onClose={() => setCreating(false)}
           onDone={(name) => {
-            setOpen(false);
-            setSaid(`Account created for ${name}.`);
+            setCreating(false);
+            done(`Account created for ${name}.`);
+          }}
+        />
+      )}
+      {changing && (
+        <ChangeRole
+          account={changing}
+          onClose={() => setChanging(null)}
+          onDone={(message) => {
+            setChanging(null);
+            done(message);
+          }}
+        />
+      )}
+      {suspending && (
+        <Suspend
+          account={suspending}
+          onClose={() => setSuspending(null)}
+          onDone={(message) => {
+            setSuspending(null);
+            done(message);
           }}
         />
       )}
       <Snackbar message={said} onDone={() => setSaid(null)} />
+    </div>
+  );
+}
+
+/**
+ * FR-ACC-18: a role change applies at the account's next sign-in, because
+ * roles travel in the token, and it is recorded. Only a move between front
+ * desk and clinic manager is offered here: a clinician needs their roll
+ * details and an administrator an email and no clinic, so either is a new
+ * account rather than a changed one.
+ */
+function ChangeRole({ account, onClose, onDone }: { account: Listed; onClose: () => void; onDone: (message: string) => void }) {
+  const current = account.roles[0];
+  const movable = account.roles.length === 1 && current !== undefined && INTERCHANGEABLE.includes(current);
+  const [role, setRole] = useState<StaffRole | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const name = [account.givenName, account.familyName].filter(Boolean).join(" ");
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (!role) return;
+    setBusy(true);
+    setFailure(null);
+    try {
+      await api(`/admin/staff/${account.staffId}/roles`, { method: "PATCH", json: { roles: [role] } });
+      onDone(`${name} becomes ${ROLE_NAME[role].toLowerCase()} at their next sign-in.`);
+    } catch (caught) {
+      setFailure(`${sentence(caught instanceof Error ? caught.message : "The role could not be changed")} Nothing was changed.`);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="scrim" onClick={() => !busy && onClose()}>
+      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="role-title" onClick={(e) => e.stopPropagation()}>
+        <span className="dialog-icon accounts-dialog-icon" aria-hidden="true">
+          <Repeat size={22} />
+        </span>
+        <h2 id="role-title">Change {name}'s role</h2>
+        <p className="dialog-lede">The new role applies at their next sign-in, and the change is recorded against your account.</p>
+        {movable ? (
+          <form onSubmit={save}>
+            <div className="role-grid role-grid-one" role="radiogroup" aria-label="New role">
+              {INTERCHANGEABLE.filter((r) => r !== current).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  role="radio"
+                  aria-checked={role === r}
+                  className={`role-card${role === r ? " role-card-on" : ""}`}
+                  onClick={() => setRole(r)}
+                >
+                  <span className="role-radio" aria-hidden="true">
+                    {role === r && <CheckMark size={11} />}
+                  </span>
+                  <span className="role-name">{ROLE_NAME[r]}</span>
+                  <span className="role-about">{ROLES.find((o) => o.role === r)?.about}</span>
+                </button>
+              ))}
+            </div>
+            {failure && <Notice tone="error">{failure}</Notice>}
+            <div className="dialog-actions">
+              <button type="button" className="outline-button keep" onClick={onClose} disabled={busy}>
+                Keep {ROLE_NAME[current].toLowerCase()}
+              </button>
+              <button type="submit" className="staff-primary" disabled={!role || busy} aria-busy={busy || undefined}>
+                {busy ? "Saving" : "Change role"}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <Notice>
+              A clinician needs their roll details and an administrator an email and no clinic, so moving into or out of
+              either is a new account. Create one for the new role, then suspend this one.
+            </Notice>
+            <div className="dialog-actions">
+              <button type="button" className="outline-button keep" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Suspend({ account, onClose, onDone }: { account: Listed; onClose: () => void; onDone: (message: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const name = [account.givenName, account.familyName].filter(Boolean).join(" ");
+
+  async function suspend() {
+    setBusy(true);
+    setFailure(null);
+    try {
+      await api(`/admin/staff/${account.staffId}/suspend`, { method: "POST" });
+      onDone(`${name} is suspended and signed out everywhere.`);
+    } catch (caught) {
+      setFailure(`${sentence(caught instanceof Error ? caught.message : "The account could not be suspended")} Nothing was changed.`);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="scrim" onClick={() => !busy && onClose()}>
+      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="suspend-title" onClick={(e) => e.stopPropagation()}>
+        <span className="dialog-icon" aria-hidden="true">
+          <Close size={22} />
+        </span>
+        <h2 id="suspend-title">Suspend {name}?</h2>
+        <p className="dialog-lede">
+          Their sessions end now and they cannot sign in again. Their past bookings stay on record. A suspended account is
+          not deleted, and stays on this list.
+        </p>
+        {failure && <Notice tone="error">{failure}</Notice>}
+        <div className="dialog-actions">
+          <button type="button" className="outline-button keep" onClick={onClose} disabled={busy}>
+            Keep the account
+          </button>
+          <button type="button" className="danger-button" onClick={() => void suspend()} disabled={busy} aria-busy={busy || undefined}>
+            {busy ? <LoadingIndicator size={20} label="Suspending" /> : null}
+            {busy ? "Suspending" : "Suspend"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

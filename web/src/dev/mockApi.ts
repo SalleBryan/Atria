@@ -270,10 +270,38 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       });
     }
   }
+  if (method === "GET" && path === "/admin/staff") {
+    const sorted = [...staffAccounts].sort((a, b) => String(a.familyName).localeCompare(String(b.familyName)));
+    return json(200, { count: sorted.length, accounts: sorted });
+  }
+  const roles = path.match(/^\/admin\/staff\/([^/]+)\/roles$/);
+  if (method === "PATCH" && roles) {
+    const found = staffAccounts.find((a) => a.staffId === roles[1]);
+    if (!found) return json(404, { code: "not_found", message: "no such staff account" });
+    found.roles = (body as { roles: string[] }).roles;
+    return json(200, { ...found, note: "The new roles apply at the account's next sign-in." });
+  }
+  const suspend = path.match(/^\/admin\/staff\/([^/]+)\/suspend$/);
+  if (method === "POST" && suspend) {
+    const found = staffAccounts.find((a) => a.staffId === suspend[1]);
+    if (!found) return json(404, { code: "not_found", message: "no such staff account" });
+    found.status = "SUSPENDED";
+    return json(200, { ...found, note: "Sessions revoked." });
+  }
   if (method === "POST" && path === "/admin/staff") {
     const request = body as { givenName: string; familyName: string; phoneE164: string; email?: string; clinicId?: string; roles: string[] };
     if (usedPhones.has(request.phoneE164)) return json(409, { code: "conflict", message: "that phone number or email is already in use" }, 600);
     usedPhones.add(request.phoneE164);
+    staffAccounts.push({
+      staffId: `s-${Math.random().toString(16).slice(2, 10)}`,
+      givenName: request.givenName,
+      familyName: request.familyName,
+      signInName: request.email ?? request.phoneE164,
+      clinicId: request.clinicId ?? null,
+      roles: request.roles,
+      status: "INVITED",
+      mustSetPassword: true,
+    });
     return json(
       201,
       {
@@ -313,6 +341,26 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
 let conflictShown = false;
 // A second account with the same number is refused, as the pool refuses it.
 const usedPhones = new Set<string>(["+12025550142"]);
+
+/** The console's accounts, for Staff accounts. Invented, like everything here. */
+const staffAccounts: Record<string, unknown>[] = [
+  ["s-admin", "Sandrine", "Eyenga", "s.eyenga@example.com", null, ["TENANT_ADMIN"], "ACTIVE", false],
+  ["s-desk", "Nadine", "Fotso", "n.fotso@example.com", "c-douala-akwa", ["RECEPTIONIST"], "ACTIVE", false],
+  ["s-mbarga", "Esther", "Mbarga", "e.mbarga@example.com", "c-douala-akwa", ["CLINICIAN"], "ACTIVE", false],
+  ["s-nkoulou", "Jean-Paul", "Nkoulou", "+12025550161", "c-douala-akwa", ["CLINICIAN"], "ACTIVE", false],
+  ["s-manager", "Rodrigue", "Owona", "r.owona@example.com", "c-douala-akwa", ["CLINIC_MANAGER"], "ACTIVE", false],
+  ["s-new", "Kofi", "Ngassa", "+12025550163", "c-yaounde-bastos", ["RECEPTIONIST"], "INVITED", true],
+  ["s-gone", "Joyce", "Ebolo", "j.ebolo@example.com", "c-douala-akwa", ["RECEPTIONIST"], "SUSPENDED", false],
+].map(([staffId, givenName, familyName, signInName, clinicId, roles, status, mustSetPassword]) => ({
+  staffId,
+  givenName,
+  familyName,
+  signInName,
+  clinicId,
+  roles,
+  status,
+  mustSetPassword,
+}));
 
 export function installMockApi(): void {
   const real = window.fetch.bind(window);

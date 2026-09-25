@@ -23,6 +23,17 @@ const ADMIN = {
   clinicId: null,
 } as unknown as Me;
 
+
+const LISTED = [
+  { staffId: "s-admin", givenName: "Sandrine", familyName: "Eyenga", signInName: "s@x.cm", clinicId: null, roles: ["TENANT_ADMIN"], status: "ACTIVE", mustSetPassword: false },
+  { staffId: "s-desk", givenName: "Nadine", familyName: "Fotso", signInName: "n@x.cm", clinicId: "c-akwa", roles: ["RECEPTIONIST"], status: "ACTIVE", mustSetPassword: false },
+  { staffId: "s-doc", givenName: "Esther", familyName: "Mbarga", signInName: "e@x.cm", clinicId: "c-akwa", roles: ["CLINICIAN"], status: "ACTIVE", mustSetPassword: false },
+  { staffId: "s-new", givenName: "Kofi", familyName: "Ngassa", signInName: "+12025550163", clinicId: "c-akwa", roles: ["RECEPTIONIST"], status: "INVITED", mustSetPassword: true },
+  { staffId: "s-gone", givenName: "Joyce", familyName: "Ebolo", signInName: "j@x.cm", clinicId: "c-akwa", roles: ["RECEPTIONIST"], status: "SUSPENDED", mustSetPassword: false },
+];
+
+const change = vi.fn((_path: string, _body: unknown) => ({}));
+
 function respond(create: (body: unknown) => unknown = () => ({ givenName: "Kofi", familyName: "Boateng", signInName: "+12025550177", temporaryPassword: "Tmp-abcd-efgh" })) {
   api.mockImplementation(async (path: string, init?: { method?: string; json?: unknown }) => {
     if (path === "/clinicians") return { clinicians: [] };
@@ -30,6 +41,9 @@ function respond(create: (body: unknown) => unknown = () => ({ givenName: "Kofi"
     if (path === "/appointment-types") return { appointmentTypes: [] };
     if (path.startsWith("/clinics/")) return { appointments: [], patients: {} };
     if (path === "/admin/staff" && init?.method === "POST") return create(init.json);
+    if (path === "/admin/staff") return { count: LISTED.length, accounts: LISTED };
+    if (path.endsWith("/roles") && init?.method === "PATCH") return change(path, init.json);
+    if (path.endsWith("/suspend") && init?.method === "POST") return change(path, undefined);
     throw new Error(`unexpected ${path}`);
   });
 }
@@ -160,5 +174,65 @@ describe("Staff accounts", () => {
     expect(
       await within(sheet).findByText("That phone number or email is already in use. Nothing was created; check the details and try again."),
     ).toBeInTheDocument();
+  });
+
+  it("fr_acc_04: lists every account with its group and status", async () => {
+    respond();
+    renderAccounts();
+    const list = await screen.findByRole("region", { name: "Staff accounts" });
+    expect(await within(list).findByText("Nadine Fotso")).toBeInTheDocument();
+    expect(screen.getByText("5 of 5 users")).toBeInTheDocument();
+    expect(within(list).getByText("ADMIN")).toBeInTheDocument();
+    expect(within(list).getByText("Must set password")).toBeInTheDocument();
+    expect(within(list).getByText("Suspended")).toBeInTheDocument();
+    expect(list).toHaveTextContent("1 account has a temporary password");
+  });
+
+  it("filters to those awaiting their first sign-in", async () => {
+    respond();
+    renderAccounts();
+    await screen.findByText("Nadine Fotso");
+    await userEvent.setup().click(screen.getByRole("radio", { name: "Awaiting first sign-in" }));
+    expect(screen.getByText("1 of 5 users")).toBeInTheDocument();
+    expect(screen.getByText("Kofi Ngassa")).toBeInTheDocument();
+    expect(screen.queryByText("Nadine Fotso")).not.toBeInTheDocument();
+  });
+
+  it("fr_acc_18: moves the front desk to clinic manager, from the next sign-in", async () => {
+    respond();
+    renderAccounts();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Change Nadine Fotso's role" }));
+    const dialog = screen.getByRole("dialog", { name: "Change Nadine Fotso's role" });
+    await user.click(within(dialog).getByRole("radio", { name: /Clinic manager/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Change role" }));
+    expect(change).toHaveBeenCalledWith("/admin/staff/s-desk/roles", { roles: ["CLINIC_MANAGER"] });
+    expect(await screen.findByText(/becomes clinic manager at their next sign-in/)).toBeInTheDocument();
+  });
+
+  it("sends a clinician's change of role to a new account instead", async () => {
+    respond();
+    renderAccounts();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Change Esther Mbarga's role" }));
+    const dialog = screen.getByRole("dialog", { name: "Change Esther Mbarga's role" });
+    expect(dialog).toHaveTextContent("Create one for the new role, then suspend this one.");
+    expect(within(dialog).queryByRole("button", { name: "Change role" })).not.toBeInTheDocument();
+  });
+
+  it("suspends an account", async () => {
+    respond();
+    renderAccounts();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Suspend Kofi Ngassa" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Suspend Kofi Ngassa?" })).getByRole("button", { name: "Suspend" }));
+    expect(change).toHaveBeenCalledWith("/admin/staff/s-new/suspend", undefined);
+  });
+
+  it("offers nothing on an account already suspended, or on the administrator's own", async () => {
+    respond();
+    renderAccounts();
+    expect(await screen.findByRole("button", { name: "Suspend Joyce Ebolo" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Suspend Sandrine Eyenga" })).toBeDisabled();
   });
 });

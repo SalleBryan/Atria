@@ -823,13 +823,91 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   .week-side { overflow: visible; }
 }
 
-/* ------------------------------------------ staff accounts (103:2) */
+/* ------------------------------ staff accounts (94:2) and creating one (103:2) */
 
-.accounts-page { display: flex; flex-direction: column; gap: 16px; }
+.accounts-page { display: flex; flex-direction: column; gap: 16px; min-height: 100%; }
 .accounts-page > * { animation: rise var(--move-slow) both, fade-in var(--fade-slow) both; }
-.accounts-page > :nth-child(2) { animation-delay: 80ms, 80ms; }
-.accounts-head { display: flex; align-items: center; gap: 16px; min-height: 96px; padding: 0 24px; border-radius: 26px; }
-.accounts-icon,
+.accounts-page > :nth-child(2) { animation-delay: 60ms, 60ms; }
+.accounts-page > :nth-child(3) { animation-delay: 100ms, 100ms; }
+.accounts-page > :nth-child(4) { animation-delay: 140ms, 140ms; }
+.accounts-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 4px 0 0; }
+.accounts-top h1 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 26px; letter-spacing: -0.022em; color: var(--ink-primary); }
+.accounts-top p { margin: 4px 0 0; font-size: 14px; color: var(--ink-muted); }
+.accounts-new { display: inline-flex; gap: 8px; padding: 0 22px; }
+/* The administration console's purple (Rev A admin frames). */
+.accounts-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  padding: 22px 26px;
+  border-radius: 26px;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #ffffff;
+  background: linear-gradient(120deg, var(--admin-light), var(--admin-base));
+  box-shadow: 0 12px 28px rgba(91, 52, 196, 0.26);
+}
+.accounts-banner > svg { flex: none; }
+.accounts-filters { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.accounts-filters .chips { flex-wrap: wrap; gap: 10px; }
+.accounts-count { flex: none; font-size: 13px; color: var(--ink-muted); }
+.accounts-card { flex: 1; padding: 18px 16px; border-radius: 30px; }
+.accounts-head,
+.account-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px 200px 190px 88px; align-items: center; column-gap: 14px; }
+.accounts-head { padding: 4px 14px 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--ink-muted); }
+.accounts-head > :first-child { padding-left: 54px; }
+.accounts-rows { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.account-row {
+  min-height: 68px;
+  padding: 10px 14px;
+  border: 1.5px solid #ffffff;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 1px 6px rgba(16, 42, 94, 0.05);
+  animation: rise var(--move) both, fade-in var(--fade) both;
+  animation-delay: calc(var(--i, 0) * 35ms + 150ms);
+  transition: box-shadow var(--fade);
+}
+.account-row:hover { box-shadow: 0 6px 16px rgba(16, 42, 94, 0.1); }
+.account-row-off { background: rgba(255, 255, 255, 0.55); }
+.account-row-off .account-name,
+.account-row-off .account-sub,
+.account-row-off .account-role { opacity: 0.55; }
+.account-who { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.account-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13.5px;
+  color: #ffffff;
+  background: linear-gradient(140deg, #4a83f0, #2461db);
+}
+.account-avatar-admin { background: linear-gradient(140deg, var(--admin-light), var(--admin-base)); }
+.account-text { min-width: 0; }
+.account-name,
+.account-sub { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-name { font-size: 14px; font-weight: 600; color: var(--ink-primary); }
+.account-sub { margin-top: 2px; font-size: 12px; color: var(--ink-muted); }
+.chip-admin { color: var(--admin-base); background: rgba(139, 92, 240, 0.16); }
+.account-role span { display: block; }
+.account-role span:first-child { font-size: 13px; font-weight: 600; color: var(--ink-primary); }
+.account-role span:last-child { margin-top: 2px; font-size: 12px; color: var(--ink-muted); }
+.account-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.account-actions .square-button { color: var(--blue-600); }
+.account-actions .account-suspend { color: var(--status-cancelled); }
+.account-actions .square-button:disabled { opacity: 0.35; cursor: not-allowed; }
+.accounts-foot { margin: 18px 14px 0; font-size: 12.5px; color: var(--ink-muted); }
+.accounts-dialog-icon { background: linear-gradient(140deg, var(--admin-light), var(--admin-base)) !important; }
+.role-grid-one { grid-template-columns: minmax(0, 1fr); margin-top: 16px; }
+.dialog .staff-primary { height: 52px; }
+
 .sheet-icon {
   display: grid;
   place-items: center;
@@ -838,31 +916,21 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   height: 54px;
   border-radius: 18px;
   color: #ffffff;
-  /* The administration console's purple (Rev A admin frames). */
   background: linear-gradient(140deg, var(--admin-light), var(--admin-base));
   box-shadow: 0 10px 22px rgba(91, 52, 196, 0.3);
   animation: pop-in var(--move-fast) both 120ms;
 }
-.accounts-head .staff-title p { max-width: 560px; }
-.accounts-new { display: inline-flex; gap: 8px; padding: 0 22px; }
-.accounts-how { padding: 24px; border-radius: 28px; }
-.accounts-how h2 { margin: 0 0 16px; font-family: var(--font-display); font-weight: 600; font-size: 16px; color: var(--ink-primary); }
-.accounts-steps { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0; list-style: none; }
-.accounts-steps li { display: flex; align-items: flex-start; gap: 14px; animation: rise var(--move) both, fade-in var(--fade) both; }
-.accounts-steps li:nth-child(2) { animation-delay: 60ms, 60ms; }
-.accounts-steps li:nth-child(3) { animation-delay: 120ms, 120ms; }
-.accounts-step {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 30px;
-  height: 30px;
-  border-radius: 11px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 13px;
-  color: var(--admin-base);
-  background: rgba(139, 92, 240, 0.14);
+
+/* The administrator's console wears the admin frames' purple. */
+.admin-app .side-pill { background: linear-gradient(140deg, var(--admin-light), var(--admin-base)); box-shadow: 0 8px 18px rgba(91, 52, 196, 0.3); }
+.admin-app .side-mark { background: linear-gradient(140deg, var(--admin-light), var(--admin-base)); box-shadow: 0 8px 16px rgba(91, 52, 196, 0.3); }
+.admin-app .bottom-item.active .bottom-indicator { background: linear-gradient(140deg, var(--admin-light), var(--admin-base)); }
+
+@media (max-width: 1199px) {
+  .accounts-head,
+  .account-row { grid-template-columns: minmax(0, 1fr) 110px 170px 88px; }
+  .accounts-head > :nth-child(4),
+  .account-role { display: none; }
 }
 
 .sheet {
@@ -1020,7 +1088,6 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 .secret-copy:active { border-radius: 9px; transform: scale(0.95); }
 
 @media (max-width: 767px) {
-  .accounts-head { flex-wrap: wrap; padding: 18px; }
   .accounts-new { width: 100%; }
   .sheet { max-height: calc(100dvh - 32px); border-radius: 26px; }
   .sheet-head,

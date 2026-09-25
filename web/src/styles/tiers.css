@@ -333,6 +333,21 @@
   .visit-page > .visit-page-actions > * { height: 48px; }
   .patient-app:has(.visit-page) .bottom-nav { display: none; }
 
+  /* Staff accounts on a phone: each account a card, its status and actions
+     on a second line. */
+  .accounts-top { flex-wrap: wrap; }
+  .accounts-banner { padding: 16px 18px; font-size: 12.5px; }
+  .accounts-filters { flex-direction: column; align-items: stretch; }
+  .accounts-filters .chips { flex-wrap: nowrap; margin: 0 -20px; padding: 0 20px 4px; overflow-x: auto; scrollbar-width: none; }
+  .accounts-filters .week-chip { flex: none; }
+  .accounts-card { padding: 0; border: 0; background: none; box-shadow: none; backdrop-filter: none; }
+  .accounts-head { display: none; }
+  .account-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 10px; padding: 14px; border-radius: 22px; }
+  .account-who { grid-column: 1 / -1; }
+  .account-row > :nth-child(2) { display: none; }
+  .account-row > :nth-child(3) { grid-column: 1; }
+  .account-actions { grid-column: 2; grid-row: 2; }
+
   /* Cancel (Mobile · Cancel visit, 37:2): a bottom sheet with a grab handle,
      rising from the foot of the screen. Staff cancelling uses it too. */
   .scrim { align-items: flex-end; padding: 0; }

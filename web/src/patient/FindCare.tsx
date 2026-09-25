@@ -108,6 +108,9 @@ export function FindCare() {
   const [clinicFilter, setClinicFilter] = useState<string | null>(null);
   const [showClinics, setShowClinics] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(params.get("clinician"));
+  // On a phone the list and the booking are two steps (Mobile · Search
+  // results, 34:2, then Mobile · Booking, 34:103); wider, they sit side by side.
+  const [step, setStep] = useState<"list" | "detail">(params.get("clinician") ? "detail" : "list");
   const [typeId, setTypeId] = useState<string | null>(null);
   const [weekStart, setWeekStart] = useState(() => clock.isoDate(new Date()));
   const [day, setDay] = useState<string | null>(null);
@@ -247,7 +250,7 @@ export function FindCare() {
   const languages = (selected?.languages ?? []).map((code) => LANGUAGE[code] ?? code.toUpperCase());
 
   return (
-    <div className="find-care">
+    <div className="find-care" data-step={step}>
       <section className="find-list glass" aria-labelledby="find-title">
         <header className="find-head">
           <h1 id="find-title">Find care</h1>
@@ -316,7 +319,10 @@ export function FindCare() {
                   type="button"
                   className={`clinician${on ? " clinician-on" : ""}`}
                   aria-pressed={on}
-                  onClick={() => setSelectedId(clinician.clinicianProfileId)}
+                  onClick={() => {
+                    setSelectedId(clinician.clinicianProfileId);
+                    setStep("detail");
+                  }}
                 >
                   <span className="clinician-avatar" style={avatarStyle(data.clinicians.indexOf(clinician))}>
                     {initials(clinician.givenName, clinician.familyName)}
@@ -340,6 +346,12 @@ export function FindCare() {
       </section>
 
       <section className="find-detail glass" aria-label="Book with the selected clinician">
+        <div className="phone-bar">
+          <button type="button" className="square-button" aria-label="Back to clinicians" onClick={() => setStep("list")}>
+            <ChevronLeft size={18} />
+          </button>
+          <span>Clinician</span>
+        </div>
         {selected && type ? (
           <>
             <div className="detail-hero" key={selected.clinicianProfileId}>

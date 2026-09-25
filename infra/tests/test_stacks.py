@@ -274,6 +274,7 @@ class TestApiStack:
     def test_the_staff_routes_use_the_right_methods(self, synthesised):
         served = routes(template_for(synthesised, "api"))
         assert ("/admin/staff", "POST") in served
+        assert ("/admin/staff", "GET") in served
         assert ("/admin/staff/{id}/roles", "PATCH") in served
         assert ("/admin/staff/{id}/suspend", "POST") in served
         # A staff account is never deleted, only suspended.
@@ -340,6 +341,9 @@ class TestApiStack:
         assert "cognito-idp:AdminCreateUser" in actions
         assert "cognito-idp:AdminDeleteUser" in actions
         assert "cognito-idp:AdminUserGlobalSignOut" in actions
+        # Reading one account's status for the staff list, and no listing of the pool.
+        assert "cognito-idp:AdminGetUser" in actions
+        assert "cognito-idp:ListUsers" not in actions
         # The identity service (GET /me) must not carry these: it never
         # touches the pool, only the token it was handed.
         assert "cognito-idp:AdminSetUserPassword" not in actions

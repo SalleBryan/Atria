@@ -1,5 +1,6 @@
 """Staff provisioning.
 
+    GET   /admin/staff                      every account, for the administration console
     POST  /admin/staff                      create an account with its roles
     PATCH /admin/staff/{id}/roles           change those roles
     POST  /admin/staff/{id}/suspend         suspend the account
@@ -9,8 +10,8 @@ not this module. What this module owns is the order of the two writes: the
 account exists in the pool and in the table, or in neither.
 
 A created account is INVITED and holds a temporary password that the
-administrator passes on out of band. The password is never returned in the
-response and never logged (FR-ACC-04).
+administrator passes on out of band. The password is returned once, in the
+create response, and never stored or logged (FR-ACC-04).
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from __future__ import annotations
 import os
 import secrets
 import string
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import boto3
@@ -152,6 +154,46 @@ def create(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def pool_status(username: str | None) -> str | None:
+    """Cognito's word on the account: FORCE_CHANGE_PASSWORD until the first
+    sign-in replaces the temporary password, then CONFIRMED. None where the
+    pool cannot say, which the list shows as unknown rather than guessing."""
+    if not username:
+        return None
+    try:
+        found = cognito().admin_get_user(UserPoolId=USER_POOL_ID, Username=username)
+    except Exception:
+        logger.warning("could not read an account's pool status")
+        return None
+    return str(found.get("UserStatus") or "") or None
+
+
+def list_accounts(principal: Principal) -> dict[str, Any]:
+    """Every staff account of the tenant, for the administration console.
+
+    Administrators only, the same permission as creating one (staff.create).
+    Suspended accounts are listed too. Whether each still has to set its own
+    password comes from the pool, read in parallel, so the list does not
+    take one round trip per account.
+    """
+    permissions.require(principal, "staff.create", Subject(tenant_id=principal.tenant_id))
+    listed = people().staff_accounts(principal.tenant_id)
+    names = [
+        str(person.get("email") or person.get("phoneE164") or "") or None for _m, person in listed
+    ]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        statuses = list(pool.map(pool_status, names))
+    accounts = [
+        {
+            **account_view(membership, person),
+            "signInName": name,
+            "mustSetPassword": status == "FORCE_CHANGE_PASSWORD" if status else None,
+        }
+        for (membership, person), name, status in zip(listed, names, statuses, strict=True)
+    ]
+    return {"count": len(accounts), "accounts": accounts}
+
+
 def change_roles(principal: Principal, staff_id: str, body: dict[str, Any]) -> dict[str, Any]:
     """Change the roles on an account. Effective at its next sign-in."""
     membership = people().staff(principal.tenant_id, staff_id)
@@ -197,11 +239,13 @@ def suspend(principal: Principal, staff_id: str) -> dict[str, Any]:
 
 @api
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
-    """POST /admin/staff, PATCH /admin/staff/{id}/roles, POST /admin/staff/{id}/suspend"""
+    """GET and POST /admin/staff, PATCH /admin/staff/{id}/roles, POST /admin/staff/{id}/suspend"""
     principal = requests.principal_from(event)
     method = str(event.get("httpMethod", "")).upper()
     resource = str(event.get("resource", ""))
 
+    if method == "GET" and resource.endswith("/staff"):
+        return responses.ok(list_accounts(principal))
     if method == "POST" and resource.endswith("/staff"):
         return responses.created(create(principal, requests.json_body(event)))
     if method == "PATCH" and resource.endswith("/roles"):

@@ -44,12 +44,14 @@ INDEXES = [
     ('ClinicDayIndex', 'clinicId#date', 'startAt', 'The clinic day, the week and the requests inbox'),
     ('PersonIndex', 'cognitoSub', 'none', 'Resolving the signed-in person on every request'),
     ('OutboxIndex', 'outboxShard', 'createdAt', 'Change capture into the FIFO outbox, keyed on appointment id'),
-    ('DirectoryIndex', 'directoryKey', 'directorySort', "A tenant's bookable clinicians, clinics and offered types"),
+    ('DirectoryIndex', 'directoryKey', 'directorySort', "A tenant's clinicians, clinics, offered types and staff"),
 ]
 
-# DirectoryIndex holds three lists per tenant, each its own partition:
-# TENANT#<t>#CLINICIAN, TENANT#<t>#CLINIC and TENANT#<t>#TYPE (atria.data.people
-# and atria.data.catalogue). Clinics and appointment types sort by name.
+# DirectoryIndex holds four lists per tenant, each its own partition:
+# TENANT#<t>#CLINICIAN, TENANT#<t>#CLINIC, TENANT#<t>#TYPE and TENANT#<t>#STAFF
+# (atria.data.people and atria.data.catalogue). Clinics and appointment types
+# sort by name; staff accounts by family name, and stay listed when suspended,
+# because the administration console lists those too.
 #
 # DirectoryIndex is sparse on purpose. A clinician profile carries directoryKey
 # only while the account is bookable, so suspending an account drops it out of

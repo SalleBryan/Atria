@@ -22,7 +22,9 @@ and becomes one operation per method and path when it is specified properly.
 | PUT | `/admin/staff/{id}/priority-allowance` | priority_allowance.grant | Grant or change a monthly priority quota |
 
 `POST /admin/staff`, `PATCH /admin/staff/{id}/roles` and `POST /admin/staff/{id}/suspend`
-are in the contract and built (2026-09-22), so they are not repeated here.
+are in the contract and built (2026-09-22), so they are not repeated here. `GET /admin/staff`
+(2026-09-25) was not in the Technical Document's table; it is the list an administrator
+changes roles and suspends from, and is what FR-ACC-18 needs in practice.
 
 ## Directory and capacity
 

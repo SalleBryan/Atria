@@ -230,3 +230,50 @@ class TestSuspend:
         event = admin_event("POST", "/admin/staff/{id}/suspend", id=str(created["staffId"]))
         event["requestContext"]["authorizer"]["roles"] = "CLINIC_MANAGER"
         assert service.handler(event, None)["statusCode"] == 403
+
+
+class TestListingAccounts:
+    """The administration console's list of staff accounts (FR-ACC-04, FR-ACC-18)."""
+
+    def create(self, **overrides):
+        result = service.handler(admin_event("POST", "/admin/staff", {**BODY, **overrides}), None)
+        assert result["statusCode"] == 201, result["body"]
+        return body_of(result)
+
+    def listing(self, **authorizer):
+        event = admin_event("GET", "/admin/staff")
+        event["requestContext"]["authorizer"].update(authorizer)  # type: ignore[index]
+        return service.handler(event, None)
+
+    def test_an_administrator_sees_every_account_by_family_name(self, wired):
+        self.create(givenName="Brice", familyName="Tagne", phoneE164="+12025550171")
+        self.create(givenName="Amina", familyName="Ngo", phoneE164="+12025550172")
+        found = body_of(self.listing())
+        assert found["count"] == 2
+        assert [a["familyName"] for a in found["accounts"]] == ["Ngo", "Tagne"]
+
+    def test_a_new_account_must_still_set_its_password(self, wired):
+        self.create()
+        account = body_of(self.listing())["accounts"][0]
+        assert account["mustSetPassword"] is True
+        assert account["signInName"] == BODY["phoneE164"]
+
+    def test_nothing_secret_is_listed(self, wired):
+        self.create()
+        assert "temporaryPassword" not in body_of(self.listing())["accounts"][0]
+
+    def test_a_suspended_account_stays_on_the_list(self, wired):
+        created = self.create()
+        service.handler(
+            admin_event("POST", "/admin/staff/{id}/suspend", id=str(created["staffId"])), None
+        )
+        account = body_of(self.listing())["accounts"][0]
+        assert account["status"] == "SUSPENDED"
+
+    def test_another_tenants_accounts_are_not_listed(self, wired):
+        self.create()
+        assert body_of(self.listing(tenantId="t-other"))["count"] == 0
+
+    @pytest.mark.parametrize("role", ["RECEPTIONIST", "CLINICIAN", "CLINIC_MANAGER"])
+    def test_only_an_administrator_may_list(self, wired, role):
+        assert self.listing(roles=role, clinicId=CLINIC)["statusCode"] == 403

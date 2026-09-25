@@ -90,6 +90,45 @@ paths:
           $ref: "#/components/responses/Forbidden"
 
   /admin/staff:
+    get:
+      tags: [Identity and accounts]
+      operationId: listStaffAccounts
+      summary: Every staff account of the tenant
+      description: |
+        Only a tenant administrator reaches this (permission staff.create, the
+        same as creating an account). Accounts are listed by family name, and a
+        suspended account stays on the list, because an administrator acts on
+        those too. Patients never appear: they have no staff membership.
+
+        mustSetPassword is read from the pool for each account: true until the
+        first sign-in replaces the temporary password, false after, and null
+        where the pool could not say. Nothing secret is listed.
+
+        Supports FR-ACC-04 and FR-ACC-18 (the list an administrator changes
+        roles and suspends from).
+      responses:
+        "200":
+          description: The tenant's staff accounts.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [count, accounts]
+                properties:
+                  count: { type: integer }
+                  accounts:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/StaffAccount"
+                        - type: object
+                          properties:
+                            mustSetPassword: { type: [boolean, "null"] }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     post:
       tags: [Identity and accounts]
       operationId: createStaffAccount
@@ -948,7 +987,7 @@ components:
         employeeNumber: { type: [string, "null"] }
         signInName:
           type: string
-          description: Present only on the create response. What the account signs in with.
+          description: What the account signs in with, its email where it has one, else its mobile. On the create and list responses.
         temporaryPassword:
           type: string
           description: |

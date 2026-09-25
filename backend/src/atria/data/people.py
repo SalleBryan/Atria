@@ -106,7 +106,23 @@ def membership_item(
         "employeeNumber": account.employee_number,
         "status": "INVITED",
         "createdAt": now(),
+        # Listed for the administration console, suspended or not: an
+        # administrator needs to see the accounts they have suspended too.
+        "directoryKey": staff_list_key(tenant_id),
+        "directorySort": staff_list_sort(
+            family_name=account.family_name, given_name=account.given_name, staff_id=staff_id
+        ),
     }
+
+
+def staff_list_key(tenant_id: str) -> str:
+    """The DirectoryIndex partition: every staff account of one tenant."""
+    return f"{keys.TENANT}{tenant_id}#STAFF"
+
+
+def staff_list_sort(*, family_name: str, given_name: str, staff_id: str) -> str:
+    """Alphabetical by family name, then given name, as a register reads."""
+    return f"{family_name.casefold()}#{given_name.casefold()}#{staff_id}"
 
 
 def directory_key(tenant_id: str) -> str:
@@ -292,6 +308,26 @@ class People:
                 if needle in f"{c.get('givenName', '')} {c.get('familyName', '')}".casefold()
             ]
         return found
+
+    def staff_accounts(self, tenant_id: str) -> list[tuple[Item, Item]]:
+        """Every staff account of a tenant with its person, by family name.
+
+        One index query for the memberships and one batch read for the
+        people behind them. A membership whose person cannot be read is
+        still listed, with an empty person, so no account goes missing from
+        the list an administrator acts on.
+        """
+        memberships = self._repo.query_index(
+            DIRECTORY_INDEX, "directoryKey", staff_list_key(tenant_id)
+        )
+        memberships = [m for m in memberships if m.get("tenantId") == tenant_id]
+        wanted = sorted({str(m["personId"]) for m in memberships if m.get("personId")})
+        found = self._repo.get_many([keys.person(p) for p in wanted])
+        listed = []
+        for membership in memberships:
+            key = keys.person(str(membership.get("personId", "")))
+            listed.append((membership, found.get((key.pk, key.sk), {})))
+        return listed
 
     def clinician(self, tenant_id: str, clinician_profile_id: str) -> Item:
         return self._repo.require(

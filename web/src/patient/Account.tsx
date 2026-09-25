@@ -12,8 +12,9 @@
 import { type ComponentType, useState } from "react";
 
 import { useSession } from "../auth/session";
-import { Bell, Calendar, CheckMark, Mail, Phone, Pin, Shield, User } from "../components/icons";
-import { clock, join, upcoming, usePatientData } from "./data";
+import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Mail, Phone, Pin, Shield, User } from "../components/icons";
+import { useTier } from "../layout/fit";
+import { clock, join, past, upcoming, usePatientData } from "./data";
 
 type Section = "details" | "notifications" | "clinics";
 
@@ -50,14 +51,19 @@ export function Account() {
   const { state: session, signOut } = useSession();
   const { state } = usePatientData();
   const [section, setSection] = useState<Section>("details");
+  // On a phone (Mobile · Account, 41:2) the sections are a menu, each opening
+  // on its own; wider, the chosen one sits beside the list.
+  const phone = useTier() === "mobile";
+  const [opened, setOpened] = useState(false);
   const me = session.status === "signed-in" ? session.me : undefined;
   const data = state.status === "ready" ? state.data : undefined;
   const name = [me?.givenName, me?.familyName].filter(Boolean).join(" ") || "Your account";
   const index = SECTIONS.findIndex((s) => s.id === section);
 
   return (
-    <div className="find-care account">
+    <div className="find-care account" data-step={phone ? (opened ? "detail" : "list") : undefined}>
       <section className="find-list glass account-list" aria-label="Account">
+        {phone && <h1 className="phone-title">Account</h1>}
         <div className="profile-card">
           <span className="hero-bloom" aria-hidden="true" />
           <span className="hero-avatar" aria-hidden="true">
@@ -71,6 +77,22 @@ export function Account() {
             <CheckMark size={11} />
             PATIENT ACCOUNT
           </span>
+          {phone && data && (
+            <dl className="profile-stats">
+              <div>
+                <dt>Upcoming</dt>
+                <dd>{upcoming(data.appointments).length}</dd>
+              </div>
+              <div>
+                <dt>Completed</dt>
+                <dd>{past(data.appointments).filter((a) => ["COMPLETED", "AWAITING_FEEDBACK"].includes(a.state)).length}</dd>
+              </div>
+              <div>
+                <dt>Clinics</dt>
+                <dd>{data.clinics.length}</dd>
+              </div>
+            </dl>
+          )}
         </div>
         <nav className="account-nav" aria-label="Account sections">
           <span className="side-pill account-pill" aria-hidden="true" style={{ transform: `translateY(calc(${index} * 52px))` }} />
@@ -80,13 +102,17 @@ export function Account() {
               type="button"
               className={`side-item${section === id ? " active" : ""}`}
               aria-current={section === id ? "true" : undefined}
-              onClick={() => setSection(id)}
+              onClick={() => {
+                setSection(id);
+                setOpened(true);
+              }}
             >
               <IconComponent size={17} />
               <span>{label}</span>
               <span className="account-hint">
                 {id === "notifications" ? "24h" : id === "clinics" ? data?.clinics.length ?? "" : ""}
               </span>
+              {phone && <ChevronRight size={16} />}
             </button>
           ))}
         </nav>
@@ -96,6 +122,12 @@ export function Account() {
       </section>
 
       <section className="find-detail glass account-detail" aria-labelledby="section-title" key={section}>
+        <div className="phone-bar">
+          <button type="button" className="square-button" aria-label="Back to your account" onClick={() => setOpened(false)}>
+            <ChevronLeft size={18} />
+          </button>
+          <span>Account</span>
+        </div>
         {section === "details" && (
           <>
             <header className="section-head">

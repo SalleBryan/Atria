@@ -19,14 +19,14 @@
   .side-brand { padding: 0 0 14px; }
   .side-brand > span:last-child,
   .side-label,
-  .side-item > span,
-  .side-pip,
+  .side .side-item > span,
+  .side .side-pip,
   .side-me-text { display: none; }
   .side-mark { width: 48px; height: 48px; border-radius: 16px; }
-  .side-nav { --pill-step: 64px; gap: 14px; align-items: center; }
-  .side-pill { left: 50%; right: auto; width: 50px; height: 50px; margin-left: -25px; border-radius: 16px; }
-  .side-item { justify-content: center; width: 50px; height: 50px; padding: 0; border-radius: 16px; }
-  .side-item svg { width: 20px; height: 20px; }
+  .side .side-nav { --pill-step: 64px; gap: 14px; align-items: center; }
+  .side .side-pill { left: 50%; right: auto; width: 50px; height: 50px; margin-left: -25px; border-radius: 16px; }
+  .side .side-item { justify-content: center; width: 50px; height: 50px; padding: 0; border-radius: 16px; }
+  .side .side-item svg { width: 20px; height: 20px; }
   .side-spacer { display: none; }
   .side-me { flex-direction: column; gap: 10px; padding: 0; border: 0; background: transparent; }
   .side-avatar { width: 48px; height: 48px; border-radius: 16px; font-size: 15px; box-shadow: 0 8px 16px rgba(33, 89, 210, 0.28); }
@@ -217,6 +217,75 @@
   .find-care.conflict .dock-label,
   .find-care.conflict .dock-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .find-care.conflict .openings-head h2 { font-size: 17px; }
+
+  /* Cancel (Mobile · Cancel visit, 37:2): a bottom sheet with a grab handle,
+     rising from the foot of the screen. Staff cancelling uses it too. */
+  .scrim { align-items: flex-end; padding: 0; }
+  .dialog {
+    position: relative;
+    max-width: none;
+    max-height: 92dvh;
+    padding: 30px 20px calc(20px + env(safe-area-inset-bottom));
+    border-radius: 30px 30px 0 0;
+    animation: sheet-up var(--move) both;
+  }
+  .dialog::before {
+    content: "";
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    width: 40px;
+    height: 5px;
+    margin-left: -20px;
+    border-radius: 3px;
+    background: var(--line-soft);
+  }
+  @keyframes sheet-up { from { transform: translateY(100%); } }
+  .dialog-actions .outline-button,
+  .dialog-actions .danger-button { height: 52px; }
+
+  /* Account (Mobile · Account, 41:2): the heading, the profile with its
+     counts, the sections as a grouped list, and signing out. */
+  .phone-title { margin: 6px 0 2px; font-family: var(--font-display); font-weight: 700; font-size: 28px; letter-spacing: -0.025em; color: var(--ink-primary); }
+  .account-list { gap: 16px; }
+  .profile-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    order: 4;
+    flex-basis: 100%;
+    margin: 4px 0 0;
+    padding: 12px 6px;
+    border: 1px solid #ffffff;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .profile-stats > div { display: flex; flex-direction: column-reverse; align-items: center; gap: 2px; }
+  .profile-stats > div + div { border-left: 1px solid rgba(255, 255, 255, 0.35); }
+  .profile-stats dt { font-size: 11px; opacity: 0.9; }
+  .profile-stats dd { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 20px; }
+  .account-nav {
+    gap: 0;
+    margin: 0;
+    padding: 4px 16px;
+    border: 1px solid #ffffff;
+    border-radius: 24px;
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.8));
+    box-shadow: 0 4px 18px rgba(16, 42, 94, 0.08);
+  }
+  .account-pill { display: none; }
+  .account-nav .side-item { height: 64px; padding: 0; border-radius: 0; color: var(--ink-primary) !important; }
+  .account-nav .side-item + .side-item { border-top: 1px solid var(--line-hairline); }
+  .account-nav .side-item::before { display: none; }
+  .account-nav .side-item > svg:first-child {
+    box-sizing: content-box;
+    padding: 9px;
+    border-radius: 12px;
+    color: var(--blue-600);
+    background: rgba(47, 107, 228, 0.14);
+  }
+  .account-nav .side-item > svg:last-child { color: var(--ink-400); }
+  .account-hint { color: var(--ink-muted); }
+  .account .sign-out { margin-top: 4px; height: 52px; }
 
   /* My visits (Mobile · My visits, 36:4): each upcoming visit a card with
      Cancel and Details; one visit (Mobile · Visit details, 36:115) on its own

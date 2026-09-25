@@ -597,7 +597,7 @@
 /* One column: the brand pane folds into a header strip and the page scrolls
    normally, as the tablet and mobile frames do. No zoom here: phones get the
    mobile layout at full size instead. */
-@media (max-width: 959px) {
+@media (max-width: 767px) {
   .auth {
     display: block;
     width: auto;
@@ -615,7 +615,7 @@
 
 /* Below the smallest zoom (a window under about 540px tall) the frame no
    longer fits; drop what the brand pane can do without rather than cut it. */
-@media (min-width: 960px) and (max-height: 540px) {
+@media (min-width: 768px) and (max-height: 540px) {
   .props, .aside-card, .identity-card { display: none; }
 }
 
@@ -802,7 +802,7 @@ form > .notice { margin-bottom: 4px; margin-top: 24px; }
 .note p { margin: 0; font-size: 12.5px; line-height: 19.5px; }
 .legal + .legal { margin-top: 8px; }
 
-@media (max-width: 959px) {
+@media (max-width: 767px) {
   .recovery { display: none; }
 }
 

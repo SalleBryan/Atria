@@ -165,7 +165,7 @@ export function DaySchedule() {
             own={own}
             onSelect={(visit) =>
               // On a phone the panel gives way to the visit's own page, as the mobile frames have it.
-              window.matchMedia("(max-width: 959px)").matches
+              window.matchMedia("(max-width: 767px)").matches
                 ? navigate(`/console/visits/${visit}?date=${date}`)
                 : go({ visit })
             }

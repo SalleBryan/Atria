@@ -47,6 +47,8 @@ import {
   upcoming,
   usePatientData,
 } from "./data";
+import { useTier } from "../layout/fit";
+import { AvailableToday } from "./AvailableToday";
 import { downloadCalendarEntry } from "./calendar";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -57,6 +59,7 @@ export function PatientHome() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const me = session.status === "signed-in" ? session.me : undefined;
+  const phone = useTier() === "mobile";
 
   function search(event: FormEvent) {
     event.preventDefault();
@@ -103,6 +106,17 @@ export function PatientHome() {
 
   return (
     <div className="page home" data-loading={data ? undefined : ""}>
+      {phone && (
+        <header className="phone-head">
+          <span className="side-avatar phone-avatar" aria-hidden="true">
+            {initials(me?.givenName, me?.familyName) || "A"}
+          </span>
+          <span>
+            <span className="phone-hello">{greeting()}</span>
+            <span className="phone-name">{[me?.givenName, me?.familyName].filter(Boolean).join(" ") || "Welcome"}</span>
+          </span>
+        </header>
+      )}
       <header className="top-bar glass">
         <div className="greeting">
           <h1>
@@ -130,6 +144,14 @@ export function PatientHome() {
         <HomeSkeleton />
       ) : (
         <>
+          {phone && (
+            <div className="today-head">
+              <h2>Next appointment</h2>
+              <Link className="link" to="/visits">
+                See all
+              </Link>
+            </div>
+          )}
           {next && nextJoined ? (
             <section className="hero" aria-label="Your next visit">
               <span className="hero-bloom" aria-hidden="true" />
@@ -200,6 +222,8 @@ export function PatientHome() {
               </div>
             </section>
           )}
+
+          {phone && <AvailableToday />}
 
           <div className="home-cols">
             <div className="home-left">

@@ -814,7 +814,7 @@
 
 /* ---------------------------------------------------------------- phones */
 
-@media (max-width: 959px) {
+@media (max-width: 767px) {
   .find-care,
   .find-care.conflict { grid-template-columns: minmax(0, 1fr); height: auto; }
   .find-list,

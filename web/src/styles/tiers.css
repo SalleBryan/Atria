@@ -1,0 +1,151 @@
+/*
+ * The tablet and mobile frames (src/layout/fit.ts decides which a window
+ * gets). The desktop screens are the base; what is here reshapes them into
+ * the Rev A "Tablet ·" (1194 x 834) and "Mobile ·" (390 x 844) frames.
+ * Loaded after every screen's stylesheet, so a tier's rule wins.
+ */
+
+/* =============================================================== tablet */
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  /* The frame's icon rail (Tablet · Home, 45:3): 88px wide, the mark, the
+     destinations as 50px squares, and the person as an avatar. */
+  .patient-app { grid-template-columns: 110px minmax(0, 1fr); }
+  .side-margin { padding: 22px 0 22px 22px; }
+  .side { align-items: center; gap: 14px; padding: 20px 0; border-radius: 30px; }
+  .side-brand { padding: 0 0 14px; }
+  .side-brand > span:last-child,
+  .side-label,
+  .side-item > span,
+  .side-pip,
+  .side-me-text { display: none; }
+  .side-mark { width: 48px; height: 48px; border-radius: 16px; }
+  .side-nav { --pill-step: 64px; gap: 14px; align-items: center; }
+  .side-pill { left: 50%; right: auto; width: 50px; height: 50px; margin-left: -25px; border-radius: 16px; }
+  .side-item { justify-content: center; width: 50px; height: 50px; padding: 0; border-radius: 16px; }
+  .side-item svg { width: 20px; height: 20px; }
+  .side-spacer { display: none; }
+  .side-me { flex-direction: column; gap: 10px; padding: 0; border: 0; background: transparent; }
+  .side-avatar { width: 48px; height: 48px; border-radius: 16px; font-size: 15px; box-shadow: 0 8px 16px rgba(33, 89, 210, 0.28); }
+  .patient-main { padding: 22px 22px 22px 18px; }
+
+  /* Home (45:3): greeting, hero, quick actions and upcoming in one column;
+     activity and the clinic beside them, full height. */
+  .home {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 336px;
+    grid-template-rows: auto auto 1fr;
+    column-gap: 18px;
+    row-gap: 16px;
+    align-items: start;
+    min-height: 100%;
+  }
+  .home > .top-bar { grid-column: 1; min-height: 0; padding: 4px 0 0; border: 0; background: none; box-shadow: none; backdrop-filter: none; }
+  .home > .top-bar .greeting h1 { font-size: 26px; line-height: 32px; }
+  .home > .top-bar .pill-button { display: none; }
+  .home > .top-search,
+  .home > .top-bar .top-search { width: 298px; }
+  .home > .hero { grid-column: 1; }
+  .home > .home-cols { display: contents; }
+  .home-left { grid-column: 1; align-self: stretch; }
+  .home-left > .panel { flex: 1; }
+  /* The tablet hero's box holds date, time and "in"; the reference is on the visit. */
+  .home > .hero .hero-when > div:nth-child(n + 4) { display: none; }
+  .home-right { grid-column: 2; grid-row: 1 / span 3; }
+}
+
+/* =============================================================== mobile */
+
+@media (max-width: 767px) {
+  /* The frame's navigation (Mobile · Home, 28:2): a glass pill floating 20px
+     in from the edges, the chosen destination on a blue squircle. */
+  .bottom-nav {
+    right: 16px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    left: 16px;
+    padding: 8px 6px;
+    border: 1px solid #ffffff;
+    border-radius: 26px;
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.74));
+    box-shadow: 0 12px 30px rgba(16, 42, 94, 0.16), inset 0 1px 0 #ffffff;
+  }
+  .bottom-item { gap: 3px; min-width: 0; flex: 1; font-size: 11px; color: var(--ink-550); }
+  .bottom-indicator { width: 44px; height: 36px; border-radius: 14px; }
+  .bottom-item.active { color: var(--blue-700); }
+  .bottom-item.active .bottom-indicator {
+    color: #ffffff;
+    background: var(--gradient-primary);
+    box-shadow: 0 6px 14px rgba(36, 97, 219, 0.32);
+  }
+  .patient-main { padding: 20px 20px 116px; }
+
+  /* Home (28:2): the person, search, the next appointment, and who has an
+     opening today. The desktop columns give way to that list. */
+  .home { gap: 18px; }
+  .phone-head { display: flex; align-items: center; gap: 12px; padding-top: 6px; }
+  .phone-avatar { width: 46px; height: 46px; border-radius: 16px; font-size: 15px; box-shadow: 0 8px 16px rgba(33, 89, 210, 0.28); }
+  .phone-hello { display: block; font-size: 13px; color: var(--ink-muted); }
+  .phone-name { display: block; font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: -0.02em; color: var(--ink-primary); }
+  .home > .top-bar { min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; backdrop-filter: none; }
+  .home > .top-bar .greeting,
+  .home > .top-bar .pill-button { display: none; }
+  .home > .top-bar .top-search {
+    width: 100%;
+    height: 56px;
+    border-color: #ffffff;
+    border-radius: 18px;
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.93), rgba(255, 255, 255, 0.72));
+    box-shadow: 0 4px 18px rgba(16, 42, 94, 0.08);
+  }
+  .today-head { display: flex; align-items: baseline; justify-content: space-between; }
+  .today-head h2 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 17px; letter-spacing: -0.015em; color: var(--ink-primary); }
+  .home > .hero { gap: 16px; padding: 20px; border-radius: 28px; }
+  .home > .hero .hero-avatar,
+  .home > .hero .hero-copy p { display: none; }
+  .home > .hero .hero-copy h2 { font-size: 26px; line-height: 32px; }
+  .home > .hero .hero-when { width: 100%; }
+  .home > .hero .hero-when > div:nth-child(n + 3) { display: none; }
+  .home > .hero .hero-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .home > .hero .hero-actions > :nth-child(2) { order: -1; }
+  .home > .hero .hero-actions > :nth-child(3) { display: none; }
+  .home > .hero .hero-button { justify-content: center; height: 46px; }
+  .home > .home-cols { display: none; }
+
+  .today { display: flex; flex-direction: column; gap: 14px; }
+  .today-chips { flex-wrap: nowrap; margin: 0 -20px; padding: 0 20px 4px; overflow-x: auto; scrollbar-width: none; }
+  .today-chips .chip-choice { flex: none; height: 44px; padding: 0 20px; border-radius: 16px; }
+  .today-list { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+  .today-list li { animation: rise var(--move) both, fade-in var(--fade) both; animation-delay: calc(var(--i, 0) * 50ms); }
+  .today-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid #ffffff;
+    border-radius: 24px;
+    text-decoration: none;
+    color: inherit;
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.78));
+    box-shadow: 0 4px 18px rgba(16, 42, 94, 0.08);
+    transition: transform var(--move-fast), border-radius var(--move-fast);
+  }
+  .today-card:active { transform: scale(0.98); border-radius: 20px; }
+  .today-avatar { display: grid; place-items: center; flex: none; width: 54px; height: 54px; border-radius: 18px; font-family: var(--font-display); font-weight: 600; font-size: 16px; color: #ffffff; }
+  .today-text { flex: 1; min-width: 0; }
+  .today-name { display: block; font-size: 15px; font-weight: 600; color: var(--ink-primary); }
+  .today-sub { display: block; margin-top: 2px; font-size: 12.5px; color: var(--ink-muted); }
+  .today-next {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 7px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #0b7f56;
+    background: rgba(14, 156, 107, 0.16);
+  }
+  .today-band { flex: none; font-size: 13px; font-weight: 600; color: var(--ink-800); }
+  .today-empty { margin: 0; font-size: 13px; color: var(--ink-muted); }
+}

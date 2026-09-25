@@ -305,7 +305,7 @@
 .danger-button:active { border-radius: 12px; transform: scale(0.97); }
 .danger-button:disabled { cursor: progress; }
 
-@media (max-width: 959px) {
+@media (max-width: 767px) {
   .find-care.visits { grid-template-columns: minmax(0, 1fr); }
   .visit-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .visit-cells > div:nth-child(3) { border-left: 0; }
@@ -412,7 +412,7 @@
 .hours dt { color: var(--ink-muted); }
 .hours dd { margin: 0; font-weight: 600; color: var(--ink-primary); }
 
-@media (max-width: 959px) {
+@media (max-width: 767px) {
   .find-care.account { grid-template-columns: minmax(0, 1fr); }
   .hours { grid-template-columns: 1fr; }
 }

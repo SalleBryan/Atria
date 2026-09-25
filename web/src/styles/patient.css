@@ -113,7 +113,7 @@
   border-radius: 19px;
   background: var(--gradient-primary);
   box-shadow: 0 8px 18px rgba(36, 97, 219, 0.3);
-  transform: translateY(calc(var(--at, 0) * 52px));
+  transform: translateY(calc(var(--at, 0) * var(--pill-step, 52px)));
   transition: transform var(--move);
 }
 .side-item {
@@ -766,7 +766,7 @@
 
 .bottom-nav { display: none; }
 
-@media (max-width: 959px) {
+@media (max-width: 767px) {
   .patient-app {
     display: block;
     width: auto;

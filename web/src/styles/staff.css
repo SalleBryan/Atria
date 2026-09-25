@@ -325,7 +325,7 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 
 /* --------------------------------------------------------------- narrow */
 
-@media (max-width: 959px) {
+@media (max-width: 767px) {
   .staff-day { display: flex; flex-direction: column; height: auto; }
   .staff-top { flex-wrap: wrap; padding: 14px 16px; }
   .staff-title { order: 3; flex-basis: 100%; margin: 4px 0 0; }
@@ -445,7 +445,7 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   transition: background var(--fade-fast);
 }
 .snackbar button:hover { background: rgba(255, 255, 255, 0.08); }
-@media (max-width: 959px) { .snackbar-slot { bottom: calc(96px + env(safe-area-inset-bottom)); } }
+@media (max-width: 767px) { .snackbar-slot { bottom: calc(96px + env(safe-area-inset-bottom)); } }
 /* Waiting for a reason, the confirm button says so; busy, it keeps its colour. */
 .staff-dialog .danger-button:disabled:not([aria-busy]) { opacity: 0.45; box-shadow: none; cursor: not-allowed; }
 
@@ -568,7 +568,7 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 .visit-skeleton-hero { height: 142px; border-radius: 30px; }
 .visit-skeleton-body { height: 100%; min-height: 240px; border-radius: 28px; }
 
-@media (max-width: 959px) {
+@media (max-width: 767px) {
   .visit-page { display: flex; flex-direction: column; height: auto; }
   .staff-hero { flex-wrap: wrap; padding: 22px; }
   .staff-hero-cells { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -785,7 +785,7 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 @keyframes fill { from { transform: scaleX(0); } }
 .week-note { margin: 14px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--ink-muted); }
 
-@media (max-width: 959px) {
+@media (max-width: 767px) {
   .staff-week { display: flex; flex-direction: column; height: auto; }
   .week-main { display: flex; flex-direction: column; }
   .week-card { overflow: visible; padding: 14px; }
@@ -1018,7 +1018,7 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 .secret-copy:hover { background: #f3f7ff; }
 .secret-copy:active { border-radius: 9px; transform: scale(0.95); }
 
-@media (max-width: 959px) {
+@media (max-width: 767px) {
   .accounts-head { flex-wrap: wrap; padding: 18px; }
   .accounts-new { width: 100%; }
   .sheet { max-height: calc(100dvh - 32px); border-radius: 26px; }

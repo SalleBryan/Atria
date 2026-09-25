@@ -14,10 +14,11 @@
  * holds, since rostered availability is Phase 2. The Month and Year views are
  * Phase 2 (D-08).
  *
- * On a phone the grid gives way to the week as a list, day by day.
+ * On a phone the grid gives way to Mobile · Staff week (178:2): a strip of
+ * days, the chosen one in a hero, and its clinicians (WeekPhone, below).
  */
 
-import { type CSSProperties, type ReactNode, useMemo } from "react";
+import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useSession } from "../auth/session";
@@ -44,6 +45,7 @@ import {
   useStaffData,
   ZONE,
 } from "./data";
+import { useTier } from "../layout/fit";
 import { staffState } from "./labels";
 
 const HOUR_PX = 56;
@@ -170,6 +172,7 @@ export function WeekView() {
     setParams(merged, { replace: true });
   }
 
+  const phone = useTier() === "mobile";
   const open = (appointment: Appointment) =>
     navigate(`/console/visits/${appointment.appointmentId}?date=${clock.isoDate(appointment.startAt)}`);
 
@@ -264,7 +267,11 @@ export function WeekView() {
                 colourOf={colourOf}
                 onOpen={open}
               />
-              <WeekList days={days} appointments={shown} schedule={schedule} loading={state.status === "loading"} own={own} />
+              {phone ? (
+                <WeekPhone days={days} appointments={shown} clinicians={clinicians} clinic={clinic} colourOf={colourOf} />
+              ) : (
+                <WeekList days={days} appointments={shown} schedule={schedule} loading={state.status === "loading"} own={own} />
+              )}
             </>
           )}
         </section>
@@ -479,5 +486,126 @@ function Load({
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * Mobile · Staff week (178:2): the days as a strip with how full each is,
+ * the chosen day in the hero, and each clinician's share of it. Capacity is
+ * not a Phase 1 figure, so a day's fill is against the week's busiest day and
+ * a clinician's against the clinic's opening hours that day.
+ */
+function WeekPhone({
+  days,
+  appointments,
+  clinicians,
+  clinic,
+  colourOf,
+}: {
+  days: string[];
+  appointments: Appointment[];
+  clinicians: Clinician[];
+  clinic: Clinic | undefined;
+  colourOf: (id: string | null) => string;
+}) {
+  const todayIs = today();
+  const [pick, setPick] = useState(days.includes(todayIs) ? todayIs : (days[0] ?? todayIs));
+  const on = (day: string) => appointments.filter((a) => clock.isoDate(a.startAt) === day);
+  const live = (list: Appointment[]) => list.filter((a) => !CANCELLED_STATES.includes(a.state));
+  const busiest = Math.max(1, ...days.map((day) => live(on(day)).length));
+  const mine = on(pick);
+  const figures = tally(mine);
+  const weekday = (new Date(`${pick}T12:00:00Z`).getUTCDay() + 6) % 7;
+  const hours = clinic?.openingHours?.[String(weekday)];
+  const open = hours ? toMinutes(hours.end) - toMinutes(hours.start) : 0;
+  const booked = clinicians
+    .map((c) => ({ clinician: c, list: live(mine.filter((a) => a.clinicianProfileId === c.clinicianProfileId)) }))
+    .filter((row) => row.list.length);
+
+  return (
+    <div className="week-phone">
+      <div className="week-strip" role="radiogroup" aria-label="Day">
+        {days.map((day, i) => {
+          const count = live(on(day)).length;
+          return (
+            <button
+              key={day}
+              type="button"
+              role="radio"
+              aria-checked={pick === day}
+              className={`strip-day${pick === day ? " strip-day-on" : ""}`}
+              onClick={() => setPick(day)}
+            >
+              <span>{clock.weekday(noonOf(day))}</span>
+              <span className="strip-date">{Number(day.slice(8))}</span>
+              <span className="strip-fill" aria-hidden="true">
+                <span style={{ width: `${(count / busiest) * 100}%` }} />
+              </span>
+              <span className="strip-count">{count}</span>
+              <span className="visually-hidden">{DAY_NAMES[i]}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <section className="week-hero" aria-label="The chosen day">
+        <span className="hero-bloom" aria-hidden="true" />
+        <span className="week-hero-date">{clock.day(noonOf(pick)).toUpperCase()}</span>
+        <h2>
+          {figures.booked} booked{figures.cancelled ? ` · ${figures.cancelled} cancelled` : ""}
+        </h2>
+        <dl className="visit-cells week-hero-cells">
+          <div>
+            <dt>BOOKED</dt>
+            <dd>{figures.booked}</dd>
+          </div>
+          <div>
+            <dt>TO COME</dt>
+            <dd>{figures.ahead}</dd>
+          </div>
+          <div>
+            <dt>CANCELLED</dt>
+            <dd>{figures.cancelled}</dd>
+          </div>
+          <div>
+            <dt>CLINICIANS</dt>
+            <dd>{booked.length}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <div className="today-head">
+        <h2>By clinician</h2>
+        <Link className="link" to={`/console?date=${pick}`}>
+          Open the day
+        </Link>
+      </div>
+      <ul className="week-by">
+        {booked.map(({ clinician, list }) => {
+          const minutes = list.reduce((sum, a) => sum + minutesOf(a), 0);
+          return (
+            <li key={clinician.clinicianProfileId}>
+              <span className={`week-by-avatar block-${colourOf(clinician.clinicianProfileId)}`} aria-hidden="true">
+                {[clinician.givenName, clinician.familyName].map((n) => n?.[0] ?? "").join("")}
+              </span>
+              <span className="week-by-text">
+                <span className="week-by-name">{doctor(clinician, "Clinician")}</span>
+                <span className="week-by-sub">
+                  {[clinician.specialty, hours ? `${hours.start} to ${hours.end}` : null].filter(Boolean).join(" · ")}
+                </span>
+                <span className="week-load-track" aria-hidden="true">
+                  <span
+                    className={`week-load-bar block-${colourOf(clinician.clinicianProfileId)}`}
+                    style={{ width: `${open ? Math.min(100, Math.max(4, (minutes / open) * 100)) : 0}%` }}
+                  />
+                </span>
+              </span>
+              <span className="week-by-count">{list.length}</span>
+            </li>
+          );
+        })}
+        {!booked.length && <li className="today-empty">Nothing booked on this day.</li>}
+      </ul>
+    </div>
   );
 }

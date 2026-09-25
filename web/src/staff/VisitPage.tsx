@@ -18,7 +18,8 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
-import { ArrowLeft, Bell, CheckMark, Clock, Close } from "../components/icons";
+import { ArrowLeft, Bell, CheckMark, ChevronLeft, Clock, Close } from "../components/icons";
+import { useTier } from "../layout/fit";
 import { ACTIVE_STATES, type Appointment, clock, initials } from "../patient/data";
 import { CancelVisit } from "./CancelVisit";
 import {
@@ -53,6 +54,8 @@ export function VisitPage() {
   const [visit, setVisit] = useState<Loading<Appointment>>({ status: "loading" });
   const [fresh, setFresh] = useState(0);
   const [said, setSaid] = useState<string | null>(null);
+  // Mobile · Staff appointment (180:2): a back bar, and the actions held at the foot.
+  const phone = useTier() === "mobile";
 
   useEffect(() => {
     let live = true;
@@ -125,8 +128,27 @@ export function VisitPage() {
   const own = readsOwnCalendar(role);
   const booked = BOOKED_BY[appointment.bookedByRole ?? "PATIENT"] ?? "Booked";
 
+  const actions = (
+    <div className="visit-page-actions">
+      <Link className="outline-button visit-back" to={back}>
+        Back to the day
+      </Link>
+      {canCancel && (
+        <button type="button" className="outline-danger" onClick={() => setParams({ ...(date ? { date } : {}), cancel: "1" }, { replace: true })}>
+          Cancel visit
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div className="visit-page">
+      <div className="phone-bar">
+        <Link className="square-button" to={back} aria-label="Back to the day">
+          <ChevronLeft size={18} />
+        </Link>
+        <span>Appointment</span>
+      </div>
       <Crumbs back={back} text={crumb} />
 
       <section className={`staff-hero staff-hero-${tone}`} aria-label="Visit">
@@ -268,18 +290,10 @@ export function VisitPage() {
               </li>
             )}
           </ol>
-          <div className="visit-page-actions">
-            <Link className="outline-button visit-back" to={back}>
-              Back to the day
-            </Link>
-            {canCancel && (
-              <button type="button" className="outline-danger" onClick={() => setParams({ ...(date ? { date } : {}), cancel: "1" }, { replace: true })}>
-                Cancel visit
-              </button>
-            )}
-          </div>
+          {!phone && actions}
         </section>
       </div>
+      {phone && actions}
 
       {params.get("cancel") === "1" && canCancel && (
         <CancelVisit

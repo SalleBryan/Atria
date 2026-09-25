@@ -218,6 +218,121 @@
   .find-care.conflict .dock-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .find-care.conflict .openings-head h2 { font-size: 17px; }
 
+  /* The console's day (Mobile · Staff today, 174:2): who and where, the date
+     between its arrows, the tiles two by two, the switch full width, then the
+     day's rows on the page itself. */
+  .staff-day { gap: 16px; }
+  .staff-day .staff-top { display: grid; grid-template-columns: 38px minmax(0, 1fr) 38px; align-items: center; gap: 8px; min-height: 76px; padding: 12px 14px; }
+  .staff-day .staff-nav { display: contents; }
+  .staff-day .staff-nav > [aria-label="Previous day"] { grid-column: 1; grid-row: 1; }
+  .staff-day .staff-nav > [aria-label="Next day"] { grid-column: 3; grid-row: 1; }
+  .staff-day .today-button { display: none; }
+  .staff-day .staff-title { grid-column: 2; grid-row: 1; order: 0; flex-basis: auto; margin: 0; text-align: center; }
+  .staff-day .staff-title h1 { font-size: 16px; line-height: 22px; }
+  .staff-day .staff-title p { font-size: 11.5px; }
+  .staff-day .clinic-picker { grid-column: 1 / -1; }
+  .staff-day .staff-card { padding: 0; border: 0; background: none; box-shadow: none; backdrop-filter: none; }
+  .staff-day .staff-card-head { flex-direction: column-reverse; align-items: stretch; gap: 16px; }
+  .staff-day .staff-card-head .segmented { border-radius: 18px; }
+  .staff-day .staff-card-head .segment { flex: 1; height: 42px; }
+  .staff-day .staff-card-head .segment-on { color: #ffffff; background: var(--gradient-primary); box-shadow: 0 6px 14px rgba(36, 97, 219, 0.3); }
+  .staff-day .day-rows { margin-top: 12px; }
+
+  /* The console's week (Mobile · Staff week, 178:2). The desktop side panel
+     gives way to the hero, which says the same for the chosen day. */
+  .staff-week .week-side { display: none; }
+  .staff-week .week-card { padding: 0; border: 0; background: none; box-shadow: none; backdrop-filter: none; }
+  .staff-week .staff-top { flex-wrap: wrap; row-gap: 12px; padding: 16px; }
+  .staff-week .staff-title { order: -1; flex-basis: 100%; margin: 0; }
+  .staff-week .staff-title h1 { font-size: 22px; line-height: 28px; }
+  .staff-week .staff-top .segmented { margin-left: auto; }
+  .week-phone { display: flex; flex-direction: column; gap: 16px; }
+  .week-strip { display: flex; gap: 10px; margin: 0 -20px; padding: 2px 20px 6px; overflow-x: auto; scrollbar-width: none; }
+  .strip-day {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 64px;
+    padding: 12px 0 10px;
+    border: 1px solid #ffffff;
+    border-radius: 20px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--ink-650);
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.78));
+    box-shadow: 0 4px 14px rgba(16, 42, 94, 0.07);
+    cursor: pointer;
+    transition: transform var(--move-fast), background var(--fade), color var(--fade);
+  }
+  .strip-day:active { transform: scale(0.95); }
+  .strip-date { font-family: var(--font-display); font-weight: 700; font-size: 20px; color: var(--ink-primary); }
+  .strip-fill { width: 34px; height: 4px; overflow: hidden; border-radius: 2px; background: var(--surface-tint); }
+  .strip-fill > span { display: block; height: 100%; border-radius: inherit; background: var(--blue-600); transition: width var(--move); }
+  .strip-count { font-size: 10.5px; font-weight: 600; }
+  .strip-day-on { color: #ffffff; background: var(--gradient-primary); box-shadow: 0 10px 22px rgba(36, 97, 219, 0.3); }
+  .strip-day-on .strip-date { color: #ffffff; }
+  .strip-day-on .strip-fill { background: rgba(255, 255, 255, 0.3); }
+  .strip-day-on .strip-fill > span { background: #ffffff; }
+  .week-hero {
+    position: relative;
+    overflow: hidden;
+    padding: 20px;
+    border-radius: 28px;
+    color: #ffffff;
+    background: linear-gradient(140deg, var(--blue-500) 0%, var(--blue-600) 50%, var(--blue-650) 100%);
+    box-shadow: 0 14px 32px rgba(30, 82, 196, 0.3);
+    animation: rise var(--move) both, fade-in var(--fade) both;
+  }
+  .week-hero > *:not(.hero-bloom) { position: relative; }
+  .week-hero-date { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; }
+  .week-hero h2 { margin: 6px 0 0; font-family: var(--font-display); font-weight: 700; font-size: 24px; letter-spacing: -0.02em; }
+  .week-hero-cells { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 16px; }
+  .week-hero-cells > div { padding: 10px 4px; text-align: center; }
+  .week-hero-cells dt { font-size: 9px; }
+  .week-by { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+  .week-by > li:not(.today-empty) {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1px solid #ffffff;
+    border-radius: 22px;
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.8));
+    box-shadow: 0 4px 16px rgba(16, 42, 94, 0.07);
+    animation: rise var(--move) both, fade-in var(--fade) both;
+  }
+  .week-by-avatar { display: grid; place-items: center; flex: none; width: 46px; height: 46px; border-radius: 16px; font-family: var(--font-display); font-weight: 600; color: #ffffff; }
+  .week-by-text { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+  .week-by-name { font-size: 14px; font-weight: 600; color: var(--ink-primary); }
+  .week-by-sub { font-size: 12px; color: var(--ink-muted); }
+  .week-by-text .week-load-track { margin-top: 5px; }
+  .week-by-count { flex: none; font-family: var(--font-display); font-weight: 700; font-size: 20px; color: var(--ink-primary); }
+
+  /* One visit from the desk (Mobile · Staff appointment, 180:2): a back bar
+     for the breadcrumb, and the actions held at the foot. */
+  .visit-page .visit-crumbs { display: none; }
+  .visit-page > .phone-bar { margin-bottom: 0; }
+  .visit-page .staff-hero { border-radius: 28px; }
+  .visit-page-main,
+  .visit-page-side { padding: 18px; border-radius: 26px; }
+  .visit-page > .visit-page-actions {
+    position: sticky;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    z-index: 5;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #ffffff;
+    border-radius: 24px;
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.86));
+    box-shadow: 0 12px 30px rgba(16, 42, 94, 0.16);
+  }
+  .visit-page > .visit-page-actions > * { height: 48px; }
+  .patient-app:has(.visit-page) .bottom-nav { display: none; }
+
   /* Cancel (Mobile · Cancel visit, 37:2): a bottom sheet with a grab handle,
      rising from the foot of the screen. Staff cancelling uses it too. */
   .scrim { align-items: flex-end; padding: 0; }

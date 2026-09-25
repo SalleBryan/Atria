@@ -27,6 +27,7 @@ import { ACTIVE_STATES, type Appointment, clock, initials } from "../patient/dat
 import {
   CANCELLED_STATES,
   doctor,
+  ROLE_LABEL,
   fullName,
   isDate,
   joinDirectory,
@@ -45,6 +46,7 @@ import {
   useStaffData,
 } from "./data";
 import { CancelVisit } from "./CancelVisit";
+import { useTier } from "../layout/fit";
 import { BOOKED_BY, CHANNEL, staffState } from "./labels";
 import { Snackbar } from "./Snackbar";
 
@@ -57,6 +59,7 @@ export function DaySchedule() {
   const me = session.status === "signed-in" ? session.me : undefined;
   const role = me ? roleOf(me) : "RECEPTIONIST";
   const own = readsOwnCalendar(role);
+  const phone = useTier() === "mobile";
   const data = directory.status === "ready" ? directory.data : undefined;
 
   const date = isDate(params.get("date")) ? (params.get("date") as string) : today();
@@ -96,6 +99,20 @@ export function DaySchedule() {
 
   return (
     <div className="staff-day">
+      {phone && me && (
+        // Mobile · Staff today (174:2): who is signed in, and where.
+        <header className="phone-head">
+          <span className="side-avatar phone-avatar" aria-hidden="true">
+            {initials(me.givenName, me.familyName) || "A"}
+          </span>
+          <span>
+            <span className="phone-hello">
+              {[ROLE_LABEL[role], data?.clinics.find((c) => c.clinicId === me.clinicId)?.name].filter(Boolean).join(" · ")}
+            </span>
+            <span className="phone-name">{[me.givenName, me.familyName].filter(Boolean).join(" ")}</span>
+          </span>
+        </header>
+      )}
       <header className="glass staff-top">
         <div className="staff-nav">
           <button type="button" className="square-button" aria-label="Previous day" onClick={() => go({ date: shiftDate(date, -1), visit: null })}>

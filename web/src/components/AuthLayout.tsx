@@ -45,6 +45,7 @@ export function AuthLayout({
   return (
     <div
       className="auth"
+      data-product={product}
       style={
         {
           "--pane": `${paneWidth}px`,

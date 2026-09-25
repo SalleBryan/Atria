@@ -79,6 +79,62 @@
   }
   .patient-main { padding: 20px 20px 116px; }
 
+  /* Sign-in screens (Mobile · Sign in, 32:2): no brand strip, the mark alone
+     on the page, then the heading, then the switch, then the form. */
+  .auth { background: var(--gradient-page); }
+  .brand-pane { padding: 40px 26px 0; background: none; box-shadow: none; }
+  .brand-pane .orb,
+  .form-pane .orb { display: none; }
+  .auth-box > .form-card { margin-top: 0; }
+  .logo-text { display: none; }
+  .logo-mark { width: 56px; height: 56px; border-radius: 18px; color: #ffffff; background: var(--gradient-primary); box-shadow: 0 10px 22px rgba(36, 97, 219, 0.3); }
+  .form-pane { background: none; }
+  .form-scroll { padding: 18px 26px 32px; }
+  .auth-box { display: flex; flex-direction: column; }
+  .auth-box > .title { order: -2; margin-top: 0; font-size: 30px; line-height: 36px; }
+  .auth-box > .lede { order: -1; margin: 8px 0 18px; font-size: 14px; line-height: 21px; }
+  .auth-box > .mode-switch { margin-bottom: 18px; }
+  .auth-box > .legal { margin-top: 28px; text-align: center; }
+
+  /* Staff screens (Mobile · Staff sign in, 167:2): the pitch on the brand
+     blue, and the form rising from below as a white sheet. */
+  .auth[data-product="CLINIC CONSOLE"] { display: flex; flex-direction: column; background: var(--gradient-brand); }
+  .auth[data-product="CLINIC CONSOLE"] .logo-text { display: flex; color: #ffffff; }
+  .auth[data-product="CLINIC CONSOLE"] .logo-mark { color: var(--blue-700); background: var(--glass-logo); }
+  .auth[data-product="CLINIC CONSOLE"] .form-pane,
+  .auth[data-product="CLINIC CONSOLE"] .form-scroll,
+  .auth[data-product="CLINIC CONSOLE"] .auth-box { display: flex; flex-direction: column; flex: 1; }
+  .auth[data-product="CLINIC CONSOLE"] .form-scroll { padding-bottom: 0; }
+  .auth[data-product="CLINIC CONSOLE"] .auth-box > .status-pill { order: -3; align-self: flex-start; margin-bottom: 16px; color: #ffffff; border-color: #ffffff; background: rgba(255, 255, 255, 0.16); }
+  .auth[data-product="CLINIC CONSOLE"] .auth-box > .title,
+  .auth[data-product="CLINIC CONSOLE"] .auth-box > .lede { color: #ffffff; }
+  .auth[data-product="CLINIC CONSOLE"] .auth-box > .lede { margin-bottom: 26px; opacity: 0.94; }
+  /* The sheet is drawn by the card and runs to the foot of the screen, so
+     what follows the card (the first sign-in note) sits on it too. */
+  .auth[data-product="CLINIC CONSOLE"] { position: relative; z-index: 0; overflow: clip; }
+  .auth[data-product="CLINIC CONSOLE"] .auth-box > .form-card {
+    position: relative;
+    margin: 0 -26px 18px;
+    padding: 26px 26px 8px;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+  .auth[data-product="CLINIC CONSOLE"] .auth-box > .form-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: -1;
+    height: 300vh;
+    border-radius: 30px 30px 0 0;
+    background: #f6f9ff;
+    box-shadow: 0 -10px 30px rgba(10, 36, 96, 0.18);
+  }
+  .auth[data-product="CLINIC CONSOLE"] .auth-box > .notice:last-child { margin-top: auto; margin-bottom: 26px; }
+
   /* Home (28:2): the person, search, the next appointment, and who has an
      opening today. The desktop columns give way to that list. */
   .home { gap: 18px; }

@@ -19,8 +19,9 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 import { api } from "../api/client";
 import { Notice } from "../components/controls";
-import { Alert, Bell, CheckMark, Close, Mail } from "../components/icons";
+import { Alert, Bell, CheckMark, ChevronLeft, Close, Mail } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { useTier } from "../layout/fit";
 import {
   ACTIVE_STATES,
   type Appointment,
@@ -51,6 +52,7 @@ function hoursUntil(instant: string, now = Date.now()): number {
 export function Visits() {
   const { state, reload } = usePatientData();
   const { id } = useParams();
+  const phone = useTier() === "mobile";
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const [done, setDone] = useState<string | null>(null);
@@ -85,7 +87,9 @@ export function Visits() {
   }
 
   return (
-    <div className="find-care visits">
+    // On a phone the list and one visit are two screens (Mobile · My visits,
+    // 36:4, and Mobile · Visit details, 36:115); wider, they sit side by side.
+    <div className="find-care visits" data-step={id ? "detail" : "list"}>
       <section className="find-list glass" aria-labelledby="visits-title">
         <header className="find-head">
           <h1 id="visits-title">Your visits</h1>
@@ -108,7 +112,7 @@ export function Visits() {
             const status = stateLabel(appointment.state);
             const on = appointment === selected;
             return (
-              <li key={appointment.appointmentId}>
+              <li key={appointment.appointmentId} className={phone && ACTIVE_STATES.includes(appointment.state) ? "visit-card" : undefined}>
                 <Link
                   className={`visit-item${on ? " visit-item-on" : ""}`}
                   to={`/visits/${appointment.appointmentId}`}
@@ -126,6 +130,16 @@ export function Visits() {
                     <span className={`chip chip-${status.tone}`}>{status.label}</span>
                   </span>
                 </Link>
+                {phone && ACTIVE_STATES.includes(appointment.state) && tab === "upcoming" && (
+                  <div className="visit-card-actions">
+                    <Link className="outline-danger" to={`/visits/${appointment.appointmentId}?cancel=1`}>
+                      Cancel visit
+                    </Link>
+                    <Link className="dock-button" to={`/visits/${appointment.appointmentId}`}>
+                      Details
+                    </Link>
+                  </div>
+                )}
               </li>
             );
           })}
@@ -143,6 +157,12 @@ export function Visits() {
       </section>
 
       <section className="find-detail glass visit-detail" aria-label="Visit details">
+        <div className="phone-bar">
+          <Link className="square-button" to={`/visits${tab === "past" ? "?show=past" : ""}`} aria-label="Back to your visits">
+            <ChevronLeft size={18} />
+          </Link>
+          <span>Visit details</span>
+        </div>
         {done && <Notice tone="success">{done}</Notice>}
         {selected ? (
           <VisitDetail
@@ -181,6 +201,20 @@ function VisitDetail({ appointment, onCancel }: { appointment: Appointment; onCa
   const directions = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     [clinic?.name, clinic?.address].filter(Boolean).join(", "),
   )}`;
+  // Tablet (52:2) and phone (36:115) hold the actions outside the cards.
+  const tablet = useTier() !== "desktop";
+  const actions = (
+    <div className="visit-actions">
+      {active && (
+        <button type="button" className="outline-danger" onClick={onCancel}>
+          Cancel visit
+        </button>
+      )}
+      <a className="dock-button directions" href={directions} target="_blank" rel="noreferrer">
+        Get directions
+      </a>
+    </div>
+  );
 
   return (
     <>
@@ -300,18 +334,11 @@ function VisitDetail({ appointment, onCancel }: { appointment: Appointment; onCa
               </li>
             )}
           </ol>
-          <div className="visit-actions">
-            {active && (
-              <button type="button" className="outline-danger" onClick={onCancel}>
-                Cancel visit
-              </button>
-            )}
-            <a className="dock-button directions" href={directions} target="_blank" rel="noreferrer">
-              Get directions
-            </a>
-          </div>
+          {!tablet && actions}
         </section>
       </div>
+      {/* The tablet frame (52:2) runs the actions under both cards. */}
+      {tablet && actions}
     </>
   );
 }

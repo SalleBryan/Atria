@@ -64,6 +64,10 @@
   .detail-facts { grid-column: 1 / -1; order: 2; justify-content: space-around; margin-top: 15px; }
   .detail-facts > div { flex: 1; }
 
+  /* My visits (52:2): the visit's actions in a row under both cards. */
+  .visit-detail > .visit-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 12px; margin-top: 0; }
+  .visit-detail > .visit-actions > * { height: 50px; }
+
   /* Booked (47:115) fits the tablet frame whole; only its light ran over. */
   .booked-screen { overflow: hidden; }
 }
@@ -213,6 +217,36 @@
   .find-care.conflict .dock-label,
   .find-care.conflict .dock-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .find-care.conflict .openings-head h2 { font-size: 17px; }
+
+  /* My visits (Mobile · My visits, 36:4): each upcoming visit a card with
+     Cancel and Details; one visit (Mobile · Visit details, 36:115) on its own
+     page, its actions held at the foot. */
+  .visit-card {
+    padding: 14px;
+    border: 1px solid #ffffff;
+    border-radius: 24px;
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.78));
+    box-shadow: 0 4px 18px rgba(16, 42, 94, 0.08);
+  }
+  .visit-card > .visit-item { padding: 0; border: 0; background: none; box-shadow: none; }
+  .visit-card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .visit-card-actions > * { display: grid; place-items: center; height: 46px; text-decoration: none; }
+  .visits .visit-cols { grid-template-columns: minmax(0, 1fr); }
+  .visits[data-step="detail"] .visit-detail > .visit-cols .visit-actions,
+  .visits[data-step="detail"] .visit-detail .visit-actions {
+    position: sticky;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    z-index: 5;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 16px;
+    padding: 12px;
+    border: 1px solid #ffffff;
+    border-radius: 24px;
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.86));
+    box-shadow: 0 12px 30px rgba(16, 42, 94, 0.16);
+  }
 
   /* Booked (Mobile · Booking confirmed, 35:89): the check, heading and lede
      centred, then the ticket, then what happens next, then the actions. */

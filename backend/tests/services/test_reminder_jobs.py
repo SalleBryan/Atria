@@ -471,6 +471,51 @@ class TestDispatch:
         jobs = outbox.jobs_due(self.stream(old_state="BOOKED", new_state="CLINIC_CANCELLED"))
         assert [j["kind"] for j in jobs] == [notices.BOOKING_CANCELLATION, reminders.CANCEL]
 
+    def moved(self, *, old_state, old_start, new_start):
+        record = self.stream(old_state=old_state, new_state="RESCHEDULED")
+        record["dynamodb"]["NewImage"]["startAt"] = {"S": new_start}
+        record["dynamodb"]["OldImage"]["startAt"] = {"S": old_start}
+        return record
+
+    def test_a_move_owes_a_notice_and_the_reminder_set_again(self):
+        """FR-VIS-07: the old reminder comes down before the new one goes up."""
+        jobs = outbox.jobs_due(
+            self.moved(
+                old_state="BOOKED",
+                old_start="2026-03-04T08:00:00Z",
+                new_start="2026-03-05T09:00:00Z",
+            )
+        )
+        assert [j["kind"] for j in jobs] == [
+            notices.BOOKING_RESCHEDULED,
+            reminders.CANCEL,
+            reminders.SCHEDULE,
+        ]
+
+    def test_a_second_move_owes_the_same_although_the_state_is_unchanged(self):
+        jobs = outbox.jobs_due(
+            self.moved(
+                old_state="RESCHEDULED",
+                old_start="2026-03-05T09:00:00Z",
+                new_start="2026-03-06T10:00:00Z",
+            )
+        )
+        assert jobs[0]["kind"] == notices.BOOKING_RESCHEDULED
+
+    def test_a_rewrite_of_a_rescheduled_visit_at_the_same_time_owes_nothing(self):
+        same = "2026-03-05T09:00:00Z"
+        assert (
+            outbox.jobs_due(self.moved(old_state="RESCHEDULED", old_start=same, new_start=same))
+            == []
+        )
+
+    def test_a_no_show_takes_the_reminder_down_and_tells_nobody(self):
+        jobs = outbox.jobs_due(self.stream(old_state="BOOKED", new_state="NO_SHOW"))
+        assert [j["kind"] for j in jobs] == [reminders.CANCEL]
+
+    def test_arrival_owes_nothing(self):
+        assert outbox.jobs_due(self.stream(old_state="BOOKED", new_state="ARRIVED")) == []
+
     def test_storing_the_reminder_reference_owes_nothing(self):
         """It rewrites the appointment in the same state; a loop would follow otherwise."""
         assert outbox.jobs_due(self.stream(old_state="BOOKED", new_state="BOOKED")) == []

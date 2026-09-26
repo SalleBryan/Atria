@@ -200,7 +200,9 @@ def cancel(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
         cancellation=decided,
         actor_person_id=caller.person_id,
         actor_role=role_used(caller, "appointment.cancel"),
-        reason=str(body.get("reason") or "") or None,
+        reason=rules.require_reason(
+            str(body.get("reason") or "") or None, by_staff=caller.is_staff, action="cancel"
+        ),
         minutes=rules.grid_unit_minutes(data.tenant(principal.tenant_id)),
     )
     logger.info(
@@ -328,10 +330,19 @@ def book(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
 
 @api
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
-    """POST /appointments, GET /patients/me/appointments, GET /appointments/{id}"""
+    """POST /appointments, GET /patients/me/appointments, GET /appointments/{id},
+    DELETE /appointments/{id}, and POST /appointments/{id}/<action> (visits.py)."""
+    # Imported here: visits builds on this module's helpers.
+    from atria.services.booking import visits
+
     principal = requests.principal_from(event)
     method = str(event.get("httpMethod", "")).upper()
     resource = str(event.get("resource", ""))
+
+    if method == "POST" and resource.startswith("/appointments/{id}/"):
+        action = visits.ACTIONS.get(resource.rsplit("/", 1)[-1])
+        if action is not None:
+            return responses.ok(action(principal, event))
 
     if method == "POST" and resource.endswith("/appointments"):
         return book(principal, event)

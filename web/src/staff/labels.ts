@@ -14,7 +14,7 @@ export const STAFF_STATE: Record<AppointmentState, { label: string; tone: Tone }
   REQUESTED: { label: "Requested", tone: "awaiting" },
   DECLINED: { label: "Declined", tone: "cancelled" },
   BOOKED: { label: "Confirmed", tone: "booked" },
-  CONFIRMED: { label: "Confirmed", tone: "booked" },
+  CONFIRMED: { label: "Patient confirmed", tone: "booked" },
   RESCHEDULED: { label: "Rescheduled", tone: "booked" },
   DISRUPTED: { label: "Time changed", tone: "awaiting" },
   ARRIVED: { label: "Arrived", tone: "confirmed" },

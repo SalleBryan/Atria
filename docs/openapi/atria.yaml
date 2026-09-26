@@ -566,6 +566,10 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/Appointment" }
                   patients: { $ref: "#/components/schemas/PatientNames" }
+                  noShowDue:
+                    type: array
+                    items: { type: string }
+                    description: Appointments on this page still scheduled 30 minutes after their end, which staff should now be asked about (FR-STF-05).
         "400":
           description: A date is malformed, the range is backwards, or it is wider than 31 days.
           content:
@@ -640,6 +644,10 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/Appointment" }
                   patients: { $ref: "#/components/schemas/PatientNames" }
+                  noShowDue:
+                    type: array
+                    items: { type: string }
+                    description: Appointments on this page still scheduled 30 minutes after their end, which staff should now be asked about (FR-STF-05).
         "400":
           description: The date is malformed.
           content:
@@ -894,7 +902,7 @@ paths:
                   description: Required when staff cancel. Ignored when the patient does.
                 reason:
                   type: string
-                  description: Recorded on the event. Mandatory for staff from Phase 2.
+                  description: Recorded on the event. Required when staff cancel, and never prefilled (FR-VIS-05).
       responses:
         "200":
           description: The cancelled appointment, with the outcome and entitlement.
@@ -902,7 +910,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CancelledAppointment" }
         "400":
-          description: Staff did not say who cancelled.
+          description: Staff did not say who cancelled, or why.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -919,6 +927,159 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+
+  /appointments/{id}/reschedule:
+    post:
+      tags: [Booking]
+      operationId: rescheduleAppointment
+      summary: Move an appointment to another time
+      description: |
+        Permission appointment.reschedule: a patient their own, staff within
+        their scope. The same appointment moves and keeps its reference; the
+        new units are locked and the old ones freed in one transaction, and
+        the event records the previous time (FR-VIS-07). The state becomes
+        RESCHEDULED. A patient moves the time only; staff may also move it to
+        another clinician. The type's notice and booking window apply as for
+        a new booking. The patient is emailed the new time and the reminder is
+        set again for it.
+
+        Staff give a reason and say whose move it is (FR-VIS-05). A clinic
+        move is recorded with entitlement NONE (FR-MSR-06).
+      parameters:
+        - $ref: "#/components/parameters/AppointmentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [startAt]
+              properties:
+                startAt: { type: string, format: date-time }
+                clinicianProfileId:
+                  type: string
+                  description: Staff only. Defaults to the current clinician.
+                rescheduledBy:
+                  type: string
+                  enum: [PATIENT, CLINIC]
+                  description: Required when staff move it.
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: Required when staff move it; never prefilled.
+      responses:
+        "200":
+          description: The moved appointment.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "400":
+          description: The time is in the past, off the grid, outside the type's window, or a required field is missing.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The new time is taken, or the appointment is closed or changed meanwhile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /appointments/{id}/confirm:
+    post:
+      tags: [Booking]
+      operationId: confirmAppointment
+      summary: The patient confirms they will come
+      description: BOOKED to CONFIRMED. Only the patient, never staff on their behalf.
+      parameters:
+        - $ref: "#/components/parameters/AppointmentId"
+      responses:
+        "200": { $ref: "#/components/responses/MovedAppointment" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/WrongState" }
+
+  /appointments/{id}/arrive:
+    post:
+      tags: [Schedule]
+      operationId: recordArrival
+      summary: Record that the patient has arrived
+      description: |
+        Permission appointment.check_in. From any scheduled state to ARRIVED,
+        recorded against the staff account (FR-STF-04). Two people pressing it
+        at once record one arrival; the second gets 409.
+      parameters:
+        - $ref: "#/components/parameters/AppointmentId"
+      responses:
+        "200": { $ref: "#/components/responses/MovedAppointment" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/WrongState" }
+
+  /appointments/{id}/start:
+    post:
+      tags: [Schedule]
+      operationId: startConsultation
+      summary: The clinician starts the consultation
+      description: |
+        ARRIVED to IN_CONSULTATION. Needs appointment.check_in in scope and the
+        caller to be a clinician or a unit manager: the desk records arrival,
+        it does not open a consultation.
+      parameters:
+        - $ref: "#/components/parameters/AppointmentId"
+      responses:
+        "200": { $ref: "#/components/responses/MovedAppointment" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/WrongState" }
+
+  /appointments/{id}/complete:
+    post:
+      tags: [Schedule]
+      operationId: completeConsultation
+      summary: The clinician closes the consultation
+      description: IN_CONSULTATION to COMPLETED, under the same rule as start.
+      parameters:
+        - $ref: "#/components/parameters/AppointmentId"
+      responses:
+        "200": { $ref: "#/components/responses/MovedAppointment" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/WrongState" }
+
+  /appointments/{id}/no-show:
+    post:
+      tags: [Schedule]
+      operationId: recordNoShow
+      summary: Record that the patient did not come
+      description: |
+        Permission appointment.mark_no_show. Only from a scheduled state and
+        only once 30 minutes have passed since the scheduled end; the day
+        list's noShowDue names the visits that qualify (FR-STF-05). The
+        reminder, if any, is taken down.
+      parameters:
+        - $ref: "#/components/parameters/AppointmentId"
+      responses:
+        "200": { $ref: "#/components/responses/MovedAppointment" }
+        "400":
+          description: It is too early; detail.from says when it can be recorded.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/WrongState" }
 
 components:
   parameters:
@@ -1380,6 +1541,16 @@ components:
           description: The invocation, for tracing a report from a clinic.
 
   responses:
+    MovedAppointment:
+      description: The appointment in its new state.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Appointment" }
+    WrongState:
+      description: The lifecycle does not allow that move from the appointment's current state, or it changed meanwhile.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
     Invalid:
       description: The request is malformed, or fails a validation rule.
       content:

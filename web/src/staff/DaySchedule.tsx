@@ -38,6 +38,7 @@ import {
   isDate,
   joinDirectory,
   minutesOf,
+  noShowDue,
   noonOf,
   patientName,
   readsOwnCalendar,
@@ -523,7 +524,11 @@ function DayList({
                 <span className="day-name">{fullName(name)}</span>
                 <span className="day-sub">{who}</span>
               </span>
-              <span className={`chip chip-${tone}`}>{label}</span>
+              {noShowDue(appointment) ? (
+                <span className="chip chip-awaiting">No-show?</span>
+              ) : (
+                <span className={`chip chip-${tone}`}>{label}</span>
+              )}
             </button>
           </li>
         );

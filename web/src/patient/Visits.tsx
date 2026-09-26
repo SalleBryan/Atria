@@ -23,6 +23,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { api } from "../api/client";
 import { Notice } from "../components/controls";
 import { byPopularity, ChipRow, FilterMenu } from "../components/FilterMenu";
+import { MoveVisit } from "../components/MoveVisit";
 import { Alert, Bell, Building, CheckMark, ChevronLeft, Close, Filter, Mail, Stethoscope, User } from "../components/icons";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { rank, SearchSuggest, type SuggestionGroup } from "../components/SearchSuggest";
@@ -155,6 +156,7 @@ export function Visits() {
   ];
   const selected = selectedVisit ?? shown[0];
   const cancelling = params.get("cancel") === "1" && selected && ACTIVE_STATES.includes(selected.state);
+  const moving = params.get("move") === "1" && selected && ACTIVE_STATES.includes(selected.state);
 
   function choose(which: "upcoming" | "past") {
     setDone(null);
@@ -313,12 +315,36 @@ export function Visits() {
             key={selected.appointmentId}
             appointment={selected}
             onCancel={() => setParams({ cancel: "1" })}
+            onMove={() => setParams({ move: "1" })}
+            onConfirmed={async () => {
+              await reload();
+              setDone("Thank you. The unit knows you are coming.");
+            }}
           />
         ) : (
           <p className="empty">Choose a visit to see its details.</p>
         )}
       </section>
 
+      {moving && selected && (
+        <MoveVisit
+          appointment={selected}
+          type={join(data, selected).type}
+          who={{
+            givenName: join(data, selected).clinician?.givenName,
+            familyName: join(data, selected).clinician?.familyName,
+            label: clinicianName(join(data, selected).clinician),
+          }}
+          withWhom={join(data, selected).clinic?.name ?? ""}
+          byStaff={false}
+          onClose={() => setParams({})}
+          onMoved={async (moved) => {
+            await reload();
+            setParams({});
+            setDone(`Moved to ${clock.day(moved.startAt)} at ${clock.time(moved.startAt)}. Your reference stays ${moved.reference}, and we have emailed you.`);
+          }}
+        />
+      )}
       {cancelling && selected && (
         <CancelDialog
           appointment={selected}
@@ -334,8 +360,20 @@ export function Visits() {
   );
 }
 
-function VisitDetail({ appointment, onCancel }: { appointment: Appointment; onCancel: () => void }) {
+function VisitDetail({
+  appointment,
+  onCancel,
+  onMove,
+  onConfirmed,
+}: {
+  appointment: Appointment;
+  onCancel: () => void;
+  onMove: () => void;
+  onConfirmed: () => Promise<void>;
+}) {
   const { state } = usePatientData();
+  const [confirming, setConfirming] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   if (state.status !== "ready") return null;
   const { clinician, clinic, type } = join(state.data, appointment);
   const status = stateLabel(appointment.state);
@@ -347,8 +385,31 @@ function VisitDetail({ appointment, onCancel }: { appointment: Appointment; onCa
   )}`;
   // Tablet (52:2) and phone (36:115) hold the actions outside the cards.
   const tablet = useTier() !== "desktop";
+  async function confirm() {
+    setConfirming(true);
+    setFailed(null);
+    try {
+      await api(`/appointments/${appointment.appointmentId}/confirm`, { method: "POST" });
+      await onConfirmed();
+    } catch {
+      setFailed("That did not go through. Check your connection and try again.");
+      setConfirming(false);
+    }
+  }
+
   const actions = (
     <div className="visit-actions">
+      {failed && <Notice tone="error">{failed}</Notice>}
+      {active && appointment.state === "BOOKED" && (
+        <button type="button" className="dock-button" disabled={confirming} aria-busy={confirming || undefined} onClick={confirm}>
+          {confirming ? "Confirming" : "I'll be there"}
+        </button>
+      )}
+      {active && (
+        <button type="button" className="outline-button" onClick={onMove}>
+          Move visit
+        </button>
+      )}
       {active && (
         <button type="button" className="outline-danger" onClick={onCancel}>
           Cancel visit

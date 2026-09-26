@@ -77,6 +77,8 @@ REMINDER_JOB_FOR_STATE = {
     "BOOKED": reminders.SCHEDULE,
     "PATIENT_CANCELLED": reminders.CANCEL,
     "CLINIC_CANCELLED": reminders.CANCEL,
+    # Closed without a visit, so the reminder has nobody to remind.
+    "NO_SHOW": reminders.CANCEL,
 }
 
 
@@ -96,7 +98,10 @@ def jobs_due(record: dict[str, Any]) -> list[dict[str, Any]]:
     old = plain(change.get("OldImage"))
     to_state = str(new.get("state") or "")
     from_state = old.get("state")
-    if from_state == to_state:
+    # A move to another time. A second move lands in RESCHEDULED again, so the
+    # time, not the state, is what says it happened (FR-VIS-07).
+    moved = bool(old) and to_state == "RESCHEDULED" and old.get("startAt") != new.get("startAt")
+    if from_state == to_state and not moved:
         # A rewrite in the same state owes nothing, or a retried write would
         # send a second confirmation and schedule a second reminder.
         return []
@@ -108,9 +113,15 @@ def jobs_due(record: dict[str, Any]) -> list[dict[str, Any]]:
         "toState": to_state,
     }
     jobs: list[dict[str, Any]] = []
-    kind = notices.kind_for(from_state, to_state)
+    kind = notices.BOOKING_RESCHEDULED if moved else notices.kind_for(from_state, to_state)
     if kind is not None:
         jobs.append({**base, "kind": kind, "channel": "EMAIL"})
+    if moved:
+        # The reminder was set for the old time: take it down, then set it for
+        # the new one. One message group per appointment keeps them in order.
+        jobs.append({**base, "kind": reminders.CANCEL, "channel": "SMS"})
+        jobs.append({**base, "kind": reminders.SCHEDULE, "channel": "SMS"})
+        return jobs
     reminder_job = REMINDER_JOB_FOR_STATE.get(to_state)
     if reminder_job is not None:
         jobs.append({**base, "kind": reminder_job, "channel": "SMS"})

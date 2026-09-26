@@ -314,11 +314,21 @@ class TestWhoMayCancel:
             cancel(
                 booked["appointmentId"],
                 context=staff_context(),
-                body={"cancelledBy": "PATIENT"},
+                body={"cancelledBy": "PATIENT", "reason": "the patient phoned the desk"},
             )
         )
         assert found["state"] == "PATIENT_CANCELLED"
         assert found["bookedByRole"] is None
+
+    def test_staff_must_say_why(self, wired):
+        """FR-VIS-05: never prefilled, and the cancellation cannot complete without it."""
+        _repo, clinician = wired
+        booked = book(clinician)
+        result = cancel(
+            booked["appointmentId"], context=staff_context(), body={"cancelledBy": "PATIENT"}
+        )
+        assert result["statusCode"] == 400
+        assert "reason" in body_of(result)["message"]
 
     def test_a_patient_cannot_claim_the_clinic_cancelled(self, wired):
         """It would turn a late cancellation into a full entitlement."""

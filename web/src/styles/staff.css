@@ -591,8 +591,14 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 .person-link { flex: none; font-size: 12.5px; font-weight: 700; color: var(--blue-600); text-decoration: none; }
 .person-link:hover { text-decoration: underline; }
 .visit-page-timeline li { padding-bottom: 22px; }
-.visit-page-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 10px; margin-top: auto; }
-.visit-page-actions > * { height: 52px; margin: 0; border-radius: 18px; }
+.visit-page-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: auto; }
+.visit-page-actions > * { flex: 1 1 0; min-width: 0; height: 52px; margin: 0; border-radius: 18px; }
+/* The next step, a question and an error each take the whole row above the rest. */
+.visit-page-actions > .staff-primary,
+.visit-page-actions > .no-show-ask,
+.visit-page-actions > .notice { flex-basis: 100%; }
+.visit-page-actions > .no-show-ask,
+.visit-page-actions > .notice { height: auto; }
 .visit-back { display: grid; place-items: center; text-decoration: none; }
 .visit-missing { display: flex; flex-direction: column; gap: 14px; max-width: 460px; padding: 22px; border-radius: 28px; }
 .visit-skeleton-hero { height: 142px; border-radius: 30px; }
@@ -1167,3 +1173,31 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   .sheet-cancel,
   .sheet-primary { flex: 1; justify-content: center; }
 }
+
+/* Move a visit (components/MoveVisit.tsx): the cancel dialog's shape, with
+   Find care's day and time pickers inside it. */
+.dialog-icon-blue { background: var(--gradient-primary); box-shadow: var(--shadow-primary, 0 10px 24px rgba(44, 99, 222, 0.28)); }
+.move-dialog { max-width: 560px; max-height: calc(100% - 32px); overflow-y: auto; }
+.move-dialog form { display: flex; flex-direction: column; gap: 10px; }
+.move-dialog .row-head { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.move-dialog .dialog-label { margin: 0; }
+.move-dialog .week-nav { display: flex; gap: 4px; }
+.move-dialog .days { gap: 6px; }
+.move-dialog .day { min-height: 72px; }
+.move-slots { min-height: 50px; }
+.move-dialog .dialog-actions .staff-primary { padding: 0 20px; }
+
+/* Asked, never assumed: a scheduled visit past its end and grace (FR-STF-05). */
+.no-show-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid rgba(214, 150, 40, 0.45);
+  border-radius: 18px;
+  background: var(--status-awaiting-bg, #fff6e6);
+  animation: rise var(--move) both, fade-in var(--fade) both;
+}
+.no-show-ask p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-800); }
+.no-show-choices { display: flex; gap: 8px; }
+.no-show-choices > * { flex: 1; }

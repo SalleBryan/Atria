@@ -27,8 +27,9 @@ from atria.core.errors import Invalid
 BOOKING_CONFIRMATION = "BOOKING_CONFIRMATION"
 BOOKING_CANCELLATION = "BOOKING_CANCELLATION"
 APPOINTMENT_REMINDER = "APPOINTMENT_REMINDER"
+BOOKING_RESCHEDULED = "BOOKING_RESCHEDULED"
 
-KINDS = (BOOKING_CONFIRMATION, BOOKING_CANCELLATION, APPOINTMENT_REMINDER)
+KINDS = (BOOKING_CONFIRMATION, BOOKING_CANCELLATION, APPOINTMENT_REMINDER, BOOKING_RESCHEDULED)
 
 # One SMS segment in the GSM alphabet. Beyond it a message is billed as two, and
 # for a clinic paying per message in XAF that doubles the cost of every reminder.
@@ -60,6 +61,7 @@ NOTICE_FOR_STATE = {
     "BOOKED": BOOKING_CONFIRMATION,
     "PATIENT_CANCELLED": BOOKING_CANCELLATION,
     "CLINIC_CANCELLED": BOOKING_CANCELLATION,
+    "RESCHEDULED": BOOKING_RESCHEDULED,
 }
 
 
@@ -190,14 +192,56 @@ TEXT = {
     },
 }
 
+TEXT[BOOKING_RESCHEDULED] = {
+    "fr": {
+        "subject": "Rendez-vous déplacé, référence {reference}",
+        "preheader": "Nouvel horaire : le {date} à {time}, {clinic}.",
+        "tag": "Rendez-vous déplacé",
+        "heading": "Votre rendez-vous a été déplacé",
+        "rows": (
+            ("Nouvelle date", "{date}"),
+            ("Nouvelle heure", "{time}"),
+            ("Lieu", "{clinic}"),
+            ("Praticien", "{clinician}"),
+        ),
+        "closing": "Votre référence reste la même. Si ce nouvel horaire ne vous convient "
+        "pas, ouvrez votre rendez-vous dans l'application Atria pour le déplacer ou "
+        "l'annuler.",
+        "action": "Voir mon rendez-vous",
+    },
+    "en": {
+        "subject": "Appointment moved, reference {reference}",
+        "preheader": "New time: {date} at {time}, {clinic}.",
+        "tag": "Appointment moved",
+        "heading": "Your appointment has been moved",
+        "rows": (
+            ("New date", "{date}"),
+            ("New time", "{time}"),
+            ("Place", "{clinic}"),
+            ("Clinician", "{clinician}"),
+        ),
+        "closing": "Your reference stays the same. If the new time does not suit you, "
+        "open your appointment in the Atria app to move or cancel it.",
+        "action": "View my appointment",
+    },
+}
+
 # The words around the parts, per language. French sets a space before a colon.
 GREETING = {"fr": "Bonjour,", "en": "Hello,"}
 REFERENCE = {"fr": "Référence", "en": "Reference"}
 COLON = {"fr": " : ", "en": ": "}
 
 # How each email looks, and where its button leads in the web client.
-EMAIL_TONE = {BOOKING_CONFIRMATION: "brand", BOOKING_CANCELLATION: "cancelled"}
-EMAIL_LINK = {BOOKING_CONFIRMATION: "/visits/{appointmentId}", BOOKING_CANCELLATION: "/find-care"}
+EMAIL_TONE = {
+    BOOKING_CONFIRMATION: "brand",
+    BOOKING_CANCELLATION: "cancelled",
+    BOOKING_RESCHEDULED: "brand",
+}
+EMAIL_LINK = {
+    BOOKING_CONFIRMATION: "/visits/{appointmentId}",
+    BOOKING_CANCELLATION: "/find-care",
+    BOOKING_RESCHEDULED: "/visits/{appointmentId}",
+}
 
 
 # Short, and plain ASCII: an accent outside the GSM alphabet switches the whole

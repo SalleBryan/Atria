@@ -44,6 +44,9 @@ FUTURE_YEARS = 2
 # appointment it guards.
 LOCK_GRACE = dt.timedelta(hours=6)
 
+# DynamoDB's limit on the items one transaction may touch.
+MAX_TRANSACTION = 100
+
 
 def reference(appointment_id: str) -> str:
     """The reference a patient is given and quotes at the desk (FR-BKG-01).
@@ -455,3 +458,176 @@ class Booking:
                 },
             ) from exc
         return appointment, event
+
+    def move(
+        self,
+        *,
+        tenant_id: str,
+        appointment: Item,
+        to_state: str,
+        kind: str,
+        actor_person_id: str,
+        actor_role: str | None,
+        reason: str | None = None,
+        fields: Item | None = None,
+    ) -> tuple[Item, Item]:
+        """One step along the lifecycle that holds or frees no time.
+
+        Confirming, recording arrival, starting and closing a consultation and
+        recording a no-show are all this: the state changes, an event says who
+        did it, and nothing else moves. Conditional on the state the caller
+        read, so two people pressing Arrived at once record one arrival.
+        """
+        appointment_id = str(appointment["appointmentId"])
+        was = str(appointment["state"])
+        lifecycle.require("appointment", was, to_state)
+        occurred_at = rules.instant(self._clock())
+        event = event_item(
+            appointment_id=appointment_id,
+            tenant_id=tenant_id,
+            kind=kind,
+            from_state=was,
+            to_state=to_state,
+            actor_person_id=actor_person_id,
+            actor_role=actor_role,
+            reason=reason,
+            occurred_at=occurred_at,
+        )
+        changed = {
+            **(fields or {}),
+            "state": to_state,
+            "version": int(appointment.get("version", 1)) + 1,
+        }
+        self._repo.change_together(
+            creates=[
+                (
+                    keys.appointment_event(
+                        tenant_id, appointment_id, occurred_at, str(event["appointmentEventId"])
+                    ),
+                    event,
+                )
+            ],
+            updates=[(keys.appointment(tenant_id, appointment_id), changed, ("state", was))],
+            conflict="that appointment changed while you were looking at it; open it again",
+        )
+        return {**appointment, **changed}, event
+
+    def held(self, tenant_id: str, appointment: Item, *, minutes: int) -> rules.Occupancy:
+        """The units an appointment holds now, recomputed from what it recorded."""
+        start_at = rules.parse_instant(appointment["startAt"], name="startAt")
+        end_at = rules.parse_instant(appointment["endAt"], name="endAt")
+        duration_units = round((end_at - start_at).total_seconds() / 60 / minutes)
+        kind = self.appointment_type(tenant_id, str(appointment["appointmentTypeId"]))
+        return rules.occupancy(
+            start_at,
+            duration_units=duration_units,
+            buffer_units=int(kind.get("bufferUnits") or 0),
+            minutes=minutes,
+        )
+
+    def reschedule(
+        self,
+        *,
+        tenant_id: str,
+        appointment: Item,
+        clinician_profile_id: str,
+        clinic_id: str,
+        occupancy: rules.Occupancy,
+        rescheduled_by: str,
+        actor_person_id: str,
+        actor_role: str | None,
+        reason: str | None,
+        minutes: int,
+        local_day: str,
+    ) -> tuple[Item, Item]:
+        """Move an appointment to new time, holding the new units and freeing the old.
+
+        The same record moves, keeping its reference, so the patient quotes one
+        number whatever happens to the visit; the event keeps where it was, which
+        is the link from the new time to the old (FR-VIS-07). Units the old and
+        new times share, with the same clinician, are simply kept: locking them
+        again would collide with the appointment's own locks.
+
+        A record already RESCHEDULED passes back through BOOKED on its way, the
+        path the lifecycle draws for a second move.
+        """
+        appointment_id = str(appointment["appointmentId"])
+        was = str(appointment["state"])
+        if was == "RESCHEDULED":
+            lifecycle.require("appointment", was, "BOOKED")
+            lifecycle.require("appointment", "BOOKED", "RESCHEDULED")
+        else:
+            lifecycle.require("appointment", was, "RESCHEDULED")
+
+        old_clinician = str(appointment["clinicianProfileId"])
+        old_units = set(self.held(tenant_id, appointment, minutes=minutes).units)
+        new_units = set(occupancy.units)
+        same = old_clinician == clinician_profile_id
+        to_lock = sorted(new_units - old_units) if same else sorted(new_units)
+        to_free = sorted(old_units - new_units) if same else sorted(old_units)
+        if len(to_lock) + len(to_free) + 2 > MAX_TRANSACTION:
+            raise Invalid(
+                "that move is too large to make in one step; cancel and book again",
+                detail={"units": len(to_lock) + len(to_free)},
+            )
+
+        occurred_at = rules.instant(self._clock())
+        expires_at = int((occupancy.held_until + LOCK_GRACE).timestamp())
+        event = event_item(
+            appointment_id=appointment_id,
+            tenant_id=tenant_id,
+            kind="RESCHEDULED",
+            from_state=was,
+            to_state="RESCHEDULED",
+            actor_person_id=actor_person_id,
+            actor_role=actor_role,
+            reason=reason,
+            occurred_at=occurred_at,
+        )
+        event["rescheduledBy"] = rescheduled_by
+        event["previousStartAt"] = appointment["startAt"]
+        event["previousEndAt"] = appointment["endAt"]
+        event["previousClinicianProfileId"] = old_clinician
+        if rescheduled_by == "CLINIC":
+            # What a clinic move owes the patient (FR-MSR-06). Recorded, never settled.
+            event["outcome"] = "CLINIC_RESCHEDULED"
+            event["entitlement"] = "NONE"
+
+        changed = {
+            "state": "RESCHEDULED",
+            "startAt": rules.instant(occupancy.start_at),
+            "endAt": rules.instant(occupancy.end_at),
+            "clinicianProfileId": clinician_profile_id,
+            "clinicId": clinic_id,
+            "clinicDay": f"{clinic_id}#{local_day}",
+            "rescheduledAt": occurred_at,
+            "version": int(appointment.get("version", 1)) + 1,
+        }
+        creates: list[tuple[keys.Key, Item]] = [
+            (
+                keys.slot_lock(tenant_id, clinician_profile_id, unit),
+                lock_item(
+                    tenant_id=tenant_id,
+                    clinician_profile_id=clinician_profile_id,
+                    unit=unit,
+                    appointment_id=appointment_id,
+                    expires_at=expires_at,
+                ),
+            )
+            for unit in to_lock
+        ]
+        creates.append(
+            (
+                keys.appointment_event(
+                    tenant_id, appointment_id, occurred_at, str(event["appointmentEventId"])
+                ),
+                event,
+            )
+        )
+        self._repo.change_together(
+            creates=creates,
+            updates=[(keys.appointment(tenant_id, appointment_id), changed, ("state", was))],
+            deletes=[keys.slot_lock(tenant_id, old_clinician, unit) for unit in to_free],
+            conflict="that time is no longer free, or the appointment changed; choose again",
+        )
+        return {**appointment, **changed}, event

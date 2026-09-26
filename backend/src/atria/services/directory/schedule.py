@@ -105,7 +105,18 @@ def calendar(
         **more,
         "appointments": [appointment_view(a) for a in shown],
         "patients": people.patient_names(principal.tenant_id, patients_in(shown)),
+        "noShowDue": no_shows_due(shown, data=data),
     }
+
+
+def no_shows_due(shown: list[dict[str, Any]], *, data: Booking) -> list[str]:
+    """The visits on a list staff should now be asked about (FR-STF-05).
+
+    Proposed here, never recorded: staff confirm each one, because a patient
+    seen but not checked in is not absent.
+    """
+    now = data.now()
+    return [str(a["appointmentId"]) for a in shown if rules.no_show_due(a, now=now)]
 
 
 def patients_in(found: list[dict[str, Any]]) -> list[str]:
@@ -153,6 +164,7 @@ def clinic_day(
             **more,
             "appointments": [appointment_view(a) for a in shown],
             "patients": people.patient_names(principal.tenant_id, patients_in(shown)),
+            "noShowDue": no_shows_due(shown, data=data),
         }
     raw = requests.query_parameter(event, "date")
     day = schedule.parse_date(raw, name="date") if raw else data.now().astimezone(zone).date()
@@ -165,4 +177,5 @@ def clinic_day(
         **more,
         "appointments": [appointment_view(a) for a in shown],
         "patients": people.patient_names(principal.tenant_id, patients_in(shown)),
+        "noShowDue": no_shows_due(shown, data=data),
     }

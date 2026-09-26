@@ -119,3 +119,47 @@ describe("One visit, from the desk", () => {
     expect(screen.getByRole("link", { name: "Back to the day" })).toBeInTheDocument();
   });
 });
+
+describe("What the desk can do to a visit (wave 2)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function respondWith(visit: Record<string, unknown>) {
+    respond(visit);
+    const base = api.getMockImplementation() as (path: string, init?: { method?: string; json?: unknown }) => Promise<unknown>;
+    api.mockImplementation(async (path: string, init?: { method?: string; json?: unknown }) => {
+      const action = path.match(/^\/appointments\/a-1\/(\w[\w-]*)$/);
+      if (action && init?.method === "POST") return { ...visit, state: action[1] === "arrive" ? "ARRIVED" : "NO_SHOW" };
+      return base(path, init);
+    });
+  }
+
+  it("fr_stf_04: records arrival on the visit's own day", async () => {
+    respondWith({ ...VISIT, startAt: at(0.5), endAt: at(1) });
+    renderVisit();
+    await userEvent.click(await screen.findByRole("button", { name: "Record arrival" }));
+    expect(api).toHaveBeenCalledWith("/appointments/a-1/arrive", { method: "POST" });
+    expect(await screen.findByText(/Arrival recorded/)).toBeInTheDocument();
+  });
+
+  it("offers no arrival for a visit on another day", async () => {
+    respondWith(VISIT);
+    renderVisit();
+    await screen.findByRole("button", { name: "Move visit" });
+    expect(screen.queryByRole("button", { name: "Record arrival" })).not.toBeInTheDocument();
+  });
+
+  it("fr_stf_05: asks, rather than assumes, once the grace has passed", async () => {
+    respondWith({ ...VISIT, startAt: at(-2), endAt: at(-1.5) });
+    renderVisit();
+    expect(await screen.findByText(/Did Ama Darko come\?/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Mark no-show" }));
+    expect(api).toHaveBeenCalledWith("/appointments/a-1/no-show", { method: "POST" });
+  });
+
+  it("the desk does not open a consultation", async () => {
+    respondWith({ ...VISIT, state: "ARRIVED", startAt: at(0.5), endAt: at(1) });
+    renderVisit();
+    await screen.findAllByText(/APT-4194/);
+    expect(screen.queryByRole("button", { name: "Start consultation" })).not.toBeInTheDocument();
+  });
+});

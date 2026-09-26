@@ -254,7 +254,7 @@ export const STATE_LABEL: Record<
   DECLINED: { label: "Declined", tone: "cancelled" },
   BOOKED: { label: "Confirmed", tone: "confirmed" },
   CONFIRMED: { label: "Confirmed", tone: "confirmed" },
-  RESCHEDULED: { label: "Rescheduled", tone: "awaiting" },
+  RESCHEDULED: { label: "Moved", tone: "confirmed" },
   DISRUPTED: { label: "Time changed", tone: "awaiting" },
   ARRIVED: { label: "Checked in", tone: "confirmed" },
   IN_CONSULTATION: { label: "In consultation", tone: "confirmed" },
@@ -270,4 +270,4 @@ export function stateLabel(state: string) {
 }
 
 /** A visit the patient can still act on: booked or confirmed, and ahead. */
-export const ACTIVE_STATES: readonly string[] = ["BOOKED", "CONFIRMED"];
+export const ACTIVE_STATES: readonly string[] = ["BOOKED", "CONFIRMED", "RESCHEDULED", "DISRUPTED"];

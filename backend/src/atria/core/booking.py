@@ -25,6 +25,7 @@ import datetime as dt
 from dataclasses import dataclass
 from decimal import Decimal
 
+from atria.core import lifecycle
 from atria.core.errors import Invalid
 
 # DynamoDB hands every number back as a Decimal, so a check against int alone
@@ -297,3 +298,76 @@ def _whole(value: object, *, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, NUMBERS):
         raise Invalid(f"{name} is not a number")
     return int(value)
+
+
+# ---------------------------------------------------------------- lifecycle
+# The moves after booking (FR-VIS-05 to FR-VIS-08, FR-STF-04, FR-STF-05). The
+# lifecycle spec says which moves exist; these say when and with what.
+
+# An appointment still scheduled this long after its end is proposed to staff
+# as a no-show. Proposed, never imposed: a patient seen late but not checked in
+# is not marked absent by a clock (FR-STF-05).
+NO_SHOW_GRACE = dt.timedelta(minutes=30)
+
+# Whoever moves an appointment, and so what the patient is owed for the move.
+# The patient moving their own visit owes nothing either way; the clinic moving
+# it records CLINIC_RESCHEDULED, whose entitlement is NONE (FR-MSR-06).
+RESCHEDULED_BY = ("PATIENT", "CLINIC")
+
+
+@dataclass(frozen=True, slots=True)
+class RescheduleRequest:
+    """A validated request to move an appointment."""
+
+    start_at: dt.datetime
+    clinician_profile_id: str | None
+    reason: str | None
+
+
+def reschedule_request(body: dict[str, object]) -> RescheduleRequest:
+    """Turn a reschedule body into a request, or raise Invalid.
+
+    Only the time and, for staff, the clinician can change. The type, the
+    patient and the clinic stay what they were: a different visit is a new
+    booking, not a move.
+    """
+    unknown = sorted(set(body) - {"startAt", "clinicianProfileId", "reason"})
+    if unknown:
+        raise Invalid("those fields cannot be changed by a reschedule", detail={"fields": unknown})
+    return RescheduleRequest(
+        start_at=parse_instant(body.get("startAt"), name="startAt"),
+        clinician_profile_id=_text(body, "clinicianProfileId"),
+        reason=_text(body, "reason"),
+    )
+
+
+def require_reason(reason: str | None, *, by_staff: bool, action: str) -> str | None:
+    """Staff say why they cancel or move a visit, every time (FR-VIS-05).
+
+    The reason is typed, never chosen from a prefilled default, because a reason
+    nobody wrote is not a reason. A patient may give one but need not.
+    """
+    text = (reason or "").strip() or None
+    if by_staff and text is None:
+        raise Invalid(f"a reason is required to {action} a visit on the patient's behalf")
+    if text is not None and len(text) > 500:
+        raise Invalid("the reason is longer than 500 characters")
+    return text
+
+
+def no_show_due(appointment: dict[str, object], *, now: dt.datetime) -> bool:
+    """True when staff should be asked whether this patient came (FR-STF-05)."""
+    if not lifecycle.is_scheduled(str(appointment.get("state", ""))):
+        return False
+    end_at = parse_instant(appointment.get("endAt"), name="endAt")
+    return now >= end_at + NO_SHOW_GRACE
+
+
+def require_no_show_due(appointment: dict[str, object], *, now: dt.datetime) -> None:
+    """A no-show can only be recorded once the grace after the end has passed."""
+    if not no_show_due(appointment, now=now):
+        end_at = parse_instant(appointment.get("endAt"), name="endAt")
+        raise Invalid(
+            "it is too early to record a no-show",
+            detail={"from": instant(end_at + NO_SHOW_GRACE)},
+        )

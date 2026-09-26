@@ -1,12 +1,16 @@
 /**
  * "Desktop · Appointment" (68:2): one visit, as the desk sees it (FR-VIS-02),
- * and cancelling it from here (FR-VIS-03).
+ * and what can happen to it from here: arrival (FR-STF-04), the consultation,
+ * a move (FR-VIS-07), a no-show once its grace has passed (FR-STF-05), and a
+ * cancellation (FR-VIS-03).
  *
- * Where the frame shows what Phase 1 does not have, the nearest true thing
- * stands in: there is no room, so the hero's cells are the date and times;
- * there is no visit reason or fee yet, so the facts give the type and the
- * clinic; front desk notes, the patient record, rescheduling and marking an
- * arrival are Phase 2, so they are left out rather than offered and refused.
+ * Only the actions the visit's state and the caller's role allow are offered,
+ * so nothing is shown and then refused. The desk records arrival; opening and
+ * closing a consultation is the clinician's (or the unit manager's).
+ *
+ * Where the frame shows what the product does not have yet, the nearest true
+ * thing stands in: there is no room, so the hero's cells are the date and
+ * times; the fee and front desk notes come later.
  *
  * The visit is read by id; its patient's name comes from the day it sits on,
  * which is the list the caller's role can read anyway.
@@ -16,6 +20,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
+import { MoveVisit } from "../components/MoveVisit";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
 import { ArrowLeft, Bell, CheckMark, ChevronLeft, Clock, Close } from "../components/icons";
@@ -43,6 +48,11 @@ import {
 import { BOOKED_BY, CHANNEL, staffState } from "./labels";
 import { Snackbar } from "./Snackbar";
 
+/** The states in which a visit still holds its time (the lifecycle's Scheduled). */
+const SCHEDULED = ["BOOKED", "CONFIRMED", "RESCHEDULED", "DISRUPTED"];
+/** How long after its end a scheduled visit is proposed as a no-show (FR-STF-05). */
+const NO_SHOW_GRACE_MS = 30 * 60 * 1000;
+
 /** "Wed 10 September", as the frame's breadcrumb writes a date. */
 const CRUMB_DATE = new Intl.DateTimeFormat("en-GB", { timeZone: ZONE, weekday: "short", day: "numeric", month: "long" });
 
@@ -54,6 +64,8 @@ export function VisitPage() {
   const [visit, setVisit] = useState<Loading<Appointment>>({ status: "loading" });
   const [fresh, setFresh] = useState(0);
   const [said, setSaid] = useState<string | null>(null);
+  const [acting, setActing] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
   // Mobile · Staff appointment (180:2): a back bar, and the actions held at the foot.
   const phone = useTier() === "mobile";
 
@@ -124,15 +136,70 @@ export function VisitPage() {
   const { label, tone } = staffState(appointment.state);
   const cancelled = CANCELLED_STATES.includes(appointment.state);
   const canCancel = ACTIVE_STATES.includes(appointment.state) && Date.parse(appointment.startAt) > Date.now();
+  const scheduled = SCHEDULED.includes(appointment.state);
+  const consults = Boolean(me?.roles.some((r) => r === "CLINICIAN" || r === "CLINIC_MANAGER"));
+  const canArrive = scheduled && clock.isoDate(appointment.startAt) === clock.isoDate(new Date());
+  const noShowDue = scheduled && Date.now() >= Date.parse(appointment.endAt) + NO_SHOW_GRACE_MS;
+  const canMove = scheduled && Date.parse(appointment.startAt) > Date.now();
+  const patientLabel = fullName(name);
+
+  async function act(action: string, done: string) {
+    setActing(action);
+    setFailed(null);
+    try {
+      await api(`/appointments/${appointment?.appointmentId}/${action}`, { method: "POST" });
+      setSaid(done);
+      setFresh((n) => n + 1);
+    } catch (caught) {
+      setFailed(caught instanceof Error ? caught.message : "That did not go through. Try again.");
+    } finally {
+      setActing(null);
+    }
+  }
   const reminder = reminderAt(appointment);
   const own = readsOwnCalendar(role);
   const booked = BOOKED_BY[appointment.bookedByRole ?? "PATIENT"] ?? "Booked";
 
+  const step =
+    canArrive && !noShowDue
+      ? { action: "arrive", label: "Record arrival", done: `${patientLabel} is here. Arrival recorded.` }
+      : appointment.state === "ARRIVED" && consults
+        ? { action: "start", label: "Start consultation", done: "Consultation started." }
+        : appointment.state === "IN_CONSULTATION" && consults
+          ? { action: "complete", label: "Complete visit", done: "Visit completed." }
+          : null;
+
   const actions = (
     <div className="visit-page-actions">
+      {failed && <Notice tone="error">{failed}</Notice>}
+      {step && (
+        <button type="button" className="staff-primary" disabled={acting !== null} aria-busy={acting === step.action || undefined} onClick={() => act(step.action, step.done)}>
+          {step.label}
+        </button>
+      )}
+      {noShowDue && (
+        <div className="no-show-ask">
+          <p>
+            Still not checked in, {clock.time(appointment.endAt)} has passed. Did {patientLabel === "Patient" ? "the patient" : patientLabel} come?
+          </p>
+          <div className="no-show-choices">
+            <button type="button" className="outline-button" disabled={acting !== null} onClick={() => act("arrive", `Arrival recorded for ${patientLabel}.`)}>
+              They came
+            </button>
+            <button type="button" className="outline-danger" disabled={acting !== null} onClick={() => act("no-show", `${appointment.reference} recorded as a no-show.`)}>
+              Mark no-show
+            </button>
+          </div>
+        </div>
+      )}
       <Link className="outline-button visit-back" to={back}>
         Back to the day
       </Link>
+      {canMove && (
+        <button type="button" className="outline-button" onClick={() => setParams({ ...(date ? { date } : {}), move: "1" }, { replace: true })}>
+          Move visit
+        </button>
+      )}
       {canCancel && (
         <button type="button" className="outline-danger" onClick={() => setParams({ ...(date ? { date } : {}), cancel: "1" }, { replace: true })}>
           Cancel visit
@@ -301,6 +368,21 @@ export function VisitPage() {
       </div>
       {phone && actions}
 
+      {params.get("move") === "1" && canMove && (
+        <MoveVisit
+          appointment={appointment}
+          type={joined.type}
+          who={{ givenName: name.givenName, familyName: name.familyName, label: patientLabel }}
+          withWhom={doctor(joined.clinician, "")}
+          byStaff
+          onClose={() => setParams(date ? { date } : {}, { replace: true })}
+          onMoved={(moved) => {
+            setParams({ date: clock.isoDate(moved.startAt) }, { replace: true });
+            setSaid(`${moved.reference} moved to ${clock.day(moved.startAt)}, ${clock.time(moved.startAt)}. ${patientLabel} has been emailed.`);
+            setFresh((n) => n + 1);
+          }}
+        />
+      )}
       {params.get("cancel") === "1" && canCancel && (
         <CancelVisit
           appointment={appointment}

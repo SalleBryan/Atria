@@ -31,6 +31,14 @@ export interface PatientName {
 }
 
 /** GET /clinics/{id}/day and GET /clinicians/{id}/calendar, as the console uses them. */
+/** Still holding its time 30 minutes after its end: staff are asked whether the patient came (FR-STF-05). */
+export function noShowDue(appointment: Appointment, now = Date.now()): boolean {
+  return (
+    ["BOOKED", "CONFIRMED", "RESCHEDULED", "DISRUPTED"].includes(appointment.state) &&
+    now >= Date.parse(appointment.endAt) + 30 * 60 * 1000
+  );
+}
+
 export interface Schedule {
   appointments: Appointment[];
   patients: Record<string, PatientName>;

@@ -26,6 +26,9 @@ from atria_infra.stacks.data import DataStack
 from atria_infra.stacks.identity import IdentityStack
 from atria_infra.stacks.platform import PlatformStack, service_function
 
+# POST /appointments/{id}/<action>, the moves after booking.
+VISIT_ACTIONS = ("reschedule", "confirm", "arrive", "start", "complete", "no-show")
+
 
 class ApiStack(Stack):
     def __init__(
@@ -223,6 +226,15 @@ class ApiStack(Stack):
         for method in ("GET", "DELETE"):
             one_appointment.add_method(
                 method,
+                booking_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
+        # What happens after booking (services/booking/visits.py): one resource
+        # per action, so a mistyped action is API Gateway's 403, not a handler's.
+        for action in VISIT_ACTIONS:
+            one_appointment.add_resource(action).add_method(
+                "POST",
                 booking_integration,
                 authorizer=self.request_authoriser,
                 authorization_type=apigateway.AuthorizationType.CUSTOM,

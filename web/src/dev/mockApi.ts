@@ -292,6 +292,29 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       });
     }
   }
+  // What happens after booking (services/booking/visits.py), without the rules' fine print.
+  const acted = path.match(/^\/appointments\/([^/]+)\/(reschedule|confirm|arrive|start|complete|no-show)$/);
+  if (method === "POST" && acted) {
+    const found = appointments.find((a) => a.appointmentId === acted[1]);
+    if (!found) return json(404, { code: "not_found", message: "no such appointment" });
+    const next: Record<string, string> = {
+      reschedule: "RESCHEDULED",
+      confirm: "CONFIRMED",
+      arrive: "ARRIVED",
+      start: "IN_CONSULTATION",
+      complete: "COMPLETED",
+      "no-show": "NO_SHOW",
+    };
+    if (acted[2] === "reschedule") {
+      const startAt = String((body as { startAt?: string } | undefined)?.startAt ?? "");
+      const length = new Date(String(found.endAt)).getTime() - new Date(String(found.startAt)).getTime();
+      found.startAt = startAt;
+      found.endAt = new Date(new Date(startAt).getTime() + length).toISOString().replace(".000Z", "Z");
+    }
+    found.state = next[acted[2] as string] as string;
+    found.version = Number(found.version) + 1;
+    return json(200, found, 500);
+  }
   if (method === "GET" && path === "/admin/staff") {
     // Searched, filtered and paged as the API does it (atria.services.identity.staff.list_accounts).
     const sorted = [...staffAccounts].sort((a, b) => String(a.familyName).localeCompare(String(b.familyName)));

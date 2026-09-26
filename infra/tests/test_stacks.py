@@ -739,3 +739,9 @@ def test_every_dead_letter_queue_is_alarmed(synthesised: cdk.App) -> None:
     names = [alarm["Properties"]["AlarmName"] for alarm in alarms.values()]
     for queue in ("outbox", "stream", "reminder"):
         assert f"atria-dev-{queue}-dead-letters" in names
+
+
+def test_every_visit_action_has_its_route(synthesised: cdk.App) -> None:
+    served = routes(template_for(synthesised, "api"))
+    for action in ("reschedule", "confirm", "arrive", "start", "complete", "no-show"):
+        assert (f"/appointments/{{id}}/{action}", "POST") in served

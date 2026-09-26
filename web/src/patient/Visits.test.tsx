@@ -116,3 +116,52 @@ describe("Visits", () => {
     expect(screen.queryByRole("button", { name: "Cancel visit" })).not.toBeInTheDocument();
   });
 });
+
+describe("Visits after booking (wave 2)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function respondAlso(appointments: unknown[], extra: (path: string, init: RequestInit & { json?: unknown }) => unknown) {
+    respond(appointments);
+    const base = api.getMockImplementation() as (path: string, init?: RequestInit & { json?: unknown }) => Promise<unknown>;
+    api.mockImplementation(async (path: string, init: RequestInit & { json?: unknown } = {}) => {
+      const answer = extra(path, init);
+      return answer === undefined ? base(path, init) : answer;
+    });
+  }
+
+  it("the patient confirms a booked visit, once", async () => {
+    const booked = visit("soon", 60);
+    respondAlso([booked], (path, init) => (path === "/appointments/soon/confirm" && init.method === "POST" ? { ...booked, state: "CONFIRMED" } : undefined));
+    renderVisits("/visits/soon");
+    await userEvent.click(await screen.findByRole("button", { name: "I'll be there" }));
+    expect(api).toHaveBeenCalledWith("/appointments/soon/confirm", { method: "POST" });
+    expect(await screen.findByText(/The unit knows you are coming/)).toBeInTheDocument();
+  });
+
+  it("fr_vis_07: moves a visit to a free time and keeps the reference", async () => {
+    const booked = visit("soon", 60);
+    const tomorrow = clockDate(1);
+    const slot = { startAt: `${tomorrow}T09:00:00Z`, endAt: `${tomorrow}T09:30:00Z` };
+    respondAlso([booked], (path, init) => {
+      if (path.includes("/slots")) {
+        const days: Record<string, unknown[]> = {};
+        days[tomorrow] = [slot];
+        return { days };
+      }
+      if (path === "/appointments/soon/reschedule" && init.method === "POST") return { ...booked, state: "RESCHEDULED", startAt: slot.startAt };
+      return undefined;
+    });
+    renderVisits("/visits/soon?move=1");
+    const dialog = await screen.findByRole("dialog", { name: "Move this visit" });
+    const user = userEvent.setup();
+    await user.click(await within(dialog).findByRole("radio", { name: "10:00" }));
+    await user.click(within(dialog).getByRole("button", { name: /^Move to 10:00/ }));
+    expect(api).toHaveBeenCalledWith("/appointments/soon/reschedule", { method: "POST", json: { startAt: slot.startAt } });
+    expect(await screen.findByText(/Your reference stays APT-soon/)).toBeInTheDocument();
+  });
+});
+
+/** The clinic's date some days from now, yyyy-mm-dd. */
+function clockDate(daysAhead: number): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Douala" }).format(new Date(Date.now() + daysAhead * 24 * HOUR));
+}

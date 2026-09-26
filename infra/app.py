@@ -7,8 +7,8 @@
     cdk synth -c environment=dev    choose the environment explicitly
 
 Stacks land as their milestones do. Present: platform, data, identity, api,
-async, observability, cost guard, deploy access. The network stack in the Technical Document
-arrives with web hosting.
+async, web (Amplify Hosting), observability, cost guard, deploy access. The
+network stack in the Technical Document is not needed: nothing runs in a VPC.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from atria_infra.stacks.async_stack import AsyncStack
 from atria_infra.stacks.cost_guard import CostGuardStack
 from atria_infra.stacks.data import DataStack
 from atria_infra.stacks.deploy_access import DeployAccessStack
+from atria_infra.stacks.hosting import HostingStack
 from atria_infra.stacks.identity import IdentityStack
 from atria_infra.stacks.observability import ObservabilityStack
 from atria_infra.stacks.platform import PlatformStack
@@ -67,6 +68,7 @@ def main() -> cdk.App:
         build_dir=build_dir,
         env=target,
     )
+    HostingStack(app, env.stack_name("web"), settings=env, api=api, env=target)
     ObservabilityStack(app, env.stack_name("observability"), settings=env, api=api, env=target)
     CostGuardStack(app, env.stack_name("cost-guard"), settings=env, env=target)
     DeployAccessStack(app, env.stack_name("deploy-access"), settings=env, env=target)

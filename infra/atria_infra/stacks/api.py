@@ -86,16 +86,15 @@ class ApiStack(Stack):
         )
         data.main_table.grant_read_write_data(self.staff_service)
         # Scoped to this one pool and to exactly the calls the service makes:
-        # create an account, roll it back if the table write fails, end a
-        # suspended account's sessions, and read one account's status for the
-        # staff list. Nothing wider, and no read of another pool's users.
+        # create an account, roll it back if the table write fails, and end a
+        # suspended account's sessions. Nothing that reads the pool's users:
+        # the staff list learns who has signed in from the table.
         self.staff_service.add_to_role_policy(
             iam.PolicyStatement(
                 actions=[
                     "cognito-idp:AdminCreateUser",
                     "cognito-idp:AdminDeleteUser",
                     "cognito-idp:AdminUserGlobalSignOut",
-                    "cognito-idp:AdminGetUser",
                 ],
                 resources=[pool.user_pool_arn],
             )

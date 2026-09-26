@@ -341,8 +341,8 @@ class TestApiStack:
         assert "cognito-idp:AdminCreateUser" in actions
         assert "cognito-idp:AdminDeleteUser" in actions
         assert "cognito-idp:AdminUserGlobalSignOut" in actions
-        # Reading one account's status for the staff list, and no listing of the pool.
-        assert "cognito-idp:AdminGetUser" in actions
+        # The staff list reads the table, never the pool's users.
+        assert "cognito-idp:AdminGetUser" not in actions
         assert "cognito-idp:ListUsers" not in actions
         # The identity service (GET /me) must not carry these: it never
         # touches the pool, only the token it was handed.
@@ -698,3 +698,19 @@ class TestTagging:
                 )
             },
         )
+
+
+def test_the_web_client_is_hosted_on_amplify_without_a_waf(synthesised: cdk.App) -> None:
+    template = template_for(synthesised, "web")
+    template.resource_count_is("AWS::Amplify::App", 1)
+    template.resource_count_is("AWS::Amplify::Branch", 1)
+    # A web ACL is production's; development pays no fixed WAF fee.
+    template.resource_count_is("AWS::WAFv2::WebACL", 0)
+    template.resource_count_is("AWS::WAFv2::WebACLAssociation", 0)
+    app = next(iter(template.find_resources("AWS::Amplify::App").values()))["Properties"]
+    rules = app["CustomRules"]
+    # The API stays on the page's own origin, and it is matched before the app's fallback.
+    assert rules[0]["Source"] == "/api/<*>"
+    assert rules[0]["Status"] == "200"
+    assert rules[1]["Target"] == "/index.html"
+    assert "AccessToken" not in app and "Repository" not in app

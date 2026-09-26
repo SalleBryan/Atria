@@ -206,7 +206,8 @@ class IdentityStack(Stack):
                 "MAIN_TABLE": data.main_table.table_name,
             },
             timeout_seconds=5,
-            memory_mb=256,
+            # On the sign-in path, where every millisecond is one a person waits.
+            memory_mb=512,
         )
         # Read only: the trigger never writes, and it must not be able to.
         data.main_table.grant_read_data(self.pre_token)
@@ -237,7 +238,8 @@ class IdentityStack(Stack):
                 "DEFAULT_TENANT_ID": settings.default_tenant_id,
             },
             timeout_seconds=10,
-            memory_mb=256,
+            # On the sign-in path, where every millisecond is one a person waits.
+            memory_mb=512,
         )
         # This one writes, unlike the pre-token trigger: it creates the person
         # and the profile. It reads as well, to recognise a confirmation
@@ -266,7 +268,8 @@ class IdentityStack(Stack):
                 "APP_URL": settings.app_url,
             },
             timeout_seconds=5,
-            memory_mb=256,
+            # On the sign-in path, where every millisecond is one a person waits.
+            memory_mb=512,
         )
         self.user_pool.add_trigger(
             cognito.UserPoolOperation.CUSTOM_MESSAGE,

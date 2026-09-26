@@ -125,9 +125,13 @@ DEV = Environment(
     admin_password_auth=True,
     auth_domain_prefix="atria-dev-cm",
     google_secret_name="atria/dev/google-oauth",  # noqa: S106  the name of a secret, not one
-    # The web client's development server.
-    oauth_callback_urls=("http://localhost:5173/auth/callback",),
-    oauth_logout_urls=("http://localhost:5173/",),
+    # The hosted site (atria-dev-web, Amplify) and the development server.
+    app_url="https://main.dym1ejjx8bhtw.amplifyapp.com",
+    oauth_callback_urls=(
+        "https://main.dym1ejjx8bhtw.amplifyapp.com/auth/callback",
+        "http://localhost:5173/auth/callback",
+    ),
+    oauth_logout_urls=("https://main.dym1ejjx8bhtw.amplifyapp.com/", "http://localhost:5173/"),
     github_repository="SalleBryan/Atria",
     github_subject="repo:SalleBryan@111648793/Atria@1365951066",
     tags={

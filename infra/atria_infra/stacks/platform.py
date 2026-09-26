@@ -62,9 +62,16 @@ def service_function(
     description: str,
     environment: dict[str, str],
     timeout_seconds: int = 10,
-    memory_mb: int = 512,
+    memory_mb: int = 1024,
 ) -> lambda_.Function:
-    """One service function, wired the same way wherever it is created."""
+    """One service function, wired the same way wherever it is created.
+
+    1024 MB by default, though no handler needs the memory: Lambda gives CPU
+    in proportion to it, and measured on dev (2026-09-25) a warm directory
+    read took half as long as at 512 MB (p50 20 to 12 ms, p95 104 to 57 ms),
+    so the bill per request barely moves. It does not shorten a cold start:
+    initialisation took 500 to 600 ms at either size.
+    """
     log_group = logs.LogGroup(
         scope,
         f"{name}Logs",

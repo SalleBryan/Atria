@@ -85,7 +85,7 @@ def world(monkeypatch, repository):
     )
     repository.put(
         keys.clinic(TENANT, DOUALA),
-        {"type": "CLINIC", "clinicId": DOUALA, "tenantId": TENANT, "name": "Clinique de Douala"},
+        {"type": "CLINIC", "clinicId": DOUALA, "tenantId": TENANT, "name": "Douala Clinic"},
     )
     for person_id, phone in ((PERSON, "+237600000001"), (GUARDIAN, "+237600000099")):
         repository.put(
@@ -285,7 +285,7 @@ class TestFiring:
         assert fire(fakes)["batchItemFailures"] == []
         (sms,) = fakes["sns"].published
         assert sms["PhoneNumber"] == "+237600000001"
-        assert "Rappel" in sms["Message"]
+        assert "Atria reminder" in sms["Message"]
 
     def test_fr_rem_03_it_is_a_transactional_sms(self, world):
         repository, clinician, fakes = world

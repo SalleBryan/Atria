@@ -1,6 +1,6 @@
 """Staff provisioning.
 
-    GET   /admin/staff                      every account, for the administration console
+    GET   /admin/staff                      the accounts, a page at a time, for the console
     POST  /admin/staff                      create an account with its roles
     PATCH /admin/staff/{id}/roles           change those roles
     POST  /admin/staff/{id}/suspend         suspend the account
@@ -19,7 +19,7 @@ from __future__ import annotations
 import os
 import secrets
 import string
-from concurrent.futures import ThreadPoolExecutor
+from collections import Counter
 from typing import Any
 
 import boto3
@@ -32,7 +32,7 @@ from atria.core.permissions import Subject
 from atria.core.principal import Principal
 from atria.data.people import People
 from atria.data.repository import Repository
-from atria.http import requests, responses
+from atria.http import paging, requests, responses
 from atria.http.handler import api
 
 logger = Logger(service="atria-staff")
@@ -154,44 +154,107 @@ def create(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def pool_status(username: str | None) -> str | None:
-    """Cognito's word on the account: FORCE_CHANGE_PASSWORD until the first
-    sign-in replaces the temporary password, then CONFIRMED. None where the
-    pool cannot say, which the list shows as unknown rather than guessing."""
-    if not username:
-        return None
-    try:
-        found = cognito().admin_get_user(UserPoolId=USER_POOL_ID, Username=username)
-    except Exception:
-        logger.warning("could not read an account's pool status")
-        return None
-    return str(found.get("UserStatus") or "") or None
+# A page of the list, unless the console asks for another length (at most
+# paging.PAGE_LIMIT, NFR-PERF-04).
+DEFAULT_PAGE = 25
+
+# The list's status filter. Awaiting means the temporary password has not been
+# replaced yet; active means neither awaiting nor suspended.
+STATUS_FILTERS = ("awaiting", "active", "suspended")
 
 
-def list_accounts(principal: Principal) -> dict[str, Any]:
-    """Every staff account of the tenant, for the administration console.
+def status_of(account: dict[str, Any]) -> str:
+    """The list's word for an account: awaiting, active or suspended."""
+    if account.get("status") == "SUSPENDED":
+        return "suspended"
+    return "awaiting" if account.get("mustSetPassword") else "active"
+
+
+# The words a role answers to in a search, as the console names it and as people say it.
+ROLE_WORDS = {
+    "RECEPTIONIST": "receptionist front desk",
+    "CLINICIAN": "clinician doctor",
+    "CLINIC_MANAGER": "unit manager clinic manager",
+    "TENANT_ADMIN": "tenant administrator admin",
+}
+
+
+def matches(account: dict[str, Any], words: str) -> bool:
+    """Whether a search finds the account: by name, sign-in name, role or employee number."""
+    if not words:
+        return True
+    given = str(account.get("givenName") or "")
+    family = str(account.get("familyName") or "")
+    fields = [
+        f"{given} {family}",
+        f"{family} {given}",
+        str(account.get("email") or ""),
+        str(account.get("phoneE164") or ""),
+        str(account.get("employeeNumber") or ""),
+        *(ROLE_WORDS.get(role, role.lower()) for role in account.get("roles", [])),
+    ]
+    digits = "".join(ch for ch in words if ch.isdigit())
+    return any(words in field.casefold() for field in fields) or (
+        len(digits) >= 3 and digits in str(account.get("phoneE164") or "")
+    )
+
+
+def list_accounts(
+    principal: Principal, query: dict[str, str | None] | None = None
+) -> dict[str, Any]:
+    """The tenant's staff accounts, a page at a time, for the administration console.
 
     Administrators only, the same permission as creating one (staff.create).
-    Suspended accounts are listed too. Whether each still has to set its own
-    password comes from the pool, read in parallel, so the list does not
-    take one round trip per account.
+    Suspended accounts are listed too. The list is searched (`q`) and narrowed
+    (`role`, `clinic`, `status`) here, then cut into pages of at most 50
+    (NFR-PERF-04); `nextCursor` asks for the page after. `facets` counts every
+    account of the tenant by role, clinic and status, so the console can offer
+    the most used first and say how many each filter holds.
+
+    Two reads however large the tenant: the memberships, then the people
+    behind them in batches. Whether an account still holds its temporary
+    password is its INVITED status, which its first sign-in clears (see
+    atria.services.identity.handler), so the user pool is not asked about each
+    account: that took five seconds for fifty, against the 800ms a read is
+    allowed (NFR-PERF-01).
     """
     permissions.require(principal, "staff.create", Subject(tenant_id=principal.tenant_id))
-    listed = people().staff_accounts(principal.tenant_id)
-    names = [
-        str(person.get("email") or person.get("phoneE164") or "") or None for _m, person in listed
-    ]
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        statuses = list(pool.map(pool_status, names))
-    accounts = [
+    query = query or {}
+    status = query.get("status") or None
+    if status and status not in STATUS_FILTERS:
+        raise Invalid(f"status must be one of {', '.join(STATUS_FILTERS)}")
+
+    everyone = [
         {
             **account_view(membership, person),
-            "signInName": name,
-            "mustSetPassword": status == "FORCE_CHANGE_PASSWORD" if status else None,
+            "signInName": str(person.get("email") or person.get("phoneE164") or "") or None,
+            "mustSetPassword": membership.get("status") == "INVITED",
         }
-        for (membership, person), name, status in zip(listed, names, statuses, strict=True)
+        for membership, person in people().staff_accounts(principal.tenant_id)
     ]
-    return {"count": len(accounts), "accounts": accounts}
+
+    facets = {
+        "roles": dict(Counter(role for a in everyone for role in a["roles"])),
+        "clinics": dict(Counter(str(a["clinicId"]) for a in everyone if a.get("clinicId"))),
+        "status": dict(Counter(status_of(a) for a in everyone)),
+    }
+
+    words = str(query.get("q") or "").strip().casefold()
+    role = query.get("role") or None
+    clinic = query.get("clinic") or None
+    found = [
+        a
+        for a in everyone
+        if matches(a, words)
+        and (not role or role in a["roles"])
+        and (not clinic or a.get("clinicId") == clinic)
+        and (not status or status_of(a) == status)
+    ]
+
+    shown, more = paging.window(
+        found, limit=query.get("limit"), cursor=query.get("cursor"), default=DEFAULT_PAGE
+    )
+    return {**more, "total": len(everyone), "accounts": shown, "facets": facets}
 
 
 def change_roles(principal: Principal, staff_id: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -245,7 +308,11 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     resource = str(event.get("resource", ""))
 
     if method == "GET" and resource.endswith("/staff"):
-        return responses.ok(list_accounts(principal))
+        query = {
+            name: requests.query_parameter(event, name)
+            for name in ("q", "role", "clinic", "status", "limit", "cursor")
+        }
+        return responses.ok(list_accounts(principal, query))
     if method == "POST" and resource.endswith("/staff"):
         return responses.created(create(principal, requests.json_body(event)))
     if method == "PATCH" and resource.endswith("/roles"):

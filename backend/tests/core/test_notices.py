@@ -34,10 +34,20 @@ SENT_PAIRS = [
 ]
 
 
+# What ships in Phase 1, read before the fixture below turns French on.
+SHIPPED = notices.OFFERED
+
+
+@pytest.fixture(autouse=True)
+def french_on(monkeypatch):
+    """The French wording is tested as it will ship in the next phase."""
+    monkeypatch.setattr(notices, "OFFERED", notices.LANGUAGES)
+
+
 def compose(kind: str = notices.BOOKING_CONFIRMATION, **overrides):
     settings = {
         "appointment": APPOINTMENT,
-        "clinic_name": "Clinique de Douala",
+        "clinic_name": "Douala Clinic",
         "clinician_name": "Dr Paul Etoa",
         "language": "fr",
         "zone": DOUALA,
@@ -77,7 +87,7 @@ class TestContent:
 
     def test_the_confirmation_names_the_clinic_and_the_clinician(self):
         notice = compose()
-        assert "Clinique de Douala" in notice.body
+        assert "Douala Clinic" in notice.body
         assert "Dr Paul Etoa" in notice.body
 
     def test_the_confirmation_says_how_to_cancel(self):
@@ -117,7 +127,7 @@ class TestHtml:
             "APT-0123456789",
             "09:00",
             "04/03/2026",
-            "Clinique de Douala",
+            "Douala Clinic",
             "Dr Paul Etoa",
         ):
             assert expected in html
@@ -160,6 +170,12 @@ class TestLanguage:
     @pytest.mark.parametrize("preferred", ["fr", "FR", "fr-CM", "  fr  "])
     def test_french_is_recognised_however_it_is_written(self, preferred):
         assert notices.language_for(preferred) == "fr"
+
+    def test_french_waits_for_the_next_phase(self, monkeypatch):
+        """Everything a person sees is English in Phase 1, preference or not."""
+        monkeypatch.setattr(notices, "OFFERED", SHIPPED)
+        assert notices.language_for("fr-CM") == "en"
+        assert compose(language="fr").subject.startswith("Appointment confirmed")
 
     def test_english_is_recognised(self):
         assert notices.language_for("en-GB") == "en"
@@ -210,7 +226,7 @@ class TestSms:
     def test_fr_rem_04_the_reminder_says_what_the_requirement_lists(self):
         """Clinic, clinician, local date and time, reference, how to cancel."""
         text = self.reminder().body
-        assert "Clinique de Douala" in text
+        assert "Douala Clinic" in text
         assert "Dr Paul Etoa" in text
         assert "04/03/2026" in text
         assert "09:00" in text

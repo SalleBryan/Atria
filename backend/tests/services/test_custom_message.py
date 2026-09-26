@@ -68,9 +68,10 @@ class TestLanguage:
         result = custom_message.handler(event(), None)
         assert result["response"]["emailSubject"] == "Your Atria verification code"
 
-    def test_french_when_the_account_says_so(self):
+    def test_english_even_when_the_account_says_french(self):
+        """French ships with language switching in the next phase."""
         result = custom_message.handler(event(locale="fr-CM"), None)
-        assert result["response"]["emailSubject"] == "Votre code de vérification Atria"
+        assert result["response"]["emailSubject"] == "Your Atria verification code"
 
 
 class TestPerson:

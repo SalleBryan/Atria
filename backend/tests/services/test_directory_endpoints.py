@@ -138,6 +138,19 @@ class TestDirectory:
         assert result["statusCode"] == 200
         assert body_of(result)["count"] == 3
 
+    def test_nfr_perf_04_the_directory_comes_a_page_at_a_time(self, clinicians):
+        first = body_of(service.handler(event("/clinicians", query={"limit": "2"}), None))
+        assert len(first["clinicians"]) == 2
+        assert first["count"] == 3
+        rest = body_of(
+            service.handler(
+                event("/clinicians", query={"limit": "2", "cursor": str(first["nextCursor"])}),
+                None,
+            )
+        )
+        assert len(rest["clinicians"]) == 1
+        assert rest["nextCursor"] is None
+
     def test_the_listing_is_most_senior_first(self, clinicians):
         listed = body_of(service.handler(event("/clinicians"), None))["clinicians"]
         assert [c["familyName"] for c in listed] == ["Abena", "Etoa", "Manga"]
@@ -278,6 +291,23 @@ class TestSlots:
     def test_a_suspended_clinician_offers_no_slots(self, clinicians, wired):
         People(wired).set_status(tenant_id=TENANT, staff_id=clinicians["Etoa"], status="SUSPENDED")
         assert self.slots(clinicians)["statusCode"] == 409
+
+    def test_a_week_comes_in_one_call_day_by_day(self, clinicians):
+        """NFR-PERF-01: one request for the week a booking screen shows."""
+        week = {"date": None, "from": "2026-03-02", "to": "2026-03-08"}
+        body = body_of(self.slots(clinicians, query=week))
+        assert list(body["days"]) == [f"2026-03-0{n}" for n in range(2, 9)]
+        assert body["days"]["2026-03-04"] == body_of(self.slots(clinicians))["slots"]
+        assert body["days"]["2026-03-03"] == []
+        assert "slots" not in body
+
+    def test_more_than_a_week_at_once_is_refused(self, clinicians):
+        wide = {"date": None, "from": "2026-03-02", "to": "2026-03-09"}
+        assert self.slots(clinicians, query=wide)["statusCode"] == 400
+
+    def test_a_backwards_week_is_refused(self, clinicians):
+        backwards = {"date": None, "from": "2026-03-08", "to": "2026-03-02"}
+        assert self.slots(clinicians, query=backwards)["statusCode"] == 400
 
     def test_a_request_with_no_caller_is_unauthenticated(self, clinicians):
         stripped = event("/clinicians")

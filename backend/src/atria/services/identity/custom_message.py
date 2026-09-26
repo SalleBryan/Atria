@@ -143,8 +143,8 @@ WORDS: dict[str, dict[str, dict[str, str]]] = {
             "subject": "Your Atria account",
             "tag": "Staff account",
             "heading": "Welcome to Atria",
-            "lead": "Your clinic has created an account for you. Sign in with these "
-            "details, then choose your own password.",
+            "lead": "Your healthcare institution has created an account for you. "
+            "Sign in with these details, then choose your own password.",
             "username": "Username",
             "code": "Temporary password",
             "note": "The temporary password works for 3 days.",

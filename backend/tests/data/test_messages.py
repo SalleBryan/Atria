@@ -35,7 +35,7 @@ def notice():
     return notices.compose(
         notices.BOOKING_CONFIRMATION,
         appointment={"reference": "APT-0123456789", "startAt": "2026-03-10T08:00:00Z"},
-        clinic_name="Clinique de Douala",
+        clinic_name="Douala Clinic",
         clinician_name="Dr Paul Etoa",
         language="fr",
         zone=DOUALA,
@@ -71,8 +71,8 @@ class TestScheduled:
     def test_the_wording_used_is_recorded(self, messages, notice):
         """Which text a patient received is the question asked afterwards."""
         row = schedule(messages, notice)
-        assert row["template"] == "booking_confirmation.fr"
-        assert row["language"] == "fr"
+        assert row["template"] == "booking_confirmation.en"
+        assert row["language"] == "en"
 
     def test_the_subject_is_kept_but_not_the_body(self, messages, notice):
         """Enough to recognise the message without keeping a copy of it."""

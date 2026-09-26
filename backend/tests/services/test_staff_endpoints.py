@@ -17,6 +17,7 @@ import pytest
 
 from atria.data.people import People
 from atria.data.repository import Repository
+from atria.http import paging
 from atria.services.identity import staff as service
 
 TENANT = "t-cm-001"
@@ -240,10 +241,19 @@ class TestListingAccounts:
         assert result["statusCode"] == 201, result["body"]
         return body_of(result)
 
-    def listing(self, **authorizer):
+    def listing(self, query: dict[str, str] | None = None, **authorizer):
         event = admin_event("GET", "/admin/staff")
+        event["queryStringParameters"] = query
         event["requestContext"]["authorizer"].update(authorizer)  # type: ignore[index]
         return service.handler(event, None)
+
+    def many(self, count: int) -> None:
+        for i in range(count):
+            self.create(
+                givenName=f"Person{i:02d}",
+                familyName=f"Family{i:02d}",
+                phoneE164=f"+120255501{i:02d}",
+            )
 
     def test_an_administrator_sees_every_account_by_family_name(self, wired):
         self.create(givenName="Brice", familyName="Tagne", phoneE164="+12025550171")
@@ -277,3 +287,71 @@ class TestListingAccounts:
     @pytest.mark.parametrize("role", ["RECEPTIONIST", "CLINICIAN", "CLINIC_MANAGER"])
     def test_only_an_administrator_may_list(self, wired, role):
         assert self.listing(roles=role, clinicId=CLINIC)["statusCode"] == 403
+
+    def test_the_list_comes_a_page_at_a_time(self, wired):
+        """NFR-PERF-04: no response lists more than 50."""
+        self.many(5)
+        first = body_of(self.listing({"limit": "2"}))
+        assert first["count"] == 5
+        assert [a["familyName"] for a in first["accounts"]] == ["Family00", "Family01"]
+        second = body_of(self.listing({"limit": "2", "cursor": str(first["nextCursor"])}))
+        assert [a["familyName"] for a in second["accounts"]] == ["Family02", "Family03"]
+        last = body_of(self.listing({"limit": "2", "cursor": str(second["nextCursor"])}))
+        assert [a["familyName"] for a in last["accounts"]] == ["Family04"]
+        assert last["nextCursor"] is None
+
+    def test_a_page_is_never_longer_than_fifty(self):
+        assert paging.page_size("500") == paging.PAGE_LIMIT == 50
+        assert paging.page_size(None, default=service.DEFAULT_PAGE) == 25
+
+    def test_a_search_finds_by_name_or_number(self, wired):
+        self.create(givenName="Brice", familyName="Tagne", phoneE164="+12025550171")
+        self.create(givenName="Amina", familyName="Ngo", phoneE164="+12025550172")
+        assert [a["familyName"] for a in body_of(self.listing({"q": "brice t"}))["accounts"]] == [
+            "Tagne"
+        ]
+        assert [a["familyName"] for a in body_of(self.listing({"q": "0172"}))["accounts"]] == [
+            "Ngo"
+        ]
+        assert body_of(self.listing({"q": "front desk"}))["count"] == 2
+
+    def test_filters_narrow_by_role_clinic_and_status(self, wired):
+        self.create(phoneE164="+12025550171")
+        manager = self.create(
+            givenName="Rodrigue",
+            familyName="Owona",
+            phoneE164="+12025550172",
+            roles=["CLINIC_MANAGER"],
+            clinicId="c-other",
+        )
+        service.handler(
+            admin_event("POST", "/admin/staff/{id}/suspend", id=str(manager["staffId"])), None
+        )
+        by_role = body_of(self.listing({"role": "CLINIC_MANAGER"}))
+        assert [a["familyName"] for a in by_role["accounts"]] == ["Owona"]
+        by_clinic = body_of(self.listing({"clinic": CLINIC}))
+        assert [a["familyName"] for a in by_clinic["accounts"]] == ["Ngo"]
+        suspended = body_of(self.listing({"status": "suspended"}))
+        assert [a["familyName"] for a in suspended["accounts"]] == ["Owona"]
+        awaiting = body_of(self.listing({"status": "awaiting"}))
+        assert [a["familyName"] for a in awaiting["accounts"]] == ["Ngo"]
+
+    def test_facets_count_every_account_whatever_the_filter(self, wired):
+        self.create(phoneE164="+12025550171")
+        self.create(givenName="Esther", familyName="Mbarga", phoneE164="+12025550172")
+        facets = body_of(self.listing({"q": "esther"}))["facets"]
+        assert facets["roles"] == {"RECEPTIONIST": 2}
+        assert facets["clinics"] == {CLINIC: 2}
+        assert facets["status"] == {"awaiting": 2}
+
+    def test_an_account_that_has_signed_in_is_no_longer_awaiting(self, wired):
+        created = self.create()
+        People(wired).activate(tenant_id=TENANT, staff_id=str(created["staffId"]))
+        account = body_of(self.listing())["accounts"][0]
+        assert account["mustSetPassword"] is False
+
+    @pytest.mark.parametrize(
+        "query", [{"cursor": "not-a-cursor"}, {"status": "sleeping"}, {"limit": "ten"}]
+    )
+    def test_a_query_the_list_cannot_answer_is_refused(self, wired, query):
+        assert self.listing(query)["statusCode"] == 400

@@ -1,7 +1,8 @@
 """The clinician directory and the free starts for one of them.
 
     GET /clinicians?specialty=&clinicId=&name=      who can be booked
-    GET /clinicians/{id}/slots?date=&typeId=        when they are free
+    GET /clinicians/{id}/slots?date=&typeId=        when they are free, one date
+    GET /clinicians/{id}/slots?from=&to=&typeId=    the same for up to a week, in one call
     GET /clinicians/{id}/calendar and /clinics/{id}/day, in atria.services.directory.schedule
     GET /clinics                                    where the tenant's clinics are
     GET /appointment-types                          what can be booked, and for how long
@@ -20,6 +21,7 @@ double booked.
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import Any
 
 from aws_lambda_powertools import Logger
@@ -33,7 +35,7 @@ from atria.data.booking import Booking
 from atria.data.catalogue import Catalogue, as_listed
 from atria.data.people import People
 from atria.data.repository import Repository
-from atria.http import requests, responses
+from atria.http import paging, requests, responses
 from atria.http.handler import api
 from atria.services.directory import schedule as schedule_views
 
@@ -110,17 +112,19 @@ def list_clinicians(principal: Principal, event: dict[str, Any]) -> dict[str, An
         clinic_id=requests.query_parameter(event, "clinicId"),
         name=requests.query_parameter(event, "name"),
     )
-    return {"clinicians": [listed(c) for c in found], "count": len(found)}
+    shown, more = paging.page(found, event)
+    return {"clinicians": [listed(c) for c in shown], **more}
 
 
-def list_clinics(principal: Principal) -> dict[str, Any]:
+def list_clinics(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     """The tenant's clinics, by name, so a listing can say where (FR-DIR-01)."""
     permissions.require(principal, "patient.read")
     found = catalogue().clinics(principal.tenant_id)
-    return {"clinics": [as_listed(c, CLINIC_FIELDS) for c in found], "count": len(found)}
+    shown, more = paging.page(found, event)
+    return {"clinics": [as_listed(c, CLINIC_FIELDS) for c in shown], **more}
 
 
-def list_appointment_types(principal: Principal) -> dict[str, Any]:
+def list_appointment_types(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     """What the caller can book, with the grid its lengths are counted in.
 
     A patient is shown only what a patient may book: a procedure is sized and
@@ -131,17 +135,41 @@ def list_appointment_types(principal: Principal) -> dict[str, Any]:
     if not principal.is_staff:
         found = [t for t in found if str(t.get("bookableBy", "BOTH")).upper() != "STAFF"]
     minutes = rules.grid_unit_minutes(booking().tenant(principal.tenant_id))
+    shown, more = paging.page(found, event)
     return {
         "gridUnitMinutes": minutes,
-        "appointmentTypes": [as_listed(t, TYPE_FIELDS) for t in found],
-        "count": len(found),
+        "appointmentTypes": [as_listed(t, TYPE_FIELDS) for t in shown],
+        **more,
     }
 
 
+# The widest range one call answers: the week a booking screen shows. One call
+# for the week, rather than one a day, is what keeps a screen from waking seven
+# cold functions at once (NFR-PERF-01).
+MAX_SLOT_DAYS = 7
+
+
 def list_slots(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
-    """When one clinician is free for one appointment type on one date (FR-DIR-02)."""
+    """When one clinician is free for one appointment type (FR-DIR-02).
+
+    `date` asks for one date. `from` and `to` ask for up to a week of them at
+    once, answered as `days`, each date with its free starts; what does not
+    change from one day to the next (the clinician, the type, the clinic's
+    hours, the exceptions) is read once for the lot.
+    """
     clinician_profile_id = requests.path_parameter(event, "id")
-    day = schedule.parse_date(requests.query_parameter(event, "date"))
+    raw_from = requests.query_parameter(event, "from")
+    ranged = bool(raw_from)
+    if ranged:
+        first = schedule.parse_date(raw_from, name="from")
+        raw_to = requests.query_parameter(event, "to")
+        last = schedule.parse_date(raw_to, name="to") if raw_to else first
+        if last < first:
+            raise Invalid("to is before from")
+        if (last - first).days + 1 > MAX_SLOT_DAYS:
+            raise Invalid("that range is wider than a week", detail={"maximumDays": MAX_SLOT_DAYS})
+    else:
+        first = last = schedule.parse_date(requests.query_parameter(event, "date"))
     type_id = requests.query_parameter(event, "typeId")
     if not type_id:
         # Without the type there is no duration, and without a duration there
@@ -168,55 +196,58 @@ def list_slots(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     appointment_type = data.appointment_type(principal.tenant_id, str(type_id))
     minutes = rules.grid_unit_minutes(data.tenant(principal.tenant_id))
     zone = data.zone(principal.tenant_id)
-
     clinic = data.clinic(principal.tenant_id, clinic_id)
-    window = schedule.opening_window(clinic.get("openingHours"), day, zone=zone)
-
+    exceptions = data.exceptions(principal.tenant_id, clinician_profile_id)
     duration_units = int(appointment_type.get("durationUnits") or 0)
     buffer_units = int(appointment_type.get("bufferUnits") or 0)
     held = duration_units + max(0, buffer_units)
+    now = data.now()
 
-    locked: set[str] = set()
-    if window is not None and held:
-        every_unit = [
-            rules.instant(start)
-            for start in schedule.candidate_starts(window, held_units=1, minutes=minutes)
+    def free_on(day: dt.date) -> list[dict[str, str]]:
+        window = schedule.opening_window(clinic.get("openingHours"), day, zone=zone)
+        locked: set[str] = set()
+        if window is not None and held:
+            every_unit = [
+                rules.instant(start)
+                for start in schedule.candidate_starts(window, held_units=1, minutes=minutes)
+            ]
+            locked = data.locked_units(principal.tenant_id, clinician_profile_id, every_unit)
+        free = schedule.free_starts(
+            window=window,
+            locked_units=locked,
+            blocked=schedule.blocked_windows(exceptions, day, zone=zone),
+            duration_units=duration_units,
+            buffer_units=buffer_units,
+            minutes=minutes,
+            now=now,
+            min_notice_minutes=int(appointment_type.get("minNoticeMinutes") or 0),
+            max_advance_days=int(appointment_type.get("maxAdvanceDays") or 0),
+        )
+        return [
+            {"startAt": rules.instant(o.start_at), "endAt": rules.instant(o.end_at)} for o in free
         ]
-        locked = data.locked_units(principal.tenant_id, clinician_profile_id, every_unit)
 
-    free = schedule.free_starts(
-        window=window,
-        locked_units=locked,
-        blocked=schedule.blocked_windows(
-            data.exceptions(principal.tenant_id, clinician_profile_id), day, zone=zone
-        ),
-        duration_units=duration_units,
-        buffer_units=buffer_units,
-        minutes=minutes,
-        now=data.now(),
-        min_notice_minutes=int(appointment_type.get("minNoticeMinutes") or 0),
-        max_advance_days=int(appointment_type.get("maxAdvanceDays") or 0),
-    )
+    dates = [first + dt.timedelta(days=n) for n in range((last - first).days + 1)]
+    days = {day.isoformat(): free_on(day) for day in dates}
     logger.info(
         "slots listed",
         extra={
             "clinicianProfileId": clinician_profile_id,
-            "date": day.isoformat(),
-            "free": len(free),
-            "locked": len(locked),
+            "from": first.isoformat(),
+            "to": last.isoformat(),
+            "free": sum(len(found) for found in days.values()),
         },
     )
-    return {
+    shared = {
         "clinicianProfileId": clinician_profile_id,
         "clinicId": clinic_id,
-        "date": day.isoformat(),
         "appointmentTypeId": type_id,
         "gridUnitMinutes": minutes,
         "durationUnits": duration_units,
-        "slots": [
-            {"startAt": rules.instant(o.start_at), "endAt": rules.instant(o.end_at)} for o in free
-        ],
     }
+    if ranged:
+        return {**shared, "from": first.isoformat(), "to": last.isoformat(), "days": days}
+    return {**shared, "date": first.isoformat(), "slots": days[first.isoformat()]}
 
 
 @api
@@ -239,9 +270,9 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     if method == "GET" and resource.endswith("/clinicians"):
         return responses.ok(list_clinicians(principal, event))
     if method == "GET" and resource == "/clinics":
-        return responses.ok(list_clinics(principal))
+        return responses.ok(list_clinics(principal, event))
     if method == "GET" and resource == "/appointment-types":
-        return responses.ok(list_appointment_types(principal))
+        return responses.ok(list_appointment_types(principal, event))
 
     # Every route on this function is listed above, so this is a wiring mistake
     # in the API stack rather than anything the caller did.

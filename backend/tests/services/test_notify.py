@@ -73,7 +73,7 @@ def seeded(repository):
             "type": "CLINIC",
             "clinicId": DOUALA,
             "tenantId": TENANT,
-            "name": "Clinique de Douala",
+            "name": "Douala Clinic",
         },
     )
     repository.put(
@@ -337,7 +337,7 @@ class TestSending:
         sender.handler(job(), None)
         body = fake_ses.sent[0]["Content"]["Simple"]["Body"]["Text"]["Data"]
         assert "09:00" in body
-        assert "Clinique de Douala" in body
+        assert "Douala Clinic" in body
         assert "Paul Etoa" in body
 
     def test_the_email_is_sent_as_html_and_as_text(self, wired):
@@ -355,7 +355,7 @@ class TestSending:
         put_appointment(repository, clinician, state="PATIENT_CANCELLED")
         sender.handler(job(notices.BOOKING_CANCELLATION), None)
         subject = fake_ses.sent[0]["Content"]["Simple"]["Subject"]["Data"]
-        assert "annulé" in subject.lower()
+        assert "cancelled" in subject.lower()
 
     def test_fr_msg_03_the_message_is_logged_as_sent(self, wired):
         repository, clinician, _ses = wired

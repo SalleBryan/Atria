@@ -2,6 +2,7 @@
 
     GET /clinicians/{id}/calendar?from=&to=     one clinician, a range of dates
     GET /clinics/{id}/day?date=                 every clinician in a clinic, one date
+    GET /clinics/{id}/day?from=&to=             the same for up to a week, in one call
 
 FR-STF-01: a clinician views their own calendar, and a receptionist or clinic
 manager views any clinician's day in their clinic. Both go through
@@ -30,7 +31,7 @@ from atria.core.permissions import Subject
 from atria.core.principal import Principal
 from atria.data.booking import Booking
 from atria.data.people import People
-from atria.http import requests
+from atria.http import paging, requests
 from atria.http.views import appointment_view
 
 # A month, which is the widest view the calendar offers. Anything wider is a
@@ -39,6 +40,11 @@ MAX_DAYS = 31
 
 # A week, which is what a calendar opens on when no range is asked for.
 DEFAULT_DAYS = 7
+
+# The widest range of a clinic's days one call answers: the week view. One
+# call for the week, rather than one a day, keeps the view from waking seven
+# cold functions at once (NFR-PERF-01).
+MAX_CLINIC_DAYS = 7
 
 
 def local_range(start_day: dt.date, end_day: dt.date, *, zone: Any) -> tuple[str, str]:
@@ -89,15 +95,16 @@ def calendar(
 
     since, until = local_range(start_day, end_day, zone=zone)
     found = data.calendar(principal.tenant_id, clinician_id, since=since, until=until)
+    shown, more = paging.page(found, event)
     return {
         "clinicianProfileId": clinician_id,
         "clinicId": clinic_id,
         "from": start_day.isoformat(),
         "to": end_day.isoformat(),
         "timezone": str(zone),
-        "count": len(found),
-        "appointments": [appointment_view(a) for a in found],
-        "patients": people.patient_names(principal.tenant_id, patients_in(found)),
+        **more,
+        "appointments": [appointment_view(a) for a in shown],
+        "patients": people.patient_names(principal.tenant_id, patients_in(shown)),
     }
 
 
@@ -109,7 +116,7 @@ def patients_in(found: list[dict[str, Any]]) -> list[str]:
 def clinic_day(
     principal: Principal, event: dict[str, Any], *, data: Booking, people: People
 ) -> dict[str, Any]:
-    """Every appointment in one clinic on one of its dates."""
+    """Every appointment in one clinic on one of its dates, or on up to a week of them."""
     clinic_id = requests.path_parameter(event, "id")
     data.clinic(principal.tenant_id, clinic_id)
     permissions.require(
@@ -119,14 +126,43 @@ def clinic_day(
     )
 
     zone = data.zone(principal.tenant_id)
+    raw_from = requests.query_parameter(event, "from")
+    if raw_from:
+        first = schedule.parse_date(raw_from, name="from")
+        raw_to = requests.query_parameter(event, "to")
+        last = schedule.parse_date(raw_to, name="to") if raw_to else first
+        if last < first:
+            raise Invalid("to is before from")
+        if (last - first).days + 1 > MAX_CLINIC_DAYS:
+            raise Invalid(
+                "that range is wider than a week", detail={"maximumDays": MAX_CLINIC_DAYS}
+            )
+        found = [
+            appointment
+            for n in range((last - first).days + 1)
+            for appointment in data.clinic_day(
+                principal.tenant_id, clinic_id, (first + dt.timedelta(days=n)).isoformat()
+            )
+        ]
+        shown, more = paging.page(found, event)
+        return {
+            "clinicId": clinic_id,
+            "from": first.isoformat(),
+            "to": last.isoformat(),
+            "timezone": str(zone),
+            **more,
+            "appointments": [appointment_view(a) for a in shown],
+            "patients": people.patient_names(principal.tenant_id, patients_in(shown)),
+        }
     raw = requests.query_parameter(event, "date")
     day = schedule.parse_date(raw, name="date") if raw else data.now().astimezone(zone).date()
     found = data.clinic_day(principal.tenant_id, clinic_id, day.isoformat())
+    shown, more = paging.page(found, event)
     return {
         "clinicId": clinic_id,
         "date": day.isoformat(),
         "timezone": str(zone),
-        "count": len(found),
-        "appointments": [appointment_view(a) for a in found],
-        "patients": people.patient_names(principal.tenant_id, patients_in(found)),
+        **more,
+        "appointments": [appointment_view(a) for a in shown],
+        "patients": people.patient_names(principal.tenant_id, patients_in(shown)),
     }

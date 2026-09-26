@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from atria.core import staff as rules
-from atria.core.errors import Conflict, Invalid
+from atria.core.errors import Conflict, Invalid, NotFound
 from atria.data import keys
 from atria.data.repository import Item, Repository
 
@@ -493,6 +493,27 @@ class People:
         if "CLINICIAN" in membership.get("roles", []):
             self._sync_directory(tenant_id, staff_id, status=status)
         return updated
+
+    def activate(self, *, tenant_id: str, staff_id: str) -> bool:
+        """Mark an invited account active, once its own password is set.
+
+        An account holds tokens only after its temporary password has been
+        replaced, so the first authenticated request from an INVITED account
+        is proof of that. Conditional on INVITED: an account suspended in the
+        same moment stays suspended. True when this call made the change.
+        """
+        stamp = now()
+        try:
+            updated = self._repo.update_existing(
+                keys.staff_membership(tenant_id, staff_id),
+                set_values={"status": "ACTIVE", "statusChangedAt": stamp, "activatedAt": stamp},
+                what="staff account",
+                expect=("status", "INVITED"),
+            )
+        except (Conflict, NotFound):
+            return False
+        self._sync_person(updated["personId"], updated)
+        return True
 
     def _sync_directory(self, tenant_id: str, staff_id: str, *, status: str) -> None:
         """Take a clinician in or out of the directory as their status changes.

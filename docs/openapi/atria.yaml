@@ -93,38 +93,83 @@ paths:
     get:
       tags: [Identity and accounts]
       operationId: listStaffAccounts
-      summary: Every staff account of the tenant
+      summary: The tenant's staff accounts, a page at a time
       description: |
         Only a tenant administrator reaches this (permission staff.create, the
         same as creating an account). Accounts are listed by family name, and a
         suspended account stays on the list, because an administrator acts on
         those too. Patients never appear: they have no staff membership.
 
-        mustSetPassword is read from the pool for each account: true until the
-        first sign-in replaces the temporary password, false after, and null
-        where the pool could not say. Nothing secret is listed.
+        The list is searched and filtered on the server, then returned a page
+        at a time, never more than 50 accounts (NFR-PERF-04). Pass nextCursor
+        back as cursor, with the same q and filters, for the page after. count
+        is how many accounts match, total how many the tenant has. facets
+        counts every account of the tenant by role, clinic and status, whatever
+        the filters, so a client can offer the most used first.
+
+        mustSetPassword is true while the account is INVITED: it still holds
+        the temporary password it was created with. Its first authenticated
+        request (GET /me) marks it ACTIVE, since no token is issued until that
+        password is replaced. Nothing secret is listed.
 
         Supports FR-ACC-04 and FR-ACC-18 (the list an administrator changes
         roles and suspends from).
+      parameters:
+        - name: q
+          in: query
+          description: Words from a name, email, mobile number or employee number.
+          schema: { type: string }
+        - name: role
+          in: query
+          schema: { $ref: "#/components/schemas/Role" }
+        - name: clinic
+          in: query
+          description: A clinic ID.
+          schema: { type: string }
+        - name: status
+          in: query
+          description: awaiting (never signed in), active, or suspended.
+          schema: { type: string, enum: [awaiting, active, suspended] }
+        - name: limit
+          in: query
+          description: Accounts per page, 25 unless given, never more than 50.
+          schema: { type: integer, minimum: 1, maximum: 50 }
+        - name: cursor
+          in: query
+          description: The nextCursor of the page before.
+          schema: { type: string }
       responses:
         "200":
-          description: The tenant's staff accounts.
+          description: One page of the tenant's staff accounts.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: false
-                required: [count, accounts]
+                required: [count, total, accounts, nextCursor, facets]
                 properties:
-                  count: { type: integer }
+                  count: { type: integer, description: Accounts matching the search and filters. }
+                  total: { type: integer, description: Every staff account of the tenant. }
                   accounts:
                     type: array
+                    maxItems: 50
                     items:
                       allOf:
                         - $ref: "#/components/schemas/StaffAccount"
                         - type: object
                           properties:
-                            mustSetPassword: { type: [boolean, "null"] }
+                            mustSetPassword: { type: boolean }
+                  nextCursor: { type: [string, "null"] }
+                  facets:
+                    type: object
+                    additionalProperties: false
+                    required: [roles, clinics, status]
+                    properties:
+                      roles: { type: object, additionalProperties: { type: integer } }
+                      clinics: { type: object, additionalProperties: { type: integer } }
+                      status: { type: object, additionalProperties: { type: integer } }
+        "400":
+          $ref: "#/components/responses/Invalid"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
@@ -291,6 +336,8 @@ paths:
           in: query
           schema: { type: string }
           description: Matches part of the given or family name, ignoring case.
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
           description: The tenant's bookable clinicians, most senior first.
@@ -299,9 +346,10 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [clinicians, count]
+                required: [clinicians, count, nextCursor]
                 properties:
-                  count: { type: integer }
+                  count: { type: integer, description: How many the whole list holds, across every page. }
+                  nextCursor: { type: [string, "null"], description: Pass back as cursor for the next page; null on the last. }
                   clinicians:
                     type: array
                     items: { $ref: "#/components/schemas/ListedClinician" }
@@ -321,6 +369,9 @@ paths:
         internal to the clinic is listed.
 
         Implements FR-DIR-01.
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
           description: The tenant's clinics, by name.
@@ -329,9 +380,10 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [clinics, count]
+                required: [clinics, count, nextCursor]
                 properties:
-                  count: { type: integer }
+                  count: { type: integer, description: How many the whole list holds, across every page. }
+                  nextCursor: { type: [string, "null"], description: Pass back as cursor for the next page; null on the last. }
                   clinics:
                     type: array
                     items: { $ref: "#/components/schemas/ListedClinic" }
@@ -352,6 +404,9 @@ paths:
         them, so a client can say how long a visit is and ask for free starts.
 
         Implements FR-BKG-01.
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
           description: The types the caller may book, by name.
@@ -360,10 +415,11 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [gridUnitMinutes, appointmentTypes, count]
+                required: [gridUnitMinutes, appointmentTypes, count, nextCursor]
                 properties:
                   gridUnitMinutes: { type: integer, example: 10 }
-                  count: { type: integer }
+                  count: { type: integer, description: How many the whole list holds, across every page. }
+                  nextCursor: { type: [string, "null"], description: Pass back as cursor for the next page; null on the last. }
                   appointmentTypes:
                     type: array
                     items: { $ref: "#/components/schemas/ListedAppointmentType" }
@@ -376,7 +432,7 @@ paths:
     get:
       tags: [Directory]
       operationId: listFreeStarts
-      summary: The free start times for one clinician, date and appointment type
+      summary: The free start times for one clinician and appointment type, for a date or a week
       description: |
         A start is offered when every grid unit the appointment occupies, the
         type's buffer included, is inside the clinic's opening hours for that
@@ -392,6 +448,12 @@ paths:
         offered by this route and taken by somebody else in between is refused
         at booking with a 409 rather than double booked.
 
+        Give date for one date, answered as slots. Give from and to instead
+        for up to seven dates in one call, answered as days: each date with
+        its starts. A booking screen shows a week, and one call for it rather
+        than seven keeps the screen from waking seven cold functions at once
+        (NFR-PERF-01).
+
         Implements FR-DIR-02.
       parameters:
         - name: id
@@ -401,9 +463,16 @@ paths:
           description: The clinician's staff membership id.
         - name: date
           in: query
-          required: true
           schema: { type: string, format: date }
-          description: The calendar date to look at, as YYYY-MM-DD.
+          description: The calendar date to look at, as YYYY-MM-DD. Required unless from is given.
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+          description: The first of up to seven dates, in place of date.
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+          description: The last of them. Defaults to from.
         - name: typeId
           in: query
           required: true
@@ -415,9 +484,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FreeStarts"
+                oneOf:
+                  - $ref: "#/components/schemas/FreeStarts"
+                  - $ref: "#/components/schemas/FreeStartsWeek"
         "400":
-          description: The date is malformed, or typeId was not given.
+          description: A date is malformed, the range is backwards or longer than seven days, or typeId was not given.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -470,6 +541,8 @@ paths:
           in: query
           schema: { type: string, format: date }
           description: Last date, included. Defaults to six days after from.
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
           description: The clinician's appointments in that range, earliest first.
@@ -478,7 +551,7 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [clinicianProfileId, from, to, timezone, count, appointments, patients]
+                required: [clinicianProfileId, from, to, timezone, count, appointments, patients, nextCursor]
                 properties:
                   clinicianProfileId: { type: string }
                   clinicId: { type: string }
@@ -487,7 +560,8 @@ paths:
                   timezone:
                     type: string
                     description: The zone the dates were read in, for example Africa/Douala.
-                  count: { type: integer }
+                  count: { type: integer, description: How many the whole list holds, across every page. }
+                  nextCursor: { type: [string, "null"], description: Pass back as cursor for the next page; null on the last. }
                   appointments:
                     type: array
                     items: { $ref: "#/components/schemas/Appointment" }
@@ -508,7 +582,7 @@ paths:
     get:
       tags: [Schedule]
       operationId: getClinicDay
-      summary: Every appointment in one clinic on one date
+      summary: Every appointment in one clinic on one date, or on up to a week of them
       description: |
         Permission appointment.read at clinic scope: the front desk's list. A
         clinician's scope is their own appointments, so a clinician is refused
@@ -518,6 +592,11 @@ paths:
         appointment at 00:30 is on that date's list, although its UTC instant
         falls on the day before. Patients are named in `patients`, as on the
         calendar.
+
+        Give from and to in place of date for up to seven dates in one call,
+        as the week view does, answered with from and to in place of date.
+        One call for the week rather than seven keeps the view from waking
+        seven cold functions at once (NFR-PERF-01).
 
         Implements FR-STF-01.
       parameters:
@@ -530,6 +609,16 @@ paths:
           in: query
           schema: { type: string, format: date }
           description: The date, YYYY-MM-DD. Defaults to today in the clinic.
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+          description: The first of up to seven dates, in place of date.
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+          description: The last of them. Defaults to from.
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
           description: That date's appointments across every clinician, earliest first.
@@ -538,12 +627,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [clinicId, date, timezone, count, appointments, patients]
+                required: [clinicId, timezone, count, appointments, patients, nextCursor]
                 properties:
                   clinicId: { type: string }
-                  date: { type: string, format: date }
+                  date: { type: string, format: date, description: Given when one date was asked for. }
+                  from: { type: string, format: date, description: Given when a range was asked for. }
+                  to: { type: string, format: date }
                   timezone: { type: string }
-                  count: { type: integer }
+                  count: { type: integer, description: How many the whole list holds, across every page. }
+                  nextCursor: { type: [string, "null"], description: Pass back as cursor for the next page; null on the last. }
                   appointments:
                     type: array
                     items: { $ref: "#/components/schemas/Appointment" }
@@ -703,6 +795,8 @@ paths:
             type: string
             enum: [upcoming, past, all]
             default: all
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
           description: The caller's own appointments in that window.
@@ -711,12 +805,13 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [when, from, to, count, appointments]
+                required: [when, from, to, count, appointments, nextCursor]
                 properties:
                   when: { type: string, enum: [upcoming, past, all] }
                   from: { type: string, format: date-time }
                   to: { type: string, format: date-time }
-                  count: { type: integer }
+                  count: { type: integer, description: How many the whole list holds, across every page. }
+                  nextCursor: { type: [string, "null"], description: Pass back as cursor for the next page; null on the last. }
                   appointments:
                     type: array
                     items: { $ref: "#/components/schemas/Appointment" }
@@ -833,6 +928,20 @@ components:
       required: true
       schema: { type: string }
       description: The appointment id, scoped to the caller's tenant.
+
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+      description: |
+        How many items one page holds, at most 50 (NFR-PERF-04). Every list
+        answers a page at a time; count is the whole list's size.
+
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+      description: The nextCursor of the page before. Opaque; a cursor this list did not give out is refused with 400.
 
     StaffId:
       name: id
@@ -1067,6 +1176,30 @@ components:
           type: [integer, "null"]
           description: Cancelling at least this long before the start is in window (D-07).
 
+    FreeStartsWeek:
+      type: object
+      additionalProperties: false
+      required: [clinicianProfileId, from, to, appointmentTypeId, days]
+      properties:
+        clinicianProfileId: { type: string }
+        clinicId: { type: string }
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        appointmentTypeId: { type: string }
+        gridUnitMinutes: { type: integer }
+        durationUnits: { type: integer }
+        days:
+          type: object
+          description: Every date from from to to, each with its starts in time order, as slots are on one date.
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              additionalProperties: false
+              required: [startAt, endAt]
+              properties:
+                startAt: { type: string, format: date-time }
+                endAt: { type: string, format: date-time }
     FreeStarts:
       type: object
       additionalProperties: false

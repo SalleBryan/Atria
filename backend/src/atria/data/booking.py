@@ -220,7 +220,7 @@ class Booking:
         return [item for item in found if item.get("tenantId") == tenant_id]
 
     def clinic(self, tenant_id: str, clinic_id: str) -> Item:
-        return self._repo.require(keys.clinic(tenant_id, clinic_id), what="clinic")
+        return self._repo.require(keys.clinic(tenant_id, clinic_id), what="unit")
 
     def region_pack(self, code: str) -> Item | None:
         return self._repo.get(keys.region_pack(code))
@@ -261,7 +261,7 @@ class Booking:
         if membership.get("status") not in BOOKABLE_STATUSES:
             raise Conflict("that clinician is not currently taking appointments")
         if not membership.get("clinicId"):
-            raise Invalid("that clinician is not attached to a clinic")
+            raise Invalid("that clinician is not attached to a unit")
         return membership
 
     # ----------------------------------------------------------------- writes

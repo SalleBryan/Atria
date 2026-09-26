@@ -66,12 +66,12 @@ def wired(monkeypatch, repository):
     repository.put(
         keys.tenant(TENANT), {"type": "TENANT", "tenantId": TENANT, "gridUnitMinutes": 10}
     )
-    put_clinic(repository, TENANT, "c-yaounde", "Centre medical de Bastos")
-    put_clinic(repository, TENANT, "c-douala", "Clinique d'Akwa")
+    put_clinic(repository, TENANT, "c-yaounde", "Bastos Medical Centre")
+    put_clinic(repository, TENANT, "c-douala", "Akwa Clinic")
     put_clinic(repository, OTHER, "c-elsewhere", "Another tenant's clinic")
-    put_type(repository, TENANT, "at-spec", "Premiere consultation specialisee")
-    put_type(repository, TENANT, "at-proc", "Petite intervention", bookable_by="STAFF")
-    put_type(repository, TENANT, "at-retired", "Ancienne consultation", active=False)
+    put_type(repository, TENANT, "at-spec", "First specialist consultation")
+    put_type(repository, TENANT, "at-proc", "Minor procedure", bookable_by="STAFF")
+    put_type(repository, TENANT, "at-retired", "Retired consultation", active=False)
     put_type(repository, OTHER, "at-elsewhere", "Another tenant's type")
     return repository
 
@@ -96,8 +96,8 @@ class TestClinics:
     def test_a_patient_lists_their_tenants_clinics_by_name(self, wired):
         body = call("/clinics")
         assert [c["name"] for c in body["clinics"]] == [
-            "Centre medical de Bastos",
-            "Clinique d'Akwa",
+            "Akwa Clinic",
+            "Bastos Medical Centre",
         ]
 
     def test_a_clinic_carries_only_what_a_patient_needs(self, wired):

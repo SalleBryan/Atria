@@ -10,6 +10,7 @@ import json
 
 import pytest
 
+from atria.core import staff as rules
 from atria.data import keys
 from atria.data.people import People
 from atria.http import responses
@@ -118,3 +119,61 @@ class TestNames:
         assert body["givenName"] is None
         assert body["familyName"] is None
         assert body["email"] is None
+
+
+class TestFirstSignIn:
+    """An invited account becomes active at its first call, which is how the
+    administration console tells who has not signed in yet (FR-ACC-04)."""
+
+    def invited(self, repository):
+        account = rules.validate(
+            {
+                "givenName": "Nadine",
+                "familyName": "Fotso",
+                "phoneE164": "+12025550181",
+                "clinicId": "c-1",
+                "roles": ["RECEPTIONIST"],
+            },
+            current_year=2026,
+        )
+        person, membership = People(repository).create_staff_account(
+            tenant_id="t-cm-001", account=account, cognito_sub="sub-1"
+        )
+        return person, membership
+
+    def call(self, person, membership):
+        return identity.handler(
+            event(
+                personId=person["personId"],
+                roles="RECEPTIONIST",
+                staffId=membership["staffMembershipId"],
+                clinicId="c-1",
+            ),
+            None,
+        )
+
+    def status(self, repository, membership):
+        return People(repository).staff("t-cm-001", membership["staffMembershipId"])["status"]
+
+    def test_the_first_call_marks_an_invited_account_active(self, wired):
+        person, membership = self.invited(wired)
+        assert membership["status"] == "INVITED"
+        assert self.call(person, membership)["statusCode"] == 200
+        assert self.status(wired, membership) == "ACTIVE"
+        summary = People(wired).person_record(person["personId"])["memberships"][0]
+        assert summary["status"] == "ACTIVE"
+
+    def test_a_suspended_account_stays_suspended(self, wired):
+        person, membership = self.invited(wired)
+        People(wired).set_status(
+            tenant_id="t-cm-001", staff_id=membership["staffMembershipId"], status="SUSPENDED"
+        )
+        self.call(person, membership)
+        assert self.status(wired, membership) == "SUSPENDED"
+
+    def test_activating_twice_changes_nothing_the_second_time(self, wired):
+        _person, membership = self.invited(wired)
+        people = People(wired)
+        staff_id = membership["staffMembershipId"]
+        assert people.activate(tenant_id="t-cm-001", staff_id=staff_id) is True
+        assert people.activate(tenant_id="t-cm-001", staff_id=staff_id) is False

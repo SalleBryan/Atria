@@ -413,6 +413,20 @@ class TestClinicDay:
         )
         assert found["count"] == 0
 
+    def test_a_week_of_days_comes_in_one_call(self, booked):
+        """NFR-PERF-01: the week view asks once rather than once a day."""
+        _repository, _ids, made = booked
+        week = {"from": "2026-03-02", "to": "2026-03-08"}
+        found = body_of(get("/clinics/{id}/day", DOUALA, week, **as_receptionist()))
+        assert (found["from"], found["to"]) == ("2026-03-02", "2026-03-08")
+        assert found["count"] == len(made)
+        each = [body_of(day(f"2026-03-0{n}"))["count"] for n in range(2, 9)]
+        assert sum(each) == found["count"]
+
+    def test_more_than_a_week_of_days_is_refused(self, booked):
+        wide = {"from": "2026-03-02", "to": "2026-03-09"}
+        assert get("/clinics/{id}/day", DOUALA, wide, **as_receptionist())["statusCode"] == 400
+
     def test_the_day_defaults_to_today_in_the_clinic(self, booked):
         _repository, _ids, _made = booked
         found = body_of(get("/clinics/{id}/day", DOUALA, **as_receptionist()))

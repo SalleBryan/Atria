@@ -59,11 +59,11 @@ def parse_date(value: object, *, name: str = "date") -> dt.date:
 
 def _time(value: object, *, what: str) -> dt.time:
     if not isinstance(value, str):
-        raise Invalid(f"the clinic's {what} is not a time")
+        raise Invalid(f"the unit's {what} is not a time")
     try:
         return dt.time.fromisoformat(value)
     except ValueError as exc:
-        raise Invalid(f"the clinic's {what} is not a time in the form HH:MM") from exc
+        raise Invalid(f"the unit's {what} is not a time in the form HH:MM") from exc
 
 
 def opening_window(opening_hours: object, day: dt.date, *, zone: ZoneInfo) -> Window | None:
@@ -81,7 +81,7 @@ def opening_window(opening_hours: object, day: dt.date, *, zone: ZoneInfo) -> Wi
     opens = _time(entry.get("start"), what="opening time")
     closes = _time(entry.get("end"), what="closing time")
     if closes <= opens:
-        raise Invalid("the clinic closes before it opens on that day")
+        raise Invalid("the unit closes before it opens on that day")
     return Window(
         opens_at=dt.datetime.combine(day, opens, tzinfo=zone).astimezone(dt.UTC),
         closes_at=dt.datetime.combine(day, closes, tzinfo=zone).astimezone(dt.UTC),

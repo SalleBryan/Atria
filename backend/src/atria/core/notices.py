@@ -46,6 +46,12 @@ LANGUAGES = ("fr", "en")
 # that is on record still wins, so language switching needs no change here.
 DEFAULT_LANGUAGE = "en"
 
+# The languages switched on. French wording is written and tested, but the
+# product owner's call (2026-09-25) is that everything a person sees stays in
+# English until language switching ships in the next phase, so a French
+# preference on record is not honoured yet. Adding "fr" here turns it on.
+OFFERED = ("en",)
+
 
 # Which notice a change of state owes the patient. A state not listed here
 # owes nothing, which is the common case: most transitions are internal and
@@ -95,7 +101,7 @@ def language_for(preferred: object) -> str:
     appointment.
     """
     candidate = str(preferred or "").strip().lower()[:2]
-    return candidate if candidate in LANGUAGES else DEFAULT_LANGUAGE
+    return candidate if candidate in OFFERED else DEFAULT_LANGUAGE
 
 
 def local(instant: str, *, zone: ZoneInfo) -> dt.datetime:

@@ -27,7 +27,7 @@ from atria.core.principal import Principal
 from atria.data.booking import FUTURE_YEARS, HISTORY_YEARS, Booking
 from atria.data.idempotency import COMPLETED, Idempotency, validate_key
 from atria.data.repository import Repository
-from atria.http import requests, responses
+from atria.http import paging, requests, responses
 from atria.http.handler import api
 from atria.http.views import appointment_view
 
@@ -134,12 +134,13 @@ def mine(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     found = data.appointments_for_patient(
         principal.tenant_id, principal.patient_profile_id, since=since, until=until
     )
+    shown, more = paging.page(found, event)
     return {
         "when": when,
         "from": since,
         "to": until,
-        "count": len(found),
-        "appointments": [appointment_view(a) for a in found],
+        **more,
+        "appointments": [appointment_view(a) for a in shown],
     }
 
 

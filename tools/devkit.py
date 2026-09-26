@@ -253,7 +253,7 @@ def put_tenant(table: Any, tenant_id: str = TENANT_ID) -> dict[str, Any]:
         "sk": "META",
         "type": "TENANT",
         "tenantId": tenant_id,
-        "name": "Atria development tenant",
+        "name": "Regional Hospital of Buea",
         "regionPackCode": REGION_PACK_CODE,
         "gridUnitMinutes": GRID_UNIT_MINUTES,
         "qualityProgrammeEnabled": False,
@@ -284,12 +284,17 @@ def put_clinic(
     clinic_id: str,
     *,
     name: str,
-    city: str = "Douala",
-    region: str = "Littoral",
+    city: str = "Buea",
+    region: str = "Sud-Ouest",
+    address: str | None = None,
     hours: dict | None = None,
     tenant_id: str = TENANT_ID,
 ) -> dict[str, Any]:
-    """A clinic whose address names a region the pack actually has."""
+    """A clinic (a unit, to the people using Atria) in a region the pack has.
+
+    The pack names its regions in French, so an address people read is given
+    in English as `address`; the region is still checked against the pack.
+    """
     pack = region_pack(REGION_PACK_CODE)
     if region not in pack["administrativeRegions"]:
         raise SystemExit(f"{region} is not a region of the {pack['code']} pack")
@@ -300,7 +305,7 @@ def put_clinic(
         "clinicId": clinic_id,
         "tenantId": tenant_id,
         "name": name,
-        "address": f"{city}, {region}",
+        "address": address or f"{city}, {region}",
         "phone": fictional_phone(),
         "openingHours": hours or weekday_hours(),
         # Listed in the tenant's directory, as atria.data.catalogue.clinic_listing does.
@@ -314,14 +319,14 @@ def put_clinic(
 APPOINTMENT_TYPES: dict[str, dict[str, Any]] = {
     # The general line queues rather than holding time, so it has no duration.
     "GEN_CONSULT": {
-        "name": "Consultation generale",
+        "name": "General consultation",
         "serviceLine": "GENERAL",
         "durationUnits": None,
         "bufferUnits": 0,
         "bookableBy": "BOTH",
     },
     "SPEC_FIRST": {
-        "name": "Premiere consultation specialisee",
+        "name": "First specialist consultation",
         "serviceLine": "SPECIALIST",
         "durationUnits": 3,
         "bufferUnits": 1,
@@ -329,7 +334,7 @@ APPOINTMENT_TYPES: dict[str, dict[str, Any]] = {
     },
     # A procedure is sized and placed by staff (ADR 0005).
     "MINOR_PROC": {
-        "name": "Petite intervention",
+        "name": "Minor procedure",
         "serviceLine": "PROCEDURE",
         "durationUnits": 6,
         "bufferUnits": 2,

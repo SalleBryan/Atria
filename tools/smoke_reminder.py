@@ -172,7 +172,7 @@ def seed(table) -> None:  # noqa: ANN001  boto3 table
             "type": "CLINIC",
             "clinicId": CLINIC_ID,
             "tenantId": TENANT_ID,
-            "name": "Clinique de Douala",
+            "name": "Paediatrics Unit",
             "openingHours": {str(d): {"start": "00:00", "end": "23:50"} for d in range(7)},
         },
         {

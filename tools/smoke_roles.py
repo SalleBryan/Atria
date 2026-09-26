@@ -40,7 +40,7 @@ from atria_spec.region_packs import region_pack
 
 RUN = devkit.run_id()
 CLINIC = f"c-roles-{RUN}"
-OTHER_CLINIC = "c-douala-akwa"
+OTHER_CLINIC = "u-smoke-other"
 OTHER_TENANT = "t-cm-smoke"
 TYPE = f"at-roles-{RUN}"
 ZONE = ZoneInfo(region_pack(devkit.REGION_PACK_CODE)["timezone"])
@@ -191,8 +191,8 @@ def main() -> int:
     print(f"api  {base}\nrun  {RUN}")
 
     devkit.seed_baseline(table)
-    devkit.put_clinic(table, CLINIC, name="Clinique des roles", hours=devkit.every_day_hours())
-    devkit.put_clinic(table, OTHER_CLINIC, name="Clinique d'Akwa")
+    devkit.put_clinic(table, CLINIC, name="Roles Test Unit", hours=devkit.every_day_hours())
+    devkit.put_clinic(table, OTHER_CLINIC, name="Smoke Other Unit")
     devkit.put_appointment_type(table, TYPE)
 
     admin = devkit.admin_token(idp, pool, staff_client)

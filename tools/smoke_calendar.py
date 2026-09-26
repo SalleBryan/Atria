@@ -31,7 +31,7 @@ from atria_spec.region_packs import region_pack
 
 RUN = devkit.run_id()
 CLINIC_ID = f"c-cal-{RUN}"
-OTHER_CLINIC_ID = "c-douala-akwa"
+OTHER_CLINIC_ID = "u-smoke-other"
 TYPE_ID = f"at-cal-{RUN}"
 ZONE = ZoneInfo(region_pack(devkit.REGION_PACK_CODE)["timezone"])
 
@@ -62,8 +62,8 @@ def main() -> int:
 
     devkit.seed_baseline(table)
     around_the_clock = devkit.every_day_hours("00:00", "23:50")
-    devkit.put_clinic(table, CLINIC_ID, name="Clinique du calendrier", hours=around_the_clock)
-    devkit.put_clinic(table, OTHER_CLINIC_ID, name="Clinique d'Akwa")
+    devkit.put_clinic(table, CLINIC_ID, name="Calendar Test Unit", hours=around_the_clock)
+    devkit.put_clinic(table, OTHER_CLINIC_ID, name="Smoke Other Unit")
     devkit.put_appointment_type(table, TYPE_ID)
     _person, patient = devkit.put_patient(table, RUN)
 

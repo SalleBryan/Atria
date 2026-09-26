@@ -29,7 +29,7 @@ const REASONS: { label: string; by: CancelledBy | null }[] = [
   { label: "Clinician unavailable", by: "CLINIC" },
   { label: "Patient called to cancel", by: "PATIENT" },
   { label: "Double booking", by: "CLINIC" },
-  { label: "Clinic closure", by: "CLINIC" },
+  { label: "Unit closure", by: "CLINIC" },
   { label: "No longer needed", by: "PATIENT" },
   { label: "Other", by: null },
 ];
@@ -103,7 +103,7 @@ export function CancelVisit({
         </span>
         <h2 id="staff-cancel-title">Cancel this appointment?</h2>
         <p className="dialog-lede">
-          The time returns to the clinic's calendar straight away and the patient's reminder is removed. This is recorded
+          The time returns to the unit's calendar straight away and the patient's reminder is removed. This is recorded
           against your account.
         </p>
         <div className="dialog-visit">
@@ -154,7 +154,7 @@ export function CancelVisit({
                     className={`segment${other === choice ? " segment-on" : ""}`}
                     onClick={() => setOther(choice)}
                   >
-                    {choice === "PATIENT" ? "The patient" : "The clinic"}
+                    {choice === "PATIENT" ? "The patient" : "The institution"}
                   </button>
                 ))}
               </div>
@@ -175,7 +175,7 @@ export function CancelVisit({
               <Alert size={15} />
               <p>
                 {by === "CLINIC"
-                  ? "Recorded as cancelled by the clinic, so the patient keeps their full entitlement."
+                  ? "Recorded as cancelled by the institution, so the patient keeps their full entitlement."
                   : late
                     ? `Recorded as cancelled by the patient inside the ${windowHours} hour window, so it counts as a late cancellation.`
                     : `Recorded as cancelled by the patient, more than ${windowHours} hours ahead, so nothing is flagged.`}

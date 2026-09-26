@@ -12,7 +12,7 @@
 
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { api } from "../api/client";
+import { apiAll } from "../api/client";
 import { PACK } from "../auth/phone";
 import type { AppointmentState } from "../generated/lifecycle";
 
@@ -43,6 +43,10 @@ export interface Clinician {
   seniorityBand: "SENIOR" | "EXPERIENCED" | "ESTABLISHED" | "RECENT";
   languages: string[];
 }
+
+/** A language code, as a person reads it. Everything a person sees is English in Phase 1. */
+export const languageName = (code: string): string =>
+  ({ en: "English", fr: "French" } as Record<string, string>)[code] ?? code.toUpperCase();
 
 export interface Clinic {
   clinicId: string;
@@ -86,10 +90,13 @@ const Context = createContext<PatientData | null>(null);
 
 async function load(): Promise<Loaded> {
   const [visits, directory, clinics, types] = await Promise.all([
-    api<{ appointments: Appointment[] }>("/patients/me/appointments?when=all"),
-    api<{ clinicians: Clinician[] }>("/clinicians"),
-    api<{ clinics: Clinic[] }>("/clinics"),
-    api<{ appointmentTypes: AppointmentType[]; gridUnitMinutes: number }>("/appointment-types"),
+    apiAll<{ appointments: Appointment[]; nextCursor?: string | null }>("/patients/me/appointments?when=all", "appointments"),
+    apiAll<{ clinicians: Clinician[]; nextCursor?: string | null }>("/clinicians", "clinicians"),
+    apiAll<{ clinics: Clinic[]; nextCursor?: string | null }>("/clinics", "clinics"),
+    apiAll<{ appointmentTypes: AppointmentType[]; gridUnitMinutes: number; nextCursor?: string | null }>(
+      "/appointment-types",
+      "appointmentTypes",
+    ),
   ]);
   return {
     appointments: visits.appointments,
@@ -253,7 +260,7 @@ export const STATE_LABEL: Record<
   IN_CONSULTATION: { label: "In consultation", tone: "confirmed" },
   COMPLETED: { label: "Attended", tone: "neutral" },
   AWAITING_FEEDBACK: { label: "Attended", tone: "neutral" },
-  CLINIC_CANCELLED: { label: "Cancelled by clinic", tone: "cancelled" },
+  CLINIC_CANCELLED: { label: "Cancelled by the institution", tone: "cancelled" },
   PATIENT_CANCELLED: { label: "Cancelled", tone: "cancelled" },
   NO_SHOW: { label: "Missed", tone: "awaiting" },
 };

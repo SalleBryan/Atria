@@ -9,6 +9,8 @@ const api = vi.hoisted(() => vi.fn());
 vi.mock("../api/client", async (original) => ({
   ...(await original<typeof import("../api/client")>()),
   api,
+  // The screens read whole lists through apiAll, which calls api from inside its module; route it to the stub.
+  apiAll: (path: string) => api(path),
 }));
 
 const HOUR = 3600 * 1000;
@@ -42,7 +44,7 @@ function respond(
         ],
       };
     }
-    if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Clinique d'Akwa", address: "Douala", phone: null, openingHours: null }] };
+    if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit", address: "Buea", phone: null, openingHours: null }] };
     if (path === "/appointment-types") {
       return {
         gridUnitMinutes: 10,
@@ -104,7 +106,7 @@ describe("Visits", () => {
     respond([visit("tomorrow", 10)]);
     renderVisits("/visits/tomorrow?cancel=1");
     const dialog = await screen.findByRole("dialog", { name: "Cancel this visit?" });
-    expect(dialog).toHaveTextContent("inside the 24 hour cancellation window, so the clinic will record a late cancellation");
+    expect(dialog).toHaveTextContent("inside the 24 hour cancellation window, so it will be recorded as a late cancellation");
   });
 
   it("offers no cancel for a visit that is over", async () => {

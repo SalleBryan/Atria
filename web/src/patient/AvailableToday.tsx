@@ -8,10 +8,11 @@
  * asks for the openings.
  */
 
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api/client";
+import { byPopularity, ChipRow, FilterMenu } from "../components/FilterMenu";
 import { Clock } from "../components/icons";
 import { type Clinician, clock, clinicianName, initials, SENIORITY, usePatientData } from "./data";
 
@@ -46,10 +47,9 @@ export function AvailableToday() {
     };
   }, [data, type, today]);
 
-  const specialties = useMemo(
-    () => [...new Set((data?.clinicians ?? []).map((c) => c.specialty).filter((s): s is string => Boolean(s)))].sort(),
-    [data],
-  );
+  const specialties = useMemo(() => byPopularity(data?.clinicians ?? [], (c) => c.specialty), [data]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const more = useRef<HTMLButtonElement>(null);
   const open = (data?.clinicians ?? [])
     .filter((c) => next[c.clinicianProfileId])
     .filter((c) => !specialty || c.specialty === specialty)
@@ -58,20 +58,25 @@ export function AvailableToday() {
 
   return (
     <section className="today" aria-labelledby="today-title">
-      <div className="chips today-chips" role="radiogroup" aria-label="Specialty">
-        {[null, ...specialties].map((option) => (
-          <button
-            key={option ?? "all"}
-            type="button"
-            role="radio"
-            aria-checked={specialty === option}
-            className={`chip-choice${specialty === option ? " chip-on" : ""}`}
-            onClick={() => setSpecialty(option)}
-          >
-            {option ?? "All"}
-          </button>
-        ))}
-      </div>
+      <ChipRow
+        className="today-chips"
+        label="Specialty"
+        options={specialties}
+        value={specialty}
+        onChange={setSpecialty}
+        onMore={() => setMenuOpen(true)}
+        moreRef={more}
+        lines={2}
+      />
+      <FilterMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        anchor={more}
+        title="Available today"
+        sections={[{ id: "specialty", label: "Specialty", options: specialties, value: specialty, onChange: setSpecialty }]}
+        results={open.length === 1 ? "Show 1 clinician" : `Show ${open.length} clinicians`}
+        onClear={() => setSpecialty(null)}
+      />
       <div className="today-head">
         <h2 id="today-title">Available today</h2>
         <Link className="link" to="/find-care">

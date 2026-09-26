@@ -10,6 +10,8 @@ const api = vi.hoisted(() => vi.fn());
 vi.mock("../api/client", async (original) => ({
   ...(await original<typeof import("../api/client")>()),
   api,
+  // The screens read whole lists through apiAll, which calls api from inside its module; route it to the stub.
+  apiAll: (path: string) => api(path),
 }));
 
 const ADMIN = {
@@ -34,14 +36,40 @@ const LISTED = [
 
 const change = vi.fn((_path: string, _body: unknown) => ({}));
 
+const statusOf = (a: (typeof LISTED)[number]) => (a.status === "SUSPENDED" ? "suspended" : a.mustSetPassword ? "awaiting" : "active");
+
+/** GET /admin/staff as the API answers it: searched, filtered, one page, with every account counted. */
+function listing(path: string) {
+  const ask = new URL(path, "http://x").searchParams;
+  const q = (ask.get("q") ?? "").toLowerCase();
+  const found = LISTED.filter(
+    (a) =>
+      (!q || `${a.givenName} ${a.familyName}`.toLowerCase().includes(q)) &&
+      (!ask.get("status") || statusOf(a) === ask.get("status")) &&
+      (!ask.get("role") || a.roles.includes(ask.get("role")!)),
+  );
+  const tally = (keys: string[]) => keys.reduce<Record<string, number>>((all, k) => ({ ...all, [k]: (all[k] ?? 0) + 1 }), {});
+  return {
+    count: found.length,
+    total: LISTED.length,
+    accounts: found.slice(0, Number(ask.get("limit") ?? 25)),
+    nextCursor: null,
+    facets: {
+      roles: tally(LISTED.flatMap((a) => a.roles)),
+      clinics: tally(LISTED.flatMap((a) => (a.clinicId ? [a.clinicId] : []))),
+      status: tally(LISTED.map(statusOf)),
+    },
+  };
+}
+
 function respond(create: (body: unknown) => unknown = () => ({ givenName: "Kofi", familyName: "Boateng", signInName: "+12025550177", temporaryPassword: "Tmp-abcd-efgh" })) {
   api.mockImplementation(async (path: string, init?: { method?: string; json?: unknown }) => {
     if (path === "/clinicians") return { clinicians: [] };
-    if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Clinique d'Akwa" }] };
+    if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit" }] };
     if (path === "/appointment-types") return { appointmentTypes: [] };
     if (path.startsWith("/clinics/")) return { appointments: [], patients: {} };
     if (path === "/admin/staff" && init?.method === "POST") return create(init.json);
-    if (path === "/admin/staff") return { count: LISTED.length, accounts: LISTED };
+    if (path.startsWith("/admin/staff?")) return listing(path);
     if (path.endsWith("/roles") && init?.method === "PATCH") return change(path, init.json);
     if (path.endsWith("/suspend") && init?.method === "POST") return change(path, undefined);
     throw new Error(`unexpected ${path}`);
@@ -90,7 +118,7 @@ describe("Staff accounts", () => {
     const { user, sheet } = await openForm();
     await user.click(within(sheet).getByRole("button", { name: "Create account" }));
     expect(sheet).toHaveTextContent("Enter their given name.");
-    expect(sheet).toHaveTextContent("Choose the clinic they work at.");
+    expect(sheet).toHaveTextContent("Choose the unit they work in.");
     expect(api).not.toHaveBeenCalledWith("/admin/staff", expect.anything());
   });
 
@@ -181,11 +209,21 @@ describe("Staff accounts", () => {
     renderAccounts();
     const list = await screen.findByRole("region", { name: "Staff accounts" });
     expect(await within(list).findByText("Nadine Fotso")).toBeInTheDocument();
-    expect(screen.getByText("5 of 5 users")).toBeInTheDocument();
+    expect(screen.getByText("5 users")).toBeInTheDocument();
     expect(within(list).getByText("ADMIN")).toBeInTheDocument();
     expect(within(list).getByText("Must set password")).toBeInTheDocument();
     expect(within(list).getByText("Suspended")).toBeInTheDocument();
     expect(list).toHaveTextContent("1 account has a temporary password");
+  });
+
+  it("nfr_perf_04: asks for one page at a time, and searches on the server", async () => {
+    respond();
+    renderAccounts();
+    await screen.findByText("Nadine Fotso");
+    expect(api).toHaveBeenCalledWith("/admin/staff?limit=10");
+    await userEvent.setup().type(screen.getByRole("combobox", { name: "Search accounts" }), "kofi");
+    expect(await screen.findByText("1 of 5 users")).toBeInTheDocument();
+    expect(api).toHaveBeenCalledWith("/admin/staff?limit=10&q=kofi");
   });
 
   it("filters to those awaiting their first sign-in", async () => {
@@ -193,21 +231,21 @@ describe("Staff accounts", () => {
     renderAccounts();
     await screen.findByText("Nadine Fotso");
     await userEvent.setup().click(screen.getByRole("radio", { name: "Awaiting first sign-in" }));
-    expect(screen.getByText("1 of 5 users")).toBeInTheDocument();
+    expect(await screen.findByText("1 of 5 users")).toBeInTheDocument();
     expect(screen.getByText("Kofi Ngassa")).toBeInTheDocument();
     expect(screen.queryByText("Nadine Fotso")).not.toBeInTheDocument();
   });
 
-  it("fr_acc_18: moves the front desk to clinic manager, from the next sign-in", async () => {
+  it("fr_acc_18: moves the front desk to unit manager, from the next sign-in", async () => {
     respond();
     renderAccounts();
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Change Nadine Fotso's role" }));
     const dialog = screen.getByRole("dialog", { name: "Change Nadine Fotso's role" });
-    await user.click(within(dialog).getByRole("radio", { name: /Clinic manager/ }));
+    await user.click(within(dialog).getByRole("radio", { name: /Unit manager/ }));
     await user.click(within(dialog).getByRole("button", { name: "Change role" }));
     expect(change).toHaveBeenCalledWith("/admin/staff/s-desk/roles", { roles: ["CLINIC_MANAGER"] });
-    expect(await screen.findByText(/becomes clinic manager at their next sign-in/)).toBeInTheDocument();
+    expect(await screen.findByText(/becomes unit manager at their next sign-in/)).toBeInTheDocument();
   });
 
   it("sends a clinician's change of role to a new account instead", async () => {

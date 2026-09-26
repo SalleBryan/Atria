@@ -18,11 +18,12 @@
  * days, the chosen one in a hero, and its clinicians (WeekPhone, below).
  */
 
-import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useSession } from "../auth/session";
 import { Button, Notice } from "../components/controls";
+import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
 import { Bell, Calendar, ChevronLeft, ChevronRight, Close } from "../components/icons";
 import { type Appointment, type Clinic, type Clinician, clock } from "../patient/data";
 import {
@@ -120,7 +121,8 @@ export function WeekView() {
     ? own
       ? [`/clinicians/${me.staffId}/calendar?from=${monday}&to=${sunday}`]
       : clinicId
-        ? Array.from({ length: 7 }, (_, i) => `/clinics/${clinicId}/day?date=${shiftDate(monday, i)}`)
+        ? // The whole week in one request, not one a day (NFR-PERF-01).
+          [`/clinics/${clinicId}/day?from=${monday}&to=${sunday}`]
         : undefined
     : undefined;
   const { state } = useSchedules(urls);
@@ -142,6 +144,17 @@ export function WeekView() {
   }, [data, everyone, clinicId, own, me?.staffId]);
   const colourOf = (id: string | null): string =>
     PALETTE[Math.max(0, clinicians.findIndex((c) => c.clinicianProfileId === id)) % PALETTE.length] ?? "blue";
+  // Busiest first, so the chips that fit are the clinicians the desk is likeliest to want.
+  const clinicianOptions: FilterOption[] = clinicians
+    .map((c) => ({
+      id: c.clinicianProfileId,
+      label: doctor(c, "Clinician"),
+      count: everyone.filter((a) => a.clinicianProfileId === c.clinicianProfileId).length,
+      dot: `dot-${colourOf(c.clinicianProfileId)}`,
+    }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  const [menuOpen, setMenuOpen] = useState(false);
+  const more = useRef<HTMLButtonElement>(null);
 
   const days = Array.from({ length: 7 }, (_, i) => shiftDate(monday, i)).filter(
     (day, i) => i < 6 || everyone.some((a) => clock.isoDate(a.startAt) === day),
@@ -206,7 +219,7 @@ export function WeekView() {
             </p>
           </div>
           <div className="segmented" role="tablist" aria-label="View">
-            <button type="button" role="tab" aria-selected="false" className="segment" onClick={() => navigate(`/console?date=${anchor}`)}>
+            <button type="button" role="tab" aria-selected="false" className="segment" onClick={() => navigate(`/console?date=${anchor}${chosen && !own ? `&clinician=${chosen}` : ""}`)}>
               Day
             </button>
             <button type="button" role="tab" aria-selected="true" className="segment segment-on">
@@ -216,35 +229,43 @@ export function WeekView() {
         </header>
 
         {!own && (
-          <div className="week-filters" role="radiogroup" aria-label="Clinician">
-            <button
-              type="button"
-              role="radio"
-              aria-checked={!chosen}
-              className={`week-chip${!chosen ? " week-chip-on" : ""}`}
-              onClick={() => go({ clinician: null })}
-            >
-              <span className="week-dot dot-all" aria-hidden="true" />
-              All clinicians
-            </button>
-            {clinicians.map((c) => (
-              <button
-                key={c.clinicianProfileId}
-                type="button"
-                role="radio"
-                aria-checked={chosen === c.clinicianProfileId}
-                className={`week-chip${chosen === c.clinicianProfileId ? " week-chip-on" : ""}`}
-                onClick={() => go({ clinician: c.clinicianProfileId })}
-              >
-                <span className={`week-dot dot-${colourOf(c.clinicianProfileId)}`} aria-hidden="true" />
-                {doctor(c, "Clinician")}
-              </button>
-            ))}
-            <span className="week-legend">
-              <span className="week-dot dot-cancelled" aria-hidden="true" />
-              Cancelled
-            </span>
-          </div>
+          <>
+            <ChipRow
+              variant="week"
+              label="Clinician"
+              options={clinicianOptions}
+              value={chosen}
+              onChange={(id) => go({ clinician: id })}
+              allLabel="All clinicians"
+              allDot="dot-all"
+              onMore={() => setMenuOpen(true)}
+              moreRef={more}
+              trailing={
+                <span className="week-legend">
+                  <span className="week-dot dot-cancelled" aria-hidden="true" />
+                  Cancelled
+                </span>
+              }
+            />
+            <FilterMenu
+              open={menuOpen}
+              onClose={() => setMenuOpen(false)}
+              anchor={more}
+              title="Show one clinician"
+              sections={[
+                {
+                  id: "clinician",
+                  label: "Clinician",
+                  options: clinicianOptions,
+                  value: chosen,
+                  onChange: (id) => go({ clinician: id }),
+                  allLabel: "All clinicians",
+                },
+              ]}
+              results="Show the week"
+              onClear={() => go({ clinician: null })}
+            />
+          </>
         )}
 
         <section className="glass week-card" aria-label="The week">
@@ -256,7 +277,7 @@ export function WeekView() {
               </Button>
             </div>
           ) : (
-            <>
+            <div className="week-scroll">
               <WeekGrid
                 days={days}
                 hours={hours}
@@ -272,7 +293,7 @@ export function WeekView() {
               ) : (
                 <WeekList days={days} appointments={shown} schedule={schedule} loading={state.status === "loading"} own={own} />
               )}
-            </>
+            </div>
           )}
         </section>
       </div>
@@ -292,7 +313,7 @@ export function WeekView() {
           days={days}
           colourOf={colourOf}
         />
-        <p className="week-note">Booked time against the clinic's opening hours this week.</p>
+        <p className="week-note">Booked time against the unit's opening hours this week.</p>
       </aside>
     </div>
   );

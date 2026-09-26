@@ -9,6 +9,8 @@ const api = vi.hoisted(() => vi.fn());
 vi.mock("../api/client", async (original) => ({
   ...(await original<typeof import("../api/client")>()),
   api,
+  // The screens read whole lists through apiAll, which calls api from inside its module; route it to the stub.
+  apiAll: (path: string) => api(path),
 }));
 
 const HOUR = 3600 * 1000;

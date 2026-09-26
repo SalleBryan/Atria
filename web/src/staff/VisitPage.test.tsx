@@ -11,6 +11,8 @@ const api = vi.hoisted(() => vi.fn());
 vi.mock("../api/client", async (original) => ({
   ...(await original<typeof import("../api/client")>()),
   api,
+  // The screens read whole lists through apiAll, which calls api from inside its module; route it to the stub.
+  apiAll: (path: string) => api(path),
 }));
 
 const HOUR = 3600 * 1000;
@@ -48,7 +50,7 @@ function respond(visit: Record<string, unknown> | Error = VISIT) {
     if (path === "/clinicians") {
       return { clinicians: [{ clinicianProfileId: "s-mbarga", clinicId: "c-akwa", givenName: "Esther", familyName: "Mbarga", specialty: "Paediatrics" }] };
     }
-    if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Clinique d'Akwa" }] };
+    if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit" }] };
     if (path === "/appointment-types") return { appointmentTypes: [{ appointmentTypeId: "at-follow", name: "Follow-up consultation", cancellationWindowMinutes: 1440 }] };
     if (path.startsWith("/clinics/c-akwa/day")) return { appointments: [VISIT], patients: { "pp-ama": { givenName: "Ama", familyName: "Darko" } } };
     if (path === "/appointments/a-1" && init?.method === "DELETE") return { ...VISIT, state: "CLINIC_CANCELLED", outcome: "CLINIC_CANCELLED" };
@@ -90,7 +92,7 @@ describe("One visit, from the desk", () => {
     renderVisit();
     const facts = await screen.findByRole("region", { name: "Appointment" });
     expect(facts).toHaveTextContent("APT-4194");
-    expect(facts).toHaveTextContent("Clinique d'Akwa");
+    expect(facts).toHaveTextContent("Medical Outpatient Unit");
     expect(facts).toHaveTextContent("At the desk");
     expect(facts).toHaveTextContent("Dr Esther Mbarga");
     expect(facts).not.toHaveTextContent(/fee|room|notes/i);
@@ -102,11 +104,11 @@ describe("One visit, from the desk", () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Cancel visit" }));
     const dialog = screen.getByRole("dialog", { name: "Cancel this appointment?" });
-    await user.click(within(dialog).getByRole("radio", { name: "Clinic closure" }));
+    await user.click(within(dialog).getByRole("radio", { name: "Unit closure" }));
     respond({ ...VISIT, state: "CLINIC_CANCELLED" });
     await user.click(within(dialog).getByRole("button", { name: "Cancel appointment" }));
     expect(await screen.findByText(/APT-4194 cancelled/)).toBeInTheDocument();
-    expect(await screen.findByText("CANCELLED BY CLINIC")).toBeInTheDocument();
+    expect(await screen.findByText("CANCELLED BY THE INSTITUTION")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel visit" })).not.toBeInTheDocument();
   });
 

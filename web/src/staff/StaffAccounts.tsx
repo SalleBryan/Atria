@@ -4,10 +4,12 @@
  * (FR-ACC-03, FR-ACC-04). Only an administrator reaches this; the API
  * decides that too (staff.create).
  *
- * The list is "Admin · Staff accounts" (94:2), from GET /admin/staff: every
- * account with its group, status and role, filtered as the frame filters, and
- * the two actions Phase 1 has on an account, changing its role (FR-ACC-18)
- * and suspending it. Last sign-in is not recorded in Phase 1, so that column
+ * The list is "Admin · Staff accounts" (94:2), from GET /admin/staff: each
+ * account with its group, status and role, and the two actions Phase 1 has on
+ * an account, changing its role (FR-ACC-18) and suspending it. The API
+ * searches, filters and pages it (NFR-PERF-04), so the console asks for one
+ * page at a time, as many rows as the card holds; the search bar guesses people, roles, clinics and
+ * statuses as the administrator types. Last sign-in is not recorded in Phase 1, so that column
  * gives the role and clinic instead. Where the form
  * differs from the frame it follows the API: a given and a family name rather
  * than one, a mobile number (required), an employee number in place of a job
@@ -19,16 +21,32 @@
  * never kept by the console.
  */
 
-import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 
 import { api } from "../api/client";
-import { PACK, normalisePhone } from "../auth/phone";
+import { type CountryCode, HOME_COUNTRY, PACK, normalisePhone } from "../auth/phone";
 import { useSession } from "../auth/session";
 import { Field, Notice } from "../components/controls";
-import { CheckMark, Clipboard, Close, Plus, Repeat, Shield, User } from "../components/icons";
+import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
+import {
+  Building,
+  CheckMark,
+  Clipboard,
+  Close,
+  Filter,
+  Info,
+  Plus,
+  Repeat,
+  Shield,
+  User,
+} from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { Pager } from "../components/Pager";
+import { PhoneField } from "../components/PhoneField";
+import { SearchSuggest, type SuggestionGroup } from "../components/SearchSuggest";
 import { MATRIX, REQUIRED_ON_CREATE, type Role } from "../generated/permissions";
+import { useTier } from "../layout/fit";
 import { initials } from "../patient/data";
 import { roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
@@ -39,7 +57,7 @@ type StaffRole = Exclude<Role, "PATIENT">;
 const ROLES: { role: StaffRole; label: string; about: string }[] = [
   { role: "RECEPTIONIST", label: "Receptionist", about: "Books, checks in and runs the day. No care context." },
   { role: "CLINICIAN", label: "Clinician", about: "Own list and queue, and their own patients' care context." },
-  { role: "CLINIC_MANAGER", label: "Clinic manager", about: "Receptionist, plus the rota, reporting and audit." },
+  { role: "CLINIC_MANAGER", label: "Unit manager", about: "Receptionist, plus the rota, reporting and audit." },
   { role: "TENANT_ADMIN", label: "Tenant administrator", about: "Accounts, settings, fees and policy. No care context." },
 ];
 
@@ -48,7 +66,7 @@ function allowances(role: StaffRole): { text: string; yes: boolean }[] {
   const read = MATRIX["appointment.read"][role];
   return [
     {
-      text: read === "own" ? "View their own calendar" : read === "tenant" ? "View every clinic's schedule" : "View and manage the clinic schedule",
+      text: read === "own" ? "View their own calendar" : read === "tenant" ? "View every unit's schedule" : "View and manage the unit's schedule",
       yes: read !== "none",
     },
     { text: "Book, reschedule and cancel for patients", yes: MATRIX["appointment.create"][role] !== "none" && MATRIX["appointment.cancel"][role] !== "none" },
@@ -79,19 +97,41 @@ interface Listed {
   mustSetPassword: boolean | null;
 }
 
-type Filter = "all" | "awaiting" | "admins" | "suspended";
+type Status = "awaiting" | "active" | "suspended";
 
-const FILTERS: { id: Filter; label: string; keep: (a: Listed) => boolean }[] = [
-  { id: "all", label: "All users", keep: () => true },
-  { id: "awaiting", label: "Awaiting first sign-in", keep: (a) => a.mustSetPassword === true && a.status !== "SUSPENDED" },
-  { id: "admins", label: "Administrators", keep: (a) => a.roles.includes("TENANT_ADMIN") },
-  { id: "suspended", label: "Suspended", keep: (a) => a.status === "SUSPENDED" },
-];
+const STATUS_NAME: Record<Status, string> = {
+  awaiting: "Awaiting first sign-in",
+  active: "Active",
+  suspended: "Suspended",
+};
+
+interface Page {
+  count: number;
+  total: number;
+  accounts: Listed[];
+  nextCursor: string | null;
+  facets: { roles: Record<string, number>; clinics: Record<string, number>; status: Record<string, number> };
+}
+
+/**
+ * Accounts a page on a phone, where the page scrolls anyway. Wider, a page is
+ * as many rows as the card holds, so the list never scrolls and the pager is
+ * always in view. Either way well inside the API's 50 (NFR-PERF-04).
+ */
+const PAGE_SIZE = 10;
+/** A row's height and the gap under it, until a row is there to measure. */
+const ROW_PITCH = 76;
+
+/** Most accounts first, as the filter row and menu offer them. */
+const byCount = (counts: Record<string, number>, label: (id: string) => string): FilterOption[] =>
+  Object.entries(counts)
+    .sort(([a, x], [b, y]) => y - x || label(a).localeCompare(label(b)))
+    .map(([id, count]) => ({ id, label: label(id), count }));
 
 const ROLE_NAME: Record<StaffRole, string> = {
   RECEPTIONIST: "Front desk",
   CLINICIAN: "Clinician",
-  CLINIC_MANAGER: "Clinic manager",
+  CLINIC_MANAGER: "Unit manager",
   TENANT_ADMIN: "Administrator",
 };
 
@@ -101,45 +141,180 @@ const INTERCHANGEABLE: StaffRole[] = ["RECEPTIONIST", "CLINIC_MANAGER"];
 export function StaffAccounts() {
   const { state } = useSession();
   const { state: directory } = useStaffData();
-  const [accounts, setAccounts] = useState<Listed[] | null>(null);
+  // The page shown, with where it sits in the list, and whether the next one is on its way.
+  const [page, setPage] = useState<(Page & { at: number }) | null>(null);
+  const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<string | null>(null);
   const [fresh, setFresh] = useState(0);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [query, setQuery] = useState("");
+  const [words, setWords] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
+  const [clinic, setClinic] = useState<string | null>(null);
+  // The cursor of each page reached so far, so Previous can go back.
+  const [cursors, setCursors] = useState<(string | null)[]>([null]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const filterButton = useRef<HTMLButtonElement>(null);
   const [creating, setCreating] = useState(false);
   const [changing, setChanging] = useState<Listed | null>(null);
   const [suspending, setSuspending] = useState<Listed | null>(null);
   const [said, setSaid] = useState<string | null>(null);
   const admin = state.status === "signed-in" && roleOf(state.me) === "TENANT_ADMIN";
+  const phone = useTier() === "mobile";
+  const rowsBox = useRef<HTMLUListElement>(null);
+  const [pageSize, setPageSize] = useState<number | null>(null);
+
+  // How many rows the card holds, measured before the first page is asked for.
+  useLayoutEffect(() => {
+    if (phone) {
+      setPageSize(PAGE_SIZE);
+      return;
+    }
+    const box = rowsBox.current;
+    if (!box) return;
+    const measure = () => {
+      // Nothing laid out (a test, say): the phone's page length will do.
+      if (!box.clientHeight) {
+        setPageSize(PAGE_SIZE);
+        return;
+      }
+      const row = box.querySelector<HTMLElement>(".account-row");
+      const pitch = row ? row.offsetHeight + 8 : ROW_PITCH;
+      setPageSize(Math.max(3, Math.min(50, Math.floor((box.clientHeight + 8) / pitch))));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [phone, admin]);
+
+  // Search as the administrator types, a beat after they pause.
+  useEffect(() => {
+    const later = window.setTimeout(() => setWords(query.trim()), 220);
+    return () => window.clearTimeout(later);
+  }, [query]);
+  // A new search, filter or page length starts again at the first page.
+  useEffect(() => setCursors([null]), [words, status, role, clinic, pageSize]);
 
   useEffect(() => {
-    if (!admin) return;
+    if (!admin || !pageSize) return;
     let live = true;
-    api<{ accounts: Listed[] }>("/admin/staff")
-      .then((found) => live && setAccounts(found.accounts))
-      .catch((error: unknown) => live && setFailure(error instanceof Error ? sentence(error.message) : "The accounts could not be loaded."));
+    const ask = new URLSearchParams({ limit: String(pageSize) });
+    if (words) ask.set("q", words);
+    if (status) ask.set("status", status);
+    if (role) ask.set("role", role);
+    if (clinic) ask.set("clinic", clinic);
+    const cursor = cursors[cursors.length - 1];
+    if (cursor) ask.set("cursor", cursor);
+    setLoading(true);
+    api<Page>(`/admin/staff?${ask}`)
+      .then((found) => {
+        if (!live) return;
+        setPage({ ...found, at: cursors.length - 1 });
+        setFailure(null);
+      })
+      .catch((error: unknown) => live && setFailure(error instanceof Error ? sentence(error.message) : "The accounts could not be loaded."))
+      .finally(() => live && setLoading(false));
     return () => {
       live = false;
     };
-  }, [admin, fresh]);
+  }, [admin, fresh, words, status, role, clinic, cursors, pageSize]);
 
   if (state.status !== "signed-in") return null;
   if (!admin) return <Navigate to="/console" replace />;
 
-  const clinicName = (id: string | null) =>
-    directory.status === "ready" ? directory.data.clinics.find((c) => c.clinicId === id)?.name : undefined;
-  const shown = (accounts ?? []).filter(FILTERS.find((f) => f.id === filter)!.keep);
-  const awaiting = (accounts ?? []).filter((a) => a.mustSetPassword === true && a.status !== "SUSPENDED").length;
+  const clinics = directory.status === "ready" ? directory.data.clinics : [];
+  const clinicName = (id: string | null) => clinics.find((c) => c.clinicId === id)?.name;
+  const facets = page?.facets ?? { roles: {}, clinics: {}, status: {} };
+  const statusOptions = byCount(facets.status, (id) => STATUS_NAME[id as Status] ?? id);
+  const roleOptions = byCount(facets.roles, (id) => ROLE_NAME[id as StaffRole] ?? id);
+  const clinicOptions = byCount(facets.clinics, (id) => clinicName(id) ?? "Another unit");
+  const awaiting = facets.status.awaiting ?? 0;
+  const accounts = page?.accounts ?? [];
+  const size = pageSize ?? PAGE_SIZE;
+  const first = (page?.at ?? 0) * size + 1;
+  const pages = page ? Math.max(1, Math.ceil(page.count / size)) : 1;
+  const menuFilters = [role, clinic].filter(Boolean).length;
   const done = (message: string) => {
     setSaid(message);
     setFresh((n) => n + 1);
   };
+  const clearSearch = () => {
+    setQuery("");
+    setWords("");
+  };
+
+  // What the search bar guesses from: the people the search finds, and every filter it could mean.
+  const suggestions: SuggestionGroup[] = [
+    {
+      id: "people",
+      label: "People",
+      icon: User,
+      items: words && words === query.trim()
+        ? accounts.slice(0, 4).map((a) => {
+            const name = [a.givenName, a.familyName].filter(Boolean).join(" ") || "Unnamed account";
+            return {
+              id: a.staffId,
+              label: name,
+              hint: [a.roles.map((r) => ROLE_NAME[r] ?? r).join(", "), a.signInName].filter(Boolean).join(" · "),
+              also: [a.signInName ?? ""],
+              onPick: () => setQuery(name),
+            };
+          })
+        : [],
+    },
+    {
+      id: "roles",
+      label: "Roles",
+      icon: Shield,
+      items: roleOptions.map((o) => ({
+        id: o.id,
+        label: o.label,
+        hint: `${o.count} ${o.count === 1 ? "account" : "accounts"}`,
+        also: [ROLES.find((r) => r.role === o.id)?.label ?? ""],
+        onPick: () => {
+          clearSearch();
+          setRole(o.id);
+        },
+      })),
+    },
+    {
+      id: "clinics",
+      label: "Units",
+      icon: Building,
+      items: clinicOptions.map((o) => ({
+        id: o.id,
+        label: o.label,
+        hint: `${o.count} ${o.count === 1 ? "account" : "accounts"}`,
+        onPick: () => {
+          clearSearch();
+          setClinic(o.id);
+        },
+      })),
+    },
+    {
+      id: "status",
+      label: "Status",
+      icon: Info,
+      items: statusOptions.map((o) => ({
+        id: o.id,
+        label: o.label,
+        hint: `${o.count} ${o.count === 1 ? "account" : "accounts"}`,
+        onPick: () => {
+          clearSearch();
+          setStatus(o.id);
+        },
+      })),
+    },
+  ];
 
   return (
     <div className="accounts-page">
       <header className="accounts-top">
         <div>
           <h1>Console users</h1>
-          <p>Everyone who can sign in to the clinic console</p>
+          <p>Everyone who can sign in to the staff console</p>
         </div>
         <button type="button" className="staff-primary accounts-new" onClick={() => setCreating(true)}>
           <Plus size={16} />
@@ -153,53 +328,83 @@ export function StaffAccounts() {
         console, and patients never appear in this list.
       </p>
 
-      <div className="accounts-filters">
-        <div className="chips" role="radiogroup" aria-label="Show">
-          {FILTERS.map((f) => (
+      <div className="accounts-tools">
+        <SearchSuggest
+          className="find-search accounts-search"
+          label="Search accounts"
+          placeholder="Search by name, email, mobile or role"
+          value={query}
+          onChange={setQuery}
+          groups={suggestions}
+          trailing={
             <button
-              key={f.id}
+              ref={filterButton}
               type="button"
-              role="radio"
-              aria-checked={filter === f.id}
-              className={`week-chip${filter === f.id ? " week-chip-on" : ""}`}
-              onClick={() => setFilter(f.id)}
+              className={`filter-button${menuOpen || menuFilters ? " filter-on" : ""}`}
+              aria-label="Filters"
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(true)}
             >
-              {f.label}
+              <Filter size={17} />
             </button>
-          ))}
+          }
+        />
+        <div className="accounts-filters">
+          <ChipRow
+            variant="week"
+            label="Show"
+            options={statusOptions}
+            value={status}
+            onChange={setStatus}
+            allLabel="All users"
+            onMore={() => setMenuOpen(true)}
+            moreActive={menuFilters}
+            moreAlways
+          />
+          <span className="accounts-count" aria-live="polite">
+            {page ? (page.count === page.total ? `${page.total} users` : `${page.count} of ${page.total} users`) : ""}
+          </span>
         </div>
-        <span className="accounts-count">{accounts ? `${shown.length} of ${accounts.length} users` : ""}</span>
       </div>
+      <FilterMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        anchor={filterButton}
+        title="Filter accounts"
+        sections={[
+          { id: "status", label: "Status", options: statusOptions, value: status, onChange: setStatus, allLabel: "Any status" },
+          { id: "role", label: "Role", options: roleOptions, value: role, onChange: setRole, allLabel: "Any role" },
+          { id: "clinic", label: "Unit", options: clinicOptions, value: clinic, onChange: setClinic, allLabel: "Every unit" },
+        ]}
+        results={page ? (page.count === 1 ? "Show 1 account" : `Show ${page.count} accounts`) : "Show accounts"}
+        onClear={() => {
+          setStatus(null);
+          setRole(null);
+          setClinic(null);
+        }}
+      />
 
-      <section className="glass accounts-card" aria-label="Staff accounts">
-        {failure ? (
-          <Notice tone="error">{failure} Check your connection and try again.</Notice>
-        ) : !accounts ? (
-          <div className="day-rows" aria-busy="true">
-            {[0, 1, 2, 3].map((n) => (
-              <span key={n} className="skeleton day-row-skeleton" />
-            ))}
-          </div>
-        ) : (
-          <>
-            <div className="accounts-head" aria-hidden="true">
-              <span>USER</span>
-              <span>GROUP</span>
-              <span>ACCOUNT STATUS</span>
-              <span>ROLE</span>
-            </div>
-            <ul className="accounts-rows">
-              {shown.map((account, index) => {
+      <section className="glass accounts-card" aria-label="Staff accounts" aria-busy={!page || undefined}>
+        {failure && <Notice tone="error">{failure} Check your connection and try again.</Notice>}
+        <div className="accounts-head" aria-hidden="true">
+          <span>USER</span>
+          <span>GROUP</span>
+          <span>ACCOUNT STATUS</span>
+          <span>ROLE</span>
+        </div>
+        <ul ref={rowsBox} className={`accounts-rows${loading && page ? " accounts-rows-loading" : ""}`}>
+          {!page
+            ? [0, 1, 2, 3].map((n) => <li key={n} className="skeleton day-row-skeleton" aria-hidden="true" />)
+            : accounts.map((account, index) => {
                 const off = account.status === "SUSPENDED" || account.status === "ENDED";
                 const adminRole = account.roles.includes("TENANT_ADMIN");
                 const self = state.me.staffId === account.staffId;
-                const status = off
+                const shownStatus = off
                   ? { label: "Suspended", tone: "neutral" }
                   : account.mustSetPassword
                     ? { label: "Must set password", tone: "awaiting" }
-                    : account.mustSetPassword === false
-                      ? { label: "Active", tone: "confirmed" }
-                      : { label: "Unknown", tone: "neutral" };
+                    : { label: "Active", tone: "confirmed" };
                 const name = [account.givenName, account.familyName].filter(Boolean).join(" ") || "Unnamed account";
                 return (
                   <li key={account.staffId} className={`account-row${off ? " account-row-off" : ""}`} style={{ "--i": index } as CSSProperties}>
@@ -216,11 +421,11 @@ export function StaffAccounts() {
                       <span className={`chip ${adminRole ? "chip-admin" : "chip-booked"}`}>{adminRole ? "ADMIN" : "STAFF"}</span>
                     </span>
                     <span>
-                      <span className={`chip chip-${status.tone}`}>{status.label}</span>
+                      <span className={`chip chip-${shownStatus.tone}`}>{shownStatus.label}</span>
                     </span>
                     <span className="account-role">
                       <span>{account.roles.map((r) => ROLE_NAME[r] ?? r).join(", ")}</span>
-                      <span>{clinicName(account.clinicId) ?? (adminRole ? "Every clinic" : "")}</span>
+                      <span>{clinicName(account.clinicId) ?? (adminRole ? "Every unit" : "")}</span>
                     </span>
                     <span className="account-actions">
                       <button
@@ -247,16 +452,28 @@ export function StaffAccounts() {
                   </li>
                 );
               })}
-              {!shown.length && <li className="today-empty">No accounts match.</li>}
-            </ul>
-            {awaiting > 0 && (
-              <p className="accounts-foot">
-                {awaiting === 1 ? "1 account has" : `${awaiting} accounts have`} a temporary password and must set their own
-                on first sign-in.
-              </p>
-            )}
-          </>
-        )}
+          {page && !accounts.length && <li className="today-empty">No accounts match.</li>}
+        </ul>
+        <Pager
+          noun="accounts"
+          first={first}
+          last={first + accounts.length - 1}
+          total={page?.count ?? 0}
+          page={page?.at ?? 0}
+          pages={pages}
+          busy={loading}
+          hasNext={Boolean(page?.nextCursor)}
+          note={
+            awaiting > 0
+              ? `${awaiting === 1 ? "1 account has" : `${awaiting} accounts have`} a temporary password to replace at first sign-in`
+              : undefined
+          }
+          onPrevious={() => setCursors((c) => c.slice(0, -1))}
+          onNext={() => {
+            const next = page?.nextCursor;
+            if (next) setCursors((c) => [...c, next]);
+          }}
+        />
       </section>
 
       {creating && (
@@ -436,6 +653,7 @@ function CreateStaff({ onClose, onDone }: { onClose: () => void; onDone: (name: 
     registrationYear: "",
     ordreNumber: "",
   });
+  const [country, setCountry] = useState<CountryCode>(HOME_COUNTRY);
   const [languages, setLanguages] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -456,13 +674,13 @@ function CreateStaff({ onClose, onDone }: { onClose: () => void; onDone: (name: 
 
   function check(): Record<string, string> {
     const found: Record<string, string> = {};
-    const phone = normalisePhone(form.phone);
+    const phone = normalisePhone(form.phone, country);
     if (!form.givenName.trim()) found.givenName = "Enter their given name.";
     if (!form.familyName.trim()) found.familyName = "Enter their family name.";
     if (!E164.test(phone)) found.phone = `Enter their mobile with its country code, such as ${PACK.dialCode ?? "+237"} 6 70 00 00 00.`;
     if (needs.has("email") && !form.email.trim()) found.email = "An administrator signs in with an email address. Enter theirs.";
     else if (form.email.trim() && !EMAIL.test(form.email.trim())) found.email = "That is not an email address. Check it and try again.";
-    if (needs.has("clinicId") && !form.clinicId) found.clinicId = "Choose the clinic they work at.";
+    if (needs.has("clinicId") && !form.clinicId) found.clinicId = "Choose the unit they work in.";
     if (needs.has("specialty") && !form.specialty.trim()) found.specialty = "Enter their specialty.";
     const year = Number(form.registrationYear);
     if (needs.has("registrationYear") && !(Number.isInteger(year) && year >= 1950 && year <= new Date().getFullYear())) {
@@ -483,7 +701,7 @@ function CreateStaff({ onClose, onDone }: { onClose: () => void; onDone: (name: 
     const body: Record<string, unknown> = {
       givenName: form.givenName.trim(),
       familyName: form.familyName.trim(),
-      phoneE164: normalisePhone(form.phone),
+      phoneE164: normalisePhone(form.phone, country),
       roles: [role],
     };
     if (form.email.trim()) body.email = form.email.trim();
@@ -563,15 +781,13 @@ function CreateStaff({ onClose, onDone }: { onClose: () => void; onDone: (name: 
               <div className="sheet-grid">
                 <Field label="Given name" value={form.givenName} onChange={set("givenName")} error={errors.givenName} autoComplete="off" />
                 <Field label="Family name" value={form.familyName} onChange={set("familyName")} error={errors.familyName} autoComplete="off" />
-                <Field
+                <PhoneField
                   label="Mobile"
-                  type="tel"
-                  inputMode="tel"
                   value={form.phone}
-                  onChange={set("phone")}
+                  onChange={(phone) => setForm((current) => ({ ...current, phone }))}
+                  country={country}
+                  onCountry={setCountry}
                   error={errors.phone}
-                  hint={`With the country code, such as ${PACK.dialCode ?? "+237"} 6 70 00 00 00.`}
-                  autoComplete="off"
                 />
                 <Field
                   label={needs.has("email") ? "Work email" : "Work email (optional)"}
@@ -589,7 +805,7 @@ function CreateStaff({ onClose, onDone }: { onClose: () => void; onDone: (name: 
                     </label>
                     <div className={`input select${errors.clinicId ? " input-invalid" : ""}`}>
                       <select id="staff-clinic" value={form.clinicId} onChange={set("clinicId")} aria-invalid={errors.clinicId ? true : undefined}>
-                        <option value="">Choose a clinic</option>
+                        <option value="">Choose a unit</option>
                         {clinics.map((clinic) => (
                           <option key={clinic.clinicId} value={clinic.clinicId}>
                             {clinic.name}

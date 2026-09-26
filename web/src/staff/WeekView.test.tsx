@@ -11,6 +11,8 @@ const api = vi.hoisted(() => vi.fn());
 vi.mock("../api/client", async (original) => ({
   ...(await original<typeof import("../api/client")>()),
   api,
+  // The screens read whole lists through apiAll, which calls api from inside its module; route it to the stub.
+  apiAll: (path: string) => api(path),
 }));
 
 const DESK = {
@@ -67,14 +69,10 @@ function respond() {
     }
     if (path === "/clinics") {
       const hours = Object.fromEntries([0, 1, 2, 3, 4].map((d) => [String(d), { start: "08:00", end: "17:00" }]));
-      return { clinics: [{ clinicId: "c-akwa", name: "Clinique d'Akwa", openingHours: hours }] };
+      return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit", openingHours: hours }] };
     }
     if (path === "/appointment-types") return { appointmentTypes: [] };
-    const day = path.match(/^\/clinics\/c-akwa\/day\?date=(.+)$/);
-    if (day) {
-      const found = WEEK.filter((a) => a.startAt.startsWith(day[1]!) || new Date(Date.parse(a.startAt) + 3600000).toISOString().startsWith(day[1]!));
-      return { appointments: found, patients: NAMES };
-    }
+    if (path.startsWith("/clinics/c-akwa/day?from=")) return { appointments: WEEK, patients: NAMES };
     if (path.startsWith("/clinicians/s-mbarga/calendar")) {
       return { appointments: WEEK.filter((a) => a.clinicianProfileId === "s-mbarga"), patients: NAMES };
     }
@@ -104,13 +102,12 @@ const blocks = () => screen.getByRole("region", { name: "The week" }).querySelec
 describe("Week view", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("fr_stf_01: the front desk's week is the clinic's seven days", async () => {
+  it("fr_stf_01: the front desk's week is the clinic's seven days, asked for at once", async () => {
     respond();
     renderWeek(DESK);
     expect(await screen.findByRole("button", { name: /Patient A/ })).toBeInTheDocument();
-    for (let day = 0; day < 7; day += 1) {
-      expect(api).toHaveBeenCalledWith(`/clinics/c-akwa/day?date=${shiftDate(MONDAY, day)}`);
-    }
+    expect(api).toHaveBeenCalledWith(`/clinics/c-akwa/day?from=${MONDAY}&to=${shiftDate(MONDAY, 6)}`);
+    expect(api).not.toHaveBeenCalledWith(expect.stringContaining("/day?date="));
     expect(blocks()).toHaveLength(4);
   });
 

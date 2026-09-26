@@ -92,10 +92,10 @@ function Shell({ me }: { me: Me }) {
             </span>
             <span>
               <span className="side-name">ATRIA</span>
-              <span className="side-product">{clinic ?? (role === "TENANT_ADMIN" ? "Admin console" : "Clinic console")}</span>
+              <span className="side-product">{clinic ?? (role === "TENANT_ADMIN" ? "Admin console" : "Staff console")}</span>
             </span>
           </div>
-          <p className="side-label">{role === "TENANT_ADMIN" ? "ADMINISTRATION" : "CLINIC"}</p>
+          <p className="side-label">{role === "TENANT_ADMIN" ? "ADMINISTRATION" : "UNIT"}</p>
           <nav className="side-nav" aria-label="Console">
             <span ref={pill} className="side-pill" aria-hidden="true" style={{ "--at": at } as CSSProperties} />
             {destinations.map(({ to, label, icon: IconComponent, matches }) => (

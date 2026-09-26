@@ -19,9 +19,20 @@
   .side-brand { padding: 0 0 14px; }
   .side-brand > span:last-child,
   .side-label,
-  .side .side-item > span,
-  .side .side-pip,
+  .side .side-item > span:not(.side-pip),
   .side-me-text { display: none; }
+  /* On the rail the count shrinks to a red dot on the icon's corner. */
+  .side .side-pip {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    min-width: 0;
+    width: 10px;
+    height: 10px;
+    padding: 0;
+    font-size: 0;
+    box-shadow: 0 0 0 2px #ffffff;
+  }
   .side-mark { width: 48px; height: 48px; border-radius: 16px; }
   .side .side-nav { --pill-step: 64px; gap: 14px; align-items: center; }
   .side .side-pill { left: 50%; right: auto; width: 50px; height: 50px; margin-left: -25px; border-radius: 16px; }
@@ -116,21 +127,21 @@
 
   /* Staff screens (Mobile · Staff sign in, 167:2): the pitch on the brand
      blue, and the form rising from below as a white sheet. */
-  .auth[data-product="CLINIC CONSOLE"] { display: flex; flex-direction: column; background: var(--gradient-brand); }
-  .auth[data-product="CLINIC CONSOLE"] .logo-text { display: flex; color: #ffffff; }
-  .auth[data-product="CLINIC CONSOLE"] .logo-mark { color: var(--blue-700); background: var(--glass-logo); }
-  .auth[data-product="CLINIC CONSOLE"] .form-pane,
-  .auth[data-product="CLINIC CONSOLE"] .form-scroll,
-  .auth[data-product="CLINIC CONSOLE"] .auth-box { display: flex; flex-direction: column; flex: 1; }
-  .auth[data-product="CLINIC CONSOLE"] .form-scroll { padding-bottom: 0; }
-  .auth[data-product="CLINIC CONSOLE"] .auth-box > .status-pill { order: -3; align-self: flex-start; margin-bottom: 16px; color: #ffffff; border-color: #ffffff; background: rgba(255, 255, 255, 0.16); }
-  .auth[data-product="CLINIC CONSOLE"] .auth-box > .title,
-  .auth[data-product="CLINIC CONSOLE"] .auth-box > .lede { color: #ffffff; }
-  .auth[data-product="CLINIC CONSOLE"] .auth-box > .lede { margin-bottom: 26px; opacity: 0.94; }
+  .auth[data-product="STAFF CONSOLE"] { display: flex; flex-direction: column; background: var(--gradient-brand); }
+  .auth[data-product="STAFF CONSOLE"] .logo-text { display: flex; color: #ffffff; }
+  .auth[data-product="STAFF CONSOLE"] .logo-mark { color: var(--blue-700); background: var(--glass-logo); }
+  .auth[data-product="STAFF CONSOLE"] .form-pane,
+  .auth[data-product="STAFF CONSOLE"] .form-scroll,
+  .auth[data-product="STAFF CONSOLE"] .auth-box { display: flex; flex-direction: column; flex: 1; }
+  .auth[data-product="STAFF CONSOLE"] .form-scroll { padding-bottom: 0; }
+  .auth[data-product="STAFF CONSOLE"] .auth-box > .status-pill { order: -3; align-self: flex-start; margin-bottom: 16px; color: #ffffff; border-color: #ffffff; background: rgba(255, 255, 255, 0.16); }
+  .auth[data-product="STAFF CONSOLE"] .auth-box > .title,
+  .auth[data-product="STAFF CONSOLE"] .auth-box > .lede { color: #ffffff; }
+  .auth[data-product="STAFF CONSOLE"] .auth-box > .lede { margin-bottom: 26px; opacity: 0.94; }
   /* The sheet is drawn by the card and runs to the foot of the screen, so
      what follows the card (the first sign-in note) sits on it too. */
-  .auth[data-product="CLINIC CONSOLE"] { position: relative; z-index: 0; overflow: clip; }
-  .auth[data-product="CLINIC CONSOLE"] .auth-box > .form-card {
+  .auth[data-product="STAFF CONSOLE"] { position: relative; z-index: 0; overflow: clip; }
+  .auth[data-product="STAFF CONSOLE"] .auth-box > .form-card {
     position: relative;
     margin: 0 -26px 18px;
     padding: 26px 26px 8px;
@@ -139,7 +150,7 @@
     box-shadow: none;
     backdrop-filter: none;
   }
-  .auth[data-product="CLINIC CONSOLE"] .auth-box > .form-card::before {
+  .auth[data-product="STAFF CONSOLE"] .auth-box > .form-card::before {
     content: "";
     position: absolute;
     top: 0;
@@ -151,7 +162,7 @@
     background: #f6f9ff;
     box-shadow: 0 -10px 30px rgba(10, 36, 96, 0.18);
   }
-  .auth[data-product="CLINIC CONSOLE"] .auth-box > .notice:last-child { margin-top: auto; margin-bottom: 26px; }
+  .auth[data-product="STAFF CONSOLE"] .auth-box > .notice:last-child { margin-top: auto; margin-bottom: 26px; }
 
   /* Find care as two steps: Mobile · Search results (34:2), then Mobile ·
      Booking (34:103), whose own bar and booking dock replace the navigation. */
@@ -338,9 +349,10 @@
   .accounts-top { flex-wrap: wrap; }
   .accounts-banner { padding: 16px 18px; font-size: 12.5px; }
   .accounts-filters { flex-direction: column; align-items: stretch; }
-  .accounts-filters .chips { flex-wrap: nowrap; margin: 0 -20px; padding: 0 20px 4px; overflow-x: auto; scrollbar-width: none; }
-  .accounts-filters .week-chip { flex: none; }
+  .accounts-search { max-width: none; }
   .accounts-card { padding: 0; border: 0; background: none; box-shadow: none; backdrop-filter: none; }
+  .accounts-page { height: auto; }
+  .accounts-rows { flex: none; overflow: visible; }
   .accounts-head { display: none; }
   .account-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 10px; padding: 14px; border-radius: 22px; }
   .account-who { grid-column: 1 / -1; }
@@ -495,7 +507,7 @@
   .home > .home-cols { display: none; }
 
   .today { display: flex; flex-direction: column; gap: 14px; }
-  .today-chips { flex-wrap: nowrap; margin: 0 -20px; padding: 0 20px 4px; overflow-x: auto; scrollbar-width: none; }
+  .today-chips { padding-bottom: 4px; }
   .today-chips .chip-choice { flex: none; height: 44px; padding: 0 20px; border-radius: 16px; }
   .today-list { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
   .today-list li { animation: rise var(--move) both, fade-in var(--fade) both; animation-delay: calc(var(--i, 0) * 50ms); }

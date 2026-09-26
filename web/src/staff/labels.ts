@@ -21,7 +21,7 @@ export const STAFF_STATE: Record<AppointmentState, { label: string; tone: Tone }
   IN_CONSULTATION: { label: "In consultation", tone: "confirmed" },
   COMPLETED: { label: "Attended", tone: "neutral" },
   AWAITING_FEEDBACK: { label: "Attended", tone: "neutral" },
-  CLINIC_CANCELLED: { label: "Cancelled by clinic", tone: "cancelled" },
+  CLINIC_CANCELLED: { label: "Cancelled by the institution", tone: "cancelled" },
   PATIENT_CANCELLED: { label: "Cancelled by patient", tone: "cancelled" },
   NO_SHOW: { label: "No-show", tone: "awaiting" },
 };
@@ -35,7 +35,7 @@ export const BOOKED_BY: Record<string, string> = {
   PATIENT: "Booked by the patient",
   RECEPTIONIST: "Booked by the front desk",
   CLINICIAN: "Booked by a clinician",
-  CLINIC_MANAGER: "Booked by the clinic manager",
+  CLINIC_MANAGER: "Booked by the unit manager",
 };
 
 /** The API words its errors as fragments ("that appointment is already cancelled"); the desk reads sentences. */

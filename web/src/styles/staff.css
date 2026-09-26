@@ -161,6 +161,12 @@
   list-style: none;
 }
 .day-rows { scrollbar-width: thin; scrollbar-color: var(--line-soft) transparent; }
+/* Search, then the clinician chips, above the list; the pager sits under it. */
+.day-tools { display: flex; flex: none; align-items: center; gap: 12px; min-width: 0; margin-top: 14px; }
+.day-search { flex: 0 1 300px; min-width: 220px; height: 46px; }
+.day-search .filter-button { width: 34px; height: 34px; }
+.day-chips { flex: 1; }
+.day-rows { padding-bottom: 12px; }
 /* The frame's "Front desk · Staff" line, beside the sign-out button the frame does not have. */
 .staff-app .side-me { gap: 10px; }
 .staff-app .side-me .icon-button { width: 30px; }
@@ -245,7 +251,9 @@
 
 /* --------------------------------------------------------------- panel */
 
-.staff-panel { padding: 22px; animation-delay: 180ms, 180ms; }
+/* The panel's vertical rhythm closes up on a short canvas (--tall, fit.ts), so
+   its details fit rather than scroll a few pixels; the frame's own sizes at 1. */
+.staff-panel { padding: calc(16px + 6px * var(--tall)) 22px; animation-delay: 180ms, 180ms; }
 .staff-panel > * { animation: fade-in var(--fade-slow) both; }
 .panel-person { display: flex; align-items: center; gap: 13px; animation: rise var(--move) both, fade-in var(--fade) both; }
 .panel-avatar { width: 56px; height: 56px; border-radius: 18px; font-size: 17px; box-shadow: 0 8px 18px rgba(33, 89, 210, 0.25); }
@@ -260,14 +268,14 @@
 }
 .panel-sub { display: block; margin-top: 3px; font-size: 12px; color: var(--ink-muted); }
 .panel-facts {
-  margin: 16px 0 0;
+  margin: calc(10px + 6px * var(--tall)) 0 0;
   padding: 4px 16px;
   border: 1px solid var(--line-hairline);
   border-radius: 18px;
   background: var(--surface-panel);
   animation: rise var(--move) both 60ms, fade-in var(--fade) both 60ms;
 }
-.panel-facts > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; }
+.panel-facts > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: calc(33px + 5px * var(--tall)); }
 .panel-facts > div + div { border-top: 1px solid var(--line-hairline); }
 .panel-facts dt { font-size: 12.5px; color: var(--ink-muted); }
 .panel-facts dd { margin: 0; overflow: hidden; font-size: 13px; font-weight: 600; text-align: right; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-primary); }
@@ -276,9 +284,21 @@
 .status-awaiting { color: var(--status-awaiting-ink) !important; }
 .status-cancelled { color: var(--status-cancelled-ink) !important; }
 .status-neutral { color: var(--ink-650) !important; }
-.panel-label { margin: 18px 0 12px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: var(--ink-muted); }
+.panel-label { margin: calc(12px + 6px * var(--tall)) 0 calc(8px + 4px * var(--tall)); font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: var(--ink-muted); }
 .panel-timeline { flex: 0 1 auto; }
-.panel-actions { display: flex; flex-direction: column; gap: 9px; margin-top: auto; padding-top: 12px; }
+.panel-scroll {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0 -8px;
+  padding: 0 8px 4px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-soft) transparent;
+}
+.panel-actions { display: flex; flex: none; flex-direction: column; gap: calc(7px + 2px * var(--tall)); margin-top: auto; padding-top: calc(8px + 4px * var(--tall)); }
+.panel-actions .staff-primary { height: calc(42px + 6px * var(--tall)); }
 .staff-primary {
   position: relative;
   isolation: isolate;
@@ -309,7 +329,7 @@
 }
 .staff-primary:hover::before { opacity: 0.1; }
 .staff-primary:active { border-radius: 11px; transform: scale(0.98); }
-.panel-actions .outline-danger { height: 48px; }
+.panel-actions .outline-danger { height: calc(42px + 6px * var(--tall)); }
 .staff-panel-empty {
   display: flex;
   flex-direction: column;
@@ -327,6 +347,8 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 
 @media (max-width: 767px) {
   .staff-day { display: flex; flex-direction: column; height: auto; }
+  .day-tools { flex-direction: column; align-items: stretch; }
+  .day-search { flex: none; min-width: 0; }
   .staff-top { flex-wrap: wrap; padding: 14px 16px; }
   .staff-title { order: 3; flex-basis: 100%; margin: 4px 0 0; }
   .staff-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -513,10 +535,18 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   padding: 22px;
   border-radius: 28px;
 }
-.visit-page-main { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-soft) transparent; }
+.visit-page-main { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-soft) transparent; container-type: inline-size; }
+.visit-page-main,
+.visit-page-side { padding: calc(16px + 6px * var(--tall)) 22px; }
+/* The appointment and the people sit side by side once the card is wide
+   enough, which a wide window gives it, rather than stacking into a scroll. */
+@container (min-width: 760px) {
+  .visit-page-body { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+  .visit-page-main .visit-page-part + .visit-page-part h2 { margin-top: 0; }
+}
 .visit-page-main h2,
 .visit-page-side h2 {
-  margin: 0 0 16px;
+  margin: 0 0 calc(10px + 6px * var(--tall));
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 15.5px;
@@ -525,22 +555,22 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 }
 .visit-page-main h2 + .panel-facts { margin-top: 0; }
 .visit-page-facts { border-radius: 20px; }
-.visit-page-facts > div { min-height: 40px; }
-.visit-page-facts > div:first-child { min-height: 48px; }
-.visit-page-main .visit-page-facts + h2 { margin-top: 18px; }
+.visit-page-facts > div { min-height: calc(34px + 6px * var(--tall)); }
+.visit-page-facts > div:first-child { min-height: calc(40px + 8px * var(--tall)); }
+.visit-page-part + .visit-page-part h2 { margin-top: calc(12px + 6px * var(--tall)); }
 .person-card {
   display: flex;
   align-items: center;
   gap: 14px;
-  min-height: 84px;
-  padding: 16px;
+  min-height: calc(72px + 12px * var(--tall));
+  padding: calc(12px + 4px * var(--tall)) 16px;
   border: 1px solid #ffffff;
   border-radius: 22px;
   background: #ffffff;
   box-shadow: 0 1px 8px rgba(16, 42, 94, 0.06);
   animation: rise var(--move) both 160ms, fade-in var(--fade) both 160ms;
 }
-.person-card + .person-card { margin-top: 12px; animation-delay: 220ms, 220ms; }
+.person-card + .person-card { margin-top: calc(8px + 4px * var(--tall)); animation-delay: 220ms, 220ms; }
 .person-avatar {
   display: grid;
   place-items: center;
@@ -630,27 +660,42 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 .week-chip-on { border-color: transparent; color: #ffffff; background: var(--gradient-primary); box-shadow: 0 8px 18px rgba(36, 97, 219, 0.28); }
 .week-chip-on .week-dot { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85); }
 .week-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
-.dot-all { background: var(--ink-300); }
-.dot-cancelled { background: #c3cde0; }
+.week-dot.dot-all { background: var(--ink-300); }
+.week-dot.dot-cancelled { background: #c3cde0; }
 .week-legend { display: inline-flex; flex: none; align-items: center; gap: 7px; margin-left: 6px; font-size: 12.5px; font-weight: 600; color: var(--ink-650); }
 
-/* One colour per clinician, in the order the chips list them. */
-.dot-blue, .block-blue { background: linear-gradient(140deg, #4a83f0, #2461db); }
-.dot-violet, .block-violet { background: linear-gradient(140deg, #8b7cf6, #6552e0); }
-.dot-teal, .block-teal { background: linear-gradient(140deg, #3aa7c9, #1d7ea4); }
-.dot-amber, .block-amber { background: linear-gradient(140deg, #f0a33c, #d5801f); }
-.dot-green, .block-green { background: linear-gradient(140deg, #18b87c, #0b8f5e); }
-.dot-rose, .block-rose { background: linear-gradient(140deg, #ef7a93, #d6485a); }
+/* One colour per clinician, in the order the chips list them. Scoped to the
+   week's own dots: the booked screen's step dots share the names. */
+.week-dot.dot-blue, .block-blue { background: linear-gradient(140deg, #4a83f0, #2461db); }
+.week-dot.dot-violet, .block-violet { background: linear-gradient(140deg, #8b7cf6, #6552e0); }
+.week-dot.dot-teal, .block-teal { background: linear-gradient(140deg, #3aa7c9, #1d7ea4); }
+.week-dot.dot-amber, .block-amber { background: linear-gradient(140deg, #f0a33c, #d5801f); }
+.week-dot.dot-green, .block-green { background: linear-gradient(140deg, #18b87c, #0b8f5e); }
+.week-dot.dot-rose, .block-rose { background: linear-gradient(140deg, #ef7a93, #d6485a); }
 .block-cancelled { color: var(--ink-650) !important; background: linear-gradient(140deg, #d6deeb, #c3cde0); box-shadow: none !important; }
 
 .week-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 30px;
+}
+/* The scroller sits inside the card's padding, so its bar runs down a
+   straight edge and never crosses the rounded corners. */
+.week-scroll {
+  flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 0 18px 18px;
-  border-radius: 30px;
+  margin: 0 8px 14px 0;
+  padding: 0 10px 4px 18px;
   scrollbar-width: thin;
   scrollbar-color: var(--line-soft) transparent;
+  scrollbar-gutter: stable;
 }
+.week-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.week-scroll::-webkit-scrollbar-track { margin: 18px 0; background: transparent; }
+.week-scroll::-webkit-scrollbar-thumb { border-radius: 99px; background: var(--line-soft); }
 .week-grid {
   display: grid;
   grid-template-columns: 58px repeat(var(--days, 6), minmax(0, 1fr));
@@ -790,6 +835,7 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   .staff-week { display: flex; flex-direction: column; height: auto; }
   .week-main { display: flex; flex-direction: column; }
   .week-card { overflow: visible; padding: 14px; }
+  .week-scroll { overflow: visible; margin: 0; padding: 0; }
   .week-grid { display: none; }
   .week-list { display: flex; flex-direction: column; gap: 18px; }
   .week-list h3 {
@@ -825,7 +871,7 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 
 /* ------------------------------ staff accounts (94:2) and creating one (103:2) */
 
-.accounts-page { display: flex; flex-direction: column; gap: 16px; min-height: 100%; }
+.accounts-page { display: flex; flex-direction: column; gap: 16px; height: 100%; min-height: 0; }
 .accounts-page > * { animation: rise var(--move-slow) both, fade-in var(--fade-slow) both; }
 .accounts-page > :nth-child(2) { animation-delay: 60ms, 60ms; }
 .accounts-page > :nth-child(3) { animation-delay: 100ms, 100ms; }
@@ -850,15 +896,20 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   box-shadow: 0 12px 28px rgba(91, 52, 196, 0.26);
 }
 .accounts-banner > svg { flex: none; }
-.accounts-filters { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.accounts-filters .chips { flex-wrap: wrap; gap: 10px; }
+.accounts-tools { display: flex; flex-direction: column; gap: 12px; }
+.accounts-search { max-width: 560px; }
+.accounts-filters { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.accounts-filters .chip-row { flex: 1; }
 .accounts-count { flex: none; font-size: 13px; color: var(--ink-muted); }
-.accounts-card { flex: 1; padding: 18px 16px; border-radius: 30px; }
+.accounts-card { display: flex; flex: 1; flex-direction: column; min-height: 0; padding: 18px 16px; border-radius: 30px; }
 .accounts-head,
 .account-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px 200px 190px 88px; align-items: center; column-gap: 14px; }
 .accounts-head { padding: 4px 14px 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--ink-muted); }
 .accounts-head > :first-child { padding-left: 54px; }
-.accounts-rows { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+/* The rows take what the card has left; a page holds as many as fit (StaffAccounts). */
+.accounts-rows { display: flex; flex: 1; flex-direction: column; gap: 8px; min-height: 0; margin: 0; padding: 0; overflow-y: auto; list-style: none; scrollbar-width: thin; transition: opacity var(--fade); }
+.accounts-rows > .skeleton { flex: none; height: 68px; border-radius: 18px; }
+.accounts-rows-loading { opacity: 0.55; }
 .account-row {
   min-height: 68px;
   padding: 10px 14px;
@@ -903,7 +954,6 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 .account-actions .square-button { color: var(--blue-600); }
 .account-actions .account-suspend { color: var(--status-cancelled); }
 .account-actions .square-button:disabled { opacity: 0.35; cursor: not-allowed; }
-.accounts-foot { margin: 18px 14px 0; font-size: 12.5px; color: var(--ink-muted); }
 .accounts-dialog-icon { background: linear-gradient(140deg, var(--admin-light), var(--admin-base)) !important; }
 .role-grid-one { grid-template-columns: minmax(0, 1fr); margin-top: 16px; }
 .dialog .staff-primary { height: 52px; }
@@ -925,6 +975,23 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 .admin-app .side-pill { background: linear-gradient(140deg, var(--admin-light), var(--admin-base)); box-shadow: 0 8px 18px rgba(91, 52, 196, 0.3); }
 .admin-app .side-mark { background: linear-gradient(140deg, var(--admin-light), var(--admin-base)); box-shadow: 0 8px 16px rgba(91, 52, 196, 0.3); }
 .admin-app .bottom-item.active .bottom-indicator { background: linear-gradient(140deg, var(--admin-light), var(--admin-base)); }
+/* Filters and search in the administration console are purple too, and so
+   are their menus, which are drawn on <body> and marked .menu-admin. */
+.admin-app .week-chip-on,
+.admin-app .filter-on,
+.menu-admin .filter-option-on,
+.menu-admin .filter-menu-done {
+  background: linear-gradient(140deg, var(--admin-light), var(--admin-base));
+  box-shadow: 0 8px 18px rgba(91, 52, 196, 0.28);
+}
+.admin-app .filter-button:not(.filter-on) { color: var(--admin-base); background: rgba(139, 92, 240, 0.16); box-shadow: 0 4px 10px rgba(91, 52, 196, 0.22); }
+.admin-app .chip-count { color: var(--admin-base); }
+.admin-app .find-search:focus-within { border-color: var(--admin-light); box-shadow: 0 0 0 4px rgba(139, 92, 240, 0.15); color: var(--admin-light); }
+.menu-admin .link-button,
+.menu-admin .suggest-main mark,
+.menu-admin .suggest-icon { color: var(--admin-base); }
+.menu-admin .suggest-icon,
+.menu-admin .suggest-item-on { background: rgba(139, 92, 240, 0.12); }
 
 @media (max-width: 1199px) {
   .accounts-head,

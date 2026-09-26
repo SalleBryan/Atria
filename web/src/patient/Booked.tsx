@@ -12,9 +12,9 @@
 
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 
-import { CheckMark, Clock, Download, Mail, User } from "../components/icons";
+import { Calendar, CheckMark, Clock, Mail, User } from "../components/icons";
 import { type Appointment, clinicianName, clock, initials, join, stateLabel, usePatientData } from "./data";
-import { downloadCalendarEntry } from "./calendar";
+import { AddToCalendar } from "./AddToCalendar";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -34,8 +34,11 @@ export function Booked() {
 
   return (
     <div className="booked-screen" role="dialog" aria-labelledby="booked-title">
-      <span className="orb booked-orb-a" aria-hidden="true" />
-      <span className="orb booked-orb-b" aria-hidden="true" />
+      {/* Clipped to the screen, so the light never gives it anything to scroll to. */}
+      <span className="orb-layer" aria-hidden="true">
+        <span className="orb booked-orb-a" />
+        <span className="orb booked-orb-b" />
+      </span>
       <div className="booked-copy">
         <span className="booked-tile" aria-hidden="true">
           <CheckMark size={40} />
@@ -84,10 +87,10 @@ export function Booked() {
           <Link className="booked-button booked-solid" to={`/visits/${appointment.appointmentId}`}>
             View my visit
           </Link>
-          <button type="button" className="booked-button" onClick={() => downloadCalendarEntry(appointment, joined)}>
-            <Download size={15} />
+          <AddToCalendar appointment={appointment} joined={joined} className="booked-button">
+            <Calendar size={15} />
             Add to calendar
-          </button>
+          </AddToCalendar>
           <Link className="booked-button" to="/home">
             Done
           </Link>

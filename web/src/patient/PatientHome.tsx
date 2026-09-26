@@ -15,22 +15,21 @@
  *   link to directions; the map is a drawing, not a live map.
  */
 
-import { type FormEvent, type ReactElement, useState } from "react";
+import { type ReactElement, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
+import { SearchSuggest } from "../components/SearchSuggest";
 import {
   Bell,
   Calendar,
   CheckMark,
   Clipboard,
-  Download,
   Mail,
   Pin,
   Plus,
   Repeat,
-  Search,
 } from "../components/icons";
 import {
   type Appointment,
@@ -49,7 +48,8 @@ import {
 } from "./data";
 import { useTier } from "../layout/fit";
 import { AvailableToday } from "./AvailableToday";
-import { downloadCalendarEntry } from "./calendar";
+import { AddToCalendar } from "./AddToCalendar";
+import { careChoices, careSuggestions } from "./careSearch";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -61,10 +61,23 @@ export function PatientHome() {
   const me = session.status === "signed-in" ? session.me : undefined;
   const phone = useTier() === "mobile";
 
-  function search(event: FormEvent) {
-    event.preventDefault();
-    navigate(query.trim() ? `/find-care?q=${encodeURIComponent(query.trim())}` : "/find-care");
+  function search(words: string) {
+    navigate(words.trim() ? `/find-care?q=${encodeURIComponent(words.trim())}` : "/find-care");
   }
+
+  // Guesses from everything Find care can narrow by, and goes there already narrowed.
+  const ready = state.status === "ready" ? state.data : undefined;
+  const suggestions = useMemo(() => {
+    const clinicians = ready?.clinicians ?? [];
+    const clinics = ready?.clinics ?? [];
+    const go = (name: string, value: string) => navigate(`/find-care?${name}=${encodeURIComponent(value)}`);
+    return careSuggestions(clinicians, clinics, careChoices(clinicians, clinics), {
+      clinician: (id) => go("clinician", id),
+      specialty: (name) => go("specialty", name),
+      clinic: (id) => go("clinic", id),
+      language: (code) => go("language", code),
+    });
+  }, [ready, navigate]);
 
   if (state.status === "failed") {
     return (
@@ -125,15 +138,16 @@ export function PatientHome() {
           </h1>
           <p>{summary}</p>
         </div>
-        <form className="top-search" role="search" onSubmit={search}>
-          <Search size={16} />
-          <input
-            aria-label="Search clinicians or specialties"
-            placeholder="Search clinicians or specialties"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </form>
+        <SearchSuggest
+          form
+          className="top-search"
+          label="Search clinicians or specialties"
+          placeholder="Search clinicians or specialties"
+          value={query}
+          onChange={setQuery}
+          onSubmit={search}
+          groups={suggestions}
+        />
         <Link className="pill-button pill-primary" to="/find-care">
           <Plus size={16} />
           Book a visit
@@ -197,14 +211,10 @@ export function PatientHome() {
                 <Link className="hero-button" to={`/visits/${next.appointmentId}?cancel=1`}>
                   Cancel
                 </Link>
-                <button
-                  type="button"
-                  className="hero-button"
-                  onClick={() => downloadCalendarEntry(next, nextJoined)}
-                >
-                  <Download size={15} />
+                <AddToCalendar appointment={next} joined={nextJoined} className="hero-button">
+                  <Calendar size={15} />
                   Add to calendar
-                </button>
+                </AddToCalendar>
               </div>
             </section>
           ) : (
@@ -394,7 +404,7 @@ function ClinicCard({ clinic }: { clinic?: Clinic }) {
     [clinic.name, clinic.address].filter(Boolean).join(", "),
   )}`;
   return (
-    <section className="panel glass clinic-card" aria-label="Your clinic">
+    <section className="panel glass clinic-card" aria-label="Where your next visit is">
       <div className="map" aria-hidden="true">
         <svg viewBox="0 0 312 69" preserveAspectRatio="xMidYMid slice">
           <rect width="312" height="69" className="map-ground" />

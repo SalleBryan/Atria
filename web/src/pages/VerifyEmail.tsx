@@ -106,7 +106,7 @@ export function VerifyEmail() {
             <p className="aside-title">Why we verify</p>
             <p className="aside-text">
               Your confirmation and cancellation receipts are the only written record of a booking. A wrong address
-              means they go nowhere, and the clinic cannot resend them for you.
+              means they go nowhere, and the front desk cannot resend them for you.
             </p>
           </div>
         </>

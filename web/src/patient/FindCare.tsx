@@ -17,7 +17,7 @@
  * a lost response returns the booking rather than a false conflict.
  */
 
-import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
@@ -31,10 +31,13 @@ import {
   Filter,
   Lock,
   Repeat,
-  Search,
   Stethoscope,
 } from "../components/icons";
+import { ChipRow, FilterMenu } from "../components/FilterMenu";
+import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { rank, SearchSuggest } from "../components/SearchSuggest";
+import { careChoices, careSuggestions } from "./careSearch";
 import {
   type Appointment,
   type AppointmentType,
@@ -85,6 +88,14 @@ function onDate(date: string) {
   return `${date}T12:00:00Z`;
 }
 
+/** The free starts of a run of dates, up to a week, in one request (NFR-PERF-01). */
+async function freeWeek(clinicianId: string, typeId: string, from: string, to: string): Promise<Record<string, Slot[]>> {
+  const found = await api<{ days: Record<string, Slot[]> }>(
+    `/clinicians/${encodeURIComponent(clinicianId)}/slots?from=${from}&to=${to}&typeId=${encodeURIComponent(typeId)}`,
+  );
+  return found.days;
+}
+
 async function freeStarts(clinicianId: string, typeId: string, date: string): Promise<Slot[]> {
   const found = await api<{ slots: Slot[] }>(
     `/clinicians/${encodeURIComponent(clinicianId)}/slots?date=${date}&typeId=${encodeURIComponent(typeId)}`,
@@ -104,9 +115,11 @@ export function FindCare() {
   const navigate = useNavigate();
 
   const [query, setQuery] = useState(params.get("q") ?? "");
-  const [specialty, setSpecialty] = useState<string | null>(null);
-  const [clinicFilter, setClinicFilter] = useState<string | null>(null);
-  const [showClinics, setShowClinics] = useState(false);
+  const [specialty, setSpecialty] = useState<string | null>(params.get("specialty"));
+  const [clinicFilter, setClinicFilter] = useState<string | null>(params.get("clinic"));
+  const [language, setLanguage] = useState<string | null>(params.get("language"));
+  const [menuOpen, setMenuOpen] = useState(false);
+  const filterButton = useRef<HTMLButtonElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(params.get("clinician"));
   // On a phone the list and the booking are two steps (Mobile · Search
   // results, 34:2, then Mobile · Booking, 34:103); wider, they sit side by side.
@@ -131,21 +144,64 @@ export function FindCare() {
   const type: AppointmentType | undefined = bookable.find((t) => t.appointmentTypeId === typeId) ?? bookable[0];
   const minutes = (type?.durationUnits ?? 0) * (data?.gridUnitMinutes ?? 10);
 
-  const specialties = useMemo(
-    () => [...new Set((data?.clinicians ?? []).map((c) => c.specialty).filter((s): s is string => Boolean(s)))].sort(),
+  // Most clinicians first: the specialties, clinics and languages people are likeliest to want.
+  const { specialties, clinics: clinicOptions, languages: languageOptions } = useMemo(
+    () => careChoices(data?.clinicians ?? [], data?.clinics ?? []),
     [data],
   );
   const listed = useMemo(() => {
-    const words = query.trim().toLowerCase();
+    const words = query.trim();
+    const clinicName = (id: string | null) => data?.clinics.find((k) => k.clinicId === id)?.name ?? "";
     return (data?.clinicians ?? []).filter((c) => {
       if (specialty && c.specialty !== specialty) return false;
       if (clinicFilter && c.clinicId !== clinicFilter) return false;
+      if (language && !c.languages.includes(language)) return false;
       if (!words) return true;
-      return [c.givenName, c.familyName, c.specialty].some((field) => field?.toLowerCase().includes(words));
+      // The same forgiving match the suggestions use, so a slip in the spelling still finds them.
+      return rank([c.givenName, c.familyName, c.specialty, clinicName(c.clinicId)].filter(Boolean).join(" "), words) > 0;
     });
-  }, [data, query, specialty, clinicFilter]);
+  }, [data, query, specialty, clinicFilter, language]);
+  const menuFilters = [clinicFilter, language].filter(Boolean).length;
+
+  // What the search bar guesses from: every category Find care can narrow by.
+  const suggestions = careSuggestions(
+    data?.clinicians ?? [],
+    data?.clinics ?? [],
+    { specialties, clinics: clinicOptions, languages: languageOptions },
+    {
+      clinician: (id) => {
+        setQuery("");
+        setSpecialty(null);
+        setClinicFilter(null);
+        setLanguage(null);
+        setSelectedId(id);
+        setStep("detail");
+      },
+      specialty: (name) => {
+        setQuery("");
+        setSpecialty(name);
+      },
+      clinic: (id) => {
+        setQuery("");
+        setClinicFilter(id);
+      },
+      language: (code) => {
+        setQuery("");
+        setLanguage(code);
+      },
+    },
+  );
 
   const selected = listed.find((c) => c.clinicianProfileId === selectedId) ?? listed[0];
+  // The list is paged to what its box holds, never scrolled without end.
+  const rowsBox = useRef<HTMLUListElement>(null);
+  const size = useRowsThatFit(rowsBox, { row: ".clinician", pitch: 84, gap: 10 });
+  const pages = usePages(listed, size, `${query}|${specialty}|${clinicFilter}|${language}`);
+  const { reveal } = pages;
+  const selectedIndex = listed.findIndex((c) => c.clinicianProfileId === selected?.clinicianProfileId);
+  useEffect(() => {
+    reveal(selectedIndex);
+  }, [selected?.clinicianProfileId, size]);
   const clinicOf = (clinician?: Clinician) => data?.clinics.find((c) => c.clinicId === clinician?.clinicId);
   const week = useMemo(() => days(weekStart, WEEK), [weekStart]);
   const today = clock.isoDate(new Date());
@@ -153,19 +209,17 @@ export function FindCare() {
     ? clock.isoDate(new Date(Date.now() + type.maxAdvanceDays * DAY_MS))
     : undefined;
 
-  // The free starts for the week shown, one request per day, all at once.
+  // The free starts for the week shown, in one request for the dates that can be booked.
   useEffect(() => {
     if (!selected || !type) return;
     let current = true;
-    setCounts({});
-    for (const date of week) {
-      if (date < today || (lastBookable && date > lastBookable)) {
-        setCounts((known) => ({ ...known, [date]: [] }));
-        continue;
-      }
-      freeStarts(selected.clinicianProfileId, type.appointmentTypeId, date)
-        .then((slots) => current && setCounts((known) => ({ ...known, [date]: slots })))
-        .catch(() => current && setCounts((known) => ({ ...known, [date]: [] })));
+    const open = week.filter((date) => date >= today && !(lastBookable && date > lastBookable));
+    const none = Object.fromEntries(week.filter((date) => !open.includes(date)).map((date) => [date, [] as Slot[]]));
+    setCounts(none);
+    if (open.length) {
+      freeWeek(selected.clinicianProfileId, type.appointmentTypeId, open[0]!, open[open.length - 1]!)
+        .then((days) => current && setCounts({ ...none, ...Object.fromEntries(open.map((date) => [date, days[date] ?? []])) }))
+        .catch(() => current && setCounts({ ...none, ...Object.fromEntries(open.map((date) => [date, [] as Slot[]])) }));
     }
     return () => {
       current = false;
@@ -259,59 +313,55 @@ export function FindCare() {
             {specialty ? ` in ${specialty.toLowerCase()}` : " you can book"}
           </p>
         </header>
-        <div className="find-search">
-          <Search size={18} />
-          <input
-            aria-label="Search clinicians or specialties"
-            placeholder="Search clinicians or specialties"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          <button
-            type="button"
-            className={`filter-button${showClinics || clinicFilter ? " filter-on" : ""}`}
-            aria-label="Filter by clinic"
-            aria-expanded={showClinics}
-            onClick={() => setShowClinics((shown) => !shown)}
-          >
-            <Filter size={17} />
-          </button>
-        </div>
-        {showClinics && (
-          <div className="chips chips-clinics" role="group" aria-label="Clinic">
-            <button type="button" className={`chip-choice${clinicFilter ? "" : " chip-on"}`} onClick={() => setClinicFilter(null)}>
-              All clinics
-            </button>
-            {data.clinics.map((c) => (
-              <button
-                key={c.clinicId}
-                type="button"
-                className={`chip-choice${clinicFilter === c.clinicId ? " chip-on" : ""}`}
-                onClick={() => setClinicFilter(c.clinicId)}
-              >
-                {c.name}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="chips" role="group" aria-label="Specialty">
-          <button type="button" className={`chip-choice${specialty ? "" : " chip-on"}`} onClick={() => setSpecialty(null)}>
-            All
-          </button>
-          {specialties.map((name) => (
+        <SearchSuggest
+          label="Search clinicians or specialties"
+          placeholder="Search clinicians or specialties"
+          value={query}
+          onChange={setQuery}
+          groups={suggestions}
+          trailing={
             <button
-              key={name}
+              ref={filterButton}
               type="button"
-              className={`chip-choice${specialty === name ? " chip-on" : ""}`}
-              aria-pressed={specialty === name}
-              onClick={() => setSpecialty(name)}
+              className={`filter-button${menuOpen || menuFilters ? " filter-on" : ""}`}
+              aria-label="Filters"
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(true)}
             >
-              {name}
+              <Filter size={17} />
             </button>
-          ))}
-        </div>
-        <ul className="clinicians" aria-label="Clinicians">
-          {listed.map((clinician) => {
+          }
+        />
+        <ChipRow
+          label="Specialty"
+          options={specialties}
+          value={specialty}
+          onChange={setSpecialty}
+          onMore={() => setMenuOpen(true)}
+          moreActive={menuFilters}
+          lines={2}
+          moreAlways
+        />
+        <FilterMenu
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          anchor={filterButton}
+          title="Filter clinicians"
+          sections={[
+            { id: "specialty", label: "Specialty", options: specialties, value: specialty, onChange: setSpecialty },
+            { id: "clinic", label: "Unit", options: clinicOptions, value: clinicFilter, onChange: setClinicFilter, allLabel: "All units" },
+            { id: "language", label: "Speaks", options: languageOptions, value: language, onChange: setLanguage, allLabel: "Any language" },
+          ]}
+          results={listed.length === 1 ? "Show 1 clinician" : `Show ${listed.length} clinicians`}
+          onClear={() => {
+            setSpecialty(null);
+            setClinicFilter(null);
+            setLanguage(null);
+          }}
+        />
+        <ul ref={rowsBox} className="clinicians" aria-label="Clinicians">
+          {pages.shown.map((clinician) => {
             const on = clinician === selected;
             return (
               <li key={clinician.clinicianProfileId}>
@@ -343,6 +393,18 @@ export function FindCare() {
           })}
           {!listed.length && <li className="empty">Nobody matches. Try another name or specialty.</li>}
         </ul>
+        {listed.length > 0 && (
+          <Pager
+            noun="clinicians"
+            first={pages.first}
+            last={pages.last}
+            total={pages.total}
+            page={pages.page}
+            pages={pages.pages}
+            onPrevious={pages.previous}
+            onNext={pages.next}
+          />
+        )}
       </section>
 
       <section className="find-detail glass" aria-label="Book with the selected clinician">
@@ -656,7 +718,7 @@ function Conflict({
               <span className="why-icon">
                 <Lock size={14} />
               </span>
-              The clinic calendar allows exactly one booking per clinician per time.
+              The calendar allows exactly one booking per clinician per time.
             </li>
             <li>
               <span className="why-icon">

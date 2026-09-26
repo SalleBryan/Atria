@@ -11,6 +11,8 @@ const api = vi.hoisted(() => vi.fn());
 vi.mock("../api/client", async (original) => ({
   ...(await original<typeof import("../api/client")>()),
   api,
+  // The screens read whole lists through apiAll, which calls api from inside its module; route it to the stub.
+  apiAll: (path: string) => api(path),
 }));
 
 const ME = {
@@ -38,7 +40,7 @@ function renderAccount(signOut = vi.fn()) {
       return { clinicians: [{ clinicianProfileId: "s-1", clinicId: "c-akwa", givenName: "Esther", familyName: "Mbarga", specialty: "Paediatrics", languages: [], qualifications: [], registrationYear: 2008, seniorityBand: "EXPERIENCED" }] };
     }
     if (path === "/clinics") {
-      return { clinics: [{ clinicId: "c-akwa", name: "Clinique d'Akwa", address: "Douala", phone: null, openingHours: { "0": { start: "08:00", end: "17:00" } } }] };
+      return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit", address: "Buea", phone: null, openingHours: { "0": { start: "08:00", end: "17:00" } } }] };
     }
     return { gridUnitMinutes: 10, appointmentTypes: [] };
   });
@@ -70,13 +72,13 @@ describe("Account", () => {
     renderAccount();
     await userEvent.setup().click(await screen.findByRole("button", { name: /Notifications/ }));
     expect(
-      await screen.findByText(/^Atria reminder: appointment \d{2}\/\d{2}\/\d{4} at \d{2}:\d{2}, Clinique d'Akwa, Esther Mbarga\. Ref APT-1\. To cancel: Atria app\.$/),
+      await screen.findByText(/^Atria reminder: appointment \d{2}\/\d{2}\/\d{4} at \d{2}:\d{2}, Medical Outpatient Unit, Esther Mbarga\. Ref APT-1\. To cancel: Atria app\.$/),
     ).toBeInTheDocument();
   });
 
-  it("lists the clinics with their hours", async () => {
+  it("lists the units with their hours", async () => {
     renderAccount();
-    await userEvent.setup().click(await screen.findByRole("button", { name: /Clinics/ }));
+    await userEvent.setup().click(await screen.findByRole("button", { name: /Units/ }));
     expect(await screen.findByText("08:00 to 17:00")).toBeInTheDocument();
     expect(screen.getAllByText("Closed").length).toBe(6);
   });

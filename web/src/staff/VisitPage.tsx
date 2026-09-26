@@ -183,61 +183,67 @@ export function VisitPage() {
 
       <div className="visit-page-cols">
         <section className="glass visit-page-main" aria-labelledby="visit-facts">
-          <h2 id="visit-facts">Appointment</h2>
-          <dl className="panel-facts visit-page-facts">
-            <div>
-              <dt>Status</dt>
-              <dd>
-                <span className={`chip chip-${tone}`}>{label}</span>
-              </dd>
+          {/* Side by side when the card is wide enough, stacked when it is not. */}
+          <div className="visit-page-body">
+            <div className="visit-page-part">
+              <h2 id="visit-facts">Appointment</h2>
+              <dl className="panel-facts visit-page-facts">
+                <div>
+                  <dt>Status</dt>
+                  <dd>
+                    <span className={`chip chip-${tone}`}>{label}</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Reference</dt>
+                  <dd>{appointment.reference}</dd>
+                </div>
+                <div>
+                  <dt>Type</dt>
+                  <dd>{joined.type?.name ?? "Appointment"}</dd>
+                </div>
+                <div>
+                  <dt>Unit</dt>
+                  <dd>{joined.clinic?.name ?? "Not named"}</dd>
+                </div>
+                <div>
+                  <dt>Booked</dt>
+                  <dd>
+                    {clock.day(appointment.createdAt)}, {clock.time(appointment.createdAt)}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Channel</dt>
+                  <dd>{appointment.channel ? (CHANNEL[appointment.channel] ?? appointment.channel) : "Not recorded"}</dd>
+                </div>
+              </dl>
             </div>
-            <div>
-              <dt>Reference</dt>
-              <dd>{appointment.reference}</dd>
+            <div className="visit-page-part">
+              <h2>People</h2>
+              <div className="person-card">
+                <span className="person-avatar person-avatar-clinician" aria-hidden="true">
+                  {initials(joined.clinician?.givenName, joined.clinician?.familyName) || "?"}
+                </span>
+                <span className="person-text">
+                  <span className="person-name">{doctor(joined.clinician)}</span>
+                  <span className="person-sub">{[joined.clinician?.specialty, joined.clinic?.name].filter(Boolean).join(" · ")}</span>
+                </span>
+                {appointment.clinicianProfileId && (
+                  <Link className="person-link" to={`/console/week?date=${clock.isoDate(appointment.startAt)}${own ? "" : `&clinician=${appointment.clinicianProfileId}`}`}>
+                    {own ? "Your week" : "View schedule"}
+                  </Link>
+                )}
+              </div>
+              <div className="person-card">
+                <span className="person-avatar" aria-hidden="true">
+                  {initials(name.givenName, name.familyName) || "?"}
+                </span>
+                <span className="person-text">
+                  <span className="person-name">{fullName(name)}</span>
+                  <span className="person-sub">Patient · {appointment.reference}</span>
+                </span>
+              </div>
             </div>
-            <div>
-              <dt>Type</dt>
-              <dd>{joined.type?.name ?? "Appointment"}</dd>
-            </div>
-            <div>
-              <dt>Clinic</dt>
-              <dd>{joined.clinic?.name ?? "Not named"}</dd>
-            </div>
-            <div>
-              <dt>Booked</dt>
-              <dd>
-                {clock.day(appointment.createdAt)}, {clock.time(appointment.createdAt)}
-              </dd>
-            </div>
-            <div>
-              <dt>Channel</dt>
-              <dd>{appointment.channel ? (CHANNEL[appointment.channel] ?? appointment.channel) : "Not recorded"}</dd>
-            </div>
-          </dl>
-
-          <h2>People</h2>
-          <div className="person-card">
-            <span className="person-avatar person-avatar-clinician" aria-hidden="true">
-              {initials(joined.clinician?.givenName, joined.clinician?.familyName) || "?"}
-            </span>
-            <span className="person-text">
-              <span className="person-name">{doctor(joined.clinician)}</span>
-              <span className="person-sub">{[joined.clinician?.specialty, joined.clinic?.name].filter(Boolean).join(" · ")}</span>
-            </span>
-            {appointment.clinicianProfileId && (
-              <Link className="person-link" to={`/console/week?date=${clock.isoDate(appointment.startAt)}${own ? "" : `&clinician=${appointment.clinicianProfileId}`}`}>
-                {own ? "Your week" : "View schedule"}
-              </Link>
-            )}
-          </div>
-          <div className="person-card">
-            <span className="person-avatar" aria-hidden="true">
-              {initials(name.givenName, name.familyName) || "?"}
-            </span>
-            <span className="person-text">
-              <span className="person-name">{fullName(name)}</span>
-              <span className="person-sub">Patient · {appointment.reference}</span>
-            </span>
           </div>
         </section>
 

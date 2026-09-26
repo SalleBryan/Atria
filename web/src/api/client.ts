@@ -42,6 +42,30 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
   return data as T;
 }
 
+/**
+ * Every item of a list the API pages (NFR-PERF-04), for a screen that needs
+ * the whole of it, such as the directory its filters are built from. The
+ * first request is the plain address, whose page is the API's longest (50);
+ * each later one passes back the page's `nextCursor`. The pages' `key` lists
+ * are joined, and so are any `patients` names that come with them.
+ */
+export async function apiAll<T extends { nextCursor?: string | null }>(path: string, key: keyof T & string): Promise<T> {
+  const first = await api<T>(path);
+  const items = [...(((first as Record<string, unknown>)[key] as unknown[] | undefined) ?? [])];
+  let patients = (first as { patients?: Record<string, unknown> }).patients;
+  let cursor = first.nextCursor;
+  const join = path.includes("?") ? "&" : "?";
+  // A guard against a list that never ends: 200 pages is ten thousand items.
+  for (let pages = 1; cursor && pages < 200; pages += 1) {
+    const next = await api<T>(`${path}${join}cursor=${encodeURIComponent(cursor)}`);
+    items.push(...(((next as Record<string, unknown>)[key] as unknown[] | undefined) ?? []));
+    const more = (next as { patients?: Record<string, unknown> }).patients;
+    if (more) patients = { ...patients, ...more };
+    cursor = next.nextCursor;
+  }
+  return { ...first, [key]: items, ...(patients ? { patients } : {}), nextCursor: null };
+}
+
 /** GET /me: the caller as the API resolves them. */
 export interface Me {
   personId: string;

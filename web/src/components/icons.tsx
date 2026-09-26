@@ -199,3 +199,20 @@ export const Stethoscope = (p: IconProps) => (
     <circle cx="20" cy="10.5" r="2" />
   </Icon>
 );
+export const Globe = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M3.5 12h17M12 3.5c2.3 2.4 3.4 5.2 3.4 8.5s-1.1 6.1-3.4 8.5c-2.3-2.4-3.4-5.2-3.4-8.5s1.1-6.1 3.4-8.5Z" />
+  </Icon>
+);
+export const Building = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M5 20.5V5.5A1.5 1.5 0 0 1 6.5 4h7A1.5 1.5 0 0 1 15 5.5v15M15 9.5h2.5A1.5 1.5 0 0 1 19 11v9.5M3.5 20.5h17" />
+    <path d="M8.5 8h3M8.5 11.5h3M8.5 15h3" />
+  </Icon>
+);
+export const ArrowUpRight = (p: IconProps) => (
+  <Icon strokeWidth={2} {...p}>
+    <path d="m7 17 10-10M17 15V7H9" />
+  </Icon>
+);

@@ -62,3 +62,50 @@ export function downloadCalendarEntry(
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+/** What a calendar's "new event" page is filled in with. */
+function event(appointment: Appointment, joined: { clinician?: Clinician; clinic?: Clinic; type?: AppointmentType }) {
+  const who = clinicianName(joined.clinician);
+  return {
+    title: `${joined.type?.name ?? "Visit"} with ${who}`,
+    where: [joined.clinic?.name, joined.clinic?.address].filter(Boolean).join(", "),
+    details: `Atria reference ${appointment.reference}. Arrive a few minutes early.`,
+  };
+}
+
+/**
+ * Google Calendar's page for a new event, filled in. Times in UTC (the Z), so
+ * it lands at the clinic's time whatever zone the calendar is set to.
+ */
+export function googleCalendarLink(
+  appointment: Appointment,
+  joined: { clinician?: Clinician; clinic?: Clinic; type?: AppointmentType },
+): string {
+  const { title, where, details } = event(appointment, joined);
+  const query = new URLSearchParams({
+    action: "TEMPLATE",
+    text: title,
+    dates: `${stamp(appointment.startAt)}/${stamp(appointment.endAt)}`,
+    details,
+    location: where,
+  });
+  return `https://calendar.google.com/calendar/render?${query}`;
+}
+
+/** Outlook on the web's page for a new event, filled in; it reads ISO times with their offset. */
+export function outlookCalendarLink(
+  appointment: Appointment,
+  joined: { clinician?: Clinician; clinic?: Clinic; type?: AppointmentType },
+): string {
+  const { title, where, details } = event(appointment, joined);
+  const query = new URLSearchParams({
+    path: "/calendar/action/compose",
+    rru: "addevent",
+    subject: title,
+    startdt: new Date(appointment.startAt).toISOString(),
+    enddt: new Date(appointment.endAt).toISOString(),
+    body: details,
+    location: where,
+  });
+  return `https://outlook.live.com/calendar/0/action/compose?${query}`;
+}

@@ -7,7 +7,7 @@ import { PatientDataProvider } from "./data";
 import { PatientHome } from "./PatientHome";
 
 const api = vi.hoisted(() => vi.fn());
-vi.mock("../api/client", () => ({ api }));
+vi.mock("../api/client", () => ({ api, apiAll: (path: string) => api(path) }));
 
 const ME = { personId: "p-1", givenName: "Amina", familyName: "Ngo", patientProfileId: "pp-1" } as Me;
 const AHEAD = new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -44,7 +44,7 @@ function respond(appointments: unknown[]) {
     if (path.startsWith("/patients/me/appointments")) return { appointments };
     if (path === "/clinicians") return { clinicians: [MBARGA] };
     if (path === "/clinics") {
-      return { clinics: [{ clinicId: "c-akwa", name: "Clinique d'Akwa", address: "Douala", phone: null, openingHours: null }] };
+      return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit", address: "Buea", phone: null, openingHours: null }] };
     }
     return {
       gridUnitMinutes: 10,
@@ -84,7 +84,7 @@ describe("PatientHome", () => {
     renderHome();
     const hero = await screen.findByRole("region", { name: "Your next visit" });
     expect(hero).toHaveTextContent("Dr Esther Mbarga");
-    expect(hero).toHaveTextContent("Paediatrics · Clinique d'Akwa · First specialist consultation");
+    expect(hero).toHaveTextContent("Paediatrics · Medical Outpatient Unit · First specialist consultation");
     expect(hero).toHaveTextContent("APT-4958");
     expect(screen.getByRole("link", { name: "Cancel" })).toHaveAttribute("href", "/visits/a-1?cancel=1");
     // Three days ahead is more than a day away, so a reminder is scheduled.

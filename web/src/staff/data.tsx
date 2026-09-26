@@ -14,7 +14,7 @@
 
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
-import { api, type Me } from "../api/client";
+import { apiAll, type Me } from "../api/client";
 import {
   ACTIVE_STATES,
   type Appointment,
@@ -52,9 +52,9 @@ export function StaffDataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let live = true;
     Promise.all([
-      api<{ clinicians: Clinician[] }>("/clinicians"),
-      api<{ clinics: Clinic[] }>("/clinics"),
-      api<{ appointmentTypes: AppointmentType[] }>("/appointment-types"),
+      apiAll<{ clinicians: Clinician[]; nextCursor?: string | null }>("/clinicians", "clinicians"),
+      apiAll<{ clinics: Clinic[]; nextCursor?: string | null }>("/clinics", "clinics"),
+      apiAll<{ appointmentTypes: AppointmentType[]; nextCursor?: string | null }>("/appointment-types", "appointmentTypes"),
     ])
       .then(([directory, clinics, types]) => {
         if (live) {
@@ -95,7 +95,7 @@ export type StaffRole = "RECEPTIONIST" | "CLINICIAN" | "CLINIC_MANAGER" | "TENAN
 export const ROLE_LABEL: Record<StaffRole, string> = {
   RECEPTIONIST: "Front desk",
   CLINICIAN: "Clinician",
-  CLINIC_MANAGER: "Clinic manager",
+  CLINIC_MANAGER: "Unit manager",
   TENANT_ADMIN: "Administrator",
 };
 
@@ -200,7 +200,7 @@ export function useSchedule(url: string | undefined) {
     // on screen until the new answer replaces them.
     if (shown.current !== url) setState({ status: "loading" });
     shown.current = url;
-    api<Schedule>(url)
+    apiAll<Schedule & { nextCursor?: string | null }>(url, "appointments")
       .then((data) => live && setState({ status: "ready", data }))
       .catch(
         (error: unknown) =>
@@ -235,7 +235,7 @@ export function useSchedules(urls: string[] | undefined) {
     let live = true;
     if (shown.current !== key) setState({ status: "loading" });
     shown.current = key;
-    Promise.all(key.split("|").map((url) => api<Schedule>(url)))
+    Promise.all(key.split("|").map((url) => apiAll<Schedule & { nextCursor?: string | null }>(url, "appointments")))
       .then((parts) => {
         if (!live) return;
         const seen = new Set<string>();

@@ -48,11 +48,22 @@ describe("CreateAccount", () => {
     expect(await screen.findByTestId("landed")).toHaveTextContent('/verify-email {"email":"amina@example.com"}');
   });
 
-  it("refuses a number that is not a Cameroonian mobile, before asking Cognito", async () => {
+  it("refuses a Cameroonian number that is not a mobile, before asking Cognito", async () => {
     renderAt("/create-account", <CreateAccount />);
-    await fill({ "Mobile number": "+233 24 555 0142" });
+    await fill({ "Mobile number": "2 22 00 00 00" });
     expect(screen.getByText(/Enter a Cameroonian mobile number/)).toBeInTheDocument();
     expect(auth.signUp).not.toHaveBeenCalled();
+  });
+
+  it("knows another country from the code typed, and sends the number in full", async () => {
+    auth.signUp.mockResolvedValue({ isSignUpComplete: false, nextStep: { signUpStep: "CONFIRM_SIGN_UP" } });
+    renderAt("/create-account", <CreateAccount />);
+    await fill({ "Mobile number": "+233 24 555 0142" });
+    expect(auth.signUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({ userAttributes: expect.objectContaining({ phone_number: "+233245550142" }) }),
+      }),
+    );
   });
 
   it("names the password rules a weak password misses", async () => {

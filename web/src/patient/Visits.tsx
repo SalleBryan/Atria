@@ -9,17 +9,23 @@
  * so the reminder is stated rather than chosen; and rescheduling is not in
  * Phase 1, so a visit is kept or cancelled.
  *
+ * The list can be searched and narrowed by specialty, clinician or clinic,
+ * and it is paged rather than scrolled (feedback 2026-09-25).
+ *
  * Cancelling tells the patient, before they confirm, whether it falls inside
  * the appointment type's cancellation window, which is what decides a late
  * cancellation (D-07). The reason they pick is recorded with it.
  */
 
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
 import { Notice } from "../components/controls";
-import { Alert, Bell, CheckMark, ChevronLeft, Close, Mail } from "../components/icons";
+import { byPopularity, ChipRow, FilterMenu } from "../components/FilterMenu";
+import { Alert, Bell, Building, CheckMark, ChevronLeft, Close, Filter, Mail, Stethoscope, User } from "../components/icons";
+import { Pager, usePages, useRowsThatFit } from "../components/Pager";
+import { rank, SearchSuggest, type SuggestionGroup } from "../components/SearchSuggest";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { useTier } from "../layout/fit";
 import {
@@ -41,8 +47,8 @@ const BOOKED_VIA: Record<string, string> = {
   ONLINE: "Atria web",
   WEB: "Atria web",
   APP: "Atria app",
-  PHONE: "Clinic, by phone",
-  WALK_IN: "Clinic front desk",
+  PHONE: "Front desk, by phone",
+  WALK_IN: "Front desk",
 };
 
 function hoursUntil(instant: string, now = Date.now()): number {
@@ -67,7 +73,86 @@ export function Visits() {
   const earlier = [...cancelledAhead, ...behind];
   const selectedVisit = data?.appointments.find((a) => a.appointmentId === id);
   const tab = params.get("show") === "past" || (selectedVisit && !ahead.includes(selectedVisit)) ? "past" : "upcoming";
-  const shown = tab === "past" ? earlier : ahead;
+  const inTab = tab === "past" ? earlier : ahead;
+
+  const [query, setQuery] = useState("");
+  const [specialty, setSpecialty] = useState<string | null>(null);
+  const [clinicianId, setClinicianId] = useState<string | null>(null);
+  const [clinicId, setClinicId] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const filterButton = useRef<HTMLButtonElement>(null);
+  const rowsBox = useRef<HTMLUListElement>(null);
+
+  // What this patient's visits have in them, most visited first.
+  const joined = useMemo(
+    () => (data ? data.appointments.map((a) => ({ a, ...join(data, a) })) : []),
+    [data],
+  );
+  const specialties = byPopularity(joined, (j) => j.clinician?.specialty);
+  const clinicianOptions = byPopularity(joined, (j) => j.clinician?.clinicianProfileId).map((o) => ({
+    ...o,
+    label: clinicianName(joined.find((j) => j.clinician?.clinicianProfileId === o.id)?.clinician),
+  }));
+  const clinicOptions = byPopularity(joined, (j) => j.clinic?.clinicId).map((o) => ({
+    ...o,
+    label: joined.find((j) => j.clinic?.clinicId === o.id)?.clinic?.name ?? o.id,
+  }));
+  const shown = inTab.filter((appointment) => {
+    const { clinician, clinic } = data ? join(data, appointment) : {};
+    if (specialty && clinician?.specialty !== specialty) return false;
+    if (clinicianId && clinician?.clinicianProfileId !== clinicianId) return false;
+    if (clinicId && clinic?.clinicId !== clinicId) return false;
+    if (!query.trim()) return true;
+    const text = [clinicianName(clinician), clinician?.specialty, clinic?.name, appointment.reference].filter(Boolean).join(" ");
+    return rank(text, query) > 0;
+  });
+  const menuFilters = [clinicianId, clinicId].filter(Boolean).length;
+  const size = useRowsThatFit(rowsBox, { row: ".visit-item", pitch: 96, gap: 10 });
+  const pages = usePages(shown, size, `${tab}|${query}|${specialty}|${clinicianId}|${clinicId}`);
+  const suggestions: SuggestionGroup[] = [
+    {
+      id: "clinicians",
+      label: "Clinicians",
+      icon: User,
+      items: clinicianOptions.map((o) => ({
+        id: o.id,
+        label: o.label,
+        hint: `${o.count} ${o.count === 1 ? "visit" : "visits"}`,
+        onPick: () => {
+          setQuery("");
+          setClinicianId(o.id);
+        },
+      })),
+    },
+    {
+      id: "specialties",
+      label: "Specialties",
+      icon: Stethoscope,
+      items: specialties.map((o) => ({
+        id: o.id,
+        label: o.label,
+        hint: `${o.count} ${o.count === 1 ? "visit" : "visits"}`,
+        onPick: () => {
+          setQuery("");
+          setSpecialty(o.id);
+        },
+      })),
+    },
+    {
+      id: "clinics",
+      label: "Units",
+      icon: Building,
+      items: clinicOptions.map((o) => ({
+        id: o.id,
+        label: o.label,
+        hint: `${o.count} ${o.count === 1 ? "visit" : "visits"}`,
+        onPick: () => {
+          setQuery("");
+          setClinicId(o.id);
+        },
+      })),
+    },
+  ];
   const selected = selectedVisit ?? shown[0];
   const cancelling = params.get("cancel") === "1" && selected && ACTIVE_STATES.includes(selected.state);
 
@@ -106,8 +191,55 @@ export function Visits() {
             Past visits
           </button>
         </div>
-        <ul className="clinicians visit-list" aria-label={tab === "past" ? "Past visits" : "Upcoming visits"} key={tab}>
-          {shown.map((appointment) => {
+        <SearchSuggest
+          label="Search your visits"
+          placeholder="Clinician, specialty or reference"
+          value={query}
+          onChange={setQuery}
+          groups={suggestions}
+          trailing={
+            <button
+              ref={filterButton}
+              type="button"
+              className={`filter-button${menuOpen || menuFilters ? " filter-on" : ""}`}
+              aria-label="Filters"
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(true)}
+            >
+              <Filter size={17} />
+            </button>
+          }
+        />
+        {specialties.length > 1 && (
+          <ChipRow
+            label="Specialty"
+            options={specialties}
+            value={specialty}
+            onChange={setSpecialty}
+            onMore={() => setMenuOpen(true)}
+            moreActive={menuFilters}
+          />
+        )}
+        <FilterMenu
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          anchor={filterButton}
+          title="Filter your visits"
+          sections={[
+            { id: "specialty", label: "Specialty", options: specialties, value: specialty, onChange: setSpecialty },
+            { id: "clinician", label: "Clinician", options: clinicianOptions, value: clinicianId, onChange: setClinicianId, allLabel: "Any clinician" },
+            { id: "clinic", label: "Unit", options: clinicOptions, value: clinicId, onChange: setClinicId, allLabel: "Any unit" },
+          ]}
+          results={shown.length === 1 ? "Show 1 visit" : `Show ${shown.length} visits`}
+          onClear={() => {
+            setSpecialty(null);
+            setClinicianId(null);
+            setClinicId(null);
+          }}
+        />
+        <ul ref={rowsBox} className="clinicians visit-list" aria-label={tab === "past" ? "Past visits" : "Upcoming visits"}>
+          {pages.shown.map((appointment) => {
             const { clinician, clinic } = join(data, appointment);
             const status = stateLabel(appointment.state);
             const on = appointment === selected;
@@ -143,7 +275,8 @@ export function Visits() {
               </li>
             );
           })}
-          {!shown.length && (
+          {!shown.length && inTab.length > 0 && <li className="empty">No visits match. Try another name, or clear the filters.</li>}
+          {!inTab.length && (
             <li className="empty">
               {tab === "past" ? "Past visits will be listed here." : "Nothing booked."}{" "}
               {tab === "upcoming" && (
@@ -154,6 +287,17 @@ export function Visits() {
             </li>
           )}
         </ul>
+        {shown.length > 0 && (
+          <Pager
+            first={pages.first}
+            last={pages.last}
+            total={pages.total}
+            page={pages.page}
+            pages={pages.pages}
+            onPrevious={pages.previous}
+            onNext={pages.next}
+          />
+        )}
       </section>
 
       <section className="find-detail glass visit-detail" aria-label="Visit details">
@@ -245,7 +389,7 @@ function VisitDetail({ appointment, onCancel }: { appointment: Appointment; onCa
 
       <div className="visit-cols">
         <section className="panel inner-card" aria-labelledby="who-title">
-          <h3 id="who-title">Clinician and clinic</h3>
+          <h3 id="who-title">Clinician and unit</h3>
           <div className="who">
             <span className="clinician-avatar" style={{ background: "var(--gradient-primary)" }} aria-hidden="true">
               {initials(clinician?.givenName, clinician?.familyName)}
@@ -257,7 +401,7 @@ function VisitDetail({ appointment, onCancel }: { appointment: Appointment; onCa
           </div>
           <dl className="facts-list">
             <div>
-              <dt>Clinic</dt>
+              <dt>Unit</dt>
               <dd>{clinic?.name ?? "Not listed"}</dd>
             </div>
             <div>
@@ -313,7 +457,7 @@ function VisitDetail({ appointment, onCancel }: { appointment: Appointment; onCa
                 </span>
                 <span>
                   <span className="timeline-title">{status.label}</span>
-                  <span className="timeline-sub">The time went back to the clinic and the reminder was removed</span>
+                  <span className="timeline-sub">The time went back on the calendar and the reminder was removed</span>
                 </span>
               </li>
             ) : (
@@ -384,7 +528,7 @@ function CancelDialog({
       });
       await onCancelled(
         result.outcome === "CANCELLED_LATE"
-          ? `Visit ${appointment.reference} cancelled. It was inside ${windowHours} hours, so the clinic records it as late.`
+          ? `Visit ${appointment.reference} cancelled. It was inside ${windowHours} hours, so it is recorded as late.`
           : `Visit ${appointment.reference} cancelled. The time is free for someone else, and your reminder is removed.`,
       );
     } catch (caught) {
@@ -408,7 +552,7 @@ function CancelDialog({
         </span>
         <h2 id="cancel-title">Cancel this visit?</h2>
         <p className="dialog-lede">
-          The time goes back to the clinic straight away, your reminder is removed, and a cancellation notice is emailed to
+          The time goes back on the calendar straight away, your reminder is removed, and a cancellation notice is emailed to
           you.
         </p>
         <div className="dialog-visit">
@@ -446,7 +590,7 @@ function CancelDialog({
             <Alert size={15} />
             <p>
               {late
-                ? `This visit is ${awayText} away, inside the ${windowHours} hour cancellation window, so the clinic will record a late cancellation.`
+                ? `This visit is ${awayText} away, inside the ${windowHours} hour cancellation window, so it will be recorded as a late cancellation.`
                 : `Cancelling inside ${windowHours} hours of a visit is recorded by the clinic. This one is ${awayText} away, so nothing is flagged.`}
             </p>
           </div>

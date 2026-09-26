@@ -11,12 +11,13 @@ import { AuthLayout, PatientBrand } from "../components/AuthLayout";
 import { Button, Checkbox, Divider, Field, Notice } from "../components/controls";
 import { Lock, Mail } from "../components/icons";
 import { PatientModeSwitch } from "./PatientModeSwitch";
+import { TENANT } from "../tenant";
 
 export const PATIENT_FOOTER = (
   <>
-    Atria clinics in Douala and Yaounde.
+    {TENANT.name}, {TENANT.place}.
     <br />
-    Clinic staff sign in at the console, not here.
+    Staff sign in at the staff console, not here.
   </>
 );
 
@@ -45,7 +46,7 @@ export function PatientSignIn() {
         return;
       }
       if (!result.isSignedIn) {
-        setError("This account needs a step the patient app does not support. Contact your clinic.");
+        setError(`This account needs a step the patient app does not support. Contact the front desk at ${TENANT.name}.`);
         return;
       }
       const state = await refresh("patient");
@@ -122,7 +123,7 @@ export function PatientSignIn() {
           Continue with Google
         </Button>
       </form>
-      <p className="legal">Trouble signing in? Your clinic front desk can confirm the email on your record.</p>
+      <p className="legal">Trouble signing in? The front desk at {TENANT.name} can confirm the email on your record.</p>
     </AuthLayout>
   );
 }

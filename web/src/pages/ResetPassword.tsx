@@ -24,6 +24,7 @@ import { CodeInput, isComplete } from "../components/CodeInput";
 import { Button, Field, Notice } from "../components/controls";
 import { Info, Lock, Mail } from "../components/icons";
 import { NewPassword } from "../components/NewPassword";
+import { TENANT } from "../tenant";
 
 export function ResetPassword({ audience = "patient" }: { audience?: Audience }) {
   const navigate = useNavigate();
@@ -77,7 +78,7 @@ export function ResetPassword({ audience = "patient" }: { audience?: Audience })
 
   return (
     <AuthLayout
-      product={staff ? "CLINIC CONSOLE" : "PATIENT ACCOUNT"}
+      product={staff ? "STAFF CONSOLE" : "PATIENT ACCOUNT"}
       brandKey="recovery"
       paneWidth={520}
       boxWidth={520}
@@ -89,7 +90,7 @@ export function ResetPassword({ audience = "patient" }: { audience?: Audience })
           </span>
           <h2 className="recovery-title">Only you can reset your password.</h2>
           <p className="recovery-text">
-            Atria never sends your password by email, and neither clinic staff nor your administrator can read it. A
+            Atria never sends your password by email, and neither the staff of {TENANT.name} nor your administrator can read it. A
             code sent to your email is the only route back in.
           </p>
         </div>

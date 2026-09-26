@@ -9,6 +9,9 @@
  */
 
 :root {
+  /* How much vertical room the canvas has, 0 to 1 (src/layout/fit.ts). The
+     frame's own spacing until the fit says otherwise. */
+  --tall: 1;
   /* Atria colour / blue */
   --blue-100: #e3edfe;
   --blue-200: #bfd5fe;

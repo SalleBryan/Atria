@@ -1,10 +1,10 @@
-import { calendarEntry } from "./calendar";
+import { calendarEntry, googleCalendarLink, outlookCalendarLink } from "./calendar";
 import { type Appointment, clock, stateLabel, until, upcoming } from "./data";
 
 const visit = (overrides: Partial<Appointment> = {}): Appointment => ({
   appointmentId: "a-1",
   reference: "APT-4958",
-  clinicId: "c-douala-akwa",
+  clinicId: "u-rhb-medicine",
   patientProfileId: "pp-1",
   appointmentTypeId: "at-spec-first",
   clinicianProfileId: "s-mbarga",
@@ -68,7 +68,7 @@ describe("add to calendar", () => {
     {
       clinician: {
         clinicianProfileId: "s-mbarga",
-        clinicId: "c-douala-akwa",
+        clinicId: "u-rhb-medicine",
         givenName: "Esther",
         familyName: "Mbarga",
         specialty: "Paediatrics",
@@ -78,9 +78,9 @@ describe("add to calendar", () => {
         languages: ["fr"],
       },
       clinic: {
-        clinicId: "c-douala-akwa",
-        name: "Clinique d'Akwa",
-        address: "Rue Joss, Akwa, Douala",
+        clinicId: "u-rhb-medicine",
+        name: "Medical Outpatient Unit",
+        address: "Regional Hospital Buea, Buea",
         phone: null,
         openingHours: null,
       },
@@ -95,11 +95,34 @@ describe("add to calendar", () => {
   });
 
   it("escapes commas in the location, as the format requires", () => {
-    expect(entry).toContain("LOCATION:Clinique d'Akwa\\, Rue Joss\\, Akwa\\, Douala");
+    expect(entry).toContain("LOCATION:Medical Outpatient Unit\\, Regional Hospital Buea\\, Buea");
   });
 
   it("uses CRLF line endings and a two hour alarm", () => {
     expect(entry.split("\r\n")[0]).toBe("BEGIN:VCALENDAR");
     expect(entry).toContain("TRIGGER:-PT2H");
+  });
+});
+
+describe("the calendar links", () => {
+  const joined = {
+    clinic: { clinicId: "u-rhb-medicine", name: "Medical Outpatient Unit", address: "Buea", phone: null, openingHours: null },
+  };
+
+  it("fills in Google Calendar's new event in UTC", () => {
+    const link = new URL(googleCalendarLink(visit(), joined));
+    expect(link.origin).toBe("https://calendar.google.com");
+    expect(link.searchParams.get("action")).toBe("TEMPLATE");
+    expect(link.searchParams.get("dates")).toBe("20260926T090000Z/20260926T093000Z");
+    expect(link.searchParams.get("location")).toBe("Medical Outpatient Unit, Buea");
+    expect(link.searchParams.get("details")).toContain("APT-4958");
+  });
+
+  it("fills in Outlook's new event with the same times", () => {
+    const link = new URL(outlookCalendarLink(visit(), joined));
+    expect(link.origin).toBe("https://outlook.live.com");
+    expect(link.searchParams.get("startdt")).toBe("2026-09-26T09:00:00.000Z");
+    expect(link.searchParams.get("enddt")).toBe("2026-09-26T09:30:00.000Z");
+    expect(link.searchParams.get("rru")).toBe("addevent");
   });
 });

@@ -12,6 +12,8 @@ const api = vi.hoisted(() => vi.fn());
 vi.mock("../api/client", async (original) => ({
   ...(await original<typeof import("../api/client")>()),
   api,
+  // The screens read whole lists through apiAll, which calls api from inside its module; route it to the stub.
+  apiAll: (path: string) => api(path),
 }));
 
 const HOUR = 3600 * 1000;
@@ -77,7 +79,7 @@ function respond(schedule: { appointments: unknown[]; patients: Record<string, u
         ],
       };
     }
-    if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Clinique d'Akwa", address: null, phone: null, openingHours: null }] };
+    if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit", address: null, phone: null, openingHours: null }] };
     if (path === "/appointment-types") return { appointmentTypes: [{ appointmentTypeId: "at-follow", name: "Follow-up consultation" }] };
     if (path.startsWith("/clinics/c-akwa/day") || path.startsWith("/clinicians/s-mbarga/calendar")) return schedule;
     throw new Error(`unexpected ${path}`);

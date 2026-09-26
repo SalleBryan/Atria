@@ -17,18 +17,21 @@ import { useNavigate } from "react-router-dom";
 import { configureFor } from "../auth/config";
 import { errorName, messageFor } from "../auth/errors";
 import { MIN_LENGTH, passwordRules } from "../auth/passwordRules";
-import { isMobile, normalisePhone } from "../auth/phone";
+import { type CountryCode, countryName, HOME_COUNTRY, isMobile, normalisePhone } from "../auth/phone";
 import { AuthLayout, PatientBrand } from "../components/AuthLayout";
 import { Button, Checkbox, Divider, Field, Notice } from "../components/controls";
-import { Lock, Mail, Phone, User } from "../components/icons";
+import { Lock, Mail, User } from "../components/icons";
+import { PhoneField } from "../components/PhoneField";
 import { PatientModeSwitch } from "./PatientModeSwitch";
 import { PATIENT_FOOTER } from "./PatientSignIn";
+import { TENANT } from "../tenant";
 
 type Errors = Partial<Record<"givenName" | "familyName" | "email" | "phone" | "password" | "terms", string>>;
 
 export function CreateAccount() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ givenName: "", familyName: "", email: "", phone: "", password: "" });
+  const [country, setCountry] = useState<CountryCode>(HOME_COUNTRY);
   const [terms, setTerms] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [failure, setFailure] = useState<string | null>(null);
@@ -44,7 +47,12 @@ export function CreateAccount() {
     if (!form.givenName.trim()) found.givenName = "Enter your given name.";
     if (!form.familyName.trim()) found.familyName = "Enter your family name.";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) found.email = "Enter an email address like you@example.com.";
-    if (!isMobile(normalisePhone(form.phone))) found.phone = "Enter a Cameroonian mobile number, such as 6 70 00 00 00.";
+    if (!isMobile(normalisePhone(form.phone, country))) {
+      found.phone =
+        country === HOME_COUNTRY
+          ? "Enter a Cameroonian mobile number, such as 6 70 00 00 00."
+          : `Enter a mobile number that works in ${countryName(country)}.`;
+    }
     const unmet = passwordRules(form.password).filter((rule) => !rule.met);
     if (!form.password) found.password = "Choose a password.";
     else if (unmet.length) found.password = `The password needs: ${unmet.map((rule) => rule.label.toLowerCase()).join(", ")}.`;
@@ -73,7 +81,7 @@ export function CreateAccount() {
           autoSignIn: true,
           userAttributes: {
             email,
-            phone_number: normalisePhone(form.phone),
+            phone_number: normalisePhone(form.phone, country),
             given_name: form.givenName.trim(),
             family_name: form.familyName.trim(),
           },
@@ -134,15 +142,12 @@ export function CreateAccount() {
           onChange={set("email")}
           error={errors.email}
         />
-        <Field
+        <PhoneField
           label="Mobile number"
-          icon={Phone}
-          type="tel"
-          autoComplete="tel"
-          inputMode="tel"
-          placeholder="+237 6 70 00 00 00"
           value={form.phone}
-          onChange={set("phone")}
+          onChange={(phone) => setForm((current) => ({ ...current, phone }))}
+          country={country}
+          onCountry={setCountry}
           error={errors.phone}
         />
         <Field
@@ -171,7 +176,7 @@ export function CreateAccount() {
           Continue with Google
         </Button>
       </form>
-      <p className="legal">By creating an account you agree to the Atria terms and the clinic's privacy notice.</p>
+      <p className="legal">By creating an account you agree to the Atria terms and the privacy notice of {TENANT.name}.</p>
     </AuthLayout>
   );
 }

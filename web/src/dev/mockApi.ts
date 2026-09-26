@@ -7,7 +7,7 @@
  * checked without anyone signing in. Every name is invented. Nothing here is
  * imported outside src/dev, and src/dev is only loaded by the dev server.
  *
- * Clinic time is UTC+1 all year (Africa/Douala has no daylight saving), so
+ * Hospital time is UTC+1 all year (Africa/Douala has no daylight saving), so
  * local times are built with a fixed offset.
  */
 
@@ -15,31 +15,35 @@ const OFFSET_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const GRID = 10;
 
+/**
+ * The Regional Hospital of Buea's outpatient units, which the API calls
+ * clinics: the general outpatient department, where Phase 2's walk-in queue
+ * will run, and the units where specialists see patients by appointment.
+ */
+const HOSPITAL = "Regional Hospital Buea, Buea";
+const WEEKDAYS = Object.fromEntries([0, 1, 2, 3, 4].map((day) => [String(day), { start: "07:30", end: "15:30" }]));
 const clinics = [
   {
-    clinicId: "c-douala-akwa",
-    name: "Clinique d'Akwa",
-    address: "Rue Joss, Akwa, Douala",
+    clinicId: "u-rhb-opd",
+    name: "General Outpatient Department",
+    address: HOSPITAL,
     phone: "+1 202 555 0147",
     openingHours: Object.fromEntries(
-      [0, 1, 2, 3, 4].map((day) => [String(day), { start: "08:00", end: "17:00" }]).concat([["5", { start: "08:00", end: "12:00" }]]),
+      [0, 1, 2, 3, 4].map((day) => [String(day), { start: "07:30", end: "17:00" }]).concat([["5", { start: "08:00", end: "12:00" }]]),
     ),
   },
-  {
-    clinicId: "c-yaounde-bastos",
-    name: "Centre medical de Bastos",
-    address: "Avenue Bastos, Yaounde",
-    phone: "+1 202 555 0183",
-    openingHours: Object.fromEntries([0, 1, 2, 3, 4].map((day) => [String(day), { start: "08:00", end: "16:30" }])),
-  },
+  { clinicId: "u-rhb-medicine", name: "Medical Outpatient Unit", address: HOSPITAL, phone: "+1 202 555 0151", openingHours: WEEKDAYS },
+  { clinicId: "u-rhb-paediatrics", name: "Paediatrics Unit", address: HOSPITAL, phone: "+1 202 555 0152", openingHours: WEEKDAYS },
+  { clinicId: "u-rhb-maternity", name: "Maternity and Gynaecology Unit", address: HOSPITAL, phone: "+1 202 555 0153", openingHours: WEEKDAYS },
+  { clinicId: "u-rhb-eye", name: "Eye Unit", address: HOSPITAL, phone: "+1 202 555 0154", openingHours: WEEKDAYS },
 ];
-
 const clinicians = [
-  ["s-mbarga", "Esther", "Mbarga", "Paediatrics", 2008, "c-douala-akwa", "EXPERIENCED", ["fr", "en"]],
-  ["s-nkoulou", "Jean-Paul", "Nkoulou", "Cardiology", 1999, "c-douala-akwa", "SENIOR", ["fr"]],
-  ["s-bello", "Aicha", "Bello", "Dermatology", 2015, "c-yaounde-bastos", "EXPERIENCED", ["fr", "en"]],
-  ["s-tchoupo", "Samuel", "Tchoupo", "Gynaecology", 2011, "c-yaounde-bastos", "EXPERIENCED", ["fr"]],
-  ["s-fonkou", "Grace", "Fonkou", "Ophthalmology", 2019, "c-douala-akwa", "ESTABLISHED", ["en", "fr"]],
+  ["s-mbarga", "Esther", "Mbarga", "Paediatrics", 2008, "u-rhb-paediatrics", "EXPERIENCED", ["en", "fr"]],
+  ["s-nkoulou", "Jean-Paul", "Nkoulou", "Cardiology", 1999, "u-rhb-medicine", "SENIOR", ["en", "fr"]],
+  ["s-bello", "Aicha", "Bello", "Dermatology", 2015, "u-rhb-medicine", "EXPERIENCED", ["en", "fr"]],
+  ["s-tabi", "Ernest", "Tabi", "Internal medicine", 2010, "u-rhb-medicine", "EXPERIENCED", ["en"]],
+  ["s-tchoupo", "Samuel", "Tchoupo", "Gynaecology", 2011, "u-rhb-maternity", "EXPERIENCED", ["en", "fr"]],
+  ["s-fonkou", "Grace", "Fonkou", "Ophthalmology", 2019, "u-rhb-eye", "ESTABLISHED", ["en"]],
 ].map(([id, given, family, specialty, year, clinic, band, languages]) => ({
   clinicianProfileId: id,
   clinicId: clinic,
@@ -144,23 +148,23 @@ const appointments: Record<string, unknown>[] = [
   appointment("s-bello", "at-spec-follow", local(8, 14, 20), "BOOKED", 3),
   appointment("s-nkoulou", "at-spec-first", local(-20, 9), "COMPLETED", 27),
   appointment("s-fonkou", "at-spec-first", local(-5, 11, 30), "PATIENT_CANCELLED", 12),
-  // A day at the Clinique d'Akwa, for the staff console.
-  appointment("s-mbarga", "at-spec-follow", local(0, 8, 30), "BOOKED", 3, { patient: "pp-tagne" }),
+  // A day at the Medical Outpatient Unit, for the staff console.
+  appointment("s-tabi", "at-spec-follow", local(0, 8, 30), "BOOKED", 3, { patient: "pp-tagne" }),
   appointment("s-nkoulou", "at-spec-first", local(0, 9), "BOOKED", 10, { patient: "pp-ekambi" }),
-  appointment("s-fonkou", "at-spec-follow", local(0, 9, 40), "PATIENT_CANCELLED", 5, { patient: "pp-foka" }),
-  appointment("s-mbarga", "at-spec-first", local(0, 10, 30), "BOOKED", 2, { patient: "pp-nana", ...desk }),
+  appointment("s-bello", "at-spec-follow", local(0, 9, 40), "PATIENT_CANCELLED", 5, { patient: "pp-foka" }),
+  appointment("s-tabi", "at-spec-first", local(0, 10, 30), "BOOKED", 2, { patient: "pp-nana", ...desk }),
   appointment("s-nkoulou", "at-spec-follow", local(0, 11, 20), "BOOKED", 0.5, { patient: "pp-mvondo", ...desk, channel: "PHONE" }),
-  appointment("s-fonkou", "at-spec-first", local(0, 13, 30), "BOOKED", 6, { patient: "pp-atangana" }),
-  appointment("s-mbarga", "at-spec-follow", local(0, 14, 20), "CLINIC_CANCELLED", 4, { patient: "pp-kamga" }),
+  appointment("s-bello", "at-spec-first", local(0, 13, 30), "BOOKED", 6, { patient: "pp-atangana" }),
+  appointment("s-tabi", "at-spec-follow", local(0, 14, 20), "CLINIC_CANCELLED", 4, { patient: "pp-kamga" }),
   appointment("s-nkoulou", "at-spec-first", local(0, 15), "BOOKED", 1, { patient: "pp-beyala" }),
-  appointment("s-fonkou", "at-spec-follow", local(0, 16, 10), "BOOKED", 2, { patient: "pp-essomba", ...desk }),
-  appointment("s-mbarga", "at-spec-follow", local(1, 9, 20), "BOOKED", 4, { patient: "pp-ekambi" }),
+  appointment("s-bello", "at-spec-follow", local(0, 16, 10), "BOOKED", 2, { patient: "pp-essomba", ...desk }),
+  appointment("s-tabi", "at-spec-follow", local(1, 9, 20), "BOOKED", 4, { patient: "pp-ekambi" }),
   appointment("s-nkoulou", "at-spec-first", local(1, 11), "BOOKED", 2, { patient: "pp-foka" }),
-  appointment("s-fonkou", "at-spec-first", local(1, 14), "BOOKED", 3, { patient: "pp-nana", ...desk }),
-  appointment("s-mbarga", "at-spec-first", local(-1, 10), "BOOKED", 6, { patient: "pp-beyala" }),
+  appointment("s-bello", "at-spec-first", local(1, 14), "BOOKED", 3, { patient: "pp-nana", ...desk }),
+  appointment("s-tabi", "at-spec-first", local(-1, 10), "BOOKED", 6, { patient: "pp-beyala" }),
   appointment("s-nkoulou", "at-spec-follow", local(-1, 15, 30), "BOOKED", 3, { patient: "pp-tagne" }),
-  appointment("s-mbarga", "at-spec-follow", local(3, 8, 40), "BOOKED", 2, { patient: "pp-atangana" }),
-  appointment("s-fonkou", "at-spec-first", local(4, 10, 20), "BOOKED", 1, { patient: "pp-kamga", ...desk }),
+  appointment("s-tabi", "at-spec-follow", local(3, 8, 40), "BOOKED", 2, { patient: "pp-atangana" }),
+  appointment("s-bello", "at-spec-first", local(4, 10, 20), "BOOKED", 1, { patient: "pp-kamga", ...desk }),
 ];
 
 /** yyyy-mm-dd of an instant on the clinic's calendar. */
@@ -231,6 +235,14 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     return json(200, { when: "all", count: mine.length, appointments: mine });
   }
   const day = path.match(/^\/clinics\/([^/]+)\/day$/);
+  if (method === "GET" && day && url.searchParams.get("from")) {
+    const from = url.searchParams.get("from") as string;
+    const to = url.searchParams.get("to") ?? from;
+    const found = appointments
+      .filter((a) => a.clinicId === day[1] && clinicDate(a.startAt) >= from && clinicDate(a.startAt) <= to)
+      .sort(byStart);
+    return json(200, { clinicId: day[1], from, to, timezone: "Africa/Douala", count: found.length, appointments: found, patients: named(found) }, 380);
+  }
   if (method === "GET" && day) {
     const date = url.searchParams.get("date") ?? clinicDate(new Date());
     const found = appointments.filter((a) => a.clinicId === day[1] && clinicDate(a.startAt) === date).sort(byStart);
@@ -247,6 +259,16 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     return json(200, { clinicianProfileId: calendar[1], clinicId, from, to, timezone: "Africa/Douala", count: found.length, appointments: found, patients: named(found) }, 380);
   }
   const slots = path.match(/^\/clinicians\/([^/]+)\/slots$/);
+  if (method === "GET" && slots && url.searchParams.get("from")) {
+    const from = url.searchParams.get("from") as string;
+    const to = url.searchParams.get("to") ?? from;
+    const typeId = url.searchParams.get("typeId") ?? "";
+    const days: Record<string, unknown> = {};
+    for (let date = from; date <= to; date = clinicDate(new Date(Date.parse(`${date}T12:00:00Z`) + DAY_MS))) {
+      days[date] = freeStarts(slots[1] as string, date, typeId);
+    }
+    return json(200, { clinicianProfileId: slots[1], from, to, appointmentTypeId: typeId, gridUnitMinutes: GRID, days }, 260);
+  }
   if (method === "GET" && slots) {
     const date = url.searchParams.get("date") ?? "";
     const typeId = url.searchParams.get("typeId") ?? "";
@@ -271,8 +293,48 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     }
   }
   if (method === "GET" && path === "/admin/staff") {
+    // Searched, filtered and paged as the API does it (atria.services.identity.staff.list_accounts).
     const sorted = [...staffAccounts].sort((a, b) => String(a.familyName).localeCompare(String(b.familyName)));
-    return json(200, { count: sorted.length, accounts: sorted });
+    const statusOf = (a: Record<string, unknown>) =>
+      a.status === "SUSPENDED" ? "suspended" : a.mustSetPassword ? "awaiting" : "active";
+    const count = (keyOf: (a: Record<string, unknown>) => string[]) =>
+      sorted.reduce<Record<string, number>>((all, a) => {
+        for (const key of keyOf(a)) all[key] = (all[key] ?? 0) + 1;
+        return all;
+      }, {});
+    const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+    const role = url.searchParams.get("role");
+    const clinic = url.searchParams.get("clinic");
+    const status = url.searchParams.get("status");
+    const found = sorted.filter(
+      (a) =>
+        (!q ||
+          [
+            `${a.givenName} ${a.familyName}`,
+            `${a.familyName} ${a.givenName}`,
+            String(a.signInName),
+            ...(a.roles as string[]).map((r) => ROLE_WORDS[r] ?? r.toLowerCase()),
+          ].some((f) =>
+            f.toLowerCase().includes(q),
+          )) &&
+        (!role || (a.roles as string[]).includes(role)) &&
+        (!clinic || a.clinicId === clinic) &&
+        (!status || statusOf(a) === status),
+    );
+    const limit = Math.min(50, Number(url.searchParams.get("limit") ?? 25));
+    const start = Number(atob(url.searchParams.get("cursor") ?? "") || 0);
+    const after = start + limit;
+    return json(200, {
+      count: found.length,
+      total: sorted.length,
+      accounts: found.slice(start, after),
+      nextCursor: after < found.length ? btoa(String(after)) : null,
+      facets: {
+        roles: count((a) => a.roles as string[]),
+        clinics: count((a) => (a.clinicId ? [String(a.clinicId)] : [])),
+        status: count((a) => [statusOf(a)]),
+      },
+    });
   }
   const roles = path.match(/^\/admin\/staff\/([^/]+)\/roles$/);
   if (method === "PATCH" && roles) {
@@ -342,15 +404,39 @@ let conflictShown = false;
 // A second account with the same number is refused, as the pool refuses it.
 const usedPhones = new Set<string>(["+12025550142"]);
 
+/** What a role answers to in a search, as the API has it (atria.services.identity.staff.ROLE_WORDS). */
+const ROLE_WORDS: Record<string, string> = {
+  RECEPTIONIST: "receptionist front desk",
+  CLINICIAN: "clinician doctor",
+  CLINIC_MANAGER: "clinic manager",
+  TENANT_ADMIN: "tenant administrator admin",
+};
+
 /** The console's accounts, for Staff accounts. Invented, like everything here. */
 const staffAccounts: Record<string, unknown>[] = [
   ["s-admin", "Sandrine", "Eyenga", "s.eyenga@example.com", null, ["TENANT_ADMIN"], "ACTIVE", false],
-  ["s-desk", "Nadine", "Fotso", "n.fotso@example.com", "c-douala-akwa", ["RECEPTIONIST"], "ACTIVE", false],
-  ["s-mbarga", "Esther", "Mbarga", "e.mbarga@example.com", "c-douala-akwa", ["CLINICIAN"], "ACTIVE", false],
-  ["s-nkoulou", "Jean-Paul", "Nkoulou", "+12025550161", "c-douala-akwa", ["CLINICIAN"], "ACTIVE", false],
-  ["s-manager", "Rodrigue", "Owona", "r.owona@example.com", "c-douala-akwa", ["CLINIC_MANAGER"], "ACTIVE", false],
-  ["s-new", "Kofi", "Ngassa", "+12025550163", "c-yaounde-bastos", ["RECEPTIONIST"], "INVITED", true],
-  ["s-gone", "Joyce", "Ebolo", "j.ebolo@example.com", "c-douala-akwa", ["RECEPTIONIST"], "SUSPENDED", false],
+  ["s-desk", "Nadine", "Fotso", "n.fotso@example.com", "u-rhb-medicine", ["RECEPTIONIST"], "ACTIVE", false],
+  ["s-mbarga", "Esther", "Mbarga", "e.mbarga@example.com", "u-rhb-paediatrics", ["CLINICIAN"], "ACTIVE", false],
+  ["s-nkoulou", "Jean-Paul", "Nkoulou", "+12025550161", "u-rhb-medicine", ["CLINICIAN"], "ACTIVE", false],
+  ["s-manager", "Rodrigue", "Owona", "r.owona@example.com", "u-rhb-medicine", ["CLINIC_MANAGER"], "ACTIVE", false],
+  ["s-new", "Kofi", "Ngassa", "+12025550163", "u-rhb-opd", ["RECEPTIONIST"], "INVITED", true],
+  ["s-gone", "Joyce", "Ebolo", "j.ebolo@example.com", "u-rhb-medicine", ["RECEPTIONIST"], "SUSPENDED", false],
+  // Enough more to fill a few pages. Invented names, and 555-01xx numbers that reach nobody.
+  ...[
+    ["Brice", "Tagne"], ["Chantal", "Ekambi"], ["Didier", "Foka"], ["Estelle", "Nana"], ["Fabrice", "Mvondo"],
+    ["Gisele", "Atangana"], ["Herve", "Kamga"], ["Ines", "Beyala"], ["Joel", "Essomba"], ["Laure", "Mbida"],
+    ["Marc", "Onana"], ["Nadege", "Ze"], ["Olivier", "Abena"], ["Patricia", "Ndzie"], ["Quentin", "Etoundi"],
+    ["Rose", "Messi"], ["Serge", "Bikoe"], ["Therese", "Mballa"],
+  ].map(([given, family], i) => [
+    `s-extra-${i}`,
+    given,
+    family,
+    `+120255501${String(70 + i).padStart(2, "0")}`,
+    ["u-rhb-opd", "u-rhb-medicine", "u-rhb-paediatrics", "u-rhb-maternity", "u-rhb-eye"][i % 5],
+    [i % 4 === 0 ? "CLINIC_MANAGER" : "RECEPTIONIST"],
+    i % 7 === 3 ? "INVITED" : "ACTIVE",
+    i % 7 === 3,
+  ]),
 ].map(([staffId, givenName, familyName, signInName, clinicId, roles, status, mustSetPassword]) => ({
   staffId,
   givenName,

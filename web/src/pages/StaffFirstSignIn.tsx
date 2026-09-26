@@ -23,6 +23,7 @@ import { AuthLayout, StepsBrand } from "../components/AuthLayout";
 import { Button, Notice, StatusPill } from "../components/controls";
 import { Info } from "../components/icons";
 import { NewPassword } from "../components/NewPassword";
+import { TENANT } from "../tenant";
 
 export function StaffFirstSignIn() {
   const navigate = useNavigate();
@@ -62,7 +63,7 @@ export function StaffFirstSignIn() {
 
   return (
     <AuthLayout
-      product="CLINIC CONSOLE"
+      product="STAFF CONSOLE"
       brandKey="first-sign-in"
       paneWidth={520}
       boxWidth={520}
@@ -114,7 +115,7 @@ export function StaffFirstSignIn() {
         </Button>
       </form>
       <Notice>
-        Nobody at Atria or your clinic can see this password, including the administrator who created your account. If
+        Nobody at Atria or {TENANT.name} can see this password, including the administrator who created your account. If
         you lose it, they can only issue a new temporary one.
       </Notice>
     </AuthLayout>

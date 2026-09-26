@@ -9,20 +9,26 @@
  * - Open slots and queued reminders are not figures Phase 1 can know for a
  *   whole clinic, so the tiles count what is still to come and which
  *   reminders are still to be sent, both from the appointments themselves.
- * - The Month, Year and Clinician views are Phase 2 (D-08), and so are search
- *   and the notification bell, so they are left out.
+ * - The Month and Year views are Phase 2 (FR-STF-03), and so is the
+ *   notification bell, so they are left out. The list can be searched and
+ *   narrowed to one clinician or to what is booked or cancelled, and it is
+ *   paged rather than scrolled (feedback 2026-09-25). The clinician chosen is
+ *   kept in the address, so it carries across to the week and back.
  * - Marking an arrival is Phase 2 (check-in), so the panel's first action
  *   opens the visit instead.
  *
  * Times are the clinic's, on the 24-hour clock (NFR-L10N-02).
  */
 
-import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useSession } from "../auth/session";
 import { Button, Notice } from "../components/controls";
-import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Clock, Close } from "../components/icons";
+import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
+import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Clock, Close, Filter, Info, User } from "../components/icons";
+import { Pager, usePages, useRowsThatFit } from "../components/Pager";
+import { rank, SearchSuggest, type SuggestionGroup } from "../components/SearchSuggest";
 import { ACTIVE_STATES, type Appointment, clock, initials } from "../patient/data";
 import {
   CANCELLED_STATES,
@@ -73,12 +79,113 @@ export function DaySchedule() {
     () => [...(schedule?.appointments ?? [])].sort((a, b) => a.startAt.localeCompare(b.startAt)),
     [schedule],
   );
-  const figures = tally(appointments);
-  const clinicians = new Set(appointments.map((a) => a.clinicianProfileId).filter(Boolean)).size;
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const filterButton = useRef<HTMLButtonElement>(null);
+  const rowsBox = useRef<HTMLOListElement>(null);
+
+  // One clinician's day, when one is chosen; the figures follow the choice.
+  const chosen = own ? null : params.get("clinician");
+  const theirs = chosen ? appointments.filter((a) => a.clinicianProfileId === chosen) : appointments;
+  const statusOf = (a: Appointment) => (CANCELLED_STATES.includes(a.state) ? "cancelled" : "booked");
+  const searchText = (a: Appointment) => {
+    const joined = joinDirectory(data, a);
+    return [
+      fullName(patientName(schedule?.patients ?? {}, a)),
+      a.reference,
+      joined.clinician ? doctor(joined.clinician) : "",
+      joined.type?.name ?? "",
+    ].join(" ");
+  };
+  const found = theirs.filter(
+    (a) => (!status || statusOf(a) === status) && (!query.trim() || rank(searchText(a), query) > 0),
+  );
+  const figures = tally(theirs);
+  const clinicians = new Set(theirs.map((a) => a.clinicianProfileId).filter(Boolean)).size;
   const selected =
     appointments.find((a) => a.appointmentId === params.get("visit")) ??
-    appointments.find((a) => ACTIVE_STATES.includes(a.state) && Date.parse(a.endAt) > Date.now()) ??
-    appointments[0];
+    found.find((a) => ACTIVE_STATES.includes(a.state) && Date.parse(a.endAt) > Date.now()) ??
+    found[0];
+
+  const size = useRowsThatFit(rowsBox, { row: ".day-row", pitch: 75, gap: 9 });
+  const pages = usePages(found, size, `${date}|${chosen}|${status}|${query}`);
+  const { reveal } = pages;
+  const selectedIndex = found.findIndex((a) => a.appointmentId === selected?.appointmentId);
+  // The selected visit's page is the one shown, so choosing one never leaves it off screen.
+  useEffect(() => {
+    reveal(selectedIndex);
+  }, [selected?.appointmentId, date, chosen, status, query, size]);
+
+  // The busiest clinician first, of those at this clinic and anyone else on the day.
+  const clinicianOptions: FilterOption[] = useMemo(() => {
+    const listed = (data?.clinicians ?? []).filter((c) => c.clinicId === clinicId);
+    const ids = new Set([...listed.map((c) => c.clinicianProfileId), ...appointments.map((a) => a.clinicianProfileId)]);
+    return [...ids]
+      .filter((id): id is string => Boolean(id))
+      .map((id) => {
+        const clinician = data?.clinicians.find((c) => c.clinicianProfileId === id);
+        return {
+          id,
+          label: clinician ? doctor(clinician) : "Clinician",
+          count: appointments.filter((a) => a.clinicianProfileId === id).length,
+        };
+      })
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [data, appointments, clinicId]);
+  const statusOptions: FilterOption[] = [
+    { id: "booked", label: "Booked", count: theirs.filter((a) => statusOf(a) === "booked").length },
+    { id: "cancelled", label: "Cancelled", count: theirs.filter((a) => statusOf(a) === "cancelled").length },
+  ];
+  const suggestions: SuggestionGroup[] = [
+    {
+      id: "patients",
+      label: "Patients",
+      icon: User,
+      items: theirs.map((a) => ({
+        id: a.appointmentId,
+        label: fullName(patientName(schedule?.patients ?? {}, a)),
+        hint: `${clock.time(a.startAt)} · ${a.reference}`,
+        also: [a.reference],
+        onPick: () => {
+          setQuery("");
+          go({ visit: a.appointmentId });
+        },
+      })),
+    },
+    ...(own
+      ? []
+      : [
+          {
+            id: "clinicians",
+            label: "Clinicians",
+            icon: User,
+            items: clinicianOptions.map((o) => ({
+              id: o.id,
+              label: o.label,
+              hint: `${o.count} on this day`,
+              onPick: () => {
+                setQuery("");
+                go({ clinician: o.id, visit: null });
+              },
+            })),
+          },
+        ]),
+    {
+      id: "status",
+      label: "Status",
+      icon: Info,
+      items: statusOptions.map((o) => ({
+        id: o.id,
+        label: o.label,
+        hint: `${o.count} on this day`,
+        onPick: () => {
+          setQuery("");
+          setStatus(o.id);
+        },
+      })),
+    },
+  ];
 
   function go(next: Record<string, string | null>) {
     const merged = new URLSearchParams(params);
@@ -137,7 +244,7 @@ export function DaySchedule() {
         </div>
         {role === "TENANT_ADMIN" && data && (
           <label className="clinic-picker">
-            <span>Clinic</span>
+            <span>Unit</span>
             <select value={clinicId} onChange={(event) => go({ clinic: event.target.value, visit: null })}>
               {data.clinics.map((clinic) => (
                 <option key={clinic.clinicId} value={clinic.clinicId}>
@@ -169,15 +276,83 @@ export function DaySchedule() {
                 role="tab"
                 aria-selected="false"
                 className="segment"
-                onClick={() => navigate(`/console/week?date=${date}${params.get("clinic") ? `&clinic=${params.get("clinic")}` : ""}`)}
+                onClick={() =>
+                  navigate(
+                    `/console/week?date=${date}${params.get("clinic") ? `&clinic=${params.get("clinic")}` : ""}${chosen ? `&clinician=${chosen}` : ""}`,
+                  )
+                }
               >
                 Week
               </button>
             </div>
           </div>
+          <div className="day-tools">
+            <SearchSuggest
+              className="find-search day-search"
+              label="Search the day"
+              placeholder="Patient, reference or clinician"
+              value={query}
+              onChange={setQuery}
+              groups={suggestions}
+              trailing={
+                <button
+                  ref={filterButton}
+                  type="button"
+                  className={`filter-button${menuOpen || status ? " filter-on" : ""}`}
+                  aria-label="Filters"
+                  aria-haspopup="dialog"
+                  aria-expanded={menuOpen}
+                  onClick={() => setMenuOpen(true)}
+                >
+                  <Filter size={17} />
+                </button>
+              }
+            />
+            {!own && (
+              <ChipRow
+                variant="week"
+                className="day-chips"
+                label="Clinician"
+                options={clinicianOptions}
+                value={chosen}
+                onChange={(id) => go({ clinician: id, visit: null })}
+                allLabel="All clinicians"
+                onMore={() => setMenuOpen(true)}
+                moreActive={status ? 1 : 0}
+              />
+            )}
+          </div>
+          <FilterMenu
+            open={menuOpen}
+            onClose={() => setMenuOpen(false)}
+            anchor={filterButton}
+            title="Filter the day"
+            sections={[
+              ...(own
+                ? []
+                : [
+                    {
+                      id: "clinician",
+                      label: "Clinician",
+                      options: clinicianOptions,
+                      value: chosen,
+                      onChange: (id: string | null) => go({ clinician: id, visit: null }),
+                      allLabel: "All clinicians",
+                    },
+                  ]),
+              { id: "status", label: "Status", options: statusOptions, value: status, onChange: setStatus, allLabel: "Any status" },
+            ]}
+            results={found.length === 1 ? "Show 1 visit" : `Show ${found.length} visits`}
+            onClear={() => {
+              setStatus(null);
+              go({ clinician: null });
+            }}
+          />
           <DayList
             state={state}
-            appointments={appointments}
+            appointments={pages.shown}
+            filtered={theirs.length > 0 && found.length === 0}
+            rowsBox={rowsBox}
             selected={selected}
             own={own}
             onSelect={(visit) =>
@@ -187,6 +362,17 @@ export function DaySchedule() {
                 : go({ visit })
             }
           />
+          {state.status === "ready" && found.length > 0 && (
+            <Pager
+              first={pages.first}
+              last={pages.last}
+              total={pages.total}
+              page={pages.page}
+              pages={pages.pages}
+              onPrevious={pages.previous}
+              onNext={pages.next}
+            />
+          )}
         </section>
 
         <section className="glass staff-panel" aria-label="Selected visit">
@@ -245,12 +431,17 @@ function Tile({ tone, icon, value, label }: { tone: string; icon: ReactNode; val
 function DayList({
   state,
   appointments,
+  filtered,
+  rowsBox,
   selected,
   own,
   onSelect,
 }: {
   state: ReturnType<typeof useSchedule>["state"];
   appointments: Appointment[];
+  /** Something is booked, but nothing matches the search or filters. */
+  filtered: boolean;
+  rowsBox: RefObject<HTMLOListElement | null>;
   selected: Appointment | undefined;
   own: boolean;
   onSelect: (visit: string) => void;
@@ -259,11 +450,11 @@ function DayList({
 
   if (state.status === "loading") {
     return (
-      <div className="day-rows" aria-busy="true">
+      <ol ref={rowsBox} className="day-rows" aria-busy="true">
         {[0, 1, 2, 3, 4].map((n) => (
-          <span key={n} className="skeleton day-row-skeleton" style={{ animationDelay: `${n * 80}ms` }} />
+          <li key={n} className="skeleton day-row-skeleton" style={{ animationDelay: `${n * 80}ms` }} />
         ))}
-      </div>
+      </ol>
     );
   }
   if (state.status === "failed") {
@@ -273,6 +464,17 @@ function DayList({
         <Button variant="secondary" onClick={() => window.location.reload()}>
           Try again
         </Button>
+      </div>
+    );
+  }
+  if (filtered) {
+    return (
+      <div className="day-empty">
+        <span className="activity-icon tone-blue" aria-hidden="true">
+          <Filter size={18} />
+        </span>
+        <p className="day-empty-title">Nothing matches.</p>
+        <p className="day-empty-sub">Try another name, or clear the filters.</p>
       </div>
     );
   }
@@ -289,7 +491,7 @@ function DayList({
   }
 
   return (
-    <ol className="day-rows" aria-label="Appointments">
+    <ol ref={rowsBox} className="day-rows" aria-label="Appointments">
       {appointments.map((appointment, index) => {
         const name = patientName(state.data.patients, appointment);
         const joined = joinDirectory(directory.status === "ready" ? directory.data : undefined, appointment);
@@ -352,89 +554,93 @@ function VisitPanel({
 
   return (
     <>
-      <div className="panel-person">
-        <span className="panel-avatar" aria-hidden="true">
-          {initials(name.givenName, name.familyName) || "?"}
-        </span>
-        <span>
-          <span className="panel-name">{fullName(name)}</span>
-          <span className="panel-sub">Patient · {appointment.reference}</span>
-        </span>
-      </div>
-
-      <dl className="panel-facts">
-        <div>
-          <dt>Appointment</dt>
-          <dd>
-            {clock.time(appointment.startAt)} to {clock.time(appointment.endAt)}
-          </dd>
-        </div>
-        <div>
-          <dt>Clinician</dt>
-          <dd>{clinician}</dd>
-        </div>
-        <div>
-          <dt>Type</dt>
-          <dd>{joined.type?.name ?? "Appointment"}</dd>
-        </div>
-        <div>
-          <dt>Status</dt>
-          <dd className={`status-${tone}`}>{label}</dd>
-        </div>
-        <div>
-          <dt>Reference</dt>
-          <dd>{appointment.reference}</dd>
-        </div>
-      </dl>
-
-      <p className="panel-label">ACTIVITY</p>
-      <ol className="timeline panel-timeline">
-        <li>
-          <span className="timeline-dot dot-done" aria-hidden="true">
-            <CheckMark size={10} />
+      {/* The details scroll when the panel is shorter than they are; the actions stay in view. */}
+      <div className="panel-scroll">
+        <div className="panel-person">
+          <span className="panel-avatar" aria-hidden="true">
+            {initials(name.givenName, name.familyName) || "?"}
           </span>
           <span>
-            <span className="timeline-title">{BOOKED_BY[appointment.bookedByRole ?? "PATIENT"] ?? "Booked"}</span>
-            <span className="timeline-sub">
-              {clock.day(appointment.createdAt)}, {clock.time(appointment.createdAt)}
-              {appointment.channel ? ` · ${CHANNEL[appointment.channel] ?? appointment.channel}` : ""}
-            </span>
+            <span className="panel-name">{fullName(name)}</span>
+            <span className="panel-sub">Patient · {appointment.reference}</span>
           </span>
-        </li>
-        {cancelled ? (
+        </div>
+
+        <dl className="panel-facts">
+          <div>
+            <dt>Appointment</dt>
+            <dd>
+              {clock.time(appointment.startAt)} to {clock.time(appointment.endAt)}
+            </dd>
+          </div>
+          <div>
+            <dt>Clinician</dt>
+            <dd>{clinician}</dd>
+          </div>
+          <div>
+            <dt>Type</dt>
+            <dd>{joined.type?.name ?? "Appointment"}</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd className={`status-${tone}`}>{label}</dd>
+          </div>
+          <div>
+            <dt>Reference</dt>
+            <dd>{appointment.reference}</dd>
+          </div>
+        </dl>
+
+        <p className="panel-label">ACTIVITY</p>
+        <ol className="timeline panel-timeline">
           <li>
-            <span className="timeline-dot dot-red" aria-hidden="true">
-              <Close size={10} />
+            <span className="timeline-dot dot-done" aria-hidden="true">
+              <CheckMark size={10} />
             </span>
             <span>
-              <span className="timeline-title">{label}</span>
-              <span className="timeline-sub">The time was freed and the patient emailed</span>
-            </span>
-          </li>
-        ) : reminder ? (
-          <li>
-            <span className="timeline-dot dot-amber-tint" aria-hidden="true">
-              <Clock size={10} />
-            </span>
-            <span>
-              <span className="timeline-title">SMS reminder</span>
+              <span className="timeline-title">{BOOKED_BY[appointment.bookedByRole ?? "PATIENT"] ?? "Booked"}</span>
               <span className="timeline-sub">
-                Scheduled for {clock.day(reminder)}, {clock.time(reminder)} · 24h ahead
+                {clock.day(appointment.createdAt)}, {clock.time(appointment.createdAt)}
+                {appointment.channel ? ` · ${CHANNEL[appointment.channel] ?? appointment.channel}` : ""}
               </span>
             </span>
           </li>
-        ) : (
-          <li>
-            <span className="timeline-dot dot-amber-tint" aria-hidden="true">
-              <Bell size={10} />
-            </span>
-            <span>
-              <span className="timeline-title">Confirmed by SMS</span>
-              <span className="timeline-sub">Booked inside 24 hours, so no reminder</span>
-            </span>
-          </li>
-        )}
-      </ol>
+          {cancelled ? (
+            <li>
+              <span className="timeline-dot dot-red" aria-hidden="true">
+                <Close size={10} />
+              </span>
+              <span>
+                <span className="timeline-title">{label}</span>
+                <span className="timeline-sub">The time was freed and the patient emailed</span>
+              </span>
+            </li>
+          ) : reminder ? (
+            <li>
+              <span className="timeline-dot dot-amber-tint" aria-hidden="true">
+                <Clock size={10} />
+              </span>
+              <span>
+                <span className="timeline-title">SMS reminder</span>
+                <span className="timeline-sub">
+                  Scheduled for {clock.day(reminder)}, {clock.time(reminder)} · 24h ahead
+                </span>
+              </span>
+            </li>
+          ) : (
+            <li>
+              <span className="timeline-dot dot-amber-tint" aria-hidden="true">
+                <Bell size={10} />
+              </span>
+              <span>
+                <span className="timeline-title">Confirmed by SMS</span>
+                <span className="timeline-sub">Booked inside 24 hours, so no reminder</span>
+              </span>
+            </li>
+          )}
+        </ol>
+
+      </div>
 
       <div className="panel-actions">
         <Link className="staff-primary" to={`/console/visits/${appointment.appointmentId}?date=${date}`}>

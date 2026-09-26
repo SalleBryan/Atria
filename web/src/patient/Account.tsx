@@ -15,13 +15,14 @@ import { useSession } from "../auth/session";
 import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Mail, Phone, Pin, Shield, User } from "../components/icons";
 import { useTier } from "../layout/fit";
 import { clock, join, past, upcoming, usePatientData } from "./data";
+import { TENANT } from "../tenant";
 
 type Section = "details" | "notifications" | "clinics";
 
 const SECTIONS: { id: Section; label: string; icon: ComponentType<{ size?: number }> }[] = [
   { id: "details", label: "Personal details", icon: User },
   { id: "notifications", label: "Notifications", icon: Bell },
-  { id: "clinics", label: "Clinics", icon: Pin },
+  { id: "clinics", label: "Units", icon: Pin },
 ];
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -88,7 +89,7 @@ export function Account() {
                 <dd>{past(data.appointments).filter((a) => ["COMPLETED", "AWAITING_FEEDBACK"].includes(a.state)).length}</dd>
               </div>
               <div>
-                <dt>Clinics</dt>
+                <dt>Units</dt>
                 <dd>{data.clinics.length}</dd>
               </div>
             </dl>
@@ -132,7 +133,7 @@ export function Account() {
           <>
             <header className="section-head">
               <h1 id="section-title">Personal details</h1>
-              <p>What Atria holds about you. Your clinic front desk can correct any of it.</p>
+              <p>What Atria holds about you. The front desk at {TENANT.name} can correct any of it.</p>
             </header>
             <div className="inner-card settings-card">
               <Row icon={User} tone="tone-blue" title="Name" sub={name} />
@@ -148,7 +149,7 @@ export function Account() {
                   </span>
                 }
               />
-              <Row icon={Shield} tone="tone-violet" title="Who can see your record" sub="Only the clinic you book with, and you" />
+              <Row icon={Shield} tone="tone-violet" title="Who can see your record" sub="Only your healthcare institution, and you" />
             </div>
           </>
         )}
@@ -158,8 +159,8 @@ export function Account() {
         {section === "clinics" && (
           <>
             <header className="section-head">
-              <h1 id="section-title">Clinics</h1>
-              <p>Where Atria can book you, with their opening hours on the clinic's clock.</p>
+              <h1 id="section-title">Units</h1>
+              <p>The units of {TENANT.name} you can book, with their opening hours.</p>
             </header>
             {data?.clinics.map((clinic) => (
               <div key={clinic.clinicId} className="inner-card settings-card clinic-hours">
@@ -239,7 +240,7 @@ function Notifications() {
           [joined.clinician?.givenName, joined.clinician?.familyName].filter(Boolean).join(" "),
           next.reference,
         )
-      : reminderText("26/09/2026", "10:00", "Clinique d'Akwa", "Esther Mbarga", "APT-4958");
+      : reminderText("26/09/2026", "10:00", "Paediatrics Unit", "Esther Mbarga", "APT-4958");
 
   return (
     <>

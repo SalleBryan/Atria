@@ -78,7 +78,7 @@ export function StaffSignIn() {
   }
 
   return (
-    <AuthLayout product="CLINIC CONSOLE" brandKey="staff" brand={<StaffBrand />} footer={STAFF_FOOTER} paneWidth={600}>
+    <AuthLayout product="STAFF CONSOLE" brandKey="staff" brand={<StaffBrand />} footer={STAFF_FOOTER} paneWidth={600}>
       <StatusPill tone="booked" icon={Lock}>
         Staff access only
       </StatusPill>
@@ -94,7 +94,7 @@ export function StaffSignIn() {
           icon={Mail}
           type="email"
           autoComplete="username"
-          placeholder="you@clinic.cm"
+          placeholder="you@hospital.cm"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
         />

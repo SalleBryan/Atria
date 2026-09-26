@@ -17,7 +17,7 @@ import { brandEnters, enterFrom, remember } from "../motion/memory";
 import { Bell, Calendar, CheckMark, Pulse, Shield } from "./icons";
 
 interface AuthLayoutProps {
-  product: "PATIENT ACCOUNT" | "CLINIC CONSOLE";
+  product: "PATIENT ACCOUNT" | "STAFF CONSOLE";
   brand: ReactNode;
   footer: ReactNode;
   children: ReactNode;
@@ -113,7 +113,7 @@ export function PatientBrand() {
       <ul className="props">
         <Prop icon={Calendar} title="Real availability" text="Slots you see are slots you can hold" />
         <Prop icon={Bell} title="Reminded before it matters" text="A text the day before, every time" />
-        <Prop icon={Shield} title="Your record, your control" text="Shared only with the clinic you book" />
+        <Prop icon={Shield} title="Your record, your control" text="Shared only with your healthcare institution" />
       </ul>
     </>
   );
@@ -128,10 +128,10 @@ export function PatientBrand() {
 export function StaffBrand() {
   return (
     <>
-      <p className="eyebrow">Clinic console</p>
+      <p className="eyebrow">Staff console</p>
       <h2 className="pitch pitch-staff">The whole day, on one screen.</h2>
       <p className="pitch-copy">
-        Every booking, cancellation and reminder your clinic sends, in the order it happens. Sign in to pick up
+        Every booking, cancellation and reminder your healthcare institution sends, in the order it happens. Sign in to pick up
         today's schedule.
       </p>
     </>

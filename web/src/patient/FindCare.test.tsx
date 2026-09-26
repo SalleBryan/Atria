@@ -9,6 +9,8 @@ const api = vi.hoisted(() => vi.fn());
 vi.mock("../api/client", async (original) => ({
   ...(await original<typeof import("../api/client")>()),
   api,
+  // The screens read whole lists through apiAll, which calls api from inside its module; route it to the stub.
+  apiAll: (path: string) => api(path),
 }));
 
 const DAY = 24 * 3600 * 1000;
@@ -25,7 +27,7 @@ function respond(book: (body: unknown, init: RequestInit) => unknown) {
   api.mockImplementation(async (path: string, init: RequestInit & { json?: unknown } = {}) => {
     if (path.startsWith("/patients/me/appointments")) return { appointments: [] };
     if (path === "/clinicians") return { clinicians: CLINICIANS };
-    if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Clinique d'Akwa", address: "Douala", phone: null, openingHours: null }] };
+    if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit", address: "Buea", phone: null, openingHours: null }] };
     if (path === "/appointment-types") {
       return {
         gridUnitMinutes: 10,
@@ -36,7 +38,9 @@ function respond(book: (body: unknown, init: RequestInit) => unknown) {
       };
     }
     if (path.includes("/slots")) {
-      const date = new URLSearchParams(path.split("?")[1]).get("date");
+      const ask = new URLSearchParams(path.split("?")[1]);
+      const date = ask.get("date");
+      if (!date) return { days: { [START.slice(0, 10)]: [{ startAt: START, endAt: END }] } };
       return { slots: date === START.slice(0, 10) ? [{ startAt: START, endAt: END }] : [] };
     }
     if (path === "/appointments" && init.method === "POST") return book(init.json, init);
@@ -85,7 +89,7 @@ describe("FindCare", () => {
   it("narrows by specialty", async () => {
     respond(() => ({}));
     renderFindCare();
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Cardiology" }));
+    await userEvent.setup().click(await screen.findByRole("radio", { name: "Cardiology" }));
     const list = screen.getByRole("list", { name: "Clinicians" });
     expect(within(list).queryByText("Dr Esther Mbarga")).not.toBeInTheDocument();
     expect(within(list).getByText("Dr Jean-Paul Nkoulou")).toBeInTheDocument();

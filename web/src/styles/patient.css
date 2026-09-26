@@ -13,7 +13,9 @@
   grid-template-columns: 264px minmax(0, 1fr);
   width: var(--fit-width, 100vw);
   height: var(--fit-height, 100vh);
-  overflow: hidden;
+  /* clip, not hidden: a hidden box can still be scrolled by focus or
+     scrollIntoView, which slid the whole shell up under a decorative orb. */
+  overflow: clip;
   zoom: var(--fit, 1);
   background: var(--gradient-page);
 }
@@ -156,11 +158,14 @@
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--status-booked-ink);
-  background: #dae4fa;
+  color: #ffffff;
+  background: var(--status-cancelled);
+  box-shadow: 0 4px 10px rgba(200, 56, 74, 0.28);
   animation: pop-in var(--move-fast) both;
 }
-.side-item.active .side-pip { color: var(--blue-700); background: #ffffff; }
+/* Every notification count is red, on any background, so it reads as
+   something waiting for you (feedback 2026-09-25). */
+.side-item.active .side-pip { color: #ffffff; background: var(--status-cancelled); box-shadow: 0 0 0 2px #ffffff; }
 .side-spacer { flex: 1; }
 .side-me {
   display: flex;

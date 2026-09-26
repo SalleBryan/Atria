@@ -9,6 +9,11 @@
  * (src/layout/fit.ts sets --fit and the canvas size). The brand pane is the
  * canvas height and never scrolls; only the form pane scrolls, and only when
  * a form is taller than the frame, as create account is.
+ *
+ * The canvas is always the frame's width (fit.ts), so a short window gives a
+ * short canvas: 620 tall in a normal 1280 x 551 window. The brand pane needs
+ * about 725, so below 760 the screen keeps 760 and the page scrolls, rather
+ * than cramping the panes (a redesign for short windows is due in Phase 3).
  */
 
 .auth {
@@ -20,7 +25,10 @@
   grid-template-columns: max(var(--pane), var(--pane-share)) 1fr;
   width: var(--fit-width, 100vw);
   height: var(--fit-height, 100vh);
-  overflow: hidden;
+  min-height: 760px;
+  /* clip, not hidden: a hidden box can still be scrolled by focus or
+     scrollIntoView, which slid the whole shell up under a decorative orb. */
+  overflow: clip;
   zoom: var(--fit, 1);
   background: var(--gradient-page);
 }
@@ -46,6 +54,9 @@
   opacity: 0.6;
   pointer-events: none;
 }
+/* Orbs inside a scrolling container go in a layer that clips them: an orb
+   hanging past the edge would otherwise count as content to scroll to. */
+.orb-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .orb-white { width: 400px; height: 400px; right: -150px; top: -150px; background: #ffffff; }
 .orb-blue { width: 340px; height: 340px; left: -130px; bottom: -110px; background: var(--blue-400); }
 .orb-form-top { width: 380px; height: 380px; right: -130px; top: -120px; background: var(--blue-400); filter: blur(64px); }
@@ -316,7 +327,7 @@
   display: flex;
   flex-direction: column;
   margin-top: 22px;
-  padding: 26px;
+  padding: 26px 26px;
   border: 1px solid #ffffff;
   border-radius: var(--radius-l);
   background: var(--glass-card);
@@ -537,7 +548,7 @@
   background: rgba(171, 103, 28, 0.18);
   color: #8a5a16;
 }
-.status-pill-awaiting svg { color: var(--blue-600); }
+.status-pill-awaiting svg { color: var(--status-awaiting); }
 .status-pill-booked {
   border-color: var(--blue-500);
   background: rgba(74, 131, 240, 0.12);
@@ -549,7 +560,7 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
-  margin: 1px 0 16px;
+  margin: 12px 0 18px;
 }
 .strength span { height: 6px; border-radius: 99px; background: var(--line-hairline); }
 .strength span.on { background: var(--blue-500); }

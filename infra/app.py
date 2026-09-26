@@ -59,7 +59,7 @@ def main() -> cdk.App:
         build_dir=build_dir,
         env=target,
     )
-    AsyncStack(
+    async_stack = AsyncStack(
         app,
         env.stack_name("async"),
         settings=env,
@@ -69,7 +69,15 @@ def main() -> cdk.App:
         env=target,
     )
     HostingStack(app, env.stack_name("web"), settings=env, api=api, env=target)
-    ObservabilityStack(app, env.stack_name("observability"), settings=env, api=api, env=target)
+    ObservabilityStack(
+        app,
+        env.stack_name("observability"),
+        settings=env,
+        api=api,
+        async_=async_stack,
+        data=data,
+        env=target,
+    )
     CostGuardStack(app, env.stack_name("cost-guard"), settings=env, env=target)
     DeployAccessStack(app, env.stack_name("deploy-access"), settings=env, env=target)
 

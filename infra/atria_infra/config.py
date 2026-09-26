@@ -28,6 +28,11 @@ class Environment:
     # Per-tenant daily SMS spend cap, in XAF. Enforced by the reminder worker
     # and alarmed here (ADR 0014).
     daily_sms_cap_xaf: int = 5_000
+    # Warn when the account's SMS spend this month passes this (AWS/SNS).
+    sms_spend_alarm_usd: float = 5
+
+    trail_retention_days: int = 365
+    """How long CloudTrail's record of control-plane actions is kept."""
 
     log_retention: str = "ONE_MONTH"
     """A member name of aws_logs.RetentionDays, such as ONE_MONTH or ONE_YEAR."""

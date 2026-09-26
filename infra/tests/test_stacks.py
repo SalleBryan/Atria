@@ -668,7 +668,9 @@ class TestAsyncStack:
 class TestObservabilityStack:
     def test_alarms_cover_errors_latency_and_the_authoriser(self, synthesised):
         template = template_for(synthesised, "observability")
-        template.resource_count_is("AWS::CloudWatch::Alarm", 3)
+        # The API's three, errors for six functions, throttles for seven, four
+        # table throttles, three dead letter queues, SES bounces and SMS spend.
+        template.resource_count_is("AWS::CloudWatch::Alarm", 3 + 6 + 7 + 4 + 3 + 2)
 
     def test_every_alarm_notifies_the_topic(self, synthesised):
         template = template_for(synthesised, "observability")
@@ -714,3 +716,26 @@ def test_the_web_client_is_hosted_on_amplify_without_a_waf(synthesised: cdk.App)
     assert rules[0]["Status"] == "200"
     assert rules[1]["Target"] == "/index.html"
     assert "AccessToken" not in app and "Repository" not in app
+
+
+def test_cloudtrail_records_every_region_into_a_private_bucket(synthesised: cdk.App) -> None:
+    template = template_for(synthesised, "observability")
+    template.has_resource_properties(
+        "AWS::CloudTrail::Trail",
+        {"IsMultiRegionTrail": True, "IncludeGlobalServiceEvents": True, "EnableLogFileValidation": True},
+    )
+    template.has_resource_properties(
+        "AWS::S3::Bucket",
+        {
+            "PublicAccessBlockConfiguration": Match.object_like(
+                {"BlockPublicAcls": True, "RestrictPublicBuckets": True}
+            )
+        },
+    )
+
+
+def test_every_dead_letter_queue_is_alarmed(synthesised: cdk.App) -> None:
+    alarms = template_for(synthesised, "observability").find_resources("AWS::CloudWatch::Alarm")
+    names = [alarm["Properties"]["AlarmName"] for alarm in alarms.values()]
+    for queue in ("outbox", "stream", "reminder"):
+        assert f"atria-dev-{queue}-dead-letters" in names

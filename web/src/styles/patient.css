@@ -165,7 +165,7 @@
 }
 /* Every notification count is red, on any background, so it reads as
    something waiting for you (feedback 2026-09-25). */
-.side-item.active .side-pip { color: #ffffff; background: var(--status-cancelled); box-shadow: 0 0 0 2px #ffffff; }
+.side-item.active .side-pip { color: #ffffff; background: var(--status-cancelled); box-shadow: 0 3px 8px rgba(8, 28, 80, 0.3); }
 .side-spacer { flex: 1; }
 .side-me {
   display: flex;

@@ -1177,8 +1177,21 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 /* Move a visit (components/MoveVisit.tsx): the cancel dialog's shape, with
    Find care's day and time pickers inside it. */
 .dialog-icon-blue { background: var(--gradient-primary); box-shadow: var(--shadow-primary, 0 10px 24px rgba(44, 99, 222, 0.28)); }
-.move-dialog { max-width: 560px; max-height: calc(100% - 32px); overflow-y: auto; }
+/* The dialog keeps its rounded shape; what is inside scrolls, without a bar
+   cutting into the corner, and the close button and the actions stay put. */
+.move-dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  max-width: 560px;
+  max-height: calc(100% - 32px);
+  overflow: hidden;
+}
+.move-scroll { min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.move-scroll::-webkit-scrollbar { display: none; }
 .move-dialog form { display: flex; flex-direction: column; gap: 10px; }
+.dialog-close { position: absolute; top: 18px; right: 18px; z-index: 1; }
+.move-actions { flex: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line-hairline); }
 .move-dialog .row-head { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
 .move-dialog .dialog-label { margin: 0; }
 .move-dialog .week-nav { display: flex; gap: 4px; }

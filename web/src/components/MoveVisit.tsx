@@ -18,7 +18,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import { type Appointment, type AppointmentType, clock, initials } from "../patient/data";
 import { Notice } from "./controls";
-import { ChevronLeft, ChevronRight, Clock } from "./icons";
+import { ChevronLeft, ChevronRight, Clock, Close } from "./icons";
 import { LoadingIndicator } from "./LoadingIndicator";
 
 interface Slot {
@@ -125,7 +125,12 @@ export function MoveVisit({
     try {
       const moved = await api<Appointment>(`/appointments/${appointment.appointmentId}/reschedule`, {
         method: "POST",
-        json: byStaff ? { startAt: slot.startAt, rescheduledBy: by, reason: written } : { startAt: slot.startAt, ...(written ? { reason: written } : {}) },
+        json: byStaff
+          ? { startAt: slot.startAt, rescheduledBy: by, reason: written }
+          : {
+              startAt: slot.startAt,
+              ...(written ? { reason: written } : {}),
+            },
       });
       onMoved(moved);
     } catch (caught) {
@@ -147,156 +152,166 @@ export function MoveVisit({
         aria-labelledby="move-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <span className="dialog-icon dialog-icon-blue" aria-hidden="true">
-          <Clock size={22} />
-        </span>
-        <h2 id="move-title">Move this visit</h2>
-        <p className="dialog-lede">
-          {byStaff
-            ? "The new time is held and the old one freed in one step. The patient is emailed the new time and their reminder moves with it."
-            : "Your reference stays the same. We hold the new time, free the old one, and move your reminder."}
-        </p>
-        <div className="dialog-visit">
-          <span className="clinician-avatar" style={{ background: "var(--gradient-primary)" }} aria-hidden="true">
-            {initials(who.givenName, who.familyName) || "?"}
+        <button type="button" className="icon-button dialog-close" aria-label="Close" onClick={onClose} disabled={busy}>
+          <Close size={16} />
+        </button>
+        <div className="move-scroll">
+          <span className="dialog-icon dialog-icon-blue" aria-hidden="true">
+            <Clock size={22} />
           </span>
-          <span className="dialog-visit-text">
-            <span className="clinician-name">{who.label}</span>
-            <span className="who-sub">{[appointment.reference, withWhom, type?.name].filter(Boolean).join(" · ")}</span>
-          </span>
-          <span className="dialog-when">
-            <span>Now {clock.time(appointment.startAt)}</span>
-            <span>{clock.day(appointment.startAt)}</span>
-          </span>
-        </div>
+          <h2 id="move-title">Move this visit</h2>
+          <p className="dialog-lede">
+            {byStaff
+              ? "The new time is held and the old one freed in one step. The patient is emailed the new time and their reminder moves with it."
+              : "Your reference stays the same. We hold the new time, free the old one, and move your reminder."}
+          </p>
+          <div className="dialog-visit">
+            <span className="clinician-avatar" style={{ background: "var(--gradient-primary)" }} aria-hidden="true">
+              {initials(who.givenName, who.familyName) || "?"}
+            </span>
+            <span className="dialog-visit-text">
+              <span className="clinician-name">{who.label}</span>
+              <span className="who-sub">{[appointment.reference, withWhom, type?.name].filter(Boolean).join(" · ")}</span>
+            </span>
+            <span className="dialog-when">
+              <span>Now {clock.time(appointment.startAt)}</span>
+              <span>{clock.day(appointment.startAt)}</span>
+            </span>
+          </div>
 
-        <form onSubmit={move}>
-          <div className="row-head">
-            <p className="dialog-label">NEW DAY</p>
-            <div className="week-nav">
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Previous week"
-                disabled={weekStart <= today}
-                onClick={() => setWeekStart((start) => (shift(start, -WEEK) < today ? today : shift(start, -WEEK)))}
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button type="button" className="icon-button" aria-label="Next week" onClick={() => setWeekStart((start) => shift(start, WEEK))}>
-                <ChevronRight size={16} />
-              </button>
+          <form id="move-form" onSubmit={move}>
+            <div className="row-head">
+              <p className="dialog-label">NEW DAY</p>
+              <div className="week-nav">
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Previous week"
+                  disabled={weekStart <= today}
+                  onClick={() => setWeekStart((start) => (shift(start, -WEEK) < today ? today : shift(start, -WEEK)))}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Next week"
+                  onClick={() => setWeekStart((start) => shift(start, WEEK))}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             </div>
-          </div>
-          <div className="days" role="radiogroup" aria-label="Day">
-            {week.map((date) => {
-              const free = counts[date];
-              const on = date === day;
-              return (
-                <button
-                  key={date}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  className={`day${on ? " day-on" : ""}${free && !free.length ? " day-closed" : ""}`}
-                  disabled={!free?.length}
-                  onClick={() => {
-                    setDay(date);
-                    setSlot(null);
-                  }}
-                >
-                  <span className="day-name">{clock.weekday(`${date}T12:00:00Z`)}</span>
-                  <span className="day-number">{Number(date.slice(8))}</span>
-                  <span className="day-free">
-                    {free === undefined ? <LoadingIndicator size={12} label="Checking" /> : free.length ? `${free.length} free` : "None"}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <p className="dialog-label">NEW TIME</p>
-          <div className="slots move-slots" role="radiogroup" aria-label="Time">
-            {slots?.map((option) => {
-              const on = option.startAt === slot?.startAt;
-              return (
-                <button
-                  key={option.startAt}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  className={`slot${on ? " slot-on" : ""}`}
-                  onClick={() => setSlot(option)}
-                >
-                  {clock.time(option.startAt)}
-                </button>
-              );
-            })}
-            {slots && !slots.length && <p className="empty">No times left on this day.</p>}
-            {!slots && day && <LoadingIndicator size={24} label="Finding free times" />}
-            {!day && counts[week[0] as string] !== undefined && <p className="empty">No free times this week. Try the next one.</p>}
-          </div>
-
-          {byStaff && (
-            <>
-              <p className="dialog-label" id="move-reason-label">
-                REASON · RECORDED IN THE AUDIT LOG
-              </p>
-              <div className="chips" role="radiogroup" aria-labelledby="move-reason-label">
-                {REASONS.map((option) => (
+            <div className="days" role="radiogroup" aria-label="Day">
+              {week.map((date) => {
+                const free = counts[date];
+                const on = date === day;
+                return (
                   <button
-                    key={option.label}
+                    key={date}
                     type="button"
                     role="radio"
-                    aria-checked={reason?.label === option.label}
-                    className={`chip-choice${reason?.label === option.label ? " chip-on" : ""}`}
-                    onClick={() => setReason(option)}
+                    aria-checked={on}
+                    className={`day${on ? " day-on" : ""}${free && !free.length ? " day-closed" : ""}`}
+                    disabled={!free?.length}
+                    onClick={() => {
+                      setDay(date);
+                      setSlot(null);
+                    }}
                   >
-                    {option.label}
+                    <span className="day-name">{clock.weekday(`${date}T12:00:00Z`)}</span>
+                    <span className="day-number">{Number(date.slice(8))}</span>
+                    <span className="day-free">
+                      {free === undefined ? <LoadingIndicator size={12} label="Checking" /> : free.length ? `${free.length} free` : "None"}
+                    </span>
                   </button>
-                ))}
-              </div>
-              {reason?.by === null && (
-                <div className="who-called" role="radiogroup" aria-label="Whose move is it">
-                  <span>Whose move is it?</span>
-                  <div className="segmented">
-                    {(["PATIENT", "CLINIC"] as const).map((choice) => (
-                      <button
-                        key={choice}
-                        type="button"
-                        role="radio"
-                        aria-checked={other === choice}
-                        className={`segment${other === choice ? " segment-on" : ""}`}
-                        onClick={() => setOther(choice)}
-                      >
-                        {choice === "PATIENT" ? "The patient's" : "The institution's"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-          <textarea
-            className="dialog-text"
-            aria-label="Note"
-            placeholder={byStaff ? "Optional note, kept with the move" : "Optional: tell the unit why"}
-            maxLength={400}
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-          />
+                );
+              })}
+            </div>
 
-          {failure && <Notice tone="error">{failure}</Notice>}
-          <div className="dialog-actions">
-            <button type="button" className="outline-button keep" onClick={onClose} disabled={busy}>
-              Keep the current time
-            </button>
-            <button type="submit" className="staff-primary" disabled={busy || !ready} aria-busy={busy || undefined}>
-              {busy ? <LoadingIndicator size={20} label="Moving" /> : null}
-              {busy ? "Moving" : slot ? `Move to ${clock.time(slot.startAt)}, ${clock.day(slot.startAt)}` : "Move visit"}
-            </button>
-          </div>
-        </form>
+            <p className="dialog-label">NEW TIME</p>
+            <div className="slots move-slots" role="radiogroup" aria-label="Time">
+              {slots?.map((option) => {
+                const on = option.startAt === slot?.startAt;
+                return (
+                  <button
+                    key={option.startAt}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    className={`slot${on ? " slot-on" : ""}`}
+                    onClick={() => setSlot(option)}
+                  >
+                    {clock.time(option.startAt)}
+                  </button>
+                );
+              })}
+              {slots && !slots.length && <p className="empty">No times left on this day.</p>}
+              {!slots && day && <LoadingIndicator size={24} label="Finding free times" />}
+              {!day && counts[week[0] as string] !== undefined && <p className="empty">No free times this week. Try the next one.</p>}
+            </div>
+
+            {byStaff && (
+              <>
+                <p className="dialog-label" id="move-reason-label">
+                  REASON · RECORDED IN THE AUDIT LOG
+                </p>
+                <div className="chips" role="radiogroup" aria-labelledby="move-reason-label">
+                  {REASONS.map((option) => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      role="radio"
+                      aria-checked={reason?.label === option.label}
+                      className={`chip-choice${reason?.label === option.label ? " chip-on" : ""}`}
+                      onClick={() => setReason(option)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                {reason?.by === null && (
+                  <div className="who-called" role="radiogroup" aria-label="Whose move is it">
+                    <span>Whose move is it?</span>
+                    <div className="segmented">
+                      {(["PATIENT", "CLINIC"] as const).map((choice) => (
+                        <button
+                          key={choice}
+                          type="button"
+                          role="radio"
+                          aria-checked={other === choice}
+                          className={`segment${other === choice ? " segment-on" : ""}`}
+                          onClick={() => setOther(choice)}
+                        >
+                          {choice === "PATIENT" ? "The patient's" : "The institution's"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+            <textarea
+              className="dialog-text"
+              aria-label="Note"
+              placeholder={byStaff ? "Optional note, kept with the move" : "Optional: tell the unit why"}
+              maxLength={400}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+            />
+
+            {failure && <Notice tone="error">{failure}</Notice>}
+          </form>
+        </div>
+        <div className="dialog-actions move-actions">
+          <button type="button" className="outline-button keep" onClick={onClose} disabled={busy}>
+            Keep the current time
+          </button>
+          <button type="submit" form="move-form" className="staff-primary" disabled={busy || !ready} aria-busy={busy || undefined}>
+            {busy ? <LoadingIndicator size={20} label="Moving" /> : null}
+            {busy ? "Moving" : slot ? `Move to ${clock.time(slot.startAt)}, ${clock.day(slot.startAt)}` : "Move visit"}
+          </button>
+        </div>
       </div>
     </div>
   );

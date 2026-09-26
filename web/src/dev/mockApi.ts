@@ -292,6 +292,39 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       });
     }
   }
+  // A clinician's hours and time off (services/directory/availability.py), kept in memory.
+  const avail = path.match(/^\/clinicians\/([^/]+)\/(availability|hours|time-off)(?:\/([^/]+))?$/);
+  if (avail) {
+    const id = avail[1] as string;
+    const held = (availability[id] ??= { hours: {}, timeOff: [] });
+    if (method === "GET" && avail[2] === "availability") {
+      const unitHours = Object.fromEntries([0, 1, 2, 3, 4].map((d) => [String(d), { start: "08:00", end: "16:00" }]));
+      return json(200, { clinicianProfileId: id, usesUnitHours: !Object.keys(held.hours).length, hours: held.hours, unitHours, timeOff: held.timeOff });
+    }
+    if (method === "PUT" && avail[2] === "hours") {
+      const days = ((body as { days?: Record<string, { start: string; end: string } | null> }).days ?? {}) as Record<string, { start: string; end: string } | null>;
+      held.hours = Object.fromEntries(Object.entries(days).filter(([, v]) => v)) as Record<string, { start: string; end: string }>;
+      return json(200, { clinicianProfileId: id, usesUnitHours: false, hours: held.hours }, 500);
+    }
+    if (method === "POST" && avail[2] === "time-off") {
+      const request = body as { kind: string; date?: string; from?: string; to?: string; startTime?: string; endTime?: string; reason: string };
+      const item = {
+        groupId: `x-${Date.now()}`,
+        kind: request.kind,
+        from: request.from ?? request.date,
+        to: request.to ?? request.date,
+        startTime: request.startTime ?? null,
+        endTime: request.endTime ?? null,
+        reason: request.reason,
+      };
+      held.timeOff.push(item);
+      return json(201, { ...item, disrupted: [] }, 500);
+    }
+    if (method === "DELETE" && avail[2] === "time-off") {
+      held.timeOff = held.timeOff.filter((t) => t.groupId !== avail[3]);
+      return json(200, { groupId: avail[3] });
+    }
+  }
   // What happens after booking (services/booking/visits.py), without the rules' fine print.
   const acted = path.match(/^\/appointments\/([^/]+)\/(reschedule|confirm|arrive|start|complete|no-show)$/);
   if (method === "POST" && acted) {
@@ -424,6 +457,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
 }
 
 let conflictShown = false;
+const availability: Record<string, { hours: Record<string, { start: string; end: string }>; timeOff: { groupId: string }[] }> = {};
 // A second account with the same number is refused, as the pool refuses it.
 const usedPhones = new Set<string>(["+12025550142"]);
 

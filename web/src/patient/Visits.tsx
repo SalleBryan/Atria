@@ -24,6 +24,7 @@ import { api } from "../api/client";
 import { Notice } from "../components/controls";
 import { byPopularity, ChipRow, FilterMenu } from "../components/FilterMenu";
 import { MoveVisit } from "../components/MoveVisit";
+import { NewTimeOffer } from "./NewTimeOffer";
 import { Alert, Bell, Building, CheckMark, ChevronLeft, Close, Filter, Mail, Stethoscope, User } from "../components/icons";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { rank, SearchSuggest, type SuggestionGroup } from "../components/SearchSuggest";
@@ -316,6 +317,10 @@ export function Visits() {
             appointment={selected}
             onCancel={() => setParams({ cancel: "1" })}
             onMove={() => setParams({ move: "1" })}
+            onMoved={async (moved) => {
+              await reload();
+              setDone(`Booked for ${clock.day(moved.startAt)} at ${clock.time(moved.startAt)}. Your reference stays ${moved.reference}.`);
+            }}
             onConfirmed={async () => {
               await reload();
               setDone("Thank you. The unit knows you are coming.");
@@ -364,11 +369,13 @@ function VisitDetail({
   appointment,
   onCancel,
   onMove,
+  onMoved,
   onConfirmed,
 }: {
   appointment: Appointment;
   onCancel: () => void;
   onMove: () => void;
+  onMoved: (moved: Appointment) => Promise<void>;
   onConfirmed: () => Promise<void>;
 }) {
   const { state } = usePatientData();
@@ -399,13 +406,14 @@ function VisitDetail({
 
   const actions = (
     <div className="visit-actions">
+      {appointment.state === "DISRUPTED" && <NewTimeOffer appointment={appointment} onMoved={onMoved} onMore={onMove} />}
       {failed && <Notice tone="error">{failed}</Notice>}
       {active && appointment.state === "BOOKED" && (
         <button type="button" className="dock-button" disabled={confirming} aria-busy={confirming || undefined} onClick={confirm}>
           {confirming ? "Confirming" : "I'll be there"}
         </button>
       )}
-      {active && (
+      {active && appointment.state !== "DISRUPTED" && (
         <button type="button" className="outline-button" onClick={onMove}>
           Move visit
         </button>

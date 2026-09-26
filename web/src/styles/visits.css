@@ -416,3 +416,14 @@
   .find-care.account { grid-template-columns: minmax(0, 1fr); }
   .hours { grid-template-columns: 1fr; }
 }
+
+/* A disrupted visit's one-tap new times (patient/NewTimeOffer.tsx). */
+.new-time { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid rgba(217, 131, 36, 0.45); border-radius: 20px; background: #fff7ea; animation: rise var(--move) both, fade-in var(--fade) both; }
+.new-time-head { display: flex; gap: 8px; margin: 0; font-size: 12.5px; font-weight: 600; line-height: 1.45; color: var(--status-awaiting-ink); }
+.new-time-head svg { flex: none; margin-top: 1px; }
+.new-time-offers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.new-time-offer { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border: 1.5px solid var(--line-hairline); border-radius: 16px; font: inherit; background: #ffffff; cursor: pointer; transition: border-color var(--fade-fast), transform var(--move-fast); }
+.new-time-offer:hover { border-color: var(--blue-500); }
+.new-time-offer:active { transform: scale(0.97); }
+.new-time-day { font-size: 11.5px; color: var(--ink-muted); }
+.new-time-at { font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--ink-primary); }

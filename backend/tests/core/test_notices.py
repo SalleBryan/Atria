@@ -32,6 +32,7 @@ SENT_PAIRS = [
     (notices.APPOINTMENT_REMINDER, "SMS"),
     (notices.BOOKING_CONFIRMATION, "SMS"),
     (notices.BOOKING_RESCHEDULED, "EMAIL"),
+    (notices.BOOKING_DISRUPTED, "EMAIL"),
 ]
 
 

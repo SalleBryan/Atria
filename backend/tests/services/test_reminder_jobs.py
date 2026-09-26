@@ -513,6 +513,15 @@ class TestDispatch:
         jobs = outbox.jobs_due(self.stream(old_state="BOOKED", new_state="NO_SHOW"))
         assert [j["kind"] for j in jobs] == [reminders.CANCEL]
 
+    def test_a_disruption_owes_a_notice_and_the_reminders_removal(self):
+        """FR-STF-10: the patient is asked to choose again, and not reminded of the old time."""
+        jobs = outbox.jobs_due(self.stream(old_state="BOOKED", new_state="DISRUPTED"))
+        assert [j["kind"] for j in jobs] == [notices.BOOKING_DISRUPTED, reminders.CANCEL]
+
+    def test_a_new_time_after_a_disruption_is_confirmed_and_reminded(self):
+        jobs = outbox.jobs_due(self.stream(old_state="DISRUPTED", new_state="BOOKED"))
+        assert [j["kind"] for j in jobs] == [notices.BOOKING_CONFIRMATION, reminders.SCHEDULE]
+
     def test_arrival_owes_nothing(self):
         assert outbox.jobs_due(self.stream(old_state="BOOKED", new_state="ARRIVED")) == []
 

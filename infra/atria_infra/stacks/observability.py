@@ -101,6 +101,7 @@ class ObservabilityStack(Stack):
             "staff": api.staff_service,
             "booking": api.booking_service,
             "directory": api.directory_service,
+            "availability": api.availability_service,
             "dispatcher": async_.dispatcher,
             "sender": async_.sender,
         }

@@ -181,3 +181,145 @@ def free_starts(
             continue
         free.append(occupancy)
     return free
+
+
+# ---------------------------------------------------------------- availability
+# Phase 2's model (FR-DIR-03 to FR-DIR-05, FR-STF-10). A clinician's working
+# hours are an AVAILABILITY_TEMPLATE per weekday; exceptions take time away.
+
+WEEKDAYS = range(7)
+
+# How staff take time away, all stored as UNAVAILABLE exceptions so the free
+# search reads them one way. They differ in what happens to visits already in
+# the window: a block refuses to cover a booking (the visit is moved or
+# cancelled first, so the patient is told, FR-DIR-04); leave and marking a
+# clinician unavailable disrupt the visits inside (FR-DIR-05, FR-STF-10).
+EXCEPTION_KINDS = ("BLOCK", "LEAVE", "UNAVAILABLE")
+
+# The longest leave recorded in one go; longer is two requests, not a typo.
+MAX_LEAVE_DAYS = 62
+
+
+def working_window(
+    templates: list[dict[str, object]],
+    opening_hours: object,
+    day: dt.date,
+    *,
+    zone: ZoneInfo,
+) -> Window | None:
+    """A clinician's working span on one day, or None when they do not work it.
+
+    A clinician with hours of their own works those, and a weekday without
+    them is a day off. One with none recorded works the unit's opening hours,
+    which is what every clinician did before hours could be set.
+    """
+    if not templates:
+        return opening_window(opening_hours, day, zone=zone)
+    for template in templates:
+        if int(str(template.get("weekday", -1))) == day.weekday():
+            return opening_window(
+                {
+                    str(day.weekday()): {
+                        "start": template.get("startTime"),
+                        "end": template.get("endTime"),
+                    }
+                },
+                day,
+                zone=zone,
+            )
+    return None
+
+
+def validate_hours(body: dict[str, object], *, minutes: int) -> dict[int, tuple[str, str]]:
+    """A week of working hours: weekday (Monday 0) to start and end, HH:MM.
+
+    A weekday left out, or given as null, is a day off. Hours sit on the
+    tenant's grid, or a start on the hour would be offered no unit to start in.
+    """
+    days = body.get("days")
+    if not isinstance(days, dict):
+        raise Invalid("days is required: weekday 0 (Monday) to 6, each {start, end} or null")
+    hours: dict[int, tuple[str, str]] = {}
+    for raw, entry in days.items():
+        try:
+            weekday = int(str(raw))
+        except ValueError as exc:
+            raise Invalid(f"{raw} is not a weekday; use 0 (Monday) to 6") from exc
+        if weekday not in WEEKDAYS:
+            raise Invalid(f"{raw} is not a weekday; use 0 (Monday) to 6")
+        if entry is None:
+            continue
+        if not isinstance(entry, dict):
+            raise Invalid(f"weekday {weekday} must be {{start, end}} or null")
+        start = _time(entry.get("start"), what="start")
+        end = _time(entry.get("end"), what="end")
+        if end <= start:
+            raise Invalid(f"on weekday {weekday} the hours end before they start")
+        for moment in (start, end):
+            if (moment.hour * 60 + moment.minute) % minutes or moment.second:
+                raise Invalid(
+                    "working hours must fall on the grid",
+                    detail={"gridUnitMinutes": minutes, "weekday": weekday},
+                )
+        hours[weekday] = (start.strftime("%H:%M"), end.strftime("%H:%M"))
+    return hours
+
+
+def exception_days(body: dict[str, object], *, today: dt.date) -> list[dt.date]:
+    """The dates an exception covers: one date, or from and to for leave."""
+    if body.get("from") is not None:
+        first = parse_date(body.get("from"), name="from")
+        last = parse_date(body.get("to") or body.get("from"), name="to")
+    else:
+        first = last = parse_date(body.get("date"), name="date")
+    if last < first:
+        raise Invalid("to is before from")
+    if first < today:
+        raise Invalid("time can only be taken away from today onwards")
+    if (last - first).days + 1 > MAX_LEAVE_DAYS:
+        raise Invalid(
+            "that is longer than one request covers", detail={"maximumDays": MAX_LEAVE_DAYS}
+        )
+    return [first + dt.timedelta(days=n) for n in range((last - first).days + 1)]
+
+
+def exception_span(
+    body: dict[str, object], *, days: list[dt.date]
+) -> tuple[str | None, str | None]:
+    """The part of each day taken away: startTime and endTime, or the whole day.
+
+    Part of a day is for a single date; leave over several days is whole days.
+    """
+    start, end = body.get("startTime"), body.get("endTime")
+    if start is None and end is None:
+        return None, None
+    if start is None or end is None:
+        raise Invalid("give both startTime and endTime, or neither for the whole day")
+    if len(days) > 1:
+        raise Invalid("part of a day can only be taken away one date at a time")
+    opens, closes = _time(start, what="start"), _time(end, what="end")
+    if closes <= opens:
+        raise Invalid("the time taken away ends before it starts")
+    return opens.strftime("%H:%M"), closes.strftime("%H:%M")
+
+
+def exception_windows(
+    days: list[dt.date], start: str | None, end: str | None, *, zone: ZoneInfo
+) -> list[Window]:
+    """The instants an exception covers, one window per date."""
+    return [
+        window
+        for day in days
+        for window in blocked_windows(
+            [
+                {
+                    "kind": "UNAVAILABLE",
+                    "exceptionDate": day.isoformat(),
+                    "startTime": start,
+                    "endTime": end,
+                }
+            ],
+            day,
+            zone=zone,
+        )
+    ]

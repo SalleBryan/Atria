@@ -1214,3 +1214,38 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 .no-show-ask p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-800); }
 .no-show-choices { display: flex; gap: 8px; }
 .no-show-choices > * { flex: 1; }
+
+/* Availability (staff/Availability.tsx): the week and time off, as two cards. */
+.availability-page { display: flex; flex-direction: column; gap: 16px; height: 100%; min-height: 0; }
+.availability-page > * { animation: rise var(--move-slow) both, fade-in var(--fade-slow) both; }
+.availability-who { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--ink-muted); }
+.availability-who select { height: 44px; padding: 0 14px; border: 1px solid var(--line-hairline); border-radius: 14px; font: inherit; color: var(--ink-primary); background: #ffffff; }
+.availability-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; flex: 1; min-height: 0; }
+.availability-card { display: flex; flex-direction: column; gap: 12px; min-height: 0; padding: calc(16px + 6px * var(--tall)) 22px; overflow-y: auto; border-radius: 30px; }
+.availability-card h2 { margin: 0; font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--ink-primary); }
+.availability-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.availability-add { display: inline-flex; gap: 8px; padding: 0 18px; height: 42px; }
+.availability-note { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); }
+.week-editor { display: flex; flex-direction: column; gap: 12px; }
+.week-rows { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.week-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 0 12px; border: 1px solid var(--line-hairline); border-radius: 16px; background: #ffffff; }
+.week-row-off { background: transparent; }
+.week-day { display: inline-flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600; color: var(--ink-800); cursor: pointer; }
+.week-day input { width: 18px; height: 18px; accent-color: var(--blue-600); }
+.week-times { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-muted); }
+.week-times input,
+.off-fields input { height: 38px; padding: 0 10px; border: 1px solid var(--line-hairline); border-radius: 12px; font: inherit; color: var(--ink-primary); background: #ffffff; }
+.week-off { font-size: 12.5px; color: var(--ink-muted); }
+.time-off-list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.time-off-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line-hairline); border-radius: 18px; background: #ffffff; animation: rise var(--move) both, fade-in var(--fade) both; }
+.time-off-text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.time-off-when { font-size: 13.5px; font-weight: 600; color: var(--ink-800); }
+.time-off-why { overflow: hidden; font-size: 12px; color: var(--ink-muted); text-overflow: ellipsis; white-space: nowrap; }
+.time-off-back { height: 36px; padding: 0 14px; font-size: 12.5px; }
+.off-fields { display: flex; gap: 12px; }
+.off-fields label { display: flex; flex: 1; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink-muted); }
+@media (max-width: 767px) {
+  .availability-page { height: auto; }
+  .availability-cols { grid-template-columns: minmax(0, 1fr); }
+  .availability-card { overflow: visible; }
+}

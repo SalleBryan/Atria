@@ -1081,6 +1081,167 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/WrongState" }
 
+  /clinicians/{id}/availability:
+    get:
+      tags: [Schedule]
+      operationId: getAvailability
+      summary: A clinician's working hours and time off from today
+      description: |
+        Permission availability.read. usesUnitHours is true while the
+        clinician has no hours of their own, and the unit's opening hours
+        apply. Time off is listed once per block or leave, with the dates it
+        covers.
+      parameters:
+        - $ref: "#/components/parameters/ClinicianId"
+      responses:
+        "200":
+          description: Hours and time off.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [clinicianProfileId, clinicId, usesUnitHours, hours, unitHours, timeOff]
+                properties:
+                  clinicianProfileId: { type: string }
+                  clinicId: { type: string }
+                  usesUnitHours: { type: boolean }
+                  hours: { $ref: "#/components/schemas/WeekHours" }
+                  unitHours: { $ref: "#/components/schemas/WeekHours" }
+                  timeOff:
+                    type: array
+                    items: { $ref: "#/components/schemas/TimeOff" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /clinicians/{id}/hours:
+    put:
+      tags: [Schedule]
+      operationId: setHours
+      summary: Replace a clinician's working week (FR-DIR-03)
+      description: |
+        Permission availability.write: a clinician their own, a unit manager
+        their unit's. Weekday 0 is Monday. A weekday left out or null is a day
+        off. Times sit on the tenant's grid. The free search follows the new
+        hours at once; visits already booked are not moved.
+      parameters:
+        - $ref: "#/components/parameters/ClinicianId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [days]
+              properties:
+                days:
+                  type: object
+                  additionalProperties:
+                    oneOf:
+                      - type: "null"
+                      - $ref: "#/components/schemas/Span"
+      responses:
+        "200":
+          description: The saved week.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  clinicianProfileId: { type: string }
+                  usesUnitHours: { type: boolean }
+                  hours: { $ref: "#/components/schemas/WeekHours" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /clinicians/{id}/time-off:
+    post:
+      tags: [Schedule]
+      operationId: takeTimeOff
+      summary: Take time away from a clinician (FR-DIR-04, FR-DIR-05, FR-STF-10)
+      description: |
+        BLOCK takes free time out of booking and is refused with 409 when a
+        visit is inside, naming the references (move or cancel them first).
+        LEAVE is whole days, date or from and to; the visits inside become
+        DISRUPTED. UNAVAILABLE is a date, whole or startTime to endTime; the
+        visits inside become DISRUPTED. A disrupted patient is emailed, their
+        reminder removed, and offered the next times; accepting one books the
+        visit again.
+
+        BLOCK and LEAVE need availability.write; UNAVAILABLE needs
+        session.disrupt, which the front desk holds. A reason is required and
+        is shown to patients in general terms. Only today onwards.
+      parameters:
+        - $ref: "#/components/parameters/ClinicianId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, reason]
+              properties:
+                kind: { type: string, enum: [BLOCK, LEAVE, UNAVAILABLE] }
+                date: { type: string, format: date }
+                from: { type: string, format: date }
+                to: { type: string, format: date }
+                startTime: { type: string, example: "09:00" }
+                endTime: { type: string, example: "12:00" }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "201":
+          description: The time off, and the visits it disrupted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/TimeOff"
+                  - type: object
+                    properties:
+                      disrupted:
+                        type: array
+                        items: { $ref: "#/components/schemas/Appointment" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: A block would cover booked visits; detail.references names them.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /clinicians/{id}/time-off/{groupId}:
+    delete:
+      tags: [Schedule]
+      operationId: giveBackTimeOff
+      summary: Give back a block or leave
+      description: |
+        Permission availability.write. Every date of the block or leave is
+        given back and can be booked again. Visits it disrupted stay
+        DISRUPTED: each patient has already been asked to choose.
+      parameters:
+        - $ref: "#/components/parameters/ClinicianId"
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The dates given back.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  groupId: { type: string }
+                  dates: { type: array, items: { type: string, format: date } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
 components:
   parameters:
     AppointmentId:
@@ -1104,6 +1265,13 @@ components:
       schema: { type: string }
       description: The nextCursor of the page before. Opaque; a cursor this list did not give out is refused with 400.
 
+    ClinicianId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      description: The clinician's staff membership id, scoped to the caller's tenant.
+
     StaffId:
       name: id
       in: path
@@ -1122,6 +1290,30 @@ components:
         created with.
 
   schemas:
+    Span:
+      type: object
+      required: [start, end]
+      properties:
+        start: { type: string, example: "08:00" }
+        end: { type: string, example: "16:00" }
+
+    WeekHours:
+      type: object
+      description: Weekday (0 Monday to 6) to a working span; a weekday not listed is off.
+      additionalProperties: { $ref: "#/components/schemas/Span" }
+
+    TimeOff:
+      type: object
+      required: [groupId, kind, from, to]
+      properties:
+        groupId: { type: string }
+        kind: { type: string, enum: [BLOCK, LEAVE, UNAVAILABLE] }
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        startTime: { type: [string, "null"] }
+        endTime: { type: [string, "null"] }
+        reason: { type: [string, "null"] }
+
     Role:
       type: string
       enum: [PATIENT, RECEPTIONIST, CLINICIAN, CLINIC_MANAGER, TENANT_ADMIN]

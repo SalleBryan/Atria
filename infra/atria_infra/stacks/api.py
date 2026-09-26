@@ -124,6 +124,16 @@ class ApiStack(Stack):
         # only thing that writes a lock is a booking.
         data.main_table.grant_read_data(self.directory_service)
 
+        self.availability_service = self._service(
+            "AvailabilityService",
+            handler="atria.services.directory.availability.handler",
+            description="Clinicians' working hours and time off, and the disruptions time off causes",
+            environment=common_environment,
+        )
+        # Writes hours and time off, and moves the visits inside time off to
+        # DISRUPTED. Never a lock: only a booking holds time.
+        data.main_table.grant_read_write_data(self.availability_service)
+
         self.access_log = logs.LogGroup(
             self,
             "AccessLog",
@@ -264,6 +274,22 @@ class ApiStack(Stack):
             one_clinician.add_resource(path).add_method(
                 "GET",
                 directory_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
+        # A clinician's hours and time off, on their own function so the
+        # directory stays read only.
+        availability_integration = apigateway.LambdaIntegration(self.availability_service, proxy=True)
+        time_off = one_clinician.add_resource("time-off")
+        for resource, method in (
+            (one_clinician.add_resource("availability"), "GET"),
+            (one_clinician.add_resource("hours"), "PUT"),
+            (time_off, "POST"),
+            (time_off.add_resource("{groupId}"), "DELETE"),
+        ):
+            resource.add_method(
+                method,
+                availability_integration,
                 authorizer=self.request_authoriser,
                 authorization_type=apigateway.AuthorizationType.CUSTOM,
             )

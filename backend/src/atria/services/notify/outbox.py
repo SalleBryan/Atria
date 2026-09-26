@@ -79,6 +79,8 @@ REMINDER_JOB_FOR_STATE = {
     "CLINIC_CANCELLED": reminders.CANCEL,
     # Closed without a visit, so the reminder has nobody to remind.
     "NO_SHOW": reminders.CANCEL,
+    # The time no longer stands; a reminder for it would send the patient in.
+    "DISRUPTED": reminders.CANCEL,
 }
 
 

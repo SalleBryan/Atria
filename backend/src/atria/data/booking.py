@@ -151,6 +151,11 @@ class Booking:
         self._repo = repository
         self._clock = clock or (lambda: dt.datetime.now(tz=dt.UTC))
 
+    @property
+    def repository(self) -> Repository:
+        """The table this reads, for a store that keeps its records beside these."""
+        return self._repo
+
     def now(self) -> dt.datetime:
         return self._clock()
 
@@ -553,11 +558,14 @@ class Booking:
         """
         appointment_id = str(appointment["appointmentId"])
         was = str(appointment["state"])
+        # A disrupted visit given a new time is booked again: the patient
+        # accepted a slot (FR-STF-10). Any other move lands in RESCHEDULED.
+        to_state = "BOOKED" if was == "DISRUPTED" else "RESCHEDULED"
         if was == "RESCHEDULED":
             lifecycle.require("appointment", was, "BOOKED")
             lifecycle.require("appointment", "BOOKED", "RESCHEDULED")
         else:
-            lifecycle.require("appointment", was, "RESCHEDULED")
+            lifecycle.require("appointment", was, to_state)
 
         old_clinician = str(appointment["clinicianProfileId"])
         old_units = set(self.held(tenant_id, appointment, minutes=minutes).units)
@@ -578,7 +586,7 @@ class Booking:
             tenant_id=tenant_id,
             kind="RESCHEDULED",
             from_state=was,
-            to_state="RESCHEDULED",
+            to_state=to_state,
             actor_person_id=actor_person_id,
             actor_role=actor_role,
             reason=reason,
@@ -594,7 +602,7 @@ class Booking:
             event["entitlement"] = "NONE"
 
         changed = {
-            "state": "RESCHEDULED",
+            "state": to_state,
             "startAt": rules.instant(occupancy.start_at),
             "endAt": rules.instant(occupancy.end_at),
             "clinicianProfileId": clinician_profile_id,

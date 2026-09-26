@@ -37,6 +37,7 @@ from atria.data.people import People
 from atria.data.repository import Repository
 from atria.http import paging, requests, responses
 from atria.http.handler import api
+from atria.services.directory import availability as availability_views
 from atria.services.directory import schedule as schedule_views
 
 logger = Logger(service="atria-directory")
@@ -198,13 +199,14 @@ def list_slots(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     zone = data.zone(principal.tenant_id)
     clinic = data.clinic(principal.tenant_id, clinic_id)
     exceptions = data.exceptions(principal.tenant_id, clinician_profile_id)
+    hours = availability_views.availability(data).hours(principal.tenant_id, clinician_profile_id)
     duration_units = int(appointment_type.get("durationUnits") or 0)
     buffer_units = int(appointment_type.get("bufferUnits") or 0)
     held = duration_units + max(0, buffer_units)
     now = data.now()
 
     def free_on(day: dt.date) -> list[dict[str, str]]:
-        window = schedule.opening_window(clinic.get("openingHours"), day, zone=zone)
+        window = schedule.working_window(hours, clinic.get("openingHours"), day, zone=zone)
         locked: set[str] = set()
         if window is not None and held:
             every_unit = [

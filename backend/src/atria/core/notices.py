@@ -28,8 +28,15 @@ BOOKING_CONFIRMATION = "BOOKING_CONFIRMATION"
 BOOKING_CANCELLATION = "BOOKING_CANCELLATION"
 APPOINTMENT_REMINDER = "APPOINTMENT_REMINDER"
 BOOKING_RESCHEDULED = "BOOKING_RESCHEDULED"
+BOOKING_DISRUPTED = "BOOKING_DISRUPTED"
 
-KINDS = (BOOKING_CONFIRMATION, BOOKING_CANCELLATION, APPOINTMENT_REMINDER, BOOKING_RESCHEDULED)
+KINDS = (
+    BOOKING_CONFIRMATION,
+    BOOKING_CANCELLATION,
+    APPOINTMENT_REMINDER,
+    BOOKING_RESCHEDULED,
+    BOOKING_DISRUPTED,
+)
 
 # One SMS segment in the GSM alphabet. Beyond it a message is billed as two, and
 # for a clinic paying per message in XAF that doubles the cost of every reminder.
@@ -62,6 +69,7 @@ NOTICE_FOR_STATE = {
     "PATIENT_CANCELLED": BOOKING_CANCELLATION,
     "CLINIC_CANCELLED": BOOKING_CANCELLATION,
     "RESCHEDULED": BOOKING_RESCHEDULED,
+    "DISRUPTED": BOOKING_DISRUPTED,
 }
 
 
@@ -226,6 +234,41 @@ TEXT[BOOKING_RESCHEDULED] = {
     },
 }
 
+TEXT[BOOKING_DISRUPTED] = {
+    "fr": {
+        "subject": "Votre rendez-vous doit être déplacé, référence {reference}",
+        "preheader": "Le praticien n'est plus disponible le {date} à {time}.",
+        "tag": "Nouvel horaire à choisir",
+        "heading": "Votre rendez-vous doit être déplacé",
+        "rows": (
+            ("Date prévue", "{date}"),
+            ("Heure prévue", "{time}"),
+            ("Lieu", "{clinic}"),
+            ("Praticien", "{clinician}"),
+        ),
+        "closing": "Le praticien n'est plus disponible à cet horaire. Ouvrez votre "
+        "rendez-vous dans l'application Atria pour choisir un nouvel horaire en un "
+        "geste, ou pour l'annuler sans frais. Ne vous déplacez pas à l'horaire prévu.",
+        "action": "Choisir un nouvel horaire",
+    },
+    "en": {
+        "subject": "Your appointment needs a new time, reference {reference}",
+        "preheader": "The clinician is no longer available on {date} at {time}.",
+        "tag": "New time needed",
+        "heading": "Your appointment needs a new time",
+        "rows": (
+            ("Scheduled date", "{date}"),
+            ("Scheduled time", "{time}"),
+            ("Place", "{clinic}"),
+            ("Clinician", "{clinician}"),
+        ),
+        "closing": "The clinician is no longer available at that time. Open your "
+        "appointment in the Atria app to choose a new time in one tap, or to cancel "
+        "at no cost. Please do not come in at the old time.",
+        "action": "Choose a new time",
+    },
+}
+
 # The words around the parts, per language. French sets a space before a colon.
 GREETING = {"fr": "Bonjour,", "en": "Hello,"}
 REFERENCE = {"fr": "Référence", "en": "Reference"}
@@ -236,11 +279,13 @@ EMAIL_TONE = {
     BOOKING_CONFIRMATION: "brand",
     BOOKING_CANCELLATION: "cancelled",
     BOOKING_RESCHEDULED: "brand",
+    BOOKING_DISRUPTED: "cancelled",
 }
 EMAIL_LINK = {
     BOOKING_CONFIRMATION: "/visits/{appointmentId}",
     BOOKING_CANCELLATION: "/find-care",
     BOOKING_RESCHEDULED: "/visits/{appointmentId}",
+    BOOKING_DISRUPTED: "/visits/{appointmentId}",
 }
 
 

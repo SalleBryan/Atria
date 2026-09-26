@@ -165,3 +165,25 @@ describe("Visits after booking (wave 2)", () => {
 function clockDate(daysAhead: number): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Douala" }).format(new Date(Date.now() + daysAhead * 24 * HOUR));
 }
+
+describe("A disrupted visit (wave 3)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("fr_stf_10: offers the next times and books one in a tap", async () => {
+    const disrupted = visit("soon", 60, "DISRUPTED");
+    const tomorrow = clockDate(1);
+    const slot = { startAt: `${tomorrow}T10:00:00Z`, endAt: `${tomorrow}T10:30:00Z` };
+    respond([disrupted]);
+    const base = api.getMockImplementation() as (path: string, init?: RequestInit & { json?: unknown }) => Promise<unknown>;
+    api.mockImplementation(async (path: string, init: RequestInit & { json?: unknown } = {}) => {
+      if (path.includes("/slots")) return { days: { [tomorrow]: [slot] } };
+      if (path === "/appointments/soon/reschedule") return { ...disrupted, state: "BOOKED", startAt: slot.startAt };
+      return base(path, init);
+    });
+    renderVisits("/visits/soon");
+    expect(await screen.findByText(/no longer available/)).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: /11:00/ }));
+    expect(api).toHaveBeenCalledWith("/appointments/soon/reschedule", { method: "POST", json: { startAt: slot.startAt } });
+    expect(await screen.findByText(/Your reference stays APT-soon/)).toBeInTheDocument();
+  });
+});

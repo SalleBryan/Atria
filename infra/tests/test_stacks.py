@@ -668,9 +668,9 @@ class TestAsyncStack:
 class TestObservabilityStack:
     def test_alarms_cover_errors_latency_and_the_authoriser(self, synthesised):
         template = template_for(synthesised, "observability")
-        # The API's three, errors for six functions, throttles for seven, four
+        # The API's three, errors for seven functions, throttles for eight, four
         # table throttles, three dead letter queues, SES bounces and SMS spend.
-        template.resource_count_is("AWS::CloudWatch::Alarm", 3 + 6 + 7 + 4 + 3 + 2)
+        template.resource_count_is("AWS::CloudWatch::Alarm", 3 + 7 + 8 + 4 + 3 + 2)
 
     def test_every_alarm_notifies_the_topic(self, synthesised):
         template = template_for(synthesised, "observability")
@@ -745,3 +745,11 @@ def test_every_visit_action_has_its_route(synthesised: cdk.App) -> None:
     served = routes(template_for(synthesised, "api"))
     for action in ("reschedule", "confirm", "arrive", "start", "complete", "no-show"):
         assert (f"/appointments/{{id}}/{action}", "POST") in served
+
+
+def test_availability_has_its_own_writing_function(synthesised: cdk.App) -> None:
+    served = routes(template_for(synthesised, "api"))
+    assert ("/clinicians/{id}/availability", "GET") in served
+    assert ("/clinicians/{id}/hours", "PUT") in served
+    assert ("/clinicians/{id}/time-off", "POST") in served
+    assert ("/clinicians/{id}/time-off/{groupId}", "DELETE") in served

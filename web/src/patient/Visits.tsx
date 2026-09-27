@@ -409,7 +409,8 @@ function VisitDetail({
       {appointment.state === "DISRUPTED" && <NewTimeOffer appointment={appointment} onMoved={onMoved} onMore={onMove} />}
       {failed && <Notice tone="error">{failed}</Notice>}
       {active && appointment.state === "BOOKED" && (
-        <button type="button" className="dock-button" disabled={confirming} aria-busy={confirming || undefined} onClick={confirm}>
+        <button type="button" className="tonal-button" disabled={confirming} aria-busy={confirming || undefined} onClick={confirm}>
+          <CheckMark size={15} />
           {confirming ? "Confirming" : "I'll be there"}
         </button>
       )}
@@ -431,7 +432,7 @@ function VisitDetail({
 
   return (
     <>
-      <div className={`visit-hero${active ? "" : ` visit-hero-${status.tone}`}`}>
+      <div className={`visit-hero${active && appointment.state !== "DISRUPTED" ? "" : ` visit-hero-${status.tone}`}`}>
         <span className="hero-bloom" aria-hidden="true" />
         <span className="hero-tag">{status.label.toUpperCase()}</span>
         <h2>{clock.long(appointment.startAt)}</h2>
@@ -488,7 +489,13 @@ function VisitDetail({
             {active && (
               <div>
                 <dt>Reminder</dt>
-                <dd>{reminderAt.getTime() > Date.now() ? "SMS, 24 hours before" : "SMS sent at booking"}</dd>
+                <dd>
+                  {appointment.state === "DISRUPTED"
+                    ? "Set again once you choose"
+                    : reminderAt.getTime() > Date.now()
+                      ? "SMS, 24 hours before"
+                      : "SMS sent at booking"}
+                </dd>
               </div>
             )}
           </dl>
@@ -527,6 +534,16 @@ function VisitDetail({
                 <span>
                   <span className="timeline-title">{status.label}</span>
                   <span className="timeline-sub">The time went back on the calendar and the reminder was removed</span>
+                </span>
+              </li>
+            ) : appointment.state === "DISRUPTED" ? (
+              <li>
+                <span className="timeline-dot dot-amber-tint">
+                  <Alert size={11} />
+                </span>
+                <span>
+                  <span className="timeline-title">New time needed</span>
+                  <span className="timeline-sub">The clinician is no longer available; the reminder was removed</span>
                 </span>
               </li>
             ) : (

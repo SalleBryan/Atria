@@ -146,6 +146,8 @@ const appointments: Record<string, unknown>[] = [
   // The patient preview's own visits.
   appointment("s-mbarga", "at-spec-first", local(2, 10), "BOOKED", 1),
   appointment("s-bello", "at-spec-follow", local(8, 14, 20), "BOOKED", 3),
+  // Leave took this one away (wave 3), so the patient is asked to choose again.
+  appointment("s-tchoupo", "at-spec-first", local(4, 9), "DISRUPTED", 6),
   appointment("s-nkoulou", "at-spec-first", local(-20, 9), "COMPLETED", 27),
   appointment("s-fonkou", "at-spec-first", local(-5, 11, 30), "PATIENT_CANCELLED", 12),
   // A day at the Medical Outpatient Unit, for the staff console.

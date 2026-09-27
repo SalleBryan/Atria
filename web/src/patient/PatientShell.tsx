@@ -95,13 +95,16 @@ function Shell({ me }: { me: Me }) {
             />
             {destinations.map(({ to, label, icon: IconComponent, count }) => (
               <NavLink key={to} to={to} className="side-item">
-                <IconComponent size={18} />
+                {/* Material 3's large badge, pinned to the icon as on a navigation rail. */}
+                <span className="side-icon">
+                  <IconComponent size={18} />
+                  {count ? (
+                    <span key={count} className="m3-badge" aria-label={`${count} upcoming`}>
+                      {count > 99 ? "99+" : count}
+                    </span>
+                  ) : null}
+                </span>
                 <span>{label}</span>
-                {count ? (
-                  <span className="side-pip" aria-label={`${count} upcoming`}>
-                    {count}
-                  </span>
-                ) : null}
               </NavLink>
             ))}
           </nav>
@@ -130,7 +133,11 @@ function Shell({ me }: { me: Me }) {
           <NavLink key={to} to={to} className="bottom-item">
             <span className="bottom-indicator">
               <IconComponent size={20} />
-              {count ? <span className="bottom-badge">{count}</span> : null}
+              {count ? (
+                <span key={count} className="m3-badge" aria-hidden="true">
+                  {count > 99 ? "99+" : count}
+                </span>
+              ) : null}
             </span>
             <span className="bottom-label">{label}</span>
           </NavLink>

@@ -597,6 +597,8 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 .visit-page-actions > .staff-primary,
 .visit-page-actions > .no-show-ask,
 .visit-page-actions > .notice { flex-basis: 100%; }
+/* Move and cancel share a row; the way back sits under them on its own. */
+.visit-page-actions > .visit-back { flex-basis: 100%; order: 1; }
 .visit-page-actions > .no-show-ask,
 .visit-page-actions > .notice { height: auto; }
 .visit-back { display: grid; place-items: center; text-decoration: none; }
@@ -1187,10 +1189,34 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   max-height: calc(100% - 32px);
   overflow: hidden;
 }
-.move-scroll { min-height: 0; overflow-y: auto; scrollbar-width: none; }
-.move-scroll::-webkit-scrollbar { display: none; }
+/* A slim rounded bar, set inside the dialog's padding with room above and
+   below, so it reads as part of the content and never runs along the curved
+   edge (feedback 2026-09-27). */
+.move-scroll {
+  min-height: 0;
+  margin-right: -14px;
+  padding-right: 14px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+/* Chrome and Safari draw the bar from these; setting the standard
+   scrollbar-width as well would make Chrome ignore them and draw its own,
+   arrows included. The track starts below the close button. */
+.move-scroll::-webkit-scrollbar { width: 6px; }
+.move-scroll::-webkit-scrollbar-button { display: none; height: 0; }
+.move-scroll::-webkit-scrollbar-track { margin: 44px 0 8px; background: transparent; }
+.move-scroll::-webkit-scrollbar-thumb { border-radius: 99px; background: rgba(20, 45, 95, 0.22); }
+.move-scroll::-webkit-scrollbar-thumb:hover { background: rgba(20, 45, 95, 0.36); }
+@supports not selector(::-webkit-scrollbar) {
+  .move-scroll { scrollbar-width: thin; scrollbar-color: rgba(20, 45, 95, 0.22) transparent; }
+}
 .move-dialog form { display: flex; flex-direction: column; gap: 10px; }
-.dialog-close { position: absolute; top: 18px; right: 18px; z-index: 1; }
+.dialog-close { position: absolute; top: 18px; right: 18px; z-index: 2; background: #ffffff; box-shadow: 0 2px 8px rgba(16, 42, 94, 0.12); }
+/* Content fades out under the dialog's edges as it scrolls, instead of being cut. */
+.move-scroll {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+}
 .move-actions { flex: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line-hairline); }
 .move-dialog .row-head { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
 .move-dialog .dialog-label { margin: 0; }
@@ -1219,7 +1245,8 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 .availability-page { display: flex; flex-direction: column; gap: 16px; height: 100%; min-height: 0; }
 .availability-page > * { animation: rise var(--move-slow) both, fade-in var(--fade-slow) both; }
 .availability-who { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--ink-muted); }
-.availability-who select { height: 44px; padding: 0 14px; border: 1px solid var(--line-hairline); border-radius: 14px; font: inherit; color: var(--ink-primary); background: #ffffff; }
+.availability-picker { width: 260px; }
+.picker-avatar { display: grid; flex: none; place-items: center; width: 26px; height: 26px; border-radius: 9px; font-family: var(--font-display); font-size: 10.5px; font-weight: 700; color: #ffffff; background: var(--gradient-primary); }
 .availability-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; flex: 1; min-height: 0; }
 .availability-card { display: flex; flex-direction: column; gap: 12px; min-height: 0; padding: calc(16px + 6px * var(--tall)) 22px; overflow-y: auto; border-radius: 30px; }
 .availability-card h2 { margin: 0; font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--ink-primary); }
@@ -1230,11 +1257,11 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 .week-rows { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .week-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 0 12px; border: 1px solid var(--line-hairline); border-radius: 16px; background: #ffffff; }
 .week-row-off { background: transparent; }
-.week-day { display: inline-flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600; color: var(--ink-800); cursor: pointer; }
-.week-day input { width: 18px; height: 18px; accent-color: var(--blue-600); }
+.week-day { gap: 11px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.checkbox-off { cursor: default; }
+.checkbox-off .checkbox-box { opacity: 0.6; }
 .week-times { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-muted); }
-.week-times input,
-.off-fields input { height: 38px; padding: 0 10px; border: 1px solid var(--line-hairline); border-radius: 12px; font: inherit; color: var(--ink-primary); background: #ffffff; }
+.week-times .picker-field { width: 104px; height: 38px; border-radius: 12px; }
 .week-off { font-size: 12.5px; color: var(--ink-muted); }
 .time-off-list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .time-off-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line-hairline); border-radius: 18px; background: #ffffff; animation: rise var(--move) both, fade-in var(--fade) both; }
@@ -1243,7 +1270,8 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 .time-off-why { overflow: hidden; font-size: 12px; color: var(--ink-muted); text-overflow: ellipsis; white-space: nowrap; }
 .time-off-back { height: 36px; padding: 0 14px; font-size: 12.5px; }
 .off-fields { display: flex; gap: 12px; }
-.off-fields label { display: flex; flex: 1; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink-muted); }
+.off-field { display: flex; flex: 1; flex-direction: column; gap: 6px; min-width: 0; font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-muted); }
+.off-field .picker-field { width: 100%; text-transform: none; letter-spacing: normal; }
 @media (max-width: 767px) {
   .availability-page { height: auto; }
   .availability-cols { grid-template-columns: minmax(0, 1fr); }

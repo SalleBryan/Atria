@@ -255,7 +255,7 @@ export const STATE_LABEL: Record<
   BOOKED: { label: "Confirmed", tone: "confirmed" },
   CONFIRMED: { label: "Confirmed", tone: "confirmed" },
   RESCHEDULED: { label: "Moved", tone: "confirmed" },
-  DISRUPTED: { label: "Time changed", tone: "awaiting" },
+  DISRUPTED: { label: "New time needed", tone: "awaiting" },
   ARRIVED: { label: "Checked in", tone: "confirmed" },
   IN_CONSULTATION: { label: "In consultation", tone: "confirmed" },
   COMPLETED: { label: "Attended", tone: "neutral" },

@@ -18,11 +18,12 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { api } from "../api/client";
 import { useSession } from "../auth/session";
-import { Notice } from "../components/controls";
-import { Clock, Close, Plus } from "../components/icons";
+import { Checkbox, Notice } from "../components/controls";
+import { CheckMark, Clock, Close, Plus } from "../components/icons";
+import { DatePicker, halfHours, type PickerOption, SelectMenu } from "../components/Pickers";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { MATRIX } from "../generated/permissions";
-import { clock } from "../patient/data";
+import { clock, initials } from "../patient/data";
 import { doctor, roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
 import { Snackbar } from "./Snackbar";
@@ -54,6 +55,12 @@ const KIND: Record<TimeOff["kind"], { label: string; tone: string; hint: string 
   LEAVE: { label: "Leave", tone: "awaiting", hint: "Whole days. Visits inside are disrupted and each patient asked to choose again." },
   UNAVAILABLE: { label: "Unavailable", tone: "cancelled", hint: "Visits inside are disrupted and each patient asked to choose again." },
 };
+
+/** Half hours, plus a saved time that is not on one, so it is never shown as blank. */
+function timeOptions(current: string): PickerOption[] {
+  const times = halfHours();
+  return times.some((t) => t.id === current) ? times : [...times, { id: current, label: current }].sort((a, b) => a.id.localeCompare(b.id));
+}
 
 const can = (role: string, permission: keyof typeof MATRIX) => (MATRIX[permission] as Record<string, string>)[role] !== "none";
 
@@ -122,16 +129,26 @@ export function Availability() {
           <p>{role === "CLINICIAN" ? "Your working week and time off." : "Working hours and time off for the unit's clinicians."}</p>
         </div>
         {role !== "CLINICIAN" && colleagues.length > 0 && (
-          <label className="availability-who">
-            <span>Clinician</span>
-            <select value={clinicianId ?? ""} onChange={(event) => setChosen(event.target.value)}>
-              {colleagues.map((c) => (
-                <option key={c.clinicianProfileId} value={c.clinicianProfileId}>
-                  {doctor(c)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="availability-who">
+            <span id="who-label">Clinician</span>
+            <SelectMenu
+              label="Clinician"
+              value={clinicianId}
+              width={300}
+              className="availability-picker"
+              onChange={setChosen}
+              options={colleagues.map((c) => ({
+                id: c.clinicianProfileId,
+                label: doctor(c),
+                hint: c.specialty ?? undefined,
+                lead: (
+                  <span className="picker-avatar" aria-hidden="true">
+                    {initials(c.givenName, c.familyName)}
+                  </span>
+                ),
+              }))}
+            />
+          </div>
         )}
       </header>
 
@@ -259,28 +276,31 @@ function WeekEditor({
           const set = (patch: Partial<typeof row>) => setWeek((w) => ({ ...w, [String(day)]: { ...row, ...patch } }));
           return (
             <li key={name} className={`week-row${row.on ? "" : " week-row-off"}`}>
-              <label className="week-day">
+              <label className={`checkbox week-day${editable ? "" : " checkbox-off"}`}>
                 <input type="checkbox" checked={row.on} disabled={!editable} onChange={(event) => set({ on: event.target.checked })} />
+                <span className="checkbox-box" aria-hidden="true">
+                  <CheckMark size={13} />
+                </span>
                 <span>{name}</span>
               </label>
               {row.on ? (
                 <span className="week-times">
-                  <input
-                    type="time"
-                    step={600}
-                    aria-label={`${name} start`}
+                  <SelectMenu
+                    label={`${name} start`}
                     value={row.start}
+                    options={timeOptions(row.start)}
+                    width={140}
                     disabled={!editable}
-                    onChange={(event) => set({ start: event.target.value })}
+                    onChange={(start) => set({ start })}
                   />
                   <span aria-hidden="true">to</span>
-                  <input
-                    type="time"
-                    step={600}
-                    aria-label={`${name} end`}
+                  <SelectMenu
+                    label={`${name} end`}
                     value={row.end}
+                    options={timeOptions(row.end)}
+                    width={140}
                     disabled={!editable}
-                    onChange={(event) => set({ end: event.target.value })}
+                    onChange={(end) => set({ end })}
                   />
                 </span>
               ) : (
@@ -393,42 +413,54 @@ function TimeOffDialog({
             )}
             <p className="availability-note">{KIND[kind].hint}</p>
             <div className="off-fields">
-              <label>
+              <div className="off-field">
                 <span>{leave ? "From" : "Date"}</span>
-                <input
-                  type="date"
+                <DatePicker
+                  label={leave ? "From" : "Date"}
                   min={today}
                   value={from}
-                  onChange={(event) => {
-                    setFrom(event.target.value);
-                    if (to < event.target.value) setTo(event.target.value);
+                  onChange={(date) => {
+                    setFrom(date);
+                    if (to < date) setTo(date);
                   }}
-                  required
                 />
-              </label>
+              </div>
               {leave && (
-                <label>
+                <div className="off-field">
                   <span>To</span>
-                  <input type="date" min={from} value={to} onChange={(event) => setTo(event.target.value)} required />
-                </label>
+                  <DatePicker label="To" min={from} value={to} onChange={setTo} />
+                </div>
               )}
             </div>
             {!leave && (
               <>
-                <label className="week-day">
-                  <input type="checkbox" checked={wholeDay} onChange={(event) => setWholeDay(event.target.checked)} />
-                  <span>The whole day</span>
-                </label>
+                <Checkbox checked={wholeDay} onChange={setWholeDay}>
+                  The whole day
+                </Checkbox>
                 {!wholeDay && (
                   <div className="off-fields">
-                    <label>
+                    <div className="off-field">
                       <span>From</span>
-                      <input type="time" step={600} value={startTime} onChange={(event) => setStartTime(event.target.value)} required />
-                    </label>
-                    <label>
+                      <SelectMenu
+                        label="From"
+                        value={startTime}
+                        options={timeOptions(startTime)}
+                        width={160}
+                        icon={<Clock size={15} />}
+                        onChange={setStartTime}
+                      />
+                    </div>
+                    <div className="off-field">
                       <span>Until</span>
-                      <input type="time" step={600} value={endTime} onChange={(event) => setEndTime(event.target.value)} required />
-                    </label>
+                      <SelectMenu
+                        label="Until"
+                        value={endTime}
+                        options={timeOptions(endTime)}
+                        width={160}
+                        icon={<Clock size={15} />}
+                        onChange={setEndTime}
+                      />
+                    </div>
                   </div>
                 )}
               </>

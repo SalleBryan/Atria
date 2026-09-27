@@ -148,24 +148,36 @@
 .side-item:active svg { transform: scale(0.88); }
 .side-item.active { color: #ffffff; }
 .side-item.active::before { display: none; }
-.side-pip {
+/* Material 3 large badge (m3.material.io/components/badges): 16 high, at
+   least 16 wide, fully rounded, 11px medium numerals in the error colour.
+   Flat: no ring and no shadow, whatever sits behind it. It springs in when
+   the count appears or changes (ADR 0019). */
+.side-icon { position: relative; display: inline-grid; flex: none; place-items: center; }
+.m3-badge {
+  position: absolute;
+  top: -7px;
+  left: 10px;
   display: grid;
   place-items: center;
-  min-width: 23px;
-  height: 18px;
-  margin-left: auto;
-  padding: 0 8px;
-  border-radius: 999px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
   font-size: 11px;
-  font-weight: 700;
-  color: #ffffff;
-  background: var(--status-cancelled);
-  box-shadow: 0 4px 10px rgba(200, 56, 74, 0.28);
-  animation: pop-in var(--move-fast) both;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--m3-on-error);
+  background: var(--m3-error);
+  pointer-events: none;
+  animation: badge-in var(--move-fast) both;
+}
+@keyframes badge-in {
+  from { transform: scale(0); }
 }
 /* Every notification count is red, on any background, so it reads as
    something waiting for you (feedback 2026-09-25). */
-.side-item.active .side-pip { color: #ffffff; background: var(--status-cancelled); box-shadow: 0 3px 8px rgba(8, 28, 80, 0.3); }
 .side-spacer { flex: 1; }
 .side-me {
   display: flex;
@@ -839,21 +851,8 @@
   @keyframes indicator {
     from { transform: scaleX(0.4); opacity: 0.4; }
   }
-  .bottom-badge {
-    position: absolute;
-    top: 0;
-    right: 12px;
-    display: grid;
-    place-items: center;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    border-radius: 999px;
-    font-size: 10px;
-    font-weight: 700;
-    color: #ffffff;
-    background: var(--status-cancelled);
-  }
+  /* The navigation bar's badge, on the icon inside the indicator (Material 3). */
+  .bottom-indicator .m3-badge { top: 1px; left: 34px; }
 }
 
 @media (max-width: 520px) {

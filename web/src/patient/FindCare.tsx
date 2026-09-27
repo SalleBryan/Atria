@@ -340,7 +340,6 @@ export function FindCare() {
           onChange={setSpecialty}
           onMore={() => setMenuOpen(true)}
           moreActive={menuFilters}
-          lines={2}
           moreAlways
         />
         <FilterMenu

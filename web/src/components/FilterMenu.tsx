@@ -2,7 +2,9 @@
  * Filters: the few most popular options inline, the rest in a menu.
  *
  * A row of filter chips shows "All", then as many of the most popular options
- * as fit on one line (four at most), then "More". The filter button and "More"
+ * as fit on one line (four at most), then "More". Never a second line: the
+ * moment the options would wrap, the ones that do not fit move into the menu
+ * (feedback 2026-09-27), on every screen and at every window size. The filter button and "More"
  * open the same menu, which holds every option of every filter. On a desktop
  * or tablet the menu drops down from the button; on a phone it rises as a
  * sheet from the bottom edge (feedback 2026-09-25).
@@ -90,7 +92,6 @@ export function ChipRow({
   variant = "chip",
   className = "",
   trailing,
-  lines = 1,
   moreRef,
   moreAlways = false,
 }: {
@@ -107,8 +108,6 @@ export function ChipRow({
   variant?: "chip" | "week";
   className?: string;
   trailing?: ReactNode;
-  /** How many lines the row may take before options move to the menu. */
-  lines?: number;
   /** The "More" chip, for a menu to hang from when there is no filter button. */
   moreRef?: RefObject<HTMLButtonElement | null>;
   /** Offer "More" even when every option fits, because the menu holds other filters too. */
@@ -118,6 +117,7 @@ export function ChipRow({
   const ruler = useRef<HTMLDivElement>(null);
   const candidates = options.slice(0, MAX_INLINE);
   const [fits, setFits] = useState(candidates.length);
+  const lines = 1;
 
   const measure = useCallback(() => {
     const box = row.current;
@@ -147,7 +147,7 @@ export function ChipRow({
     let count = each.length;
     while (count > 0 && !packs([all, ...each.slice(0, count), ...(onMore ? [more] : [])], room, gap, lines)) count -= 1;
     setFits(count);
-  }, [onMore, lines, moreAlways, options.length]);
+  }, [onMore, moreAlways, options.length]);
 
   useLayoutEffect(measure, [measure, options, value]);
   useEffect(() => {
@@ -203,7 +203,7 @@ export function ChipRow({
   return (
     <div
       ref={row}
-      className={`chip-row ${variant === "week" ? "week-filters" : "chips"}${lines > 1 ? " chip-row-wrap" : ""} ${className}`}
+      className={`chip-row ${variant === "week" ? "week-filters" : "chips"}} ${className}`}
     >
       <div className="chip-row-live" role="radiogroup" aria-label={label}>
         {chip(null, "all", true)}

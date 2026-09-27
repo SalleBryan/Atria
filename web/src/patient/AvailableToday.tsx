@@ -66,7 +66,6 @@ export function AvailableToday() {
         onChange={setSpecialty}
         onMore={() => setMenuOpen(true)}
         moreRef={more}
-        lines={2}
       />
       <FilterMenu
         open={menuOpen}

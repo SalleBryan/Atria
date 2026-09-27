@@ -62,6 +62,9 @@
   --status-awaiting-strong: #a9670f;
   --status-awaiting-ink: #9b5e0e;
   --status-cancelled: #d6485a;
+  /* Material 3's error roles, for badges (the baseline scheme's error and on-error). */
+  --m3-error: #ba1a1a;
+  --m3-on-error: #ffffff;
   --status-cancelled-strong: #c33c4e;
   --status-cancelled-ink: #b93b4c;
   --status-booked-ink: #2a5bc2;

@@ -853,3 +853,12 @@ def test_the_queue_routes_exist(synthesised: cdk.App) -> None:
         ("/procedure-requests", "POST"),
     ):
         assert route in served
+
+
+def test_no_stack_imports_the_dependency_layer(synthesised: cdk.App) -> None:
+    """A layer changes whenever its dependencies are rebuilt, and an export in
+    use cannot change, so the layer is shared through a parameter (2026-09-27)."""
+    for stack in ("api", "async", "identity"):
+        template = json.dumps(template_for(synthesised, stack).to_json())
+        assert "ExportsOutputRefDependencyLayer" not in template
+        assert "dependency-layer-arn" in template

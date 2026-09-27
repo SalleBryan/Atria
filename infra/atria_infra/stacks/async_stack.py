@@ -51,7 +51,7 @@ class AsyncStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
         self.settings = settings
         self.build_dir = build_dir
-        self.layer = platform.layer
+        self.layer = platform.layer_in(self)
 
         common_environment = {
             "POWERTOOLS_SERVICE_NAME": "atria",

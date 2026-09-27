@@ -51,7 +51,7 @@ class ApiStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
         self.settings = settings
 
-        self.layer = platform.layer
+        self.layer = platform.layer_in(self)
         self.build_dir = build_dir
 
         pool = identity.user_pool

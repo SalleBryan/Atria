@@ -26,6 +26,7 @@ import stat
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 
 INFRA = pathlib.Path(__file__).resolve().parent
 ROOT = INFRA.parent
@@ -77,7 +78,7 @@ def _remove(path: pathlib.Path) -> None:
     and a single rmtree then fails with access denied.
     """
 
-    def writable(function, target, _info):  # noqa: ANN001, ANN202
+    def writable(function: Callable[[str], object], target: str, _info: BaseException) -> None:
         os.chmod(target, stat.S_IWRITE)
         function(target)
 

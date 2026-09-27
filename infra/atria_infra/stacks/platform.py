@@ -19,6 +19,7 @@ from aws_cdk import aws_dynamodb as dynamodb
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_logs as logs
+from aws_cdk import aws_ssm as ssm
 from constructs import Construct
 
 from atria_infra.config import Environment
@@ -54,6 +55,29 @@ class PlatformStack(Stack):
             compatible_architectures=[ARCHITECTURE],
             description="aws-lambda-powertools, pydantic, pyjwt, tzdata",
         )
+        # The layer reaches the other stacks through a parameter, not an export.
+        # A CloudFormation export in use cannot change, and a layer changes
+        # every time its dependencies are rebuilt, so an export would block
+        # every deploy after the first (found 2026-09-27). The other stacks
+        # read the parameter when they deploy, and depend on this stack so it
+        # is always deployed first.
+        self.layer_parameter = ssm.StringParameter(
+            self,
+            "DependencyLayerArn",
+            parameter_name=layer_parameter_name(settings),
+            string_value=self.layer.layer_version_arn,
+            description="The dependency layer every Atria function uses",
+        )
+
+    def layer_in(self, scope: Stack) -> lambda_.ILayerVersion:
+        """The dependency layer, for a function in another stack, without an export."""
+        scope.add_dependency(self)
+        arn = ssm.StringParameter.value_for_string_parameter(scope, layer_parameter_name(self.settings))
+        return lambda_.LayerVersion.from_layer_version_arn(scope, "DependencyLayer", arn)
+
+
+def layer_parameter_name(settings: Environment) -> str:
+    return f"/{settings.prefix}/dependency-layer-arn"
 
 
 def service_function(

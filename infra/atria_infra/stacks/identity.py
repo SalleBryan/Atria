@@ -40,6 +40,7 @@ class IdentityStack(Stack):
         **kwargs: Any,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
+        layer = platform.layer_in(self)
         self.settings = settings
         retain = RemovalPolicy.RETAIN if settings.removal_protection else RemovalPolicy.DESTROY
 
@@ -196,7 +197,7 @@ class IdentityStack(Stack):
             "PreToken",
             settings=settings,
             build_dir=build_dir,
-            layer=platform.layer,
+            layer=layer,
             handler="atria.services.identity.pre_token.handler",
             description="Adds the tenant, person and role claims to the access token",
             environment={
@@ -227,7 +228,7 @@ class IdentityStack(Stack):
             "PostConfirmation",
             settings=settings,
             build_dir=build_dir,
-            layer=platform.layer,
+            layer=layer,
             handler="atria.services.identity.post_confirmation.handler",
             description="Writes the person and patient profile for a newly confirmed patient",
             environment={
@@ -258,7 +259,7 @@ class IdentityStack(Stack):
             "CustomMessage",
             settings=settings,
             build_dir=build_dir,
-            layer=platform.layer,
+            layer=layer,
             handler="atria.services.identity.custom_message.handler",
             description="Writes Cognito's code and invitation emails in Atria's look",
             environment={

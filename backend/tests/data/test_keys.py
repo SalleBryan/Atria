@@ -35,6 +35,7 @@ BUILT = {
     "Availability template": keys.availability_template("t1", "s1", 2),
     "Availability exception": keys.availability_exception("t1", "s1", "2026-03-04T08:00:00Z"),
     "Session": keys.session("t1", "se1"),
+    "Session listing": keys.session_listing("t1", "c1", "2026-03-04", "0800", "se1"),
     "Queue ticket": keys.queue_ticket("t1", "se1", "2026-03-04T08:01:02Z", "tk1"),
     "Slot lock": keys.slot_lock("t1", "s1", "2026-03-04T08:10:00Z"),
     "Appointment": keys.appointment("t1", "a1"),

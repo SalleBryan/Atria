@@ -848,3 +848,60 @@
   .booked-screen { position: fixed; grid-template-columns: minmax(0, 1fr); padding: 32px 20px 120px; }
   .booked-copy h1 { font-size: 34px; line-height: 38px; }
 }
+
+/* The other two lines on Find care (FR-BKG-09), and their pages (JoinQueue.tsx). */
+.find-routes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.find-route {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-hairline);
+  border-radius: 16px;
+  color: var(--blue-700);
+  text-decoration: none;
+  background: rgba(47, 107, 228, 0.08);
+  transition: background-color var(--fade-fast), transform var(--move-fast);
+}
+.find-route:hover { background: rgba(47, 107, 228, 0.14); }
+.find-route:active { transform: scale(0.98); }
+.find-route > span { display: flex; flex-direction: column; min-width: 0; }
+.find-route-title { font-size: 13px; font-weight: 600; }
+.find-route-sub { overflow: hidden; font-size: 11.5px; color: var(--ink-muted); text-overflow: ellipsis; white-space: nowrap; }
+.queue-page { grid-template-columns: minmax(0, 720px); justify-content: center; }
+.queue-panel { display: flex; flex-direction: column; gap: 14px; }
+.queue-panel .find-head { display: flex; align-items: center; gap: 14px; }
+.queue-explain { display: flex; gap: 10px; margin: 0; padding: 12px 14px; border-radius: 16px; font-size: 13px; line-height: 1.5; color: var(--ink-650); background: var(--surface-field); }
+.queue-explain > svg { flex: none; margin-top: 2px; color: var(--blue-600); }
+.queue-sessions { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.queue-session {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 0 16px;
+  border: 1.5px solid var(--line-hairline);
+  border-radius: 18px;
+  font: inherit;
+  text-align: left;
+  background: #ffffff;
+  cursor: pointer;
+  transition: border-color var(--fade-fast), box-shadow var(--move-fast), border-radius var(--move-fast);
+}
+.queue-session:hover:not(:disabled) { box-shadow: 0 6px 16px rgba(16, 42, 94, 0.08); }
+.queue-session-on { border-color: var(--blue-500); border-radius: 22px; box-shadow: 0 0 0 4px rgba(74, 131, 240, 0.15); }
+.queue-session:disabled { cursor: default; opacity: 0.55; }
+.queue-session-part { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--ink-primary); }
+.queue-session-time { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-650); }
+.queue-dock { margin-top: auto; }
+.queue-note { display: flex; gap: 10px; margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--ink-650); }
+.queue-note > svg { flex: none; margin-top: 2px; color: var(--blue-600); }
+.queue-note-declined > svg { color: var(--status-cancelled); }
+@media (max-width: 767px) {
+  .find-routes { grid-template-columns: minmax(0, 1fr); }
+  .queue-session { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; padding: 10px 14px; }
+  .queue-session-time { grid-column: 1; }
+  .queue-session .chip { grid-column: 2; grid-row: 1 / span 2; }
+}

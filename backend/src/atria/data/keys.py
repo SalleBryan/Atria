@@ -101,6 +101,11 @@ def session(tenant_id: str, session_id: str) -> Key:
     return Key(f"{TENANT}{tenant_id}#SESSION#{session_id}", "SESSION")
 
 
+def session_listing(tenant_id: str, clinic_id: str, date: str, start: str, session_id: str) -> Key:
+    """A unit's sessions by date, so a week of them is one query (atria.data.sessions)."""
+    return Key(f"{TENANT}{tenant_id}#SESSIONS#{clinic_id}", f"{date}#{start}#{session_id}")
+
+
 def queue_ticket(tenant_id: str, session_id: str, request_ts: str, ticket_id: str) -> Key:
     """Order comes from the server request timestamp. Guard SERVER_ASSIGNED_ORDER."""
     return Key(f"{TENANT}{tenant_id}#SESSION#{session_id}", f"TICKET#{request_ts}#{ticket_id}")

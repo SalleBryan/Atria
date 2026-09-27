@@ -26,6 +26,7 @@ KEYS = [
     ('Availability template', 'TENANT#t#CLIN#c', 'AVAIL#weekday', 'Main'),
     ('Availability exception', 'TENANT#t#CLIN#c', 'EXC#start', 'Main'),
     ('Session', 'TENANT#t#SESSION#id', 'SESSION', 'Main'),
+    ('Session listing', 'TENANT#t#SESSIONS#c', 'date#start#id', 'Main'),
     ('Queue ticket', 'TENANT#t#SESSION#id', 'TICKET#requestTs#ticketId', 'Main'),
     ('Slot lock', 'TENANT#t#LOCK#clinicianId#unitStart', 'LOCK', 'Main'),
     ('Appointment', 'TENANT#t#APPT#id', 'APPT', 'Main'),

@@ -412,12 +412,26 @@ def book(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     """POST /appointments, GET /patients/me/appointments, GET /appointments/{id},
     DELETE /appointments/{id}, and POST /appointments/{id}/<action> (visits.py)."""
-    # Imported here: visits builds on this module's helpers.
-    from atria.services.booking import visits
+    # Imported here: visits, the queue and requests build on this module's helpers.
+    from atria.data.people import People
+    from atria.services.booking import queue, visits
+    from atria.services.booking import requests as procedure_requests
 
     principal = requests.principal_from(event)
     method = str(event.get("httpMethod", "")).upper()
     resource = str(event.get("resource", ""))
+
+    staff_people = People(booking().repository)
+    queued = queue.route(principal, event, people=staff_people)
+    if queued is not None:
+        created = method == "POST" and (
+            resource.endswith("/sessions") or resource.endswith("/tickets")
+        )
+        return responses.created(queued) if created else responses.ok(queued)
+    if method == "POST" and resource.endswith("/procedure-requests"):
+        return responses.created(procedure_requests.request(principal, event))
+    if method == "GET" and resource.endswith("/clinics/{id}/requests"):
+        return responses.ok(procedure_requests.inbox(principal, event, people=staff_people))
 
     if method == "POST" and resource.startswith("/appointments/{id}/"):
         action = visits.ACTIONS.get(resource.rsplit("/", 1)[-1])
@@ -431,7 +445,11 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     if method == "GET" and resource.endswith("/appointments/{id}"):
         return responses.ok(one(principal, event))
     if method == "DELETE" and resource.endswith("/appointments/{id}"):
-        return responses.ok(cancel(principal, event))
+        cancelled = cancel(principal, event)
+        if cancelled.get("sessionId"):
+            # A place freed moves everyone behind it forward.
+            queue.recalculate(principal.tenant_id, str(cancelled["sessionId"]))
+        return responses.ok(cancelled)
 
     # Every route on this function is listed above, so this is a wiring mistake
     # in the API stack rather than anything the caller did.

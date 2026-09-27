@@ -132,7 +132,19 @@ def still_worth_sending(kind: str, state: str) -> bool:
     cancellation that followed it, and a reminder for one is simply wrong."""
     if kind in (notices.BOOKING_CONFIRMATION, notices.APPOINTMENT_REMINDER):
         return state in reminders.REMINDABLE
-    return state in ("PATIENT_CANCELLED", "CLINIC_CANCELLED")
+    return state in STILL_TRUE.get(kind, ())
+
+
+# The states in which each other notice still tells the truth when it is sent.
+# A move is still true once the visit is confirmed again; a queue move only
+# while the patient is still waiting their turn.
+STILL_TRUE = {
+    notices.BOOKING_CANCELLATION: ("PATIENT_CANCELLED", "CLINIC_CANCELLED"),
+    notices.BOOKING_RESCHEDULED: ("RESCHEDULED", "BOOKED", "CONFIRMED"),
+    notices.BOOKING_DISRUPTED: ("DISRUPTED",),
+    notices.QUEUE_MOVED: ("BOOKED", "CONFIRMED"),
+    notices.BOOKING_DECLINED: ("DECLINED",),
+}
 
 
 def permanent(exc: Exception) -> bool:

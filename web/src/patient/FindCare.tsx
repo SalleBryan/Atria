@@ -18,7 +18,7 @@
  */
 
 import { type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
 import { Notice } from "../components/controls";
@@ -32,6 +32,7 @@ import {
   Lock,
   Repeat,
   Stethoscope,
+  Users,
 } from "../components/icons";
 import { ChipRow, FilterMenu } from "../components/FilterMenu";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
@@ -312,6 +313,23 @@ export function FindCare() {
             {specialty ? ` in ${specialty.toLowerCase()}` : " you can book"}
           </p>
         </header>
+        {/* The other two lines (FR-BKG-09): a place in the day's queue, or a procedure asked for. */}
+        <nav className="find-routes" aria-label="Other ways to be seen">
+          <Link to="/find-care/queue" className="find-route">
+            <Users size={16} />
+            <span>
+              <span className="find-route-title">See a doctor today</span>
+              <span className="find-route-sub">A place in the outpatient queue</span>
+            </span>
+          </Link>
+          <Link to="/find-care/request" className="find-route">
+            <Stethoscope size={16} />
+            <span>
+              <span className="find-route-title">Request a procedure</span>
+              <span className="find-route-sub">The unit offers you a time</span>
+            </span>
+          </Link>
+        </nav>
         <SearchSuggest
           label="Search clinicians or specialties"
           placeholder="Search clinicians or specialties"

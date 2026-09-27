@@ -251,11 +251,40 @@ def no_show(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def _requeued(action: Any) -> Any:
+    """Run a visit step, then move the session's waiting windows to the new pace."""
+
+    def run(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+        done: dict[str, Any] = action(principal, event)
+        if done.get("sessionId"):
+            from atria.services.booking import queue
+
+            queue.recalculate(principal.tenant_id, str(done["sessionId"]))
+        return done
+
+    run.__name__ = getattr(action, "__name__", "action")
+    return run
+
+
+def place(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    from atria.services.booking import requests as procedure_requests
+
+    return procedure_requests.place(principal, event)
+
+
+def decline(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    from atria.services.booking import requests as procedure_requests
+
+    return procedure_requests.decline(principal, event)
+
+
 ACTIONS = {
     "reschedule": reschedule,
     "confirm": confirm,
-    "arrive": arrive,
-    "start": start,
-    "complete": complete,
-    "no-show": no_show,
+    "arrive": _requeued(arrive),
+    "start": _requeued(start),
+    "complete": _requeued(complete),
+    "no-show": _requeued(no_show),
+    "place": place,
+    "decline": decline,
 }

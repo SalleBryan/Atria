@@ -103,6 +103,28 @@ def jobs_due(record: dict[str, Any]) -> list[dict[str, Any]]:
     # A move to another time. A second move lands in RESCHEDULED again, so the
     # time, not the state, is what says it happened (FR-VIS-07).
     moved = bool(old) and to_state == "RESCHEDULED" and old.get("startAt") != new.get("startAt")
+    # A queue ticket's arrival window moved far enough to tell the patient: the
+    # queue service writes a new window only past the tenant's threshold, so
+    # any change of window here owes a text (FR-BKG-11).
+    queue_moved = (
+        bool(old)
+        and from_state == to_state
+        and bool(new.get("sessionId"))
+        and old.get("arrivalWindowStart") != new.get("arrivalWindowStart")
+        and to_state in ("BOOKED", "CONFIRMED")
+    )
+    if queue_moved:
+        base = {
+            "tenantId": new.get("tenantId"),
+            "appointmentId": new.get("appointmentId"),
+            "fromState": from_state,
+            "toState": to_state,
+        }
+        return [
+            {**base, "kind": notices.QUEUE_MOVED, "channel": "SMS"},
+            {**base, "kind": reminders.CANCEL, "channel": "SMS"},
+            {**base, "kind": reminders.SCHEDULE, "channel": "SMS"},
+        ]
     if from_state == to_state and not moved:
         # A rewrite in the same state owes nothing, or a retried write would
         # send a second confirmation and schedule a second reminder.

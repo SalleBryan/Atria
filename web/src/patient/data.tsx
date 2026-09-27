@@ -30,6 +30,14 @@ export interface Appointment {
   bookedByRole: string | null;
   createdAt: string;
   version: number;
+  /** A queue ticket: its session, place and arrival window (FR-BKG-11). */
+  sessionId?: string | null;
+  position?: number | null;
+  arrivalWindowStart?: string | null;
+  arrivalWindowEnd?: string | null;
+  /** A procedure request: what was asked, and why it was declined (FR-BKG-14). */
+  requestNote?: string | null;
+  declineReason?: string | null;
 }
 
 export interface Clinician {
@@ -187,13 +195,14 @@ export function join(data: Loaded, appointment: Appointment) {
 /** Booked and still ahead, soonest first. */
 export function upcoming(appointments: readonly Appointment[], now = new Date()): Appointment[] {
   return appointments
-    .filter((a) => ACTIVE_STATES.includes(a.state) && new Date(a.startAt) > now)
+    // A request holds no time yet, so it is ahead until it is placed or declined.
+    .filter((a) => a.state === "REQUESTED" || (ACTIVE_STATES.includes(a.state) && new Date(a.startAt) > now))
     .sort((a, b) => a.startAt.localeCompare(b.startAt));
 }
 
 /** Everything already behind, most recent first. */
 export function past(appointments: readonly Appointment[], now = new Date()): Appointment[] {
-  return appointments.filter((a) => new Date(a.startAt) <= now).sort((a, b) => b.startAt.localeCompare(a.startAt));
+  return appointments.filter((a) => a.state !== "REQUESTED" && new Date(a.startAt) <= now).sort((a, b) => b.startAt.localeCompare(a.startAt));
 }
 
 /* --------------------------------------------------------------- the clock */

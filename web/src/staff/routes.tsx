@@ -9,6 +9,8 @@ import { AuditLog } from "./AuditLog";
 import { Availability } from "./Availability";
 import { BookForPatient } from "./BookForPatient";
 import { PatientRecordPage, Patients } from "./Patients";
+import { QueuePage } from "./Queue";
+import { RequestsPage } from "./Requests";
 import { RosterPage } from "./Roster";
 import { DaySchedule } from "./DaySchedule";
 import { Settings } from "./Settings";
@@ -30,5 +32,7 @@ export const staffRoutes = (
     <Route path="/console/patients/:id" element={<PatientRecordPage />} />
     <Route path="/console/book" element={<BookForPatient />} />
     <Route path="/console/roster" element={<RosterPage />} />
+    <Route path="/console/queue" element={<QueuePage />} />
+    <Route path="/console/requests" element={<RequestsPage />} />
   </Route>
 );

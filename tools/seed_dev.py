@@ -241,8 +241,69 @@ def seed_desk_and_managers() -> None:
         print(f"{role.lower()} {given} {family} at {clinic}: created")
 
 
+# The outpatient department's sessions for the fortnight ahead: a morning and
+# an afternoon on weekdays, a Saturday morning, with the doctors rostered.
+# Capacity comes from the queue rules, as publishing one through the API does.
+OPD_SESSIONS = {
+    "weekday": [("07:30", "12:00", 3), ("13:00", "16:30", 2)],
+    "saturday": [("08:00", "12:00", 2)],
+}
+
+
+def seed_sessions(days: int = 14) -> None:
+    """Publish any OPD session the fortnight is missing, straight into the table."""
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+
+    from atria.core import queue
+    from atria.data.repository import Repository
+    from atria.data.sessions import Sessions
+
+    store = Sessions(Repository(table=devkit.main_table()))
+    zone = ZoneInfo("Africa/Douala")
+    today = dt.datetime.now(tz=zone).date()
+    have = {
+        (s["sessionDate"], s["startTime"])
+        for s in store.for_unit(
+            devkit.TENANT_ID, "u-rhb-opd", today, today + dt.timedelta(days=days)
+        )
+    }
+    per_hour = queue.throughput(store.closed_for_unit(devkit.TENANT_ID, "u-rhb-opd"))
+    made = 0
+    for n in range(days):
+        day = today + dt.timedelta(days=n)
+        plan = (
+            OPD_SESSIONS["saturday"]
+            if day.weekday() == 5
+            else []
+            if day.weekday() == 6
+            else OPD_SESSIONS["weekday"]
+        )
+        for start, end, rostered in plan:
+            if (day.isoformat(), start) in have:
+                continue
+            window = queue.SessionWindow(
+                opens_at=dt.datetime.combine(day, dt.time.fromisoformat(start), tzinfo=zone),
+                closes_at=dt.datetime.combine(day, dt.time.fromisoformat(end), tzinfo=zone),
+            )
+            store.publish(
+                tenant_id=devkit.TENANT_ID,
+                clinic_id="u-rhb-opd",
+                day=day,
+                start=start,
+                end=end,
+                rostered=rostered,
+                per_hour=per_hour,
+                capacity=queue.capacity(window, rostered=rostered, per_hour=per_hour),
+                published_by="seed",
+            )
+            made += 1
+    print(f"outpatient sessions: {made} published for the next {days} days")
+
+
 def main(argv: list[str]) -> int:
     seed_table(tidy="--tidy" in argv)
+    seed_sessions()
     seed_clinicians(tidy="--tidy" in argv)
     seed_desk_and_managers()
     return 0

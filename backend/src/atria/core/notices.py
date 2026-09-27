@@ -29,6 +29,8 @@ BOOKING_CANCELLATION = "BOOKING_CANCELLATION"
 APPOINTMENT_REMINDER = "APPOINTMENT_REMINDER"
 BOOKING_RESCHEDULED = "BOOKING_RESCHEDULED"
 BOOKING_DISRUPTED = "BOOKING_DISRUPTED"
+QUEUE_MOVED = "QUEUE_MOVED"
+BOOKING_DECLINED = "BOOKING_DECLINED"
 
 KINDS = (
     BOOKING_CONFIRMATION,
@@ -36,7 +38,14 @@ KINDS = (
     APPOINTMENT_REMINDER,
     BOOKING_RESCHEDULED,
     BOOKING_DISRUPTED,
+    QUEUE_MOVED,
+    BOOKING_DECLINED,
 )
+
+# A queue ticket is confirmed in its own words: a day, an arrival window and a
+# place in the queue, and no doctor, who is only assigned at check-in
+# (FR-BKG-11). Chosen by compose() for an appointment that holds a session.
+TICKET_CONFIRMATION = "TICKET_CONFIRMATION"
 
 # One SMS segment in the GSM alphabet. Beyond it a message is billed as two, and
 # for a clinic paying per message in XAF that doubles the cost of every reminder.
@@ -70,6 +79,7 @@ NOTICE_FOR_STATE = {
     "CLINIC_CANCELLED": BOOKING_CANCELLATION,
     "RESCHEDULED": BOOKING_RESCHEDULED,
     "DISRUPTED": BOOKING_DISRUPTED,
+    "DECLINED": BOOKING_DECLINED,
 }
 
 
@@ -269,6 +279,63 @@ TEXT[BOOKING_DISRUPTED] = {
     },
 }
 
+TEXT[TICKET_CONFIRMATION] = {
+    "fr": {
+        "subject": "Votre place dans la file, référence {reference}",
+        "preheader": "Le {date}, arrivée entre {time} et {until}, {clinic}.",
+        "tag": "Place réservée",
+        "heading": "Vous avez une place dans la file",
+        "rows": (
+            ("Date", "{date}"),
+            ("Arrivée", "entre {time} et {until}"),
+            ("Place", "{position}"),
+            ("Lieu", "{clinic}"),
+        ),
+        "closing": "Un médecin vous sera attribué à votre arrivée à l'accueil. Si la file "
+        "avance plus vite ou plus lentement que prévu, nous vous enverrons un SMS avec une "
+        "nouvelle heure d'arrivée.",
+        "action": "Voir ma place",
+    },
+    "en": {
+        "subject": "Your place in the queue, reference {reference}",
+        "preheader": "{date}, arrive between {time} and {until}, {clinic}.",
+        "tag": "Place held",
+        "heading": "You have a place in the queue",
+        "rows": (
+            ("Date", "{date}"),
+            ("Arrive", "between {time} and {until}"),
+            ("Place", "{position}"),
+            ("At", "{clinic}"),
+        ),
+        "closing": "A doctor is assigned when you check in at the desk. If the queue moves "
+        "faster or slower than expected, we will text you a new arrival time.",
+        "action": "See my place",
+    },
+}
+
+TEXT[BOOKING_DECLINED] = {
+    "fr": {
+        "subject": "Votre demande n'a pas été retenue, référence {reference}",
+        "preheader": "{clinic} ne peut pas programmer cette demande.",
+        "tag": "Demande non retenue",
+        "heading": "Votre demande n'a pas été retenue",
+        "rows": (("Lieu", "{clinic}"),),
+        "closing": "L'équipe du service a indiqué pourquoi dans l'application Atria. Vous "
+        "pouvez prendre une consultation pour en parler avec un médecin.",
+        "action": "Voir la demande",
+    },
+    "en": {
+        "subject": "Your request was not scheduled, reference {reference}",
+        "preheader": "{clinic} cannot schedule this request.",
+        "tag": "Request declined",
+        "heading": "Your request was not scheduled",
+        "rows": (("Unit", "{clinic}"),),
+        "closing": "The unit has said why in the Atria app. You can book a consultation to "
+        "talk it through with a doctor.",
+        "action": "See the request",
+    },
+}
+
 # The words around the parts, per language. French sets a space before a colon.
 GREETING = {"fr": "Bonjour,", "en": "Hello,"}
 REFERENCE = {"fr": "Référence", "en": "Reference"}
@@ -280,12 +347,16 @@ EMAIL_TONE = {
     BOOKING_CANCELLATION: "cancelled",
     BOOKING_RESCHEDULED: "brand",
     BOOKING_DISRUPTED: "cancelled",
+    TICKET_CONFIRMATION: "brand",
+    BOOKING_DECLINED: "cancelled",
 }
 EMAIL_LINK = {
     BOOKING_CONFIRMATION: "/visits/{appointmentId}",
     BOOKING_CANCELLATION: "/find-care",
     BOOKING_RESCHEDULED: "/visits/{appointmentId}",
     BOOKING_DISRUPTED: "/visits/{appointmentId}",
+    TICKET_CONFIRMATION: "/visits/{appointmentId}",
+    BOOKING_DECLINED: "/visits/{appointmentId}",
 }
 
 
@@ -306,6 +377,12 @@ SMS_TEXT = {
         "en": "Atria: appointment confirmed {date} at {time}, {clinic}, {clinician}. "
         "Ref {reference}. To cancel: Atria app.",
     },
+    QUEUE_MOVED: {
+        "fr": "Atria: la file a bouge. Arrivez le {date} entre {time} et {until}, {clinic}. "
+        "Place {position}. Ref {reference}.",
+        "en": "Atria: the queue has moved. Arrive {date} between {time} and {until}, {clinic}. "
+        "Place {position}. Ref {reference}.",
+    },
 }
 
 SMS_DATE = "%d/%m/%Y"
@@ -319,7 +396,7 @@ def available(kind: str, channel: str) -> bool:
     reminder (FR-REM-06).
     """
     if channel == "EMAIL":
-        return kind in TEXT
+        return kind in TEXT and kind != TICKET_CONFIRMATION
     if channel == "SMS":
         return kind in SMS_TEXT
     return False
@@ -355,13 +432,21 @@ def compose(
         )
     chosen = language_for(language)
     at = local(str(appointment.get("startAt", "")), zone=zone)
+    ends = appointment.get("arrivalWindowEnd") or appointment.get("endAt")
+    until = local(str(ends), zone=zone) if ends else at
+    ticket = bool(appointment.get("sessionId"))
+    if ticket and kind == BOOKING_CONFIRMATION and channel == "EMAIL":
+        kind = TICKET_CONFIRMATION
 
     values = {
         "reference": str(appointment.get("reference", "")),
         "date": at.strftime(SMS_DATE if channel == "SMS" else DATE_FORMATS[chosen]),
         "time": at.strftime("%H:%M"),
         "clinic": clinic_name,
-        "clinician": clinician_name,
+        # A ticket names no doctor before check-in (FR-BKG-11).
+        "clinician": clinician_name or ("next free doctor" if ticket else ""),
+        "until": until.strftime("%H:%M"),
+        "position": str(appointment.get("position") or ""),
     }
     if channel == "SMS":
         return Notice(

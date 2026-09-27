@@ -62,7 +62,16 @@ class Route:
 
 READ, WRITE = store.READ, store.WRITE
 
-VISIT_ACTIONS = ("reschedule", "confirm", "arrive", "start", "complete", "no-show")
+VISIT_ACTIONS = (
+    "reschedule",
+    "confirm",
+    "arrive",
+    "start",
+    "complete",
+    "no-show",
+    "place",
+    "decline",
+)
 
 ROUTES: dict[tuple[str, str], Route] = {
     ("GET", "/appointments/{id}"): Route("appointment.read", READ, "APPOINTMENT", "id"),
@@ -76,6 +85,16 @@ ROUTES: dict[tuple[str, str], Route] = {
         )
         for name in VISIT_ACTIONS
     },
+    ("GET", "/sessions/{id}/queue"): Route("queue.read", READ, "SESSION", "id"),
+    ("POST", "/sessions/{id}/tickets"): Route("queue.ticket", WRITE, "SESSION", "id"),
+    ("POST", "/sessions/{id}/next"): Route("queue.call_next", WRITE, "SESSION", "id"),
+    ("POST", "/clinics/{id}/sessions"): Route(
+        "session.publish", WRITE, "CLINIC", "id", patient_data=False
+    ),
+    ("POST", "/sessions/{id}/close"): Route(
+        "session.close", WRITE, "SESSION", "id", patient_data=False
+    ),
+    ("GET", "/clinics/{id}/requests"): Route("request.inbox", READ, "CLINIC", "id"),
     ("GET", "/patients"): Route("patient.search", READ, "REGISTER"),
     ("GET", "/patients/{id}"): Route("patient.read", READ, "PATIENT", "id"),
     ("POST", "/patients"): Route(

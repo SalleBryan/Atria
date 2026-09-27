@@ -1531,3 +1531,62 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   .changes-why { grid-column: 1 / -1; white-space: normal; }
   .book-dock { flex-direction: column; align-items: stretch; }
 }
+
+/* The queue and requests (Queue.tsx, Requests.tsx). */
+.queue-live-top { flex-wrap: wrap; }
+.queue-live-title { font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--ink-primary); }
+.queue-stats { display: flex; gap: 22px; margin: 0; }
+.queue-stats div { display: flex; flex-direction: column; }
+.queue-stats dt { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-muted); }
+.queue-stats dd { margin: 2px 0 0; font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--ink-primary); }
+.queue-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 0 6px 12px; }
+.queue-actions .tonal-button { height: 42px; padding: 0 16px; }
+.queue-call { display: inline-flex; align-items: center; gap: 10px; }
+.queue-call .staff-primary { height: 44px; padding: 0 20px; }
+.account-row.queue-row { grid-template-columns: 44px minmax(0, 1fr) 190px 150px 110px; }
+.queue-position {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--blue-700);
+  background: rgba(47, 107, 228, 0.12);
+}
+.queue-row .account-role,
+.session-row .account-role,
+.request-row .account-role { display: block; }
+.queue-row .account-name { color: var(--ink-primary); text-decoration: none; }
+.queue-row .account-name:hover { text-decoration: underline; }
+.queue-arrive { height: 36px; padding: 0 14px; font-size: 12.5px; }
+.accounts-head.sessions-head,
+.account-row.session-row { grid-template-columns: minmax(0, 1fr) 130px 170px 190px 96px; }
+.accounts-head.sessions-head > :first-child,
+.accounts-head.requests-head > :first-child { padding-left: 0; }
+.accounts-head.requests-head { padding-left: 68px; }
+.accounts-head.requests-head,
+.account-row.request-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 130px 190px; }
+.request-row .account-role span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.request-actions { align-items: center; }
+.request-actions .staff-primary { display: inline-flex; align-items: center; justify-content: center; width: auto; height: 36px; margin: 0; padding: 0 16px; font-size: 12.5px; }
+@media (max-width: 1199px) {
+  .account-row.queue-row { grid-template-columns: 44px minmax(0, 1fr) 150px 110px; }
+  .queue-row > .account-role { display: none; }
+}
+@media (max-width: 767px) {
+  .queue-console,
+  .requests-page { height: auto; }
+  .account-row.queue-row { grid-template-columns: 40px minmax(0, 1fr) auto; row-gap: 8px; }
+  .queue-row > :nth-child(4) { grid-column: 2; }
+  .queue-row > .account-actions { grid-column: 3; grid-row: 1 / span 2; }
+  .queue-actions { flex-direction: column; align-items: stretch; }
+  .queue-call { flex-direction: column; align-items: stretch; }
+  .account-row.session-row,
+  .account-row.request-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 8px; }
+  .session-row > .account-role,
+  .request-row > .account-role { grid-column: 1; }
+  .queue-stats { gap: 14px; }
+}

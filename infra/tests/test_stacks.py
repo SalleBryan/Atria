@@ -747,7 +747,7 @@ def test_every_dead_letter_queue_is_alarmed(synthesised: cdk.App) -> None:
 
 def test_every_visit_action_has_its_route(synthesised: cdk.App) -> None:
     served = routes(template_for(synthesised, "api"))
-    for action in ("reschedule", "confirm", "arrive", "start", "complete", "no-show"):
+    for action in ("reschedule", "confirm", "arrive", "start", "complete", "no-show", "place", "decline"):
         assert (f"/appointments/{{id}}/{action}", "POST") in served
 
 
@@ -835,5 +835,21 @@ def test_the_staff_console_routes_exist(synthesised: cdk.App) -> None:
         ("/clinics/{id}/roster", "GET"),
         ("/audit/changes", "GET"),
         ("/admin/staff/{id}/priority-allowance", "PUT"),
+    ):
+        assert route in served
+
+
+def test_the_queue_routes_exist(synthesised: cdk.App) -> None:
+    served = routes(template_for(synthesised, "api"))
+    for route in (
+        ("/clinics/{id}/sessions", "GET"),
+        ("/clinics/{id}/sessions", "POST"),
+        ("/clinics/{id}/requests", "GET"),
+        ("/sessions/{id}", "GET"),
+        ("/sessions/{id}/tickets", "POST"),
+        ("/sessions/{id}/queue", "GET"),
+        ("/sessions/{id}/next", "POST"),
+        ("/sessions/{id}/close", "POST"),
+        ("/procedure-requests", "POST"),
     ):
         assert route in served

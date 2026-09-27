@@ -25,6 +25,7 @@ import { Notice } from "../components/controls";
 import { byPopularity, ChipRow, FilterMenu } from "../components/FilterMenu";
 import { MoveVisit } from "../components/MoveVisit";
 import { NewTimeOffer } from "./NewTimeOffer";
+import { RequestDetail, TicketDetail } from "./QueueVisit";
 import { Alert, Bell, Building, CheckMark, ChevronLeft, Close, Filter, Mail, Stethoscope, User } from "../components/icons";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { rank, SearchSuggest, type SuggestionGroup } from "../components/SearchSuggest";
@@ -243,7 +244,7 @@ export function Visits() {
         />
         <ul ref={rowsBox} className="clinicians visit-list" aria-label={tab === "past" ? "Past visits" : "Upcoming visits"}>
           {pages.shown.map((appointment) => {
-            const { clinician, clinic } = join(data, appointment);
+            const { clinician, clinic, type } = join(data, appointment);
             const status = stateLabel(appointment.state);
             const on = appointment === selected;
             return (
@@ -258,9 +259,22 @@ export function Visits() {
                     <span>{clock.date(appointment.startAt)}</span>
                   </span>
                   <span className="visit-text">
-                    <span className="visit-name">{clinicianName(clinician)}</span>
+                    <span className="visit-name">
+                      {appointment.sessionId
+                        ? `Outpatient queue, place ${appointment.position ?? ""}`
+                        : appointment.state === "REQUESTED" || appointment.state === "DECLINED"
+                          ? (type?.name ?? "Procedure request")
+                          : clinicianName(clinician)}
+                    </span>
                     <span className="visit-sub">
-                      {[clinician?.specialty, clinic?.name, clock.time(appointment.startAt)].filter(Boolean).join(" · ")}
+                      {(appointment.sessionId
+                        ? [clinic?.name, `arrive ${clock.time(appointment.startAt)}`]
+                        : appointment.state === "REQUESTED"
+                          ? [clinic?.name, "time to be set"]
+                          : [clinician?.specialty, clinic?.name, clock.time(appointment.startAt)]
+                      )
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                     <span className={`chip chip-${status.tone}`}>{status.label}</span>
                   </span>
@@ -429,6 +443,44 @@ function VisitDetail({
       </a>
     </div>
   );
+
+  // A queue ticket and a procedure request read differently (QueueVisit.tsx).
+  if (appointment.sessionId) {
+    const waiting = ["BOOKED", "CONFIRMED"].includes(appointment.state);
+    return (
+      <TicketDetail
+        appointment={appointment}
+        actions={
+          <div className="visit-actions">
+            {waiting && (
+              <button type="button" className="outline-danger" onClick={onCancel}>
+                Give up my place
+              </button>
+            )}
+            <a className="dock-button directions" href={directions} target="_blank" rel="noreferrer">
+              Get directions
+            </a>
+          </div>
+        }
+      />
+    );
+  }
+  if (appointment.state === "REQUESTED" || appointment.state === "DECLINED") {
+    return (
+      <RequestDetail
+        appointment={appointment}
+        actions={
+          appointment.state === "DECLINED" ? (
+            <div className="visit-actions">
+              <Link className="dock-button" to="/find-care/queue">
+                Book a consultation
+              </Link>
+            </div>
+          ) : null
+        }
+      />
+    );
+  }
 
   return (
     <>

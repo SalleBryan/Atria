@@ -29,6 +29,13 @@ VIEW_FIELDS = (
     "careContextId",
     "version",
     "createdAt",
+    # A queue ticket: its place and when to arrive (FR-BKG-11).
+    "position",
+    "arrivalWindowStart",
+    "arrivalWindowEnd",
+    # A procedure request: what was asked, and why it was declined (FR-BKG-14).
+    "requestNote",
+    "declineReason",
 )
 
 

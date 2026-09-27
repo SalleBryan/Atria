@@ -384,7 +384,10 @@ class Booking:
                     ("state", was),
                 )
             ],
-            deletes=[keys.slot_lock(tenant_id, clinician_id, unit) for unit in occupancy.units],
+            # A queue ticket or a request holds no units, so frees none.
+            deletes=[]
+            if appointment.get("sessionId") or not appointment.get("clinicianProfileId")
+            else [keys.slot_lock(tenant_id, clinician_id, unit) for unit in occupancy.units],
             conflict="that appointment is no longer in a state that can be cancelled",
         )
         return {**appointment, "state": cancellation.state}, event

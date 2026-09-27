@@ -17,7 +17,9 @@ import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import type { Me } from "../api/client";
 import { useSession } from "../auth/session";
-import { Calendar, Clock, Pulse, Shield, SignOut, Sliders, Stethoscope, User, Users } from "../components/icons";
+import { Calendar, Clock, Inbox, ListOrdered, Pulse, Shield, SignOut, Sliders, Stethoscope, User, Users } from "../components/icons";
+import { offeredAt } from "../patient/data";
+import { runsQueue } from "./Queue";
 import { Waiting } from "../components/Waiting";
 import { initials } from "../patient/data";
 import { ROLE_LABEL, roleOf, StaffDataProvider, useStaffData } from "./data";
@@ -61,6 +63,28 @@ function Shell({ me }: { me: Me }) {
       matches: (path) => path.startsWith("/console/patients") || path.startsWith("/console/book"),
     },
   ];
+  const types = state.status === "ready" ? state.data.types : [];
+  // The outpatient department's staff run the queue (FR-BKG-13).
+  if (role !== "TENANT_ADMIN" && runsQueue(types, me.clinicId)) {
+    destinations.push({
+      to: "/console/queue",
+      label: "Queue",
+      icon: ListOrdered,
+      matches: (path) => path.startsWith("/console/queue"),
+    });
+  }
+  // Units that take procedure requests size and place them (FR-STF-15).
+  if (
+    (role === "CLINIC_MANAGER" || role === "CLINICIAN") &&
+    types.some((t) => t.serviceLine === "PROCEDURE" && t.patientRequestable && offeredAt(t, me.clinicId))
+  ) {
+    destinations.push({
+      to: "/console/requests",
+      label: "Requests",
+      icon: Inbox,
+      matches: (path) => path.startsWith("/console/requests"),
+    });
+  }
   if (role === "RECEPTIONIST" || role === "CLINIC_MANAGER") {
     destinations.push({
       to: "/console/roster",

@@ -37,6 +37,7 @@ export const KEY_PATTERNS: readonly KeyPattern[] = [
   { entity: "Availability template", pk: "TENANT#t#CLIN#c", sk: "AVAIL#weekday", table: "Main" },
   { entity: "Availability exception", pk: "TENANT#t#CLIN#c", sk: "EXC#start", table: "Main" },
   { entity: "Session", pk: "TENANT#t#SESSION#id", sk: "SESSION", table: "Main" },
+  { entity: "Session listing", pk: "TENANT#t#SESSIONS#c", sk: "date#start#id", table: "Main" },
   { entity: "Queue ticket", pk: "TENANT#t#SESSION#id", sk: "TICKET#requestTs#ticketId", table: "Main" },
   { entity: "Slot lock", pk: "TENANT#t#LOCK#clinicianId#unitStart", sk: "LOCK", table: "Main" },
   { entity: "Appointment", pk: "TENANT#t#APPT#id", sk: "APPT", table: "Main" },

@@ -211,6 +211,103 @@ function fold(text: string) {
     .trim();
 }
 
+// Sessions and the outpatient queue (atria.services.booking.queue), for the
+// general outpatient department: this morning and afternoon, and the week ahead.
+interface MockSession {
+  sessionId: string;
+  clinicId: string;
+  sessionDate: string;
+  startTime: string;
+  endTime: string;
+  rosteredClinicianCount: number;
+  expectedThroughputPerHour: string;
+  actualThroughputPerHour: string | null;
+  capacity: number;
+  issuedTickets: number;
+  status: string;
+}
+const opdSessions: MockSession[] = [];
+for (let d = 0; d < 7; d += 1) {
+  const date = new Date(Date.now() + OFFSET_MS + d * DAY_MS).toISOString().slice(0, 10);
+  const weekday = (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7;
+  // Sundays are closed, except today, so the preview always has a queue to show.
+  if (weekday === 6 && d > 0) continue;
+  for (const [start, end, rostered] of weekday === 5 ? [["08:00", "12:00", 2]] : [["07:30", "12:00", 3], ["13:00", "16:30", 2]]) {
+    const hours = (Number(String(end).slice(0, 2)) * 60 + Number(String(end).slice(3)) - Number(String(start).slice(0, 2)) * 60 - Number(String(start).slice(3))) / 60;
+    opdSessions.push({
+      sessionId: `se-${date}-${String(start).replace(":", "")}`,
+      clinicId: "u-rhb-opd",
+      sessionDate: date,
+      startTime: String(start),
+      endTime: String(end),
+      rosteredClinicianCount: Number(rostered),
+      expectedThroughputPerHour: "4.5",
+      actualThroughputPerHour: null,
+      capacity: Math.floor(hours * Number(rostered) * 4.5),
+      issuedTickets: d === 0 ? 14 : Math.max(0, 9 - d * 2),
+      status: d === 0 && start === "07:30" ? "RUNNING" : "OPEN",
+    });
+  }
+}
+const sessionView = (s: MockSession) => ({
+  ...s,
+  remaining: Math.max(0, s.capacity - s.issuedTickets),
+  partOfDay: Number(s.startTime.slice(0, 2)) < 12 ? "MORNING" : "AFTERNOON",
+});
+const queueNames = Object.keys(patients);
+// Today's first session's tickets, as appointments.
+const todayQueue: Record<string, unknown>[] = [];
+{
+  const first = opdSessions[0];
+  if (first) {
+    for (let n = 1; n <= first.issuedTickets; n += 1) {
+      const window = new Date(Date.parse(`${first.sessionDate}T${first.startTime}:00Z`) - OFFSET_MS + (n - 1) * 13 * 60000 - 10 * 60000);
+      todayQueue.push({
+        appointmentId: `a-q${n}`,
+        reference: `APT-Q${1000 + n}`,
+        tenantId: "t-cm-001",
+        clinicId: "u-rhb-opd",
+        patientProfileId: queueNames[n % queueNames.length],
+        appointmentTypeId: "at-gen-consult",
+        clinicianProfileId: n <= 3 ? ["s-mbua", "s-nkwelle", "s-fomum"][n - 1] : null,
+        sessionId: first.sessionId,
+        position: n,
+        startAt: iso(window),
+        endAt: iso(new Date(window.getTime() + 30 * 60000)),
+        arrivalWindowStart: iso(window),
+        arrivalWindowEnd: iso(new Date(window.getTime() + 30 * 60000)),
+        state: n <= 2 ? "COMPLETED" : n === 3 ? "IN_CONSULTATION" : n <= 5 ? "ARRIVED" : "BOOKED",
+        channel: n % 3 === 0 ? "WALK_IN" : "ONLINE",
+        bookedByRole: n % 3 === 0 ? "RECEPTIONIST" : null,
+        version: 1,
+        createdAt: iso(new Date(Date.now() - n * 3600000)),
+      });
+    }
+  }
+}
+// Procedure requests waiting in the surgical unit's inbox.
+const requests: Record<string, unknown>[] = [
+  ["pp-kamga", "at-minor-proc", "A cyst on my left wrist, getting bigger"],
+  ["pp-beyala", "at-minor-proc", "Ingrown toenail, referred by Muea health centre"],
+  ["pp-essomba", "at-major-proc", "Hernia review the GP asked for"],
+].map(([patient, type, note], i) => ({
+  appointmentId: `a-r${i}`,
+  reference: `APT-R${2000 + i}`,
+  tenantId: "t-cm-001",
+  clinicId: "u-rhb-surgery",
+  patientProfileId: patient,
+  appointmentTypeId: type,
+  clinicianProfileId: null,
+  sessionId: null,
+  startAt: iso(new Date(Date.now() - (i + 1) * DAY_MS)),
+  endAt: iso(new Date(Date.now() - (i + 1) * DAY_MS)),
+  state: "REQUESTED",
+  channel: "ONLINE",
+  requestNote: note,
+  version: 1,
+  createdAt: iso(new Date(Date.now() - (i + 1) * DAY_MS)),
+}));
+
 // Priority allowances by staff id (atria.services.identity.staff.set_priority).
 const allowances: Record<string, { quotaPerMonth: number; usedThisMonth: number }> = { "s-desk": { quotaPerMonth: 2, usedThisMonth: 1 } };
 
@@ -469,6 +566,137 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     }
     found.state = next[acted[2] as string] as string;
     found.version = Number(found.version) + 1;
+    return json(200, found, 500);
+  }
+  const unitSessions = path.match(/^\/clinics\/([^/]+)\/sessions$/);
+  if (unitSessions && method === "GET") {
+    return json(200, { clinicId: unitSessions[1], sessions: opdSessions.filter((s) => s.clinicId === unitSessions[1]).map(sessionView) }, 300);
+  }
+  if (unitSessions && method === "POST") {
+    const made = body as { date: string; startTime: string; endTime: string; rosteredClinicianCount: number };
+    const hours = (Number(made.endTime.slice(0, 2)) * 60 + Number(made.endTime.slice(3)) - Number(made.startTime.slice(0, 2)) * 60 - Number(made.startTime.slice(3))) / 60;
+    const created: MockSession = {
+      sessionId: `se-${made.date}-${made.startTime.replace(":", "")}-${Math.random().toString(16).slice(2, 6)}`,
+      clinicId: unitSessions[1] as string,
+      sessionDate: made.date,
+      startTime: made.startTime,
+      endTime: made.endTime,
+      rosteredClinicianCount: made.rosteredClinicianCount,
+      expectedThroughputPerHour: "4.5",
+      actualThroughputPerHour: null,
+      capacity: Math.floor(hours * made.rosteredClinicianCount * 4.5),
+      issuedTickets: 0,
+      status: "OPEN",
+    };
+    opdSessions.push(created);
+    opdSessions.sort((a, b) => `${a.sessionDate}${a.startTime}`.localeCompare(`${b.sessionDate}${b.startTime}`));
+    return json(201, sessionView(created), 500);
+  }
+  const oneSession = path.match(/^\/sessions\/([^/]+)(?:\/(tickets|queue|next|close))?$/);
+  if (oneSession) {
+    const session = opdSessions.find((s) => s.sessionId === oneSession[1]);
+    if (!session) return json(404, { code: "not_found", message: "no such session" });
+    const tickets = [...todayQueue, ...appointments].filter((a) => a.sessionId === session.sessionId);
+    if (method === "GET" && !oneSession[2]) return json(200, sessionView(session), 200);
+    if (method === "GET" && oneSession[2] === "queue") {
+      const count = (states: string[]) => tickets.filter((t) => states.includes(String(t.state))).length;
+      return json(
+        200,
+        {
+          ...sessionView(session),
+          appointments: tickets,
+          patients,
+          waiting: count(["BOOKED", "CONFIRMED"]),
+          arrived: count(["ARRIVED"]),
+          inConsultation: count(["IN_CONSULTATION"]),
+          seen: count(["COMPLETED"]),
+          plannedPerHour: 4.5 * session.rosteredClinicianCount,
+          actualPerHour: 11.2,
+        },
+        300,
+      );
+    }
+    if (method === "POST" && oneSession[2] === "tickets") {
+      const request = (body ?? {}) as { patientProfileId?: string; channel?: string };
+      session.issuedTickets += 1;
+      const n = session.issuedTickets;
+      const window = new Date(Date.parse(`${session.sessionDate}T${session.startTime}:00Z`) - OFFSET_MS + (n - 1) * 13 * 60000 - 10 * 60000);
+      const made = {
+        appointmentId: `a-t${Math.random().toString(16).slice(2, 8)}`,
+        reference: `APT-T${3000 + n}`,
+        tenantId: "t-cm-001",
+        clinicId: session.clinicId,
+        patientProfileId: request.patientProfileId ?? "pp-preview",
+        appointmentTypeId: "at-gen-consult",
+        clinicianProfileId: null,
+        sessionId: session.sessionId,
+        position: n,
+        startAt: iso(window),
+        endAt: iso(new Date(window.getTime() + 30 * 60000)),
+        arrivalWindowStart: iso(window),
+        arrivalWindowEnd: iso(new Date(window.getTime() + 30 * 60000)),
+        state: "BOOKED",
+        channel: request.patientProfileId ? (request.channel ?? "WALK_IN") : "ONLINE",
+        bookedByRole: request.patientProfileId ? "RECEPTIONIST" : null,
+        version: 1,
+        createdAt: new Date().toISOString(),
+      };
+      appointments.push(made);
+      return json(201, { ...made, of: session.issuedTickets }, 500);
+    }
+    if (method === "POST" && oneSession[2] === "next") {
+      const next = tickets.find((t) => t.state === "ARRIVED");
+      if (!next) return json(409, { code: "conflict", message: "nobody who has arrived is waiting" });
+      next.state = "IN_CONSULTATION";
+      next.clinicianProfileId = (body as { clinicianProfileId?: string } | undefined)?.clinicianProfileId ?? "s-mbua";
+      return json(200, next, 400);
+    }
+    if (method === "POST" && oneSession[2] === "close") {
+      session.status = "CLOSED";
+      session.actualThroughputPerHour = "3.8";
+      return json(200, sessionView(session), 400);
+    }
+  }
+  const inbox = path.match(/^\/clinics\/([^/]+)\/requests$/);
+  if (method === "GET" && inbox) {
+    const waiting = requests.filter((r) => r.clinicId === inbox[1] && r.state === "REQUESTED");
+    return json(200, { clinicId: inbox[1], count: waiting.length, appointments: waiting, patients }, 300);
+  }
+  if (method === "POST" && path === "/procedure-requests") {
+    const asked = body as { appointmentTypeId: string; clinicId: string; note?: string };
+    const made = {
+      appointmentId: `a-r${Math.random().toString(16).slice(2, 8)}`,
+      reference: `APT-R${Math.floor(Math.random() * 9000) + 1000}`,
+      tenantId: "t-cm-001",
+      clinicId: asked.clinicId,
+      patientProfileId: "pp-preview",
+      appointmentTypeId: asked.appointmentTypeId,
+      clinicianProfileId: null,
+      sessionId: null,
+      startAt: new Date().toISOString(),
+      endAt: new Date().toISOString(),
+      state: "REQUESTED",
+      channel: "ONLINE",
+      requestNote: asked.note || null,
+      version: 1,
+      createdAt: new Date().toISOString(),
+    };
+    appointments.push(made);
+    requests.push(made);
+    return json(201, made, 500);
+  }
+  const decided = path.match(/^\/appointments\/([^/]+)\/(place|decline)$/);
+  if (method === "POST" && decided) {
+    const found = requests.find((r) => r.appointmentId === decided[1]);
+    if (!found) return json(404, { code: "not_found", message: "no such request" });
+    if (decided[2] === "decline") {
+      const reason = (body as { reason?: string }).reason;
+      if (!reason) return json(400, { code: "invalid_request", message: "a reason is required to decline" });
+      Object.assign(found, { state: "DECLINED", declineReason: reason });
+    } else {
+      const placed = body as { clinicianProfileId: string; startAt: string };
+      Object.assign(found, { state: "BOOKED", clinicianProfileId: placed.clinicianProfileId, startAt: placed.startAt, endAt: placed.startAt });
+    }
     return json(200, found, 500);
   }
   if (method === "GET" && path === "/patients") {

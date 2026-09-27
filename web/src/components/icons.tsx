@@ -244,3 +244,15 @@ export const Users = (p: IconProps) => (
     <path d="M3.5 19.5c.6-3 2.8-4.8 5.5-4.8s4.9 1.8 5.5 4.8M15.5 5.2a3 3 0 0 1 0 5.6M17.5 14.9c1.6.6 2.7 2.2 3 4.6" />
   </Icon>
 );
+/** A queue: numbered lines. */
+export const ListOrdered = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M10 6h10M10 12h10M10 18h10M4 5.5 5.5 4.5V9M4 9h3M4 14.5c.4-.6 1-1 1.7-1 .8 0 1.3.5 1.3 1.2 0 1.2-3 2.1-3 3.8h3" />
+  </Icon>
+);
+/** An inbox tray. */
+export const Inbox = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M4 13.5 6.2 5.8A1.5 1.5 0 0 1 7.6 4.8h8.8a1.5 1.5 0 0 1 1.4 1l2.2 7.7M4 13.5V18a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 18v-4.5M4 13.5h4.5l1.5 2.5h4l1.5-2.5H20" />
+  </Icon>
+);

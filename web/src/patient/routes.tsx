@@ -8,6 +8,7 @@ import { Route } from "react-router-dom";
 import { Account } from "./Account";
 import { Booked } from "./Booked";
 import { FindCare } from "./FindCare";
+import { JoinQueue, RequestProcedure } from "./JoinQueue";
 import { PatientHome } from "./PatientHome";
 import { PatientShell } from "./PatientShell";
 import { Visits } from "./Visits";
@@ -16,6 +17,8 @@ export const patientRoutes = (
   <Route element={<PatientShell />}>
     <Route path="/home" element={<PatientHome />} />
     <Route path="/find-care" element={<FindCare />} />
+    <Route path="/find-care/queue" element={<JoinQueue />} />
+    <Route path="/find-care/request" element={<RequestProcedure />} />
     <Route path="/booked/:id" element={<Booked />} />
     <Route path="/visits" element={<Visits />} />
     <Route path="/visits/:id" element={<Visits />} />

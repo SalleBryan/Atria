@@ -111,6 +111,8 @@ def book(clinician_id: str, start: str) -> dict:
                     "appointmentTypeId": TYPE_ID,
                     "clinicianProfileId": clinician_id,
                     "startAt": start,
+                    "channel": "PHONE",
+                    "callbackPhone": "+12025550199",
                 }
             ),
             "requestContext": {

@@ -32,7 +32,7 @@ from atria_infra.stacks.platform import (
 )
 
 # POST /appointments/{id}/<action>, the moves after booking.
-VISIT_ACTIONS = ("reschedule", "confirm", "arrive", "start", "complete", "no-show")
+VISIT_ACTIONS = ("reschedule", "confirm", "arrive", "start", "complete", "no-show", "place", "decline")
 
 
 class ApiStack(Stack):
@@ -354,6 +354,27 @@ class ApiStack(Stack):
         # The front desk's day. appointment.read at clinic scope decides who
         # reaches it; a clinician's scope is their own and is refused.
         one_clinic = clinics.add_resource("{id}")
+        # Sessions, the queue and procedure requests (services/booking/queue.py
+        # and requests.py), on the booking function: they write appointments.
+        sessions = one_clinic.add_resource("sessions")
+        one_session = self.api.root.add_resource("sessions").add_resource("{id}")
+        for resource, method in (
+            (sessions, "GET"),
+            (sessions, "POST"),
+            (one_clinic.add_resource("requests"), "GET"),
+            (one_session, "GET"),
+            (one_session.add_resource("tickets"), "POST"),
+            (one_session.add_resource("queue"), "GET"),
+            (one_session.add_resource("next"), "POST"),
+            (one_session.add_resource("close"), "POST"),
+            (self.api.root.add_resource("procedure-requests"), "POST"),
+        ):
+            resource.add_method(
+                method,
+                booking_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
         # The front desk's day, and who is working it.
         for path in ("day", "roster"):
             one_clinic.add_resource(path).add_method(

@@ -1,0 +1,453 @@
+"""Sessions and the general consultation queue (FR-BKG-09 to FR-BKG-11, FR-BKG-13).
+
+    POST /clinics/{id}/sessions         a unit manager publishes a session
+    GET  /clinics/{id}/sessions         the unit's sessions, today onwards, to book into
+    GET  /sessions/{id}                 one session, with how full it is
+    POST /sessions/{id}/tickets         a place in the queue, for oneself or at the desk
+    GET  /sessions/{id}/queue           the desk's live queue, in position order
+    POST /sessions/{id}/next            a doctor takes the next patient who has arrived
+    POST /sessions/{id}/close           the manager closes it, recording what it achieved
+
+The general line queues rather than holding time (D-01). A position is the
+server's, from the order requests arrived in; a body that names a position is
+refused, not ignored (guard SERVER_ASSIGNED_ORDER). Walk-ins join the same
+queue at the desk, so online and physical tickets are one ordered list
+(FR-BKG-13). No doctor is named until the patient is called in.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+from typing import Any
+
+from aws_lambda_powertools import Logger
+
+from atria.core import booking as rules
+from atria.core import permissions, queue, schedule
+from atria.core import settings as setting_rules
+from atria.core.errors import Conflict, Forbidden, Invalid, NotFound
+from atria.core.permissions import Subject
+from atria.core.principal import Principal
+from atria.data.catalogue import Catalogue
+from atria.data.people import People
+from atria.data.sessions import Sessions, window_of
+from atria.http import requests
+from atria.http.views import appointment_view
+from atria.services.booking.appointments import booking, no_shows, role_used
+
+logger = Logger(service="atria-queue")
+
+_sessions: Sessions | None = None
+
+SESSION_FIELDS = (
+    "sessionId",
+    "clinicId",
+    "sessionDate",
+    "startTime",
+    "endTime",
+    "rosteredClinicianCount",
+    "expectedThroughputPerHour",
+    "actualThroughputPerHour",
+    "capacity",
+    "issuedTickets",
+    "status",
+)
+
+# Staff issue a general ticket to someone at the desk or on the phone.
+TICKET_CHANNELS = ("WALK_IN", "PHONE")
+
+
+def sessions() -> Sessions:
+    global _sessions
+    if _sessions is None:
+        _sessions = Sessions(booking().repository, clock=booking().now)
+    return _sessions
+
+
+def use(store: Sessions | None) -> None:
+    """Point the service at a store. For tests."""
+    global _sessions
+    _sessions = store
+
+
+def part_of_day(start: str) -> str:
+    hour = int(start[:2])
+    return "MORNING" if hour < 12 else "AFTERNOON" if hour < 17 else "EVENING"
+
+
+def session_view(session: dict[str, Any]) -> dict[str, Any]:
+    shown = {name: session.get(name) for name in SESSION_FIELDS}
+    capacity = int(session.get("capacity") or 0)
+    issued = int(session.get("issuedTickets") or 0)
+    return {
+        **shown,
+        "remaining": max(0, capacity - issued),
+        "partOfDay": part_of_day(str(session.get("startTime") or "08:00")),
+    }
+
+
+def publish(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    clinic_id = requests.path_parameter(event, "id")
+    data = booking()
+    data.clinic(principal.tenant_id, clinic_id)
+    permissions.require(
+        principal, "session.publish", Subject(tenant_id=principal.tenant_id, clinic_id=clinic_id)
+    )
+    body = requests.json_body(event)
+    if "capacity" in body:
+        # Capacity is derived from the doctors and the pace, never typed (FR-BKG-10).
+        raise Invalid("capacity is worked out from the doctors rostered and cannot be set")
+    zone = data.zone(principal.tenant_id)
+    tenant = data.tenant(principal.tenant_id)
+    day, start, end, rostered = queue.validate_session(
+        body,
+        zone=zone,
+        today=data.now().astimezone(zone).date(),
+        minutes=rules.grid_unit_minutes(tenant),
+    )
+    store = sessions()
+    clash = [
+        s
+        for s in store.for_unit(principal.tenant_id, clinic_id, day, day)
+        if s.get("status") != "CLOSED"
+        and not (end <= str(s["startTime"]) or start >= str(s["endTime"]))
+    ]
+    if clash:
+        raise Conflict(
+            "that overlaps a session already published", detail={"sessionId": clash[0]["sessionId"]}
+        )
+    per_hour = queue.throughput(store.closed_for_unit(principal.tenant_id, clinic_id))
+    day_window = queue.SessionWindow(
+        opens_at=dt.datetime.combine(day, dt.time.fromisoformat(start), tzinfo=zone),
+        closes_at=dt.datetime.combine(day, dt.time.fromisoformat(end), tzinfo=zone),
+    )
+    made = store.publish(
+        tenant_id=principal.tenant_id,
+        clinic_id=clinic_id,
+        day=day,
+        start=start,
+        end=end,
+        rostered=rostered,
+        per_hour=per_hour,
+        capacity=queue.capacity(day_window, rostered=rostered, per_hour=per_hour),
+        published_by=principal.person_id,
+    )
+    return session_view(made)
+
+
+def list_for_unit(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    clinic_id = requests.path_parameter(event, "id")
+    data = booking()
+    data.clinic(principal.tenant_id, clinic_id)
+    zone = data.zone(principal.tenant_id)
+    today = data.now().astimezone(zone).date()
+    raw_from = requests.query_parameter(event, "from")
+    raw_to = requests.query_parameter(event, "to")
+    first = schedule.parse_date(raw_from, name="from") if raw_from else today
+    last = schedule.parse_date(raw_to, name="to") if raw_to else first + dt.timedelta(days=13)
+    if (last - first).days > 31:
+        raise Invalid("that range is wider than a month")
+    found = sessions().for_unit(principal.tenant_id, clinic_id, first, last)
+    if not principal.is_staff:
+        # A patient sees what they can take a place in.
+        found = [
+            s
+            for s in found
+            if s.get("status") != "CLOSED" and str(s["sessionDate"]) >= today.isoformat()
+        ]
+    return {
+        "clinicId": clinic_id,
+        "from": first.isoformat(),
+        "to": last.isoformat(),
+        "sessions": [session_view(s) for s in found],
+    }
+
+
+def one(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    session = sessions().session(principal.tenant_id, requests.path_parameter(event, "id"))
+    return session_view(session)
+
+
+def general_type(tenant_id: str, clinic_id: str) -> dict[str, Any]:
+    """The general consultation this unit offers."""
+    for kind in Catalogue(booking().repository).appointment_types(tenant_id):
+        if kind.get("serviceLine") == "GENERAL" and setting_rules.offered_at(kind, clinic_id):
+            return kind
+    raise NotFound("this unit runs no general consultation queue")
+
+
+def issue(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    body = requests.json_body(event) if event.get("body") else {}
+    if "position" in body or "arrivalWindowStart" in body:
+        raise Invalid(
+            "a place in the queue is assigned by the server",
+            detail={"rule": "SERVER_ASSIGNED_ORDER"},
+        )
+    store = sessions()
+    data = booking()
+    session = store.session(principal.tenant_id, requests.path_parameter(event, "id"))
+    clinic_id = str(session["clinicId"])
+
+    target = body.get("patientProfileId")
+    # A staff member taking a place for themselves is a patient here
+    # (guard SELF_SUBJECT_DROPS_STAFF_SCOPE).
+    own = principal.patient_profile_id is not None and target in (
+        None,
+        principal.patient_profile_id,
+    )
+    caller = principal.as_patient() if principal.is_staff and own else principal
+    by_patient = not caller.is_staff
+    patient_id = caller.patient_profile_id if by_patient else str(target or "")
+    if not patient_id:
+        raise Invalid("patientProfileId is required")
+    subject = Subject(
+        tenant_id=principal.tenant_id, patient_profile_id=patient_id, clinic_id=clinic_id
+    )
+    permissions.require(caller, "appointment.create", subject)
+    data.patient_profile(principal.tenant_id, patient_id)
+
+    if by_patient:
+        channel = "ONLINE"
+    else:
+        channel = str(body.get("channel") or "WALK_IN").upper()
+        if channel not in TICKET_CHANNELS:
+            raise Invalid(
+                "a queue ticket at the desk is a walk-in or a phone call",
+                detail={"allowed": list(TICKET_CHANNELS)},
+            )
+
+    zone = data.zone(principal.tenant_id)
+    today = data.now().astimezone(zone).date()
+    if str(session["sessionDate"]) < today.isoformat():
+        raise Conflict("that session is over")
+    kind = general_type(principal.tenant_id, clinic_id)
+    if by_patient and str(kind.get("bookableBy", "BOTH")) == "STAFF":
+        raise Invalid("this queue is joined at the desk")
+
+    tickets = store.tickets(principal.tenant_id, str(session["sessionId"]))
+    if any(
+        t.get("patientProfileId") == patient_id and t.get("state") not in queue.DONE
+        for t in tickets
+    ):
+        raise Conflict("this patient already has a place in that session")
+
+    window = window_of(session, zone)
+    ahead = sum(1 for t in tickets if t.get("state") in (*queue.WAITING, "ARRIVED"))
+    start = queue.expected_start(
+        window,
+        ahead=ahead,
+        rostered=int(session.get("rosteredClinicianCount") or 1),
+        per_hour=float(
+            str(session.get("expectedThroughputPerHour") or queue.SEEDED_THROUGHPUT_PER_HOUR)
+        ),
+        now=data.now(),
+    )
+    arrival = queue.arrival_window(start)
+    if by_patient:
+        rules.require_within_strikes(
+            data.tenant(principal.tenant_id),
+            no_shows=no_shows(
+                data, principal.tenant_id, patient_id, data.tenant(principal.tenant_id)
+            ),
+            now=data.now(),
+            start_at=arrival[0],
+        )
+    made = store.issue(
+        tenant_id=principal.tenant_id,
+        session=session,
+        patient_profile_id=patient_id,
+        appointment_type_id=str(kind["appointmentTypeId"]),
+        channel=channel,
+        actor_person_id=caller.person_id,
+        actor_role=role_used(caller, "appointment.create"),
+        window=arrival,
+    )
+    tenant = data.tenant(principal.tenant_id)
+    if not tenant.get("firstAppointmentAt"):
+        data.mark_first_appointment(principal.tenant_id, str(made["createdAt"]))
+    fresh = store.session(principal.tenant_id, str(session["sessionId"]))
+    return {**appointment_view(made), **ticket_fields(made, fresh)}
+
+
+def ticket_fields(appointment: dict[str, Any], session: dict[str, Any]) -> dict[str, Any]:
+    """What a ticket shows beside the appointment: Nth of M, the window, the part of day."""
+    return {
+        "position": appointment.get("position"),
+        "of": int(session.get("issuedTickets") or 0),
+        "arrivalWindowStart": appointment.get("arrivalWindowStart"),
+        "arrivalWindowEnd": appointment.get("arrivalWindowEnd"),
+        "partOfDay": part_of_day(str(session.get("startTime") or "08:00")),
+        "sessionStatus": session.get("status"),
+    }
+
+
+def recalculate(tenant_id: str, session_id: str) -> int:
+    """Move waiting tickets' windows to the session's real pace. The count moved.
+
+    Only a move past the tenant's threshold is written, and each written move
+    texts the patient (services.notify.outbox), so a small drift is absorbed.
+    """
+    store = sessions()
+    data = booking()
+    session = store.session(tenant_id, session_id)
+    if session.get("status") == "CLOSED":
+        return 0
+    zone = data.zone(tenant_id)
+    threshold = int(data.tenant(tenant_id).get("queueMoveThresholdMinutes") or 30)
+    window = window_of(session, zone)
+    rostered = int(session.get("rosteredClinicianCount") or 1)
+    per_hour = float(
+        str(session.get("expectedThroughputPerHour") or queue.SEEDED_THROUGHPUT_PER_HOUR)
+    )
+    moved = 0
+    ahead = 0
+    for ticket in store.tickets(tenant_id, session_id):
+        state = ticket.get("state")
+        if state in queue.WAITING:
+            start = queue.expected_start(
+                window, ahead=ahead, rostered=rostered, per_hour=per_hour, now=data.now()
+            )
+            arrival = queue.arrival_window(start)
+            if queue.moved_enough(
+                str(ticket.get("arrivalWindowStart") or ""), arrival[0], threshold_minutes=threshold
+            ):
+                store.set_window(tenant_id, str(ticket["appointmentId"]), arrival)
+                moved += 1
+        if state in (*queue.WAITING, "ARRIVED"):
+            ahead += 1
+    if moved:
+        logger.info("queue windows moved", extra={"sessionId": session_id, "moved": moved})
+    return moved
+
+
+def live_queue(principal: Principal, event: dict[str, Any], *, people: People) -> dict[str, Any]:
+    session_id = requests.path_parameter(event, "id")
+    store = sessions()
+    session = store.session(principal.tenant_id, session_id)
+    permissions.require(
+        principal,
+        "appointment.read",
+        Subject(tenant_id=principal.tenant_id, clinic_id=str(session["clinicId"])),
+    )
+    if not principal.is_staff:
+        raise Forbidden("the live queue is the desk's")
+    recalculate(principal.tenant_id, session_id)
+    tickets = store.tickets(principal.tenant_id, session_id)
+    seen = [t for t in tickets if t.get("state") in ("COMPLETED", "AWAITING_FEEDBACK")]
+    window = window_of(session, booking().zone(principal.tenant_id))
+    elapsed = max(
+        0.0, (min(booking().now(), window.closes_at) - window.opens_at).total_seconds() / 3600
+    )
+    rostered = int(session.get("rosteredClinicianCount") or 1)
+    return {
+        **session_view(session),
+        "appointments": [appointment_view(t) for t in tickets],
+        "patients": people.patient_names(
+            principal.tenant_id, [str(t["patientProfileId"]) for t in tickets]
+        ),
+        "waiting": sum(1 for t in tickets if t.get("state") in queue.WAITING),
+        "arrived": sum(1 for t in tickets if t.get("state") == "ARRIVED"),
+        "inConsultation": sum(1 for t in tickets if t.get("state") == "IN_CONSULTATION"),
+        "seen": len(seen),
+        # Planned against actual so far (FR-BKG-13).
+        "plannedPerHour": float(str(session.get("expectedThroughputPerHour") or 0)) * rostered,
+        "actualPerHour": round(len(seen) / elapsed, 2) if elapsed >= 0.25 else None,
+    }
+
+
+def call_next(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    """The first patient who has arrived goes in to a doctor (FR-BKG-13).
+
+    A doctor calls their own next patient; the desk may name the doctor. The
+    doctor is assigned here, at check-in, and not before.
+    """
+    session_id = requests.path_parameter(event, "id")
+    store = sessions()
+    session = store.session(principal.tenant_id, session_id)
+    clinic_id = str(session["clinicId"])
+    body = requests.json_body(event) if event.get("body") else {}
+    clinician_id = str(body.get("clinicianProfileId") or principal.staff_id or "")
+    if not principal.has_role("CLINICIAN") and not body.get("clinicianProfileId"):
+        raise Invalid("say which doctor is free")
+    subject = Subject(
+        tenant_id=principal.tenant_id, clinic_id=clinic_id, clinician_profile_id=clinician_id
+    )
+    permissions.require(principal, "queue.assign_next", subject)
+    membership = booking().bookable_clinician(principal.tenant_id, clinician_id)
+    if membership.get("clinicId") != clinic_id:
+        raise Invalid("that doctor does not work in this unit")
+    arrived = [
+        t for t in store.tickets(principal.tenant_id, session_id) if t.get("state") == "ARRIVED"
+    ]
+    if not arrived:
+        raise Conflict("nobody who has arrived is waiting")
+    ticket = arrived[0]
+    data = booking()
+    moved, _event = data.move(
+        tenant_id=principal.tenant_id,
+        appointment=ticket,
+        to_state="IN_CONSULTATION",
+        kind="CONSULTATION_STARTED",
+        actor_person_id=principal.person_id,
+        actor_role=role_used(principal, "queue.assign_next"),
+        fields={
+            "clinicianProfileId": clinician_id,
+            "consultationStartedAt": rules.instant(data.now()),
+        },
+    )
+    if session.get("status") == "OPEN":
+        store.update(principal.tenant_id, session_id, {"status": "RUNNING"})
+    recalculate(principal.tenant_id, session_id)
+    return appointment_view(moved)
+
+
+def close(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    session_id = requests.path_parameter(event, "id")
+    store = sessions()
+    session = store.session(principal.tenant_id, session_id)
+    permissions.require(
+        principal,
+        "session.publish",
+        Subject(tenant_id=principal.tenant_id, clinic_id=str(session["clinicId"])),
+    )
+    if session.get("status") == "CLOSED":
+        raise Conflict("that session is already closed")
+    data = booking()
+    actual = queue.actual_throughput(
+        store.tickets(principal.tenant_id, session_id),
+        window=window_of(session, data.zone(principal.tenant_id)),
+        rostered=int(session.get("rosteredClinicianCount") or 1),
+        closed_at=data.now(),
+    )
+    closed = store.update(
+        principal.tenant_id,
+        session_id,
+        {
+            "status": "CLOSED",
+            "closedAt": rules.instant(data.now()),
+            "actualThroughputPerHour": str(actual),
+        },
+    )
+    return session_view(closed)
+
+
+def route(principal: Principal, event: dict[str, Any], *, people: People) -> dict[str, Any] | None:
+    """The queue's routes on the booking function, or None when the route is not one."""
+    method = str(event.get("httpMethod", "")).upper()
+    resource = str(event.get("resource", ""))
+    if resource.endswith("/clinics/{id}/sessions"):
+        if method == "POST":
+            return publish(principal, event)
+        if method == "GET":
+            return list_for_unit(principal, event)
+    if method == "GET" and resource.endswith("/sessions/{id}"):
+        return one(principal, event)
+    if method == "POST" and resource.endswith("/sessions/{id}/tickets"):
+        return issue(principal, event)
+    if method == "GET" and resource.endswith("/sessions/{id}/queue"):
+        return live_queue(principal, event, people=people)
+    if method == "POST" and resource.endswith("/sessions/{id}/next"):
+        return call_next(principal, event)
+    if method == "POST" and resource.endswith("/sessions/{id}/close"):
+        return close(principal, event)
+    return None

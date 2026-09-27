@@ -137,7 +137,12 @@ def list_appointment_types(principal: Principal, event: dict[str, Any]) -> dict[
     permissions.require(principal, "patient.read")
     found = catalogue().appointment_types(principal.tenant_id)
     if not principal.is_staff:
-        found = [t for t in found if str(t.get("bookableBy", "BOTH")).upper() != "STAFF"]
+        # Staff-only types stay hidden, except a procedure a patient may request (FR-BKG-14).
+        found = [
+            t
+            for t in found
+            if str(t.get("bookableBy", "BOTH")).upper() != "STAFF" or t.get("patientRequestable")
+        ]
     minutes = rules.grid_unit_minutes(booking().tenant(principal.tenant_id))
     shown, more = paging.page(found, event)
     return {

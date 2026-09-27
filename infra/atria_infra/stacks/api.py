@@ -139,6 +139,8 @@ class ApiStack(Stack):
                     "ses:ListEmailIdentities",
                     "ses:GetAccount",
                     "sns:GetSMSSandboxAccountStatus",
+                    # SNS answers that from the SMS service behind it.
+                    "sms-voice:DescribeAccountAttributes",
                 ],
                 resources=["*"],
             )

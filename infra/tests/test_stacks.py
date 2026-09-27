@@ -862,3 +862,9 @@ def test_no_stack_imports_the_dependency_layer(synthesised: cdk.App) -> None:
         template = json.dumps(template_for(synthesised, stack).to_json())
         assert "ExportsOutputRefDependencyLayer" not in template
         assert "dependency-layer-arn" in template
+
+
+def test_the_report_routes_exist(synthesised: cdk.App) -> None:
+    served = routes(template_for(synthesised, "api"))
+    assert ("/clinics/{id}/report", "GET") in served
+    assert ("/reports", "GET") in served

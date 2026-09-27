@@ -256,3 +256,9 @@ export const Inbox = (p: IconProps) => (
     <path d="M4 13.5 6.2 5.8A1.5 1.5 0 0 1 7.6 4.8h8.8a1.5 1.5 0 0 1 1.4 1l2.2 7.7M4 13.5V18a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 18v-4.5M4 13.5h4.5l1.5 2.5h4l1.5-2.5H20" />
   </Icon>
 );
+/** A report: bars. */
+export const Chart = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M4 20h16M7 16v-5M12 16V7M17 16v-8" />
+  </Icon>
+);

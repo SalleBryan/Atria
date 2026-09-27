@@ -481,7 +481,37 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   if (one) {
     const found = appointments.find((a) => a.appointmentId === one[1]);
     if (!found) return json(404, { code: "not_found", message: "no such appointment" });
-    if (method === "GET") return json(200, found);
+    if (method === "GET") {
+      // The ledger entry once closed, and what cancelling now would record (FR-MSR-05, FR-MSR-06).
+      const type = types.find((t) => t.appointmentTypeId === found.appointmentTypeId);
+      const band = feeBands.find((b) => b.feeBandId === type?.feeBandId);
+      const closedStates = ["COMPLETED", "NO_SHOW", "PATIENT_CANCELLED", "CLINIC_CANCELLED"];
+      const hoursAway = (Date.parse(String(found.startAt)) - Date.now()) / 3600000;
+      const late = hoursAway < 24;
+      return json(200, {
+        ...found,
+        ledger: closedStates.includes(String(found.state))
+          ? {
+              feeBandId: band?.feeBandId ?? null,
+              practice: band?.practice ?? null,
+              amountMinor: band?.baseAmountMinor ?? null,
+              currency: "XAF",
+              outcome: found.state === "COMPLETED" ? "ATTENDED" : found.state === "NO_SHOW" ? "NO_SHOW" : found.state === "CLINIC_CANCELLED" ? "CLINIC_CANCELLED" : "CANCELLED_IN_WINDOW",
+              entitlement: found.state === "COMPLETED" || found.state === "NO_SHOW" ? "NONE" : "FULL",
+              settledAt: null,
+            }
+          : null,
+        cancellationPreview: ["BOOKED", "CONFIRMED", "RESCHEDULED", "DISRUPTED"].includes(String(found.state))
+          ? {
+              outcome: late ? "CANCELLED_LATE" : "CANCELLED_IN_WINDOW",
+              entitlement: late ? "PARTIAL" : "FULL",
+              amountMinor: band?.baseAmountMinor ?? null,
+              currency: "XAF",
+              freeUntil: new Date(Date.parse(String(found.startAt)) - 24 * 3600000).toISOString(),
+            }
+          : null,
+      });
+    }
     if (method === "DELETE") {
       const late = new Date(String(found.startAt)).getTime() - Date.now() < DAY_MS;
       const byClinic = String((body as { cancelledBy?: string } | undefined)?.cancelledBy ?? "").toUpperCase() === "CLINIC";
@@ -698,6 +728,62 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       Object.assign(found, { state: "BOOKED", clinicianProfileId: placed.clinicianProfileId, startAt: placed.startAt, endAt: placed.startAt });
     }
     return json(200, found, 500);
+  }
+  const unitReport = path.match(/^\/clinics\/([^/]+)\/report$/);
+  if (method === "GET" && (unitReport || path === "/reports")) {
+    const week = url.searchParams.get("week") ?? new Date().toISOString().slice(0, 10);
+    const figures = (seed: number) => {
+      const booked = 40 + ((seed * 17) % 60);
+      const attended = Math.round(booked * 0.71);
+      const noShow = Math.round(booked * 0.09);
+      const cancelled = Math.round(booked * 0.08);
+      const late = Math.round(booked * 0.04);
+      return {
+        booked,
+        attended,
+        noShow,
+        cancelled,
+        lateCancelled: late,
+        open: booked - attended - noShow - cancelled - late,
+        attendance: Math.round((attended / (attended + noShow)) * 1000) / 1000,
+        byChannel: [
+          { channel: "ONLINE", booked: Math.round(booked * 0.55), attended: Math.round(attended * 0.56), noShow: Math.round(noShow * 0.6), attendance: 0.87 },
+          { channel: "WALK_IN", booked: Math.round(booked * 0.25), attended: Math.round(attended * 0.27), noShow: 0, attendance: 1 },
+          { channel: "PHONE", booked: Math.round(booked * 0.15), attended: Math.round(attended * 0.13), noShow: Math.round(noShow * 0.3), attendance: 0.8 },
+          { channel: "REFERRAL", booked: Math.round(booked * 0.05), attended: Math.round(attended * 0.04), noShow: Math.round(noShow * 0.1), attendance: 0.75 },
+        ],
+        byReminder: [
+          { reminder: "SENT", booked: Math.round(booked * 0.7), attended: Math.round(attended * 0.76), noShow: Math.round(noShow * 0.4), attendance: 0.94 },
+          { reminder: "FAILED", booked: Math.round(booked * 0.05), attended: Math.round(attended * 0.04), noShow: Math.round(noShow * 0.2), attendance: 0.6 },
+          { reminder: "NOT_SENT", booked: Math.round(booked * 0.25), attended: Math.round(attended * 0.2), noShow: Math.round(noShow * 0.4), attendance: 0.78 },
+        ],
+        ledger: {
+          entries: attended + noShow + cancelled + late,
+          currency: "XAF",
+          byEntitlement: [
+            { entitlement: "FULL", entries: cancelled, amountMinor: cancelled * 5000 },
+            { entitlement: "NONE", entries: attended + noShow, amountMinor: (attended + noShow) * 3500 },
+            { entitlement: "PARTIAL", entries: late, amountMinor: late * 5000 },
+          ],
+          byBand: [
+            { practice: "Specialist, first visit", entries: Math.round(attended * 0.5), amountMinor: Math.round(attended * 0.5) * 5000 },
+            { practice: "Specialist, follow-up", entries: Math.round(attended * 0.35), amountMinor: Math.round(attended * 0.35) * 3000 },
+            { practice: "General consultation", entries: Math.round(attended * 0.15), amountMinor: Math.round(attended * 0.15) * 1500 },
+          ],
+        },
+      };
+    };
+    if (unitReport) {
+      const unit = clinics.find((c) => c.clinicId === unitReport[1]);
+      return json(200, { clinicId: unitReport[1], clinicName: unit?.name ?? null, week, to: week, firstDay: "2026-09-19", ...figures(clinics.indexOf(unit!)) }, 400);
+    }
+    const units = clinics.map((c, i) => ({ clinicId: c.clinicId, clinicName: c.name, week, to: week, firstDay: "2026-09-19", ...figures(i) }));
+    const sum = (key: "booked" | "attended" | "noShow" | "cancelled" | "lateCancelled") => units.reduce((n, u) => n + u[key], 0);
+    return json(
+      200,
+      { week, to: week, firstDay: "2026-09-19", units, booked: sum("booked"), attended: sum("attended"), noShow: sum("noShow"), cancelled: sum("cancelled"), lateCancelled: sum("lateCancelled") },
+      400,
+    );
   }
   if (method === "GET" && path === "/patients") {
     const q = (url.searchParams.get("q") ?? "").trim();

@@ -17,7 +17,7 @@ import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import type { Me } from "../api/client";
 import { useSession } from "../auth/session";
-import { Calendar, Clock, Inbox, ListOrdered, Pulse, Shield, SignOut, Sliders, Stethoscope, User, Users } from "../components/icons";
+import { Calendar, Chart, Clock, Inbox, ListOrdered, Pulse, Shield, SignOut, Sliders, Stethoscope, User, Users } from "../components/icons";
 import { offeredAt } from "../patient/data";
 import { runsQueue } from "./Queue";
 import { Waiting } from "../components/Waiting";
@@ -118,6 +118,12 @@ function Shell({ me }: { me: Me }) {
     });
   }
   if (role === "TENANT_ADMIN" || role === "CLINIC_MANAGER") {
+    destinations.push({
+      to: "/console/reports",
+      label: "Reports",
+      icon: Chart,
+      matches: (path) => path.startsWith("/console/reports"),
+    });
     destinations.push({
       to: "/console/audit",
       label: "Audit log",

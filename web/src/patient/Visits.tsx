@@ -23,6 +23,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { api } from "../api/client";
 import { Notice } from "../components/controls";
 import { byPopularity, ChipRow, FilterMenu } from "../components/FilterMenu";
+import { FeeRecord } from "../components/FeeRecord";
 import { MoveVisit } from "../components/MoveVisit";
 import { NewTimeOffer } from "./NewTimeOffer";
 import { RequestDetail, TicketDetail } from "./QueueVisit";
@@ -538,6 +539,7 @@ function VisitDetail({
               <dt>Booked via</dt>
               <dd>{BOOKED_VIA[appointment.channel ?? ""] ?? "Atria"}</dd>
             </div>
+            <FeeRecord appointmentId={appointment.appointmentId} state={appointment.state} />
             {active && (
               <div>
                 <dt>Reminder</dt>
@@ -625,6 +627,23 @@ function VisitDetail({
   );
 }
 
+interface CancellationPreview {
+  outcome: string;
+  entitlement: "FULL" | "PARTIAL" | "NONE";
+  amountMinor: number | null;
+  currency: string | null;
+  freeUntil: string;
+}
+
+/** The entitlement bands (FR-MSR-06), in the patient's words. A record, never money moved (FR-MSR-07). */
+export const ENTITLEMENT: Record<"FULL" | "PARTIAL" | "NONE", { label: string; tone: string; note: string }> = {
+  FULL: { label: "Full", tone: "confirmed", note: "The whole visit fee is recorded as not owed." },
+  PARTIAL: { label: "Partial", tone: "awaiting", note: "Cancelling this late, part of the visit fee is recorded as owed." },
+  NONE: { label: "None", tone: "neutral", note: "The visit fee is recorded as owed." },
+};
+
+export const fee = (amount: number, currency: string | null) => `${new Intl.NumberFormat("en-GB").format(amount)} ${currency ?? "XAF"}`;
+
 function CancelDialog({
   appointment,
   onClose,
@@ -639,6 +658,17 @@ function CancelDialog({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
+  // What cancelling now would record, from the server (FR-MSR-06), shown before the confirm.
+  const [preview, setPreview] = useState<CancellationPreview | null>(null);
+  useEffect(() => {
+    let live = true;
+    api<{ cancellationPreview?: CancellationPreview | null }>(`/appointments/${appointment.appointmentId}`)
+      .then((found) => live && setPreview(found.cancellationPreview ?? null))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [appointment.appointmentId]);
 
   // Escape closes it, and focus starts inside it.
   useEffect(() => {
@@ -724,7 +754,7 @@ function CancelDialog({
               </button>
             ))}
           </div>
-          <div className={`dialog-note${late ? " dialog-note-late" : ""}`}>
+          <div className={`dialog-note${(preview ? preview.entitlement !== "FULL" : late) ? " dialog-note-late" : ""}`}>
             <Alert size={15} />
             <p>
               {late
@@ -732,6 +762,23 @@ function CancelDialog({
                 : `Cancelling inside ${windowHours} hours of a visit is recorded by the clinic. This one is ${awayText} away, so nothing is flagged.`}
             </p>
           </div>
+          <dl className="fee-band" aria-label="What cancelling now records">
+            <div>
+              <dt>Entitlement</dt>
+              <dd>
+                <span className={`chip chip-${ENTITLEMENT[preview?.entitlement ?? (late ? "PARTIAL" : "FULL")].tone}`}>
+                  {ENTITLEMENT[preview?.entitlement ?? (late ? "PARTIAL" : "FULL")].label}
+                </span>
+              </dd>
+            </div>
+            {preview?.amountMinor != null && (
+              <div>
+                <dt>Visit fee</dt>
+                <dd>{fee(preview.amountMinor, preview.currency)}</dd>
+              </div>
+            )}
+          </dl>
+          <p className="fee-band-note">{ENTITLEMENT[preview?.entitlement ?? (late ? "PARTIAL" : "FULL")].note} Nothing is charged or paid through Atria.</p>
           {failure && <Notice tone="error">{failure}</Notice>}
           <div className="dialog-actions">
             <button type="button" className="outline-button keep" onClick={onClose} disabled={busy}>

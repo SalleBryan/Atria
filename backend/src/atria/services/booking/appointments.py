@@ -22,12 +22,13 @@ from aws_lambda_powertools import Logger
 
 from atria.core import booking as rules
 from atria.core import lifecycle, permissions
-from atria.core.errors import AtriaError, Conflict, Invalid
+from atria.core.errors import AtriaError, Conflict, Invalid, NotFound
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
 from atria.data.audit import POTENTIAL_SELF_BENEFIT
 from atria.data.booking import FUTURE_YEARS, HISTORY_YEARS, Booking
 from atria.data.idempotency import COMPLETED, Idempotency, validate_key
+from atria.data.ledger import Ledger, entry_view
 from atria.data.repository import Repository
 from atria.http import audit, paging, requests, responses
 from atria.http.handler import api
@@ -206,10 +207,52 @@ def one(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     subject = subject_of(appointment)
     # A staff member reading their own appointment is a patient here, the same
     # as when booking it (guard SELF_SUBJECT_DROPS_STAFF_SCOPE).
-    permissions.require(
-        permissions.effective_principal(principal, subject), "appointment.read", subject
+    caller = permissions.effective_principal(principal, subject)
+    permissions.require(caller, "appointment.read", subject)
+    shown = appointment_view(appointment)
+    data = booking()
+    ledger = Ledger(data.repository)
+    if permissions.allows(caller, "fee_ledger.read", subject):
+        shown["ledger"] = entry_view(ledger.entry(principal.tenant_id, appointment_id))
+    if appointment.get("state") in lifecycle_cancellable():
+        try:
+            shown["cancellationPreview"] = cancellation_preview(
+                data, ledger, principal.tenant_id, appointment
+            )
+        except NotFound:
+            # A type since removed: the visit still reads, without a preview.
+            shown["cancellationPreview"] = None
+    return shown
+
+
+def lifecycle_cancellable() -> tuple[str, ...]:
+    return ("BOOKED", "CONFIRMED", "RESCHEDULED", "DISRUPTED")
+
+
+def cancellation_preview(
+    data: Booking, ledger: Ledger, tenant_id: str, appointment: dict[str, Any]
+) -> dict[str, Any]:
+    """What cancelling now would record, for the cancel screen to say first (FR-MSR-06)."""
+    kind = data.appointment_type(tenant_id, str(appointment["appointmentTypeId"]))
+    window = int(kind.get("cancellationWindowMinutes") or 0)
+    start = rules.parse_instant(appointment["startAt"], name="startAt")
+    decided = rules.cancellation(
+        cancelled_by="PATIENT", start_at=start, now=data.now(), cancellation_window_minutes=window
     )
-    return appointment_view(appointment)
+    _key, entry = ledger.entry_for(
+        tenant_id=tenant_id,
+        appointment=appointment,
+        outcome=decided.outcome,
+        occurred_at=rules.instant(data.now()),
+        zone=data.zone(tenant_id),
+    )
+    return {
+        "outcome": decided.outcome,
+        "entitlement": decided.entitlement,
+        "amountMinor": entry.get("amountMinor"),
+        "currency": entry.get("currency"),
+        "freeUntil": rules.instant(start - dt.timedelta(minutes=window)),
+    }
 
 
 def cancel(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
@@ -250,6 +293,14 @@ def cancel(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     )
 
     flag_self_benefit(caller, appointment, data)
+    # FR-MSR-05: the ledger entry closes with the visit, in one transaction.
+    entry = Ledger(data.repository).entry_for(
+        tenant_id=principal.tenant_id,
+        appointment=appointment,
+        outcome=decided.outcome,
+        occurred_at=rules.instant(data.now()),
+        zone=data.zone(principal.tenant_id),
+    )
     cancelled, _event = data.cancel(
         tenant_id=principal.tenant_id,
         appointment=appointment,
@@ -260,6 +311,7 @@ def cancel(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
             str(body.get("reason") or "") or None, by_staff=caller.is_staff, action="cancel"
         ),
         minutes=rules.grid_unit_minutes(data.tenant(principal.tenant_id)),
+        also=[entry],
     )
     logger.info(
         "appointment cancelled",

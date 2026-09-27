@@ -14,6 +14,7 @@ table from growing a row per booked minute forever.
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Sequence
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -319,8 +320,12 @@ class Booking:
         actor_role: str | None,
         reason: str | None,
         minutes: int,
+        also: Sequence[tuple[keys.Key, Item]] = (),
     ) -> tuple[Item, Item]:
         """Release the time and close the appointment, or do neither.
+
+        `also` is written in the same transaction: the fee ledger entry the
+        closure owes (atria.data.ledger).
 
         The update is conditional on the state the caller read, so a second
         cancellation is a 409 rather than a second closure. The locks go in the
@@ -369,7 +374,8 @@ class Booking:
                         tenant_id, appointment_id, occurred_at, str(event["appointmentEventId"])
                     ),
                     event,
-                )
+                ),
+                *also,
             ],
             updates=[
                 (
@@ -502,6 +508,7 @@ class Booking:
         actor_role: str | None,
         reason: str | None = None,
         fields: Item | None = None,
+        also: Sequence[tuple[keys.Key, Item]] = (),
     ) -> tuple[Item, Item]:
         """One step along the lifecycle that holds or frees no time.
 
@@ -537,7 +544,8 @@ class Booking:
                         tenant_id, appointment_id, occurred_at, str(event["appointmentEventId"])
                     ),
                     event,
-                )
+                ),
+                *also,
             ],
             updates=[(keys.appointment(tenant_id, appointment_id), changed, ("state", was))],
             conflict="that appointment changed while you were looking at it; open it again",

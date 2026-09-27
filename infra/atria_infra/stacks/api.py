@@ -376,13 +376,21 @@ class ApiStack(Stack):
                 authorization_type=apigateway.AuthorizationType.CUSTOM,
             )
         # The front desk's day, and who is working it.
-        for path in ("day", "roster"):
+        # The unit's week in figures (services/directory/report.py), read only.
+        for path in ("day", "roster", "report"):
             one_clinic.add_resource(path).add_method(
                 "GET",
                 directory_integration,
                 authorizer=self.request_authoriser,
                 authorization_type=apigateway.AuthorizationType.CUSTOM,
             )
+
+        self.api.root.add_resource("reports").add_method(
+            "GET",
+            directory_integration,
+            authorizer=self.request_authoriser,
+            authorization_type=apigateway.AuthorizationType.CUSTOM,
+        )
 
         # The administrator's settings (services/admin/settings.py). Each route
         # is its own permission, checked in the service.

@@ -10,6 +10,7 @@ import { Availability } from "./Availability";
 import { BookForPatient } from "./BookForPatient";
 import { PatientRecordPage, Patients } from "./Patients";
 import { QueuePage } from "./Queue";
+import { Reports } from "./Reports";
 import { RequestsPage } from "./Requests";
 import { RosterPage } from "./Roster";
 import { DaySchedule } from "./DaySchedule";
@@ -34,5 +35,6 @@ export const staffRoutes = (
     <Route path="/console/roster" element={<RosterPage />} />
     <Route path="/console/queue" element={<QueuePage />} />
     <Route path="/console/requests" element={<RequestsPage />} />
+    <Route path="/console/reports" element={<Reports />} />
   </Route>
 );

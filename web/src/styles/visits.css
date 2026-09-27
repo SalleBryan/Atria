@@ -463,3 +463,10 @@
 .new-time-day { flex: 1; font-size: 12.5px; font-weight: 500; color: var(--ink-650); }
 .new-time-at { font-family: var(--font-display); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink-primary); }
 .new-time-take { display: grid; place-items: center; height: 30px; padding: 0 12px; border-radius: 11px; font-size: 12px; font-weight: 700; color: var(--blue-700); background: rgba(47, 107, 228, 0.12); }
+
+/* The entitlement band before the cancel confirm (FR-MSR-06). */
+.fee-band { display: flex; gap: 20px; margin: 12px 0 4px; }
+.fee-band div { display: flex; flex-direction: column; gap: 4px; }
+.fee-band dt { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-muted); }
+.fee-band dd { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink-800); }
+.fee-band-note { margin: 0 0 12px; font-size: 12.5px; line-height: 1.5; color: var(--ink-650); }

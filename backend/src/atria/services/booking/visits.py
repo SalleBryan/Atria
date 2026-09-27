@@ -29,6 +29,7 @@ from atria.core import booking as rules
 from atria.core import permissions
 from atria.core.errors import Forbidden, Invalid
 from atria.core.principal import Principal
+from atria.data.ledger import CLOSING, Ledger
 from atria.http import requests
 from atria.http.views import appointment_view
 from atria.services.booking.appointments import (
@@ -71,6 +72,18 @@ def _moved(
     reason: str | None = None,
 ) -> dict[str, Any]:
     data = booking()
+    also = []
+    if to_state in CLOSING:
+        # FR-MSR-05: a visit that closes writes its ledger entry with the closure.
+        also.append(
+            Ledger(data.repository).entry_for(
+                tenant_id=caller.tenant_id,
+                appointment=appointment,
+                outcome=CLOSING[to_state],
+                occurred_at=rules.instant(data.now()),
+                zone=data.zone(caller.tenant_id),
+            )
+        )
     moved, _event = data.move(
         tenant_id=caller.tenant_id,
         appointment=appointment,
@@ -80,6 +93,7 @@ def _moved(
         actor_role=role_used(caller, permission),
         reason=reason,
         fields={stamp: rules.instant(data.now())},
+        also=also,
     )
     logger.info(
         "appointment moved",

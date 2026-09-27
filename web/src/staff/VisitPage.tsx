@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
+import { FeeRecord } from "../components/FeeRecord";
 import { MoveVisit } from "../components/MoveVisit";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
@@ -285,6 +286,7 @@ export function VisitPage() {
                   <dt>Channel</dt>
                   <dd>{appointment.channel ? (CHANNEL[appointment.channel] ?? appointment.channel) : "Not recorded"}</dd>
                 </div>
+                <FeeRecord appointmentId={appointment.appointmentId} state={appointment.state} />
               </dl>
             </div>
             <div className="visit-page-part">

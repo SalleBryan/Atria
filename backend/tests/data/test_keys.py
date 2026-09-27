@@ -45,6 +45,7 @@ BUILT = {
     "Feedback": keys.feedback("t1", "a1"),
     "Reminder": keys.reminder("t1", "a1", "2026-03-03T08:00:00Z"),
     "Message log": keys.message_log("t1", "2026-03-04", "2026-03-04T08:00:00Z", "m1"),
+    "Provider message": keys.provider_message("0100019a-ses-id"),
     "Audit entry": keys.audit_entry("t1", "2026-03-04", "2026-03-04T08:00:00Z", "au1"),
     "Idempotency record": keys.idempotency("t1", "idem-0123456789"),
     "Care context": keys.care_context("t1", "a1"),
@@ -84,9 +85,12 @@ def test_the_built_key_matches_the_specification_pattern(entity):
 
 @pytest.mark.parametrize("entity", sorted(BUILT))
 def test_tenant_owned_keys_carry_the_tenant_prefix(entity):
-    """FR-TEN-01. Only the region pack and the person sit outside a tenant."""
+    """FR-TEN-01. Only the region pack and the person sit outside a tenant, and
+    the provider message pointer, which a provider's delivery report reaches
+    knowing nothing but its own identifier. It holds no personal data: only
+    which tenant's log row the report is about."""
     built = BUILT[entity]
-    if entity in ("Region pack", "Person", "Consent record"):
+    if entity in ("Region pack", "Person", "Consent record", "Provider message"):
         assert not built.pk.startswith("TENANT#")
     else:
         assert built.pk.startswith("TENANT#t1#") or built.pk == "TENANT#t1"

@@ -85,7 +85,7 @@ def role_used(principal: Principal, permission: str) -> str | None:
     if not principal.is_staff:
         return None
     granting = [
-        role for role in principal.roles if permissions.scope_for(role, permission) != "none"
+        role for role in principal.acting_roles if permissions.scope_for(role, permission) != "none"
     ]
     if not granting:
         return None

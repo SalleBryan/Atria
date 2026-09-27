@@ -24,7 +24,8 @@ interface Session {
   state: State;
   /** Ask the API again, after a sign-in completes. */
   refresh: (audience: Audience) => Promise<State>;
-  signOut: () => Promise<void>;
+  /** This device, or every device the account is signed in on (FR-ACC-12). */
+  signOut: (options?: { everywhere?: boolean }) => Promise<void>;
 }
 
 /** Exported for the development preview (src/dev), which supplies a fixed session. */
@@ -64,8 +65,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
   }, [refresh]);
 
-  const signOut = useCallback(async () => {
-    await amplifySignOut();
+  const signOut = useCallback(async (options?: { everywhere?: boolean }) => {
+    try {
+      await amplifySignOut({ global: Boolean(options?.everywhere) });
+    } catch {
+      // Revoking everywhere needs the network. This device signs out anyway.
+      await amplifySignOut();
+    }
     setState({ status: "signed-out" });
   }, []);
 

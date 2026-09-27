@@ -37,6 +37,9 @@ def principal_from(event: dict[str, Any]) -> Principal:
         clinic_id=_optional(context.get("clinicId")),
         phone_verified=str(context.get("phoneVerified", "")).lower() == "true",
         languages=tuple(x for x in str(context.get("languages", "")).split(",") if x),
+        # The authoriser writes "false" for an administrator who signed in
+        # without their authenticator (FR-ACC-11), and "true" otherwise.
+        second_factor=str(context.get("secondFactor", "true")).lower() != "false",
     )
 
 

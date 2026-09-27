@@ -20,6 +20,7 @@ from typing import Any
 
 from aws_cdk import Duration, RemovalPolicy, SecretValue, Stack
 from aws_cdk import aws_cognito as cognito
+from aws_cdk import aws_iam as iam
 from constructs import Construct
 
 from atria_infra.config import Environment
@@ -212,6 +213,16 @@ class IdentityStack(Stack):
         )
         # Read only: the trigger never writes, and it must not be able to.
         data.main_table.grant_read_data(self.pre_token)
+        # For an administrator it asks whether the account has an
+        # authenticator enabled (FR-ACC-11). Read only, and on user pools in
+        # this account and region: naming this pool would make the pool and
+        # its own trigger depend on each other.
+        self.pre_token.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["cognito-idp:AdminGetUser"],
+                resources=[self.format_arn(service="cognito-idp", resource="userpool", resource_name="*")],
+            )
+        )
         self.user_pool.add_trigger(
             cognito.UserPoolOperation.PRE_TOKEN_GENERATION_CONFIG,
             self.pre_token,

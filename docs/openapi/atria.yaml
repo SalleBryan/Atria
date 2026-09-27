@@ -35,6 +35,12 @@ tags:
     description: The tenant administrator's settings, units, appointment types and fee bands.
   - name: Audit
     description: The audit trail of staff access to patient data and privileged changes.
+  - name: Staff console
+    description: The patient register, the roster and priority allowances.
+  - name: Queue and requests
+    description: Sessions and queue tickets on the general line, and procedure requests.
+  - name: Reports and messages
+    description: The weekly report, the fee ledger's totals, the message log and delivery figures.
 
 paths:
   /me:
@@ -854,10 +860,10 @@ paths:
         - $ref: "#/components/parameters/AppointmentId"
       responses:
         "200":
-          description: The appointment.
+          description: The appointment, its ledger entry once closed, and what cancelling now would record.
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Appointment" }
+              schema: { $ref: "#/components/schemas/AppointmentRecord" }
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
@@ -1481,6 +1487,756 @@ paths:
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
+  /admin/staff/{id}/priority-allowance:
+    put:
+      tags: [Staff console]
+      operationId: setPriorityAllowance
+      summary: Grant, change or withdraw a monthly priority allowance (FR-STF-13)
+      description: |
+        Permission priority_allowance.grant, the administrator's. The only staff
+        priority there is (guard BOUNDED_PRIORITY): explicit, at most 10 a month,
+        and shown with its usage on the staff list. 0 withdraws it. A suspended
+        account holds none.
+      parameters:
+        - $ref: "#/components/parameters/StaffId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quotaPerMonth]
+              properties:
+                quotaPerMonth: { type: integer, minimum: 0, maximum: 10 }
+      responses:
+        "200":
+          description: The allowance as it stands this month, or null once withdrawn.
+          content:
+            application/json:
+              schema: 
+                type: object
+                properties:
+                  staffId: { type: string }
+                  priorityAllowance:
+                    type: [object, "null"]
+                    properties:
+                      quotaPerMonth: { type: integer }
+                      usedThisMonth: { type: integer }
+                      month: { type: string, example: "2026-09" }
+                      grantedByPersonId: { type: string }
+                      grantedAt: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /patients:
+    get:
+      tags: [Staff console]
+      operationId: searchRegister
+      summary: Find a patient by name, phone or patient number (FR-STF-06)
+      description: |
+        Permission patient.read at clinic scope or wider: a hospital keeps one
+        register, so any unit's desk finds any of its patients. Every search is
+        an audit entry naming the patients it showed.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2 }
+      responses:
+        "200":
+          description: The matches.
+          content:
+            application/json:
+              schema: 
+                type: object
+                properties:
+                  q: { type: string }
+                  count: { type: integer }
+                  results:
+                    type: array
+                    items: { $ref: "#/components/schemas/RegisterEntry" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Staff console]
+      operationId: createDeskPatient
+      summary: A minimal record made at the desk, with no account (FR-BKG-07)
+      description: |
+        Permission patient.create. A name and a mobile number, the date of
+        birth and language if known. A number another patient already holds is
+        refused with those patients named, unless sameNumberConfirmed says the
+        desk has seen them: families share a phone. The patient number is the
+        hospital's own, for example RHB-000123.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [givenName, familyName, phoneE164]
+              properties:
+                givenName: { type: string, maxLength: 60 }
+                familyName: { type: string, maxLength: 60 }
+                phoneE164: { type: string, example: "+237600000001" }
+                dateOfBirth: { type: string, format: date }
+                preferredLanguage: { type: string, enum: [fr, en] }
+                sameNumberConfirmed: { type: boolean }
+      responses:
+        "201":
+          description: The new record.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RegisterEntry" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /patients/{id}:
+    get:
+      tags: [Staff console]
+      operationId: getPatientRecord
+      summary: A patient's record, with the visits in the caller's scope (FR-STF-07)
+      description: |
+        Permission patient.read. Contact details and verification, whether the
+        patient has an account, and up to 50 visits: a unit's staff see their
+        unit's, a clinician their own, an administrator all. Care context is
+        never on the record (FR-PRV-10). Every read is an audit entry.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The record.
+          content:
+            application/json:
+              schema: 
+                type: object
+                properties:
+                  patientProfileId: { type: string }
+                  patientNumber: { type: string }
+                  givenName: { type: string }
+                  familyName: { type: string }
+                  dateOfBirth: { type: [string, "null"], format: date }
+                  phoneE164: { type: [string, "null"] }
+                  email: { type: [string, "null"] }
+                  preferredLanguage: { type: [string, "null"] }
+                  hasAccount: { type: boolean }
+                  phoneVerified: { type: boolean }
+                  emailVerified: { type: boolean }
+                  source: { type: string, enum: [SELF, DESK] }
+                  createdAt: { type: string, format: date-time }
+                  visitScope: { $ref: "#/components/schemas/Scope" }
+                  appointments:
+                    type: array
+                    items: { $ref: "#/components/schemas/Appointment" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /clinics/{id}/roster:
+    get:
+      tags: [Staff console]
+      operationId: getRoster
+      summary: The unit's clinicians on a day, and how full each day is (FR-STF-08)
+      description: |
+        Permission availability.read at clinic scope. Status is OFF, LEAVE,
+        UNAVAILABLE, LATER, ON_SHIFT or FINISHED today, SCHEDULED on another
+        day. Names no patient, so it is not an audit entry.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: The roster.
+          content:
+            application/json:
+              schema: 
+                type: object
+                properties:
+                  clinicId: { type: string }
+                  date: { type: string, format: date }
+                  timezone: { type: string }
+                  onShift: { type: integer }
+                  clinicians:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        clinicianProfileId: { type: string }
+                        givenName: { type: string }
+                        familyName: { type: string }
+                        specialty: { type: [string, "null"] }
+                        status: { type: string }
+                        startsAt: { type: [string, "null"] }
+                        endsAt: { type: [string, "null"] }
+                        timeOff: { type: array, items: { type: object } }
+                        visits: { type: integer }
+                        bookedMinutes: { type: integer }
+                        workingMinutes: { type: integer }
+                        load: { type: [number, "null"] }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /audit/changes:
+    get:
+      tags: [Audit]
+      operationId: weeklyChanges
+      summary: A week's staff reschedules and cancellations, by who made them (FR-STF-13)
+      description: |
+        Permission audit.read. Read from the audit trail, so it cannot disagree
+        with it. The week is the Monday given (UTC days), this week by default.
+        Each actor's changes carry their reasons and flags, flagged ones first,
+        including POTENTIAL_SELF_BENEFIT (guard REASONED_AND_AUDITED).
+      parameters:
+        - name: week
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: The week's changes.
+          content:
+            application/json:
+              schema: 
+                type: object
+                properties:
+                  week: { type: string, format: date }
+                  to: { type: string, format: date }
+                  total: { type: integer }
+                  flagged: { type: integer }
+                  actors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        actorPersonId: { type: string }
+                        actorName: { type: string }
+                        actorRole: { type: [string, "null"] }
+                        cancellations: { type: integer }
+                        reschedules: { type: integer }
+                        flagged: { type: integer }
+                        changes: { type: array, items: { type: object } }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /clinics/{id}/sessions:
+    get:
+      tags: [Queue and requests]
+      operationId: listSessions
+      summary: The unit's sessions, to join or book into (FR-BKG-09)
+      description: |
+        Two weeks from today by default, a month at most. A patient sees only
+        the open ones still to come; staff see all of them.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: The sessions.
+          content:
+            application/json:
+              schema: 
+                type: object
+                properties:
+                  clinicId: { type: string }
+                  from: { type: string, format: date }
+                  to: { type: string, format: date }
+                  sessions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Session" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Queue and requests]
+      operationId: publishSession
+      summary: A unit manager publishes a session (FR-BKG-10)
+      description: |
+        Permission session.publish. The window and the doctors rostered;
+        capacity is worked out from them and the unit's measured pace, and a
+        body that sets it is refused. A session may not overlap another open one.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date, startTime, endTime, rosteredClinicianCount]
+              properties:
+                date: { type: string, format: date }
+                startTime: { type: string, example: "08:00" }
+                endTime: { type: string, example: "12:00" }
+                rosteredClinicianCount: { type: integer, minimum: 1 }
+      responses:
+        "201":
+          description: The session.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /sessions/{id}:
+    get:
+      tags: [Queue and requests]
+      operationId: getSession
+      summary: One session, with how full it is
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The session.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /sessions/{id}/tickets:
+    post:
+      tags: [Queue and requests]
+      operationId: issueTicket
+      summary: A place in the queue, for oneself or at the desk (FR-BKG-11, FR-BKG-13)
+      description: |
+        Permission appointment.create. A patient takes their own place online;
+        the desk takes one for a walk-in or a caller. The position and arrival
+        window are the server's, from the order requests arrived in: a body
+        that names either is refused (guard SERVER_ASSIGNED_ORDER). A ticket is
+        also an appointment, so it appears in the patient's visits.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                patientProfileId:
+                  type: string
+                  description: Required at the desk; a patient's own place needs none.
+                channel: { type: string, enum: [WALK_IN, PHONE], default: WALK_IN }
+      responses:
+        "201":
+          description: The ticket, with its position and arrival window.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /sessions/{id}/queue:
+    get:
+      tags: [Queue and requests]
+      operationId: liveQueue
+      summary: The desk's live queue, in position order (FR-BKG-13)
+      description: |
+        Permission appointment.read at clinic scope, staff only. Recalculates
+        arrival windows first, then lists every ticket with the patients'
+        names, the counts waiting, arrived and in consultation, and the planned
+        against the actual pace so far.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The queue.
+          content:
+            application/json:
+              schema: 
+                allOf:
+                  - $ref: "#/components/schemas/Session"
+                  - type: object
+                    properties:
+                      appointments: { type: array, items: { $ref: "#/components/schemas/Appointment" } }
+                      patients: { $ref: "#/components/schemas/PatientNames" }
+                      waiting: { type: integer }
+                      arrived: { type: integer }
+                      inConsultation: { type: integer }
+                      seen: { type: integer }
+                      plannedPerHour: { type: number }
+                      actualPerHour: { type: [number, "null"] }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /sessions/{id}/next:
+    post:
+      tags: [Queue and requests]
+      operationId: callNext
+      summary: A doctor takes the next patient who has arrived
+      description: |
+        Permission queue.assign_next. The calling clinician, or one named by
+        the desk, is assigned the first arrived ticket in position order. No
+        doctor is named on a ticket before this.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clinicianProfileId: { type: string, description: Required when the caller is not a clinician. }
+      responses:
+        "200":
+          description: The ticket now in consultation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /sessions/{id}/close:
+    post:
+      tags: [Queue and requests]
+      operationId: closeSession
+      summary: Close a session, recording the pace it achieved
+      description: |
+        Permission session.publish. The actual throughput is measured from the
+        consultations seen and feeds the next session's capacity.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The closed session.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /procedure-requests:
+    post:
+      tags: [Queue and requests]
+      operationId: requestProcedure
+      summary: A patient asks for a procedure; no time is held (FR-BKG-14)
+      description: |
+        Permission procedure.request. Only a type the unit offers to be
+        requested. The request is an appointment in REQUESTED on the unit's
+        inbox; the patient follows it in their visits.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clinicId, appointmentTypeId]
+              properties:
+                clinicId: { type: string }
+                appointmentTypeId: { type: string }
+                note: { type: string, maxLength: 500 }
+      responses:
+        "201":
+          description: The request.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /clinics/{id}/requests:
+    get:
+      tags: [Queue and requests]
+      operationId: listRequests
+      summary: The unit's inbox of procedure requests waiting (FR-STF-15)
+      description: Permission procedure.size_and_place at clinic scope.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The requests, oldest first, with the patients' names.
+          content:
+            application/json:
+              schema: 
+                type: object
+                properties:
+                  clinicId: { type: string }
+                  count: { type: integer }
+                  appointments: { type: array, items: { $ref: "#/components/schemas/Appointment" } }
+                  patients: { $ref: "#/components/schemas/PatientNames" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /appointments/{id}/place:
+    post:
+      tags: [Queue and requests]
+      operationId: placeRequest
+      summary: Size and place a request, a clinician and a time (FR-STF-15)
+      description: |
+        Permission procedure.size_and_place. Locks the units in one transaction
+        and moves the request to BOOKED; the patient's own confirmation then
+        makes it CONFIRMED.
+      parameters:
+        - $ref: "#/components/parameters/AppointmentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clinicianProfileId, startAt]
+              properties:
+                clinicianProfileId: { type: string }
+                startAt: { type: string, format: date-time }
+                durationUnits: { type: integer, minimum: 1, maximum: 48 }
+      responses:
+        "200": { $ref: "#/components/responses/MovedAppointment" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /appointments/{id}/decline:
+    post:
+      tags: [Queue and requests]
+      operationId: declineRequest
+      summary: Decline a request, with a reason the patient reads
+      description: Permission procedure.size_and_place, staff only. The patient is told.
+      parameters:
+        - $ref: "#/components/parameters/AppointmentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/MovedAppointment" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /clinics/{id}/report:
+    get:
+      tags: [Reports and messages]
+      operationId: unitReport
+      summary: A unit's week in figures (FR-MSR-01, FR-MSR-02, FR-MSR-04, FR-MSR-07)
+      description: |
+        Permission report.read: a unit manager their unit, an administrator any.
+        The week is the Monday given on the tenant's clock, this week by
+        default, back to the first day of use. Counts only, so not an audit
+        entry. No figure claims what reminders saved in money, and the ledger
+        is a record, not money moved.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: week
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: The unit's week.
+          content:
+            application/json:
+              schema: 
+                allOf:
+                  - $ref: "#/components/schemas/Figures"
+                  - type: object
+                    properties:
+                      clinicId: { type: string }
+                      clinicName: { type: [string, "null"] }
+                      week: { type: string, format: date }
+                      to: { type: string, format: date }
+                      firstDay: { type: [string, "null"], format: date }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /reports:
+    get:
+      tags: [Reports and messages]
+      operationId: hospitalReport
+      summary: Every unit's week, for the administrator
+      parameters:
+        - name: week
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: The hospital's week, and each unit's, busiest first.
+          content:
+            application/json:
+              schema: 
+                type: object
+                properties:
+                  week: { type: string, format: date }
+                  to: { type: string, format: date }
+                  firstDay: { type: [string, "null"], format: date }
+                  booked: { type: integer }
+                  attended: { type: integer }
+                  noShow: { type: integer }
+                  cancelled: { type: integer }
+                  lateCancelled: { type: integer }
+                  units: { type: array, items: { $ref: "#/components/schemas/Figures" } }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /clinics/{id}/messages:
+    get:
+      tags: [Reports and messages]
+      operationId: unitMessages
+      summary: What went out for a unit on a day, failures first (FR-MSG-05)
+      description: |
+        Permission message.read: the front desk and a unit manager their unit,
+        an administrator any. A message joins a day's log when it settles, on
+        the tenant's clock; a reminder still waiting is in none. Each row names
+        the patient and the number on file now, so the desk can phone those a
+        message did not reach.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: day
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: The day's log.
+          content:
+            application/json:
+              schema: 
+                type: object
+                properties:
+                  clinicId: { type: string }
+                  clinicName: { type: [string, "null"] }
+                  day: { type: string, format: date }
+                  counts:
+                    type: object
+                    additionalProperties: { type: integer }
+                  messages: { type: array, items: { $ref: "#/components/schemas/LoggedMessage" } }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /messages/delivery:
+    get:
+      tags: [Reports and messages]
+      operationId: deliveryFigures
+      summary: Delivery, bounce and complaint rates and SMS spend per day (FR-MSG-06)
+      description: |
+        Permission message.read at tenant scope, the administrator's. Counts
+        what SES and SNS reported (FR-MSG-04); a rate is null where nothing was
+        attempted. The sender identities, and whether email and SMS are still
+        in their sandboxes, come from the account itself and are null when it
+        could not be asked.
+      parameters:
+        - name: days
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 31, default: 14 }
+      responses:
+        "200":
+          description: The figures.
+          content:
+            application/json:
+              schema: 
+                type: object
+                properties:
+                  from: { type: string, format: date }
+                  to: { type: string, format: date }
+                  senders:
+                    type: [array, "null"]
+                    items:
+                      type: object
+                      properties:
+                        identity: { type: string }
+                        type: { type: string }
+                        verified: { type: boolean }
+                        sendingEnabled: { type: boolean }
+                        sandbox: { type: boolean }
+                  sms:
+                    type: [object, "null"]
+                    properties:
+                      sandbox: { type: boolean }
+                  totals: { $ref: "#/components/schemas/DeliveryFigures" }
+                  days:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/DeliveryFigures"
+                        - type: object
+                          properties:
+                            day: { type: string, format: date }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
 components:
   parameters:
     AppointmentId:
@@ -1725,6 +2481,12 @@ components:
           type: array
           items: { type: string }
           description: The screen each role lands on after signing in.
+        secondFactorRequired:
+          type: boolean
+          description: |
+            True for a tenant administrator whose sign-in carried no
+            authenticator (FR-ACC-11). The role grants nothing until they
+            set one up and sign in with it; the console asks for that first.
 
     CreateStaffAccount:
       type: object
@@ -1983,7 +2745,9 @@ components:
 
     Appointment:
       type: object
-      additionalProperties: false
+      description: |
+        The appointment as every operation returns it. GET /appointments/{id}
+        adds the fee ledger's entry and a cancellation preview (AppointmentRecord).
       required: [appointmentId, reference, tenantId, clinicId, patientProfileId, startAt, endAt, state]
       properties:
         appointmentId: { type: string }
@@ -2032,6 +2796,203 @@ components:
           type: integer
           description: Optimistic concurrency for offline staff writes.
         createdAt: { type: string, format: date-time }
+        position:
+          type: [integer, "null"]
+          description: A queue ticket's place, assigned by the server (guard SERVER_ASSIGNED_ORDER).
+        arrivalWindowStart:
+          type: [string, "null"]
+          format: date-time
+          description: When a queue ticket's holder should arrive from (FR-BKG-11).
+        arrivalWindowEnd: { type: [string, "null"], format: date-time }
+        requestNote:
+          type: [string, "null"]
+          description: What the patient wrote when requesting a procedure (FR-BKG-14).
+        declineReason:
+          type: [string, "null"]
+          description: Why staff declined a procedure request; the patient reads it.
+
+    AppointmentRecord:
+      allOf:
+        - $ref: "#/components/schemas/Appointment"
+        - type: object
+          properties:
+            ledger:
+              oneOf:
+                - $ref: "#/components/schemas/LedgerEntry"
+                - type: "null"
+              description: Written when the visit closed (FR-MSR-05). Null while it is open.
+            cancellationPreview:
+              description: |
+                What cancelling now would record, so the cancel screen can say
+                it before the patient confirms (FR-MSR-06). Null once closed.
+              oneOf:
+                - type: "null"
+                - type: object
+                  properties:
+                    outcome: { type: string, enum: [CANCELLED_IN_WINDOW, CANCELLED_LATE] }
+                    entitlement: { type: string, enum: [FULL, PARTIAL] }
+                    amountMinor: { type: [integer, "null"] }
+                    currency: { type: string }
+                    freeUntil: { type: string, format: date-time }
+
+    LedgerEntry:
+      type: object
+      description: |
+        A record of a closed visit's fee and entitlement (FR-MSR-05 to
+        FR-MSR-07). No money moves through Atria; settledAt stays null.
+      properties:
+        feeBandId: { type: [string, "null"] }
+        practice: { type: [string, "null"] }
+        amountMinor:
+          type: [integer, "null"]
+          description: The band's amount in force on the day of the visit, in XAF.
+        currency: { type: string }
+        outcome:
+          type: string
+          enum: [ATTENDED, CANCELLED_IN_WINDOW, CANCELLED_LATE, NO_SHOW, CLINIC_CANCELLED]
+        entitlement: { type: string, enum: [FULL, PARTIAL, NONE] }
+        settledAt: { type: "null" }
+
+    RegisterEntry:
+      type: object
+      properties:
+        patientProfileId: { type: string }
+        givenName: { type: string }
+        familyName: { type: string }
+        phoneE164: { type: [string, "null"] }
+        patientNumber:
+          type: string
+          description: The hospital's own number, for example RHB-000123.
+        dateOfBirth: { type: [string, "null"], format: date }
+
+    Session:
+      type: object
+      properties:
+        sessionId: { type: string }
+        clinicId: { type: string }
+        sessionDate: { type: string, format: date }
+        startTime: { type: string, example: "08:00" }
+        endTime: { type: string, example: "12:00" }
+        rosteredClinicianCount: { type: integer }
+        expectedThroughputPerHour:
+          type: string
+          description: Measured from the unit's closed sessions, per doctor.
+        actualThroughputPerHour: { type: [string, "null"] }
+        capacity:
+          type: integer
+          description: Derived from the doctors rostered and the pace; never typed (FR-BKG-10).
+        issuedTickets: { type: integer }
+        status: { type: string, enum: [OPEN, CLOSED] }
+
+    Figures:
+      type: object
+      description: A week's visits by what became of them (FR-MSR-01, FR-MSR-02).
+      properties:
+        booked: { type: integer }
+        attended: { type: integer }
+        noShow: { type: integer }
+        cancelled: { type: integer }
+        lateCancelled: { type: integer }
+        open: { type: integer }
+        attendance:
+          type: [number, "null"]
+          description: Attended over attended and no-show. Null when neither happened.
+        byChannel:
+          type: array
+          items:
+            type: object
+            properties:
+              channel: { type: string }
+              booked: { type: integer }
+              attended: { type: integer }
+              noShow: { type: integer }
+              attendance: { type: [number, "null"] }
+        byReminder:
+          type: array
+          description: Shown side by side with attendance, not as cause and effect (FR-MSR-04).
+          items:
+            type: object
+            properties:
+              reminder: { type: string, enum: [SENT, DELIVERED, FAILED, NOT_SENT] }
+              booked: { type: integer }
+              attended: { type: integer }
+              noShow: { type: integer }
+              attendance: { type: [number, "null"] }
+        ledger:
+          type: object
+          properties:
+            entries: { type: integer }
+            currency: { type: string }
+            byEntitlement:
+              type: array
+              items:
+                type: object
+                properties:
+                  entitlement: { type: string }
+                  entries: { type: integer }
+                  amountMinor: { type: integer }
+            byBand:
+              type: array
+              items:
+                type: object
+                properties:
+                  practice: { type: string }
+                  entries: { type: integer }
+                  amountMinor: { type: integer }
+
+    LoggedMessage:
+      type: object
+      properties:
+        messageLogId: { type: string }
+        appointmentId: { type: string }
+        kind: { type: string, example: APPOINTMENT_REMINDER }
+        channel: { type: string, enum: [EMAIL, SMS] }
+        recipient: { type: [string, "null"], description: The address or number it went to. }
+        deliveryState: { type: string, enum: [SENT, DELIVERED, FAILED, CANCELLED] }
+        feedback: { type: [string, "null"], enum: [BOUNCE, COMPLAINT, null] }
+        failureReason: { type: [string, "null"] }
+        settledAt: { type: string, format: date-time }
+        reportedAt:
+          type: [string, "null"]
+          format: date-time
+          description: When the provider last reported on it (FR-MSG-04).
+        person:
+          type: object
+          description: The patient, and the number on file now, which is the one to phone.
+          properties:
+            name: { type: [string, "null"] }
+            phoneE164: { type: [string, "null"] }
+        visit:
+          type: [object, "null"]
+          properties:
+            startAt: { type: [string, "null"], format: date-time }
+            state: { type: [string, "null"] }
+            patientProfileId: { type: [string, "null"] }
+
+    DeliveryFigures:
+      type: object
+      properties:
+        email:
+          type: object
+          properties:
+            attempted: { type: integer }
+            delivered: { type: integer }
+            failed: { type: integer }
+            bounced: { type: integer }
+            complained: { type: integer }
+            deliveryRate: { type: [number, "null"] }
+            bounceRate: { type: [number, "null"] }
+            complaintRate: { type: [number, "null"] }
+        sms:
+          type: object
+          properties:
+            attempted: { type: integer }
+            delivered: { type: integer }
+            failed: { type: integer }
+            deliveryRate: { type: [number, "null"] }
+            spendUsd:
+              type: string
+              description: What SNS reported the texts cost, to a hundredth of a cent.
 
     CancelledAppointment:
       allOf:

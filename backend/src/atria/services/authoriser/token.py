@@ -43,6 +43,11 @@ class Claims:
     patient_profile_id: str | None = None
     phone_verified: bool = False
     languages: tuple[str, ...] = ()
+    # Written by the pre-token trigger for an administrator whose account has
+    # an authenticator enabled, which Cognito then requires at every sign-in.
+    second_factor: bool = False
+    # When the person last typed their password, carried across refreshes.
+    auth_time: int | None = None
 
 
 @lru_cache(maxsize=4)
@@ -104,4 +109,6 @@ def verify(token: str, *, issuer: str, audiences: tuple[str, ...]) -> Claims:
         patient_profile_id=optional("patientProfileId"),
         phone_verified=str(payload.get("phoneVerified", "")).lower() == "true",
         languages=tuple(x.strip() for x in languages.split(",") if x.strip()),
+        second_factor=str(payload.get("secondFactor", "")).lower() == "true",
+        auth_time=int(payload["auth_time"]) if payload.get("auth_time") else None,
     )

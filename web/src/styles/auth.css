@@ -824,3 +824,40 @@ form > .notice { margin-bottom: 4px; margin-top: 24px; }
 .identity-name { overflow-wrap: anywhere; }
 .form-card .rules { margin-top: 4px; }
 .form-card .rules + .button { margin-top: 20px; }
+
+/* ------------------------------------------- authenticator (FR-ACC-11) */
+
+.totp-setup {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-top: 26px;
+  padding: 16px;
+  border: 1px solid var(--line-hairline);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.72);
+  animation: rise var(--spring-spatial-default-duration) var(--spring-spatial-default) both;
+}
+.totp-qr {
+  flex: none;
+  width: 148px;
+  height: 148px;
+  border-radius: 14px;
+  background: #ffffff;
+  image-rendering: pixelated;
+}
+.totp-key { display: grid; gap: 8px; min-width: 0; }
+.totp-key-label { font-size: 12.5px; line-height: 18px; color: var(--ink-700); overflow-wrap: anywhere; }
+.totp-key-value {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 22px;
+  color: var(--ink-primary);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .totp-setup { flex-direction: column; align-items: flex-start; }
+}

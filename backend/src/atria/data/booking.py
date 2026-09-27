@@ -292,20 +292,23 @@ class Booking:
         fire_at: dt.datetime,
         message_log_id: str,
         logged_at: str,
+        second: bool = False,
     ) -> Item:
         """Keep the reminder's reference on the appointment (FR-REM-01).
 
         The schedule's name is what a cancellation removes, and the log row's
         identity is what it marks CANCELLED. The state is not touched, so the
-        change stream sees a rewrite in the same state and owes nothing.
+        change stream sees a rewrite in the same state and owes nothing. A
+        second reminder keeps its own, under secondReminder...
         """
+        prefix = "secondReminder" if second else "reminder"
         return self._repo.update_existing(
             keys.appointment(tenant_id, appointment_id),
             set_values={
-                "reminderSchedule": schedule,
-                "reminderScheduledFor": rules.instant(fire_at),
-                "reminderLogId": message_log_id,
-                "reminderLoggedAt": logged_at,
+                f"{prefix}Schedule": schedule,
+                f"{prefix}ScheduledFor": rules.instant(fire_at),
+                f"{prefix}LogId": message_log_id,
+                f"{prefix}LoggedAt": logged_at,
             },
             what="appointment",
         )

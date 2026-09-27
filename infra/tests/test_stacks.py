@@ -241,6 +241,17 @@ class TestIdentityStack:
                     writes.add(named)
         assert not any(pre_token_role in w for w in writes)
 
+    def test_the_pre_token_trigger_reads_accounts_and_changes_none(self, synthesised):
+        """It asks whether an administrator has an authenticator (FR-ACC-11)."""
+        template = template_for(synthesised, "identity")
+        actions: set[str] = set()
+        for policy in template.find_resources("AWS::IAM::Policy").values():
+            for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
+                action = statement.get("Action")
+                actions.update(a for a in (action if isinstance(action, list) else [action]) if a)
+        cognito = {a for a in actions if a.startswith("cognito-idp:")}
+        assert cognito == {"cognito-idp:AdminGetUser"}
+
 
 class TestApiStack:
     def test_every_method_goes_through_the_authoriser(self, synthesised):
@@ -672,9 +683,9 @@ class TestAsyncStack:
 class TestObservabilityStack:
     def test_alarms_cover_errors_latency_and_the_authoriser(self, synthesised):
         template = template_for(synthesised, "observability")
-        # The API's three, errors for ten functions, throttles for eleven, four
-        # table throttles, three dead letter queues, SES bounces and SMS spend.
-        template.resource_count_is("AWS::CloudWatch::Alarm", 3 + 10 + 11 + 4 + 3 + 2)
+        # The API's three, errors for eleven functions, throttles for twelve,
+        # four table throttles, four dead letter queues, SES bounces and SMS spend.
+        template.resource_count_is("AWS::CloudWatch::Alarm", 3 + 11 + 12 + 4 + 4 + 2)
 
     def test_every_alarm_notifies_the_topic(self, synthesised):
         template = template_for(synthesised, "observability")
@@ -741,7 +752,7 @@ def test_cloudtrail_records_every_region_into_a_private_bucket(synthesised: cdk.
 def test_every_dead_letter_queue_is_alarmed(synthesised: cdk.App) -> None:
     alarms = template_for(synthesised, "observability").find_resources("AWS::CloudWatch::Alarm")
     names = [alarm["Properties"]["AlarmName"] for alarm in alarms.values()]
-    for queue in ("outbox", "stream", "reminder"):
+    for queue in ("outbox", "stream", "reminder", "delivery-report"):
         assert f"atria-dev-{queue}-dead-letters" in names
 
 
@@ -868,3 +879,66 @@ def test_the_report_routes_exist(synthesised: cdk.App) -> None:
     served = routes(template_for(synthesised, "api"))
     assert ("/clinics/{id}/report", "GET") in served
     assert ("/reports", "GET") in served
+
+
+def test_the_message_routes_exist(synthesised: cdk.App) -> None:
+    served = routes(template_for(synthesised, "api"))
+    assert ("/clinics/{id}/messages", "GET") in served
+    assert ("/messages/delivery", "GET") in served
+
+
+def test_the_message_day_index_exists(synthesised: cdk.App) -> None:
+    table = next(
+        iter(template_for(synthesised, "data").find_resources("AWS::DynamoDB::GlobalTable").values())
+    )
+    names = [i["IndexName"] for i in table["Properties"]["GlobalSecondaryIndexes"]]
+    assert "MessageDayIndex" in names
+
+
+class TestDeliveryReports:
+    """FR-MSG-04: what SES and SNS report comes back into the message log."""
+
+    def test_email_goes_through_the_configuration_set(self, synthesised):
+        template = template_for(synthesised, "async")
+        template.has_resource_properties("AWS::SES::ConfigurationSet", {"Name": "atria-dev-notices"})
+        sender = next(
+            f
+            for f in template.find_resources("AWS::Lambda::Function").values()
+            if f["Properties"].get("Handler") == "atria.services.notify.sender.handler"
+        )
+        assert "NOTICE_CONFIGURATION_SET" in sender["Properties"]["Environment"]["Variables"]
+        policy = json.dumps(template.find_resources("AWS::IAM::Policy"))
+        assert "configuration-set/" in policy
+
+    def test_ses_reports_go_to_eventbridge_and_the_status_function(self, synthesised):
+        template = template_for(synthesised, "async")
+        template.has_resource_properties(
+            "AWS::SES::ConfigurationSetEventDestination",
+            {
+                "EventDestination": Match.object_like(
+                    {
+                        "MatchingEventTypes": Match.array_with(["delivery", "bounce", "complaint"]),
+                        "EventBridgeDestination": Match.any_value(),
+                    }
+                )
+            },
+        )
+        rule = next(iter(template.find_resources("AWS::Events::Rule").values()))
+        assert rule["Properties"]["EventPattern"]["source"] == ["aws.ses"]
+        assert "DeadLetterConfig" in rule["Properties"]["Targets"][0]
+
+    def test_sms_delivery_logs_are_subscribed(self, synthesised):
+        template = template_for(synthesised, "async")
+        template.resource_count_is("AWS::Logs::SubscriptionFilter", 2)
+        groups = [
+            g["Properties"]["LogGroupName"]
+            for g in template.find_resources("AWS::Logs::LogGroup").values()
+            if "DirectPublishToPhoneNumber" in json.dumps(g["Properties"]["LogGroupName"])
+        ]
+        assert len(groups) == 2
+
+    def test_the_directory_reads_the_account_and_sends_nothing(self, synthesised):
+        policy = json.dumps(template_for(synthesised, "api").find_resources("AWS::IAM::Policy"))
+        assert "ses:ListEmailIdentities" in policy
+        assert "sns:GetSMSSandboxAccountStatus" in policy
+        assert "ses:SendEmail" not in policy

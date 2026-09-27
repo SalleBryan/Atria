@@ -8,9 +8,9 @@ The week is the Monday given, on the tenant's clock, this week by default,
 and any week back to the tenant's first day of use. No patient is named: a
 report is counts, so it is not an audit entry.
 
-The reminders are read from the message log for the days a reminder for the
-week could have gone (up to three days before its first day), and the ledger
-entries in one batch for the week's closed visits.
+Each visit's reminder is read from the log row its appointment points at
+(FR-REM-01), which is filed under the day the reminder was arranged, and the
+ledger entries in one batch for the week's closed visits.
 """
 
 from __future__ import annotations
@@ -26,11 +26,7 @@ from atria.core.principal import Principal
 from atria.data import keys
 from atria.data.booking import Booking
 from atria.data.catalogue import Catalogue
-from atria.data.messages import Messages
 from atria.http import requests
-
-# A reminder goes at most 72 hours before its visit (atria.core.reminders).
-REMINDER_REACH = 3
 
 
 def monday_of(principal: Principal, event: dict[str, Any], data: Booking) -> dt.date:
@@ -51,12 +47,22 @@ def unit_week(data: Booking, tenant_id: str, clinic_id: str, monday: dt.date) ->
     ]
     ids = {str(a["appointmentId"]) for a in appointments}
 
-    log = Messages(data.repository)
-    reminders: dict[str, str] = {}
-    for n in range(-REMINDER_REACH, 7):
-        for row in log.for_day(tenant_id, (monday + dt.timedelta(days=n)).isoformat()):
-            if row.get("kind") == "APPOINTMENT_REMINDER" and str(row.get("appointmentId")) in ids:
-                reminders[str(row["appointmentId"])] = str(row.get("deliveryState") or "")
+    pointed = [
+        keys.message_log(
+            tenant_id,
+            str(a["reminderLoggedAt"])[:10],
+            str(a["reminderLoggedAt"]),
+            str(a["reminderLogId"]),
+        )
+        for a in appointments
+        if a.get("reminderLogId") and a.get("reminderLoggedAt")
+    ]
+    rows = data.repository.get_many(pointed) if pointed else {}
+    reminders = {
+        str(row["appointmentId"]): str(row.get("deliveryState") or "")
+        for row in rows.values()
+        if row.get("kind") == "APPOINTMENT_REMINDER"
+    }
 
     wanted = [keys.fee_ledger_entry(tenant_id, i) for i in sorted(ids)]
     found = data.repository.get_many(wanted)

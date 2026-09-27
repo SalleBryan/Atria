@@ -545,3 +545,65 @@ class TestDispatch:
         ids = [m["MessageDeduplicationId"] for m in capture.sent]
         assert len(ids) == 2
         assert len(set(ids)) == 2
+
+
+class TestSecondReminder:
+    """FR-ADM-03: a tenant may add a second reminder a few hours before the visit."""
+
+    @pytest.fixture
+    def second(self, world):
+        repository, clinician, fakes = world
+        tenant_key = keys.tenant(TENANT)
+        repository.put(tenant_key, {**repository.get(tenant_key), "secondReminderHours": 2})
+        return repository, clinician, fakes
+
+    def test_it_is_scheduled_beside_the_first(self, second):
+        repository, clinician, fakes = second
+        put_appointment(repository, clinician)
+        run(reminders.SCHEDULE)
+        assert set(fakes["scheduler"].schedules) == {"reminder-a-1", "reminder2-a-1"}
+        assert (
+            fakes["scheduler"].schedules["reminder2-a-1"]["ScheduleExpression"]
+            == "at(2026-03-04T06:00:00)"
+        )
+        stored = repository.get(keys.appointment(TENANT, "a-1"))
+        assert stored["secondReminderSchedule"] == "reminder2-a-1"
+        assert len(rows(repository)) == 2
+
+    def test_none_by_default(self, world):
+        repository, clinician, fakes = world
+        put_appointment(repository, clinician)
+        run(reminders.SCHEDULE)
+        assert set(fakes["scheduler"].schedules) == {"reminder-a-1"}
+
+    def test_inside_the_first_lead_the_second_still_goes(self, second):
+        """Booked eleven hours out: an SMS confirmation now, and the second later."""
+        repository, clinician, fakes = second
+        put_appointment(repository, clinician, start=SOON)
+        run(reminders.SCHEDULE)
+        assert len(fakes["sns"].published) == 1
+        assert set(fakes["scheduler"].schedules) == {"reminder2-a-1"}
+
+    def test_a_second_already_past_is_not_arranged(self, second):
+        repository, clinician, fakes = second
+        put_appointment(repository, clinician, start="2026-03-01T10:00:00Z")
+        run(reminders.SCHEDULE)
+        assert fakes["scheduler"].schedules == {}
+
+    def test_cancelling_removes_both(self, second):
+        repository, clinician, fakes = second
+        put_appointment(repository, clinician)
+        run(reminders.SCHEDULE)
+        run(reminders.CANCEL, message_id="m-2")
+        assert fakes["scheduler"].schedules == {}
+        assert sorted(fakes["scheduler"].deleted) == ["reminder-a-1", "reminder2-a-1"]
+        assert {r["deliveryState"] for r in rows(repository)} == {CANCELLED}
+
+
+class TestSecondLead:
+    @pytest.mark.parametrize(
+        ("value", "hours"), [(None, None), (0, None), (2, 2), (40, 12), ("x", None)]
+    )
+    def test_the_lead_is_read_and_bounded(self, value, hours):
+        found = reminders.second_lead_for({"secondReminderHours": value})
+        assert found == (dt.timedelta(hours=hours) if hours else None)

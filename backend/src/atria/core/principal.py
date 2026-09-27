@@ -18,6 +18,9 @@ from atria_spec import roles as spec
 
 Role = str
 
+# The roles that act only after a second factor (FR-ACC-11).
+SECOND_FACTOR_ROLES = frozenset({"TENANT_ADMIN"})
+
 
 @dataclass(frozen=True, slots=True)
 class Principal:
@@ -36,6 +39,13 @@ class Principal:
     phone_verified: bool = False
     languages: tuple[str, ...] = field(default_factory=tuple)
 
+    second_factor: bool = True
+    """Whether the sign-in behind this session passed a second factor.
+
+    Only a tenant administrator needs one (FR-ACC-11), and the authoriser says
+    so explicitly for them. For every other role it is irrelevant, so the
+    default keeps a principal built without it acting on its roles."""
+
     def __post_init__(self) -> None:
         unknown = [r for r in self.roles if r not in spec.ROLES]
         if unknown:
@@ -46,7 +56,22 @@ class Principal:
         return any(r != "PATIENT" for r in self.roles)
 
     def has_role(self, role: Role) -> bool:
-        return role in self.roles
+        return role in self.acting_roles
+
+    @property
+    def acting_roles(self) -> tuple[Role, ...]:
+        """The roles this session may act on.
+
+        An administrator who has not signed in with their authenticator holds
+        the role but none of its powers until they do (FR-ACC-11). Any other
+        role on the same account still acts."""
+        if self.second_factor:
+            return self.roles
+        return tuple(r for r in self.roles if r not in SECOND_FACTOR_ROLES)
+
+    @property
+    def needs_second_factor(self) -> bool:
+        return not self.second_factor and any(r in SECOND_FACTOR_ROLES for r in self.roles)
 
     def as_patient(self) -> Principal:
         """The same person with staff scope dropped, for acting on their own record."""

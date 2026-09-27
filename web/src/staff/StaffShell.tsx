@@ -5,11 +5,9 @@
  * screen itself. A layout route, like the patient shell, so the navigation
  * pill slides rather than jumps.
  *
- * The Rev A sidebar also lists Patients, Clinicians and Messages. The patient
- * register, the staff directory and the message log have no Phase 1 endpoint
- * (they are Phase 2), so those items are left out rather than leading to
- * empty screens. An administrator also gets Staff accounts (FR-ACC-04), and an
- * administrator or unit manager the Audit log (FR-ADM-04).
+ * The Rev A sidebar lists Patients, Clinicians and Messages; Messages is the
+ * unit's message log (FR-MSG-05). An administrator also gets Staff accounts
+ * (FR-ACC-04), and an administrator or unit manager the Audit log (FR-ADM-04).
  */
 
 import { type ComponentType, type CSSProperties, useLayoutEffect, useRef, useState } from "react";
@@ -17,9 +15,11 @@ import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import type { Me } from "../api/client";
 import { useSession } from "../auth/session";
-import { Calendar, Chart, Clock, Inbox, ListOrdered, Pulse, Shield, SignOut, Sliders, Stethoscope, User, Users } from "../components/icons";
+import { StaffAuthenticatorSetup } from "../pages/StaffAuthenticator";
+import { Calendar, Chart, Clock, Inbox, ListOrdered, Mail, Pulse, Shield, SignOut, Sliders, Stethoscope, User, Users } from "../components/icons";
 import { offeredAt } from "../patient/data";
 import { runsQueue } from "./Queue";
+import { SignOutMenu } from "../components/SignOutMenu";
 import { Waiting } from "../components/Waiting";
 import { initials } from "../patient/data";
 import { ROLE_LABEL, roleOf, StaffDataProvider, useStaffData } from "./data";
@@ -36,6 +36,8 @@ export function StaffShell() {
   if (state.status === "loading") return <Waiting />;
   if (state.status !== "signed-in") return <Navigate to="/staff/sign-in" replace />;
   if (state.audience !== "staff") return <Navigate to="/home" replace />;
+  // FR-ACC-11: nothing in the console opens until the administrator has one.
+  if (state.me.secondFactorRequired) return <StaffAuthenticatorSetup me={state.me} />;
   return (
     <StaffDataProvider>
       <Shell me={state.me} />
@@ -45,7 +47,6 @@ export function StaffShell() {
 
 function Shell({ me }: { me: Me }) {
   const { pathname } = useLocation();
-  const { signOut } = useSession();
   const { state } = useStaffData();
   const role = roleOf(me);
 
@@ -99,6 +100,16 @@ function Shell({ me }: { me: Me }) {
       label: "Availability",
       icon: Clock,
       matches: (path) => path.startsWith("/console/availability"),
+    });
+  }
+  // The unit's message log, failures first (FR-MSG-05); an administrator's
+  // also holds the delivery figures (FR-MSG-06).
+  if (role !== "CLINICIAN") {
+    destinations.push({
+      to: "/console/messages",
+      label: "Messages",
+      icon: Mail,
+      matches: (path) => path.startsWith("/console/messages"),
     });
   }
   if (role === "TENANT_ADMIN") {
@@ -188,9 +199,9 @@ function Shell({ me }: { me: Me }) {
               <span className="side-me-name">{name}</span>
               <span className="side-me-sub">{ROLE_LABEL[role]} · Staff</span>
             </span>
-            <button type="button" className="icon-button" onClick={() => void signOut()} aria-label="Sign out">
+            <SignOutMenu className="icon-button" label="Sign out" align="end">
               <SignOut size={17} />
-            </button>
+            </SignOutMenu>
           </div>
         </div>
       </aside>
@@ -213,12 +224,12 @@ function Shell({ me }: { me: Me }) {
             <span className="bottom-label">{label}</span>
           </NavLink>
         ))}
-        <button type="button" className="bottom-item" onClick={() => void signOut()}>
+        <SignOutMenu className="bottom-item" align="end">
           <span className="bottom-indicator">
             <SignOut size={20} />
           </span>
           <span className="bottom-label">Sign out</span>
-        </button>
+        </SignOutMenu>
       </nav>
     </div>
   );

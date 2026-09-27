@@ -729,6 +729,113 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     }
     return json(200, found, 500);
   }
+  // The unit's message log, failures first (FR-MSG-05). Fictional numbers only.
+  const unitMessages = path.match(/^\/clinics\/([^/]+)\/messages$/);
+  if (method === "GET" && unitMessages) {
+    const day = url.searchParams.get("day") ?? clinicDate(new Date());
+    const kinds = ["APPOINTMENT_REMINDER", "BOOKING_CONFIRMATION", "APPOINTMENT_REMINDER", "BOOKING_RESCHEDULED", "BOOKING_CANCELLATION"];
+    const seed = Number(day.slice(-2));
+    const rows = appointments
+      .filter((a) => a.clinicId === unitMessages[1])
+      .slice(0, 14)
+      .map((a, i) => {
+        const channel = i % 3 === 1 ? "EMAIL" : "SMS";
+        const failed = (i + seed) % 5 === 0;
+        const bounced = channel === "EMAIL" && (i + seed) % 7 === 3;
+        const state = failed || bounced ? "FAILED" : i % 4 === 2 ? "SENT" : "DELIVERED";
+        const name = patients[String(a.patientProfileId)] ?? { givenName: null, familyName: null };
+        return {
+          messageLogId: `ml-${day}-${i}`,
+          appointmentId: a.appointmentId,
+          kind: kinds[i % kinds.length],
+          channel,
+          recipient: channel === "SMS" ? `+2376000001${String(i).padStart(2, "0")}` : "patient@atria.invalid",
+          deliveryState: state,
+          feedback: bounced ? "BOUNCE" : null,
+          failureReason: failed ? (channel === "SMS" ? "Phone is unreachable" : "Mailbox full") : null,
+          settledAt: `${day}T${String(7 + (i % 10)).padStart(2, "0")}:${String((i * 7) % 60).padStart(2, "0")}:00Z`,
+          reportedAt: null,
+          person: {
+            name: [name.givenName, name.familyName].filter(Boolean).join(" ") || null,
+            phoneE164: `+2376000001${String(i).padStart(2, "0")}`,
+          },
+          visit: { startAt: a.startAt, state: a.state, patientProfileId: a.patientProfileId },
+        };
+      })
+      .sort((x, y) => Number(y.deliveryState === "FAILED") - Number(x.deliveryState === "FAILED") || y.settledAt.localeCompare(x.settledAt));
+    const counts: Record<string, number> = {};
+    for (const r of rows) counts[r.deliveryState] = (counts[r.deliveryState] ?? 0) + 1;
+    const unit = clinics.find((c) => c.clinicId === unitMessages[1]);
+    return json(200, { clinicId: unitMessages[1], clinicName: unit?.name ?? null, day, counts, messages: rows }, 380);
+  }
+  // The administrator's delivery figures (FR-MSG-06).
+  if (method === "GET" && path === "/messages/delivery") {
+    const count = Number(url.searchParams.get("days") ?? "14");
+    const today = clinicDate(new Date());
+    const figures = (n: number) => {
+      const attempted = n % 7 === 6 ? 0 : 18 + ((n * 11) % 25);
+      const delivered = Math.max(0, attempted - (n % 3));
+      const bounced = attempted ? n % 3 : 0;
+      const texts = n % 7 === 6 ? 0 : 30 + ((n * 13) % 40);
+      const textsDelivered = Math.max(0, texts - (n % 4));
+      return {
+        email: {
+          attempted,
+          delivered,
+          failed: attempted - delivered,
+          bounced,
+          complained: n % 11 === 4 ? 1 : 0,
+          deliveryRate: attempted ? Math.round((delivered / attempted) * 10000) / 10000 : null,
+          bounceRate: attempted ? Math.round((bounced / attempted) * 10000) / 10000 : null,
+          complaintRate: attempted ? (n % 11 === 4 ? Math.round((1 / attempted) * 10000) / 10000 : 0) : null,
+        },
+        sms: {
+          attempted: texts,
+          delivered: textsDelivered,
+          failed: texts - textsDelivered,
+          deliveryRate: texts ? Math.round((textsDelivered / texts) * 10000) / 10000 : null,
+          spendUsd: (texts * 0.0322).toFixed(4),
+        },
+      };
+    };
+    const days = Array.from({ length: count }, (_, i) => {
+      const day = new Date(Date.parse(`${today}T12:00:00Z`) - (count - 1 - i) * 86400000).toISOString().slice(0, 10);
+      return { day, ...figures(i) };
+    });
+    const sum = (pick: (d: (typeof days)[number]) => number) => days.reduce((n, d) => n + pick(d), 0);
+    const attempted = sum((d) => d.email.attempted);
+    const texts = sum((d) => d.sms.attempted);
+    return json(
+      200,
+      {
+        from: days[0]?.day,
+        to: today,
+        senders: [{ identity: "notices@atria.invalid", type: "EMAIL_ADDRESS", verified: true, sendingEnabled: true, sandbox: true }],
+        sms: { sandbox: true },
+        totals: {
+          email: {
+            attempted,
+            delivered: sum((d) => d.email.delivered),
+            failed: sum((d) => d.email.failed),
+            bounced: sum((d) => d.email.bounced),
+            complained: sum((d) => d.email.complained),
+            deliveryRate: attempted ? Math.round((sum((d) => d.email.delivered) / attempted) * 10000) / 10000 : null,
+            bounceRate: attempted ? Math.round((sum((d) => d.email.bounced) / attempted) * 10000) / 10000 : null,
+            complaintRate: attempted ? Math.round((sum((d) => d.email.complained) / attempted) * 10000) / 10000 : null,
+          },
+          sms: {
+            attempted: texts,
+            delivered: sum((d) => d.sms.delivered),
+            failed: sum((d) => d.sms.failed),
+            deliveryRate: texts ? Math.round((sum((d) => d.sms.delivered) / texts) * 10000) / 10000 : null,
+            spendUsd: (texts * 0.0322).toFixed(4),
+          },
+        },
+        days,
+      },
+      420,
+    );
+  }
   const unitReport = path.match(/^\/clinics\/([^/]+)\/report$/);
   if (method === "GET" && (unitReport || path === "/reports")) {
     const week = url.searchParams.get("week") ?? new Date().toISOString().slice(0, 10);

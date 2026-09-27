@@ -47,6 +47,7 @@ export const KEY_PATTERNS: readonly KeyPattern[] = [
   { entity: "Feedback", pk: "TENANT#t#APPT#id", sk: "FEEDBACK", table: "Main" },
   { entity: "Reminder", pk: "TENANT#t#APPT#id", sk: "REMINDER#sendAt", table: "Main" },
   { entity: "Message log", pk: "TENANT#t#MSG#yyyy-mm-dd", sk: "sentAt#messageId", table: "Main" },
+  { entity: "Provider message", pk: "PROVIDER#providerMessageId", sk: "MESSAGE", table: "Main" },
   { entity: "Audit entry", pk: "TENANT#t#AUDIT#yyyy-mm-dd", sk: "ts#auditId", table: "Main" },
   { entity: "Idempotency record", pk: "TENANT#t#IDEM#key", sk: "RECORD", table: "Main" },
   { entity: "Care context", pk: "TENANT#t#APPT#id", sk: "CARE", table: "Care context table, own key, TTL" },
@@ -59,4 +60,5 @@ export const INDEXES: readonly IndexDefinition[] = [
   { name: "PersonIndex", pk: "cognitoSub", sk: "none", answers: "Resolving the signed-in person on every request" },
   { name: "OutboxIndex", pk: "outboxShard", sk: "createdAt", answers: "Change capture into the FIFO outbox, keyed on appointment id" },
   { name: "DirectoryIndex", pk: "directoryKey", sk: "directorySort", answers: "A tenant's clinicians, clinics, offered types and staff" },
+  { name: "MessageDayIndex", pk: "messageDay", sk: "messageSort", answers: "A day's messages by when they went out: a unit's log and the delivery figures" },
 ];

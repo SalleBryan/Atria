@@ -48,7 +48,7 @@ def scope_for(role: str, permission: Permission) -> Scope:
 
 def widest_scope(principal: Principal, permission: Permission) -> Scope:
     """The widest scope any of the principal's roles grants for this permission."""
-    scopes = [scope_for(role, permission) for role in principal.roles]
+    scopes = [scope_for(role, permission) for role in principal.acting_roles]
     return max(scopes, key=lambda s: SCOPE_RANK[s], default="none")
 
 
@@ -60,7 +60,7 @@ def permissions_for(role: str) -> dict[Permission, Scope]:
 def granted_to(principal: Principal) -> dict[Permission, Scope]:
     """Every permission the principal's roles grant, widest scope winning."""
     granted: dict[Permission, Scope] = {}
-    for role in principal.roles:
+    for role in principal.acting_roles:
         for permission, scope in permissions_for(role).items():
             held = granted.get(permission)
             if held is None or SCOPE_RANK[scope] > SCOPE_RANK[held]:

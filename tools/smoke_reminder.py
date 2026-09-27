@@ -131,13 +131,8 @@ def call(url: str, token: str, *, method: str = "GET", body: object = None) -> t
 
 
 def sign_in(idp, pool: str, client: str, username: str, password: str) -> str:  # noqa: ANN001
-    result = idp.admin_initiate_auth(
-        UserPoolId=pool,
-        ClientId=client,
-        AuthFlow="ADMIN_USER_PASSWORD_AUTH",
-        AuthParameters={"USERNAME": username, "PASSWORD": password},
-    )
-    return str(result["AuthenticationResult"]["AccessToken"])
+    """An administrator answers an authenticator challenge; devkit handles it."""
+    return devkit.sign_in(idp, pool, client, username, password)
 
 
 def ensure_admin(idp, pool: str) -> str:  # noqa: ANN001  boto3 client

@@ -36,6 +36,7 @@ KEYS = [
     ('Feedback', 'TENANT#t#APPT#id', 'FEEDBACK', 'Main'),
     ('Reminder', 'TENANT#t#APPT#id', 'REMINDER#sendAt', 'Main'),
     ('Message log', 'TENANT#t#MSG#yyyy-mm-dd', 'sentAt#messageId', 'Main'),
+    ('Provider message', 'PROVIDER#providerMessageId', 'MESSAGE', 'Main'),
     ('Audit entry', 'TENANT#t#AUDIT#yyyy-mm-dd', 'ts#auditId', 'Main'),
     ('Idempotency record', 'TENANT#t#IDEM#key', 'RECORD', 'Main'),
     ('Care context', 'TENANT#t#APPT#id', 'CARE', 'Care context table, own key, TTL'),
@@ -48,7 +49,15 @@ INDEXES = [
     ('PersonIndex', 'cognitoSub', 'none', 'Resolving the signed-in person on every request'),
     ('OutboxIndex', 'outboxShard', 'createdAt', 'Change capture into the FIFO outbox, keyed on appointment id'),
     ('DirectoryIndex', 'directoryKey', 'directorySort', "A tenant's clinicians, clinics, offered types and staff"),
+    ('MessageDayIndex', 'messageDay', 'messageSort',
+     "A day's messages by when they went out: a unit's log and the delivery figures"),
 ]
+
+# MessageDayIndex is sparse too. A message log row is filed under the day it
+# was queued, which for a reminder is the day of the booking, so a row joins
+# this index only once it settles, under TENANT#<t>#MSGDAY#<day it settled>
+# and sorted unit#settledAt#messageLogId. A reminder still waiting is in no
+# day's log until it goes.
 
 # DirectoryIndex holds four lists per tenant, each its own partition:
 # TENANT#<t>#CLINICIAN, TENANT#<t>#CLINIC, TENANT#<t>#TYPE and TENANT#<t>#STAFF

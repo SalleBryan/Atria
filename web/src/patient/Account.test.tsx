@@ -83,9 +83,19 @@ describe("Account", () => {
     expect(screen.getAllByText("Closed").length).toBe(6);
   });
 
-  it("signs out", async () => {
+  it("signs out of this device", async () => {
     const signOut = renderAccount();
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Sign out" }));
-    expect(signOut).toHaveBeenCalled();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Sign out" }));
+    await user.click(screen.getByRole("menuitem", { name: /This device/ }));
+    expect(signOut).toHaveBeenCalledWith({ everywhere: false });
+  });
+
+  it("signs out of every device (FR-ACC-12)", async () => {
+    const signOut = renderAccount();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Sign out" }));
+    await user.click(screen.getByRole("menuitem", { name: /All devices/ }));
+    expect(signOut).toHaveBeenCalledWith({ everywhere: true });
   });
 });

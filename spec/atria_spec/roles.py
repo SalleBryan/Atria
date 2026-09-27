@@ -111,6 +111,10 @@ MATRIX = {
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"tenant"},
  "message.send":            {"PATIENT":"none","RECEPTIONIST":"clinic","CLINICIAN":"own",
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"tenant"},
+ # The message log, failed reminders first, so the desk can phone those
+ # patients (FR-MSG-05), and the delivery figures (FR-MSG-06).
+ "message.read":            {"PATIENT":"none","RECEPTIONIST":"clinic","CLINICIAN":"none",
+                             "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"tenant"},
 }
 
 # Rules the matrix alone cannot express. Evaluated by the authoriser after the

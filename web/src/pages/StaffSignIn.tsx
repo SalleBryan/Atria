@@ -54,6 +54,11 @@ export function StaffSignIn() {
         navigate("/staff/first-sign-in");
         return;
       }
+      if (result.nextStep.signInStep === "CONFIRM_SIGN_IN_WITH_TOTP_CODE") {
+        // An administrator with an authenticator (FR-ACC-11).
+        navigate("/staff/authenticator", { state: { email: username } });
+        return;
+      }
       if (!result.isSignedIn) {
         setError("This account needs a step the console does not support yet. Contact your administrator.");
         return;

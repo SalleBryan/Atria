@@ -1636,3 +1636,39 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   .account-row.reports-unit-row { grid-template-columns: minmax(0, 1fr) 120px; }
   .reports-unit-row > span:not(.roster-load) { display: none; }
 }
+
+/* Messages (Messages.tsx): the unit's log, failures first, and the delivery figures. */
+.messages-page { height: 100%; }
+.messages-banner { margin: 0; }
+.accounts-head.messages-head,
+.account-row.message-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 180px 170px; }
+.accounts-head.messages-head > :first-child { padding-left: 0; }
+.message-row-failed { border-color: rgba(214, 69, 69, 0.28); background: rgba(255, 244, 244, 0.9); }
+.message-kind { display: inline-flex; align-items: center; gap: 6px; }
+.message-kind svg { flex: none; color: var(--ink-muted); }
+.message-phone { color: var(--blue-600); font-weight: 600; text-decoration: none; }
+.message-phone:hover { text-decoration: underline; }
+.message-visit { font-size: 13px; font-weight: 600; color: var(--ink-800); text-decoration: none; }
+.message-visit:hover { text-decoration: underline; }
+.message-status { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.message-why { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+.messages-cols { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 16px; flex: 1; min-height: 0; }
+.accounts-head.messages-days-head,
+.account-row.messages-day-row { grid-template-columns: minmax(0, 1fr) 70px 100px 80px 90px 90px; }
+.accounts-head.messages-days-head > :first-child { padding-left: 0; }
+.account-row.messages-day-row { min-height: 52px; font-size: 13px; color: var(--ink-800); }
+@media (max-width: 1199px) {
+  .messages-cols { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 767px) {
+  .messages-page { height: auto; }
+  .account-row.message-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .message-row > :nth-child(2),
+  .message-row > :nth-child(3),
+  .accounts-head.messages-head { display: none; }
+  .account-row.messages-day-row { grid-template-columns: minmax(0, 1fr) 90px 90px; }
+  .messages-day-row > :nth-child(2),
+  .messages-day-row > :nth-child(4),
+  .messages-day-row > :nth-child(6),
+  .accounts-head.messages-days-head { display: none; }
+}

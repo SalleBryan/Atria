@@ -10,6 +10,10 @@ not 24 elapsed hours.
 A booking made inside the lead time gets no reminder, because the time it would
 fire has already passed. The patient is sent a confirmation by SMS straight
 away instead (FR-REM-06).
+
+A tenant may add a second reminder, a few hours before the visit (FR-ADM-03).
+It is arranged beside the first, on its own schedule and log row, and only
+while its time is still to come.
 """
 
 from __future__ import annotations
@@ -47,6 +51,21 @@ def lead_for(tenant: dict[str, object]) -> dt.timedelta:
     except ValueError:
         hours = 24
     return dt.timedelta(hours=min(max(hours, 1), MAX_LEAD_HOURS))
+
+
+# The second reminder goes at most this long before the visit (FR-ADM-03).
+MAX_SECOND_HOURS = 12
+
+
+def second_lead_for(tenant: dict[str, object]) -> dt.timedelta | None:
+    """The tenant's second reminder lead, or None where it has none."""
+    try:
+        hours = int(str(tenant.get("secondReminderHours") or 0))
+    except ValueError:
+        return None
+    if hours <= 0:
+        return None
+    return dt.timedelta(hours=min(hours, MAX_SECOND_HOURS))
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +111,14 @@ def schedule_name(appointment_id: str) -> str:
     producing a second reminder.
     """
     name = f"reminder-{appointment_id}"
+    if not _NAME.match(name):
+        raise Invalid("that appointment identifier cannot name a schedule")
+    return name
+
+
+def second_schedule_name(appointment_id: str) -> str:
+    """The second reminder's schedule, derived the same way as the first's."""
+    name = f"reminder2-{appointment_id}"
     if not _NAME.match(name):
         raise Invalid("that appointment identifier cannot name a schedule")
     return name

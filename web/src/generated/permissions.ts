@@ -50,6 +50,7 @@ export const PERMISSIONS = [
   "audit.read",
   "report.read",
   "message.send",
+  "message.read",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -89,6 +90,7 @@ export const MATRIX: Record<Permission, Record<Role, Scope>> = {
   "audit.read": { PATIENT: "none", RECEPTIONIST: "none", CLINICIAN: "none", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "tenant" },
   "report.read": { PATIENT: "none", RECEPTIONIST: "none", CLINICIAN: "own", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "tenant" },
   "message.send": { PATIENT: "none", RECEPTIONIST: "clinic", CLINICIAN: "own", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "tenant" },
+  "message.read": { PATIENT: "none", RECEPTIONIST: "clinic", CLINICIAN: "none", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "tenant" },
 };
 
 export const LANDING: Record<Role, string> = {

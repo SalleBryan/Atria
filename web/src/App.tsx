@@ -9,6 +9,7 @@ import { Landing } from "./pages/Landing";
 import { VerifyEmail } from "./pages/VerifyEmail";
 import { PatientSignIn } from "./pages/PatientSignIn";
 import { ResetPassword } from "./pages/ResetPassword";
+import { StaffAuthenticatorCode } from "./pages/StaffAuthenticator";
 import { StaffFirstSignIn } from "./pages/StaffFirstSignIn";
 import { StaffSignIn } from "./pages/StaffSignIn";
 import { patientRoutes } from "./patient/routes";
@@ -47,6 +48,7 @@ export function App() {
       <Route path="/reset-password" element={<SignedOutOnly><ResetPassword /></SignedOutOnly>} />
       <Route path="/staff/sign-in" element={<SignedOutOnly><StaffSignIn /></SignedOutOnly>} />
       <Route path="/staff/first-sign-in" element={<StaffFirstSignIn />} />
+      <Route path="/staff/authenticator" element={<StaffAuthenticatorCode />} />
       <Route path="/staff/reset-password" element={<SignedOutOnly><ResetPassword audience="staff" /></SignedOutOnly>} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       {staffRoutes}

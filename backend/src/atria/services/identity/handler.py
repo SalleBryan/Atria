@@ -73,6 +73,9 @@ def me(principal: Principal) -> dict[str, Any]:
         "languages": list(principal.languages),
         "permissions": permissions.granted_to(principal),
         "landing": [permissions.landing_for(role) for role in principal.roles],
+        # FR-ACC-11: the console asks an administrator to set up an
+        # authenticator before anything else, and their role acts only after.
+        "secondFactorRequired": principal.needs_second_factor,
     }
 
 

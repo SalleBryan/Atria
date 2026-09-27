@@ -51,6 +51,10 @@ SENDER_NAME = "Atria"
 # site is hosted, and then an email simply has no button.
 APP_URL = os.environ.get("APP_URL", "")
 
+# SES reports what became of each email through this configuration set
+# (FR-MSG-04). Unset, an email is still sent, and simply reported on by no one.
+CONFIGURATION_SET = os.environ.get("NOTICE_CONFIGURATION_SET", "")
+
 SCHEDULE_GROUP = os.environ.get("SCHEDULE_GROUP", "")
 SCHEDULER_ROLE_ARN = os.environ.get("SCHEDULER_ROLE_ARN", "")
 OUTBOX_QUEUE_ARN = os.environ.get("OUTBOX_QUEUE_ARN", "")
@@ -213,16 +217,19 @@ def provider_send(notice: notices.Notice, recipient: str) -> str:
         body = {"Text": {"Data": notice.body, "Charset": "UTF-8"}}
         if notice.html:
             body["Html"] = {"Data": notice.html, "Charset": "UTF-8"}
-        response = ses().send_email(
-            FromEmailAddress=formataddr((SENDER_NAME, SENDER)),
-            Destination={"ToAddresses": [recipient]},
-            Content={
+        request: dict[str, Any] = {
+            "FromEmailAddress": formataddr((SENDER_NAME, SENDER)),
+            "Destination": {"ToAddresses": [recipient]},
+            "Content": {
                 "Simple": {
                     "Subject": {"Data": notice.subject, "Charset": "UTF-8"},
                     "Body": body,
                 }
             },
-        )
+        }
+        if CONFIGURATION_SET:
+            request["ConfigurationSetName"] = CONFIGURATION_SET
+        response = ses().send_email(**request)
         return str(response.get("MessageId") or "")
     response = sns().publish(
         PhoneNumber=recipient,
@@ -289,6 +296,7 @@ def send_notice(
                 message_log_id=log_id,
                 at=log_at,
                 reminder_id=reminder_id,
+                clinic_id=appointment.get("clinicId"),
             )
             messages().failed(log, reason=f"no {channel.lower()} address at send time")
         return "no-address"
@@ -304,6 +312,7 @@ def send_notice(
         message_log_id=log_id,
         at=log_at,
         reminder_id=reminder_id,
+        clinic_id=appointment.get("clinicId"),
     )
     try:
         provider_id = provider_send(notice, recipient)
@@ -332,9 +341,9 @@ def send_notice(
 
 # ---------------------------------------------------------------- reminders
 def schedule_reminder(job: dict[str, Any], *, queued_at: dt.datetime | None) -> str:
-    """Arrange the reminder for a new booking, or confirm by SMS if it is too late.
+    """Arrange the reminders for a new booking, or confirm by SMS if it is too late.
 
-    Every step is safe to repeat. The schedule's name is derived from the
+    Every step is safe to repeat. A schedule's name is derived from the
     appointment, so a retry cannot create a second one, and the log row's
     identity comes from that name and from when this job was first queued.
     """
@@ -352,24 +361,58 @@ def schedule_reminder(job: dict[str, Any], *, queued_at: dt.datetime | None) -> 
     if start is None:  # pragma: no cover  every appointment has a start
         return "skipped"
     zone = zone_for(tenant_id)
-    decided = reminders.plan(
-        start, now=data.now(), zone=zone, lead=reminders.lead_for(data.tenant(tenant_id))
-    )
+    tenant = data.tenant(tenant_id)
+    logged_at = queued_at or data.now()
+    decided = reminders.plan(start, now=data.now(), zone=zone, lead=reminders.lead_for(tenant))
 
     if decided.send_now:
         # FR-REM-06: too close for a reminder, so the confirmation goes by SMS
         # now instead of a reminder later.
-        return send_notice(
+        outcome = send_notice(
             {**job, "kind": notices.BOOKING_CONFIRMATION, "channel": "SMS"},
             message_id=f"now-{appointment_id}",
             queued_at=queued_at,
         )
+    else:
+        arrange(
+            tenant_id,
+            appointment,
+            name=reminders.schedule_name(appointment_id),
+            fire_at=decided.fire_at,
+            logged_at=logged_at,
+        )
+        outcome = "scheduled"
 
-    name = reminders.schedule_name(appointment_id)
-    logged_at = queued_at or data.now()
+    # FR-ADM-03: the tenant's second reminder, while its time is still to come.
+    second = reminders.second_lead_for(tenant)
+    if second is not None:
+        when = reminders.fire_at(start, zone=zone, lead=second)
+        if when > data.now():
+            arrange(
+                tenant_id,
+                appointment,
+                name=reminders.second_schedule_name(appointment_id),
+                fire_at=when,
+                logged_at=logged_at,
+                second=True,
+            )
+    return outcome
+
+
+def arrange(
+    tenant_id: str,
+    appointment: Item,
+    *,
+    name: str,
+    fire_at: dt.datetime,
+    logged_at: dt.datetime,
+    second: bool = False,
+) -> None:
+    """Log one reminder as SCHEDULED, create its one-time schedule, and keep its
+    reference on the appointment."""
+    appointment_id = str(appointment["appointmentId"])
     log_id = f"ml-{name}"
-
-    profile = data.patient_profile(tenant_id, str(appointment["patientProfileId"]))
+    profile = booking().patient_profile(tenant_id, str(appointment["patientProfileId"]))
     person, recipient = recipient_for(profile, "SMS")
     notice = compose_for(tenant_id, appointment, person, notices.APPOINTMENT_REMINDER, "SMS")
     messages().scheduled(
@@ -383,6 +426,7 @@ def schedule_reminder(job: dict[str, Any], *, queued_at: dt.datetime | None) -> 
         message_log_id=log_id,
         at=logged_at,
         reminder_id=name,
+        clinic_id=appointment.get("clinicId"),
     )
 
     body = {
@@ -410,7 +454,7 @@ def schedule_reminder(job: dict[str, Any], *, queued_at: dt.datetime | None) -> 
         scheduler().create_schedule(
             Name=name,
             GroupName=SCHEDULE_GROUP,
-            ScheduleExpression=reminders.at_expression(decided.fire_at),
+            ScheduleExpression=reminders.at_expression(fire_at),
             ScheduleExpressionTimezone="UTC",
             FlexibleTimeWindow={"Mode": "OFF"},
             # A one-time schedule removes itself once it has fired.
@@ -425,19 +469,19 @@ def schedule_reminder(job: dict[str, Any], *, queued_at: dt.datetime | None) -> 
     # FR-REM-01: the reference is stored on the appointment. Setting the same
     # values again on a retry is harmless, and the state is untouched, so the
     # change stream sees nothing it owes a notice for.
-    data.record_reminder(
+    booking().record_reminder(
         tenant_id,
         appointment_id,
         schedule=name,
-        fire_at=decided.fire_at,
+        fire_at=fire_at,
         message_log_id=log_id,
         logged_at=body["loggedAt"],
+        second=second,
     )
     logger.info(
         "reminder scheduled",
         extra={"appointmentId": appointment_id, "fireAt": body["loggedAt"], "schedule": name},
     )
-    return "scheduled"
 
 
 def close_scheduled(log: Item, *, reason: str) -> None:
@@ -454,30 +498,34 @@ def close_scheduled(log: Item, *, reason: str) -> None:
 
 
 def cancel_reminder(job: dict[str, Any]) -> str:
-    """Remove a cancelled appointment's reminder, and log that it will not go.
+    """Remove a cancelled appointment's reminders, and log that they will not go.
 
     FR-VIS-04. A reminder that was never scheduled, because the booking came
-    inside the lead time or has already fired, is not an error: there is
-    simply nothing to remove.
+    inside the lead time, there is no second one, or it has already fired, is
+    not an error: there is simply nothing to remove.
     """
     tenant_id = str(job["tenantId"])
     appointment_id = str(job["appointmentId"])
     appointment = booking().appointment(tenant_id, appointment_id)
-    name = str(appointment.get("reminderSchedule") or reminders.schedule_name(appointment_id))
-    try:
-        scheduler().delete_schedule(Name=name, GroupName=SCHEDULE_GROUP)
-    except ClientError as exc:
-        if exc.response["Error"]["Code"] != "ResourceNotFoundException":
-            raise
-    close_scheduled(
-        {
-            "tenantId": tenant_id,
-            "sentAt": appointment.get("reminderLoggedAt"),
-            "messageLogId": appointment.get("reminderLogId"),
-        },
-        reason="the appointment was cancelled before the reminder was due",
-    )
-    logger.info("reminder cancelled", extra={"appointmentId": appointment_id, "schedule": name})
+    for prefix, default in (
+        ("reminder", reminders.schedule_name(appointment_id)),
+        ("secondReminder", reminders.second_schedule_name(appointment_id)),
+    ):
+        name = str(appointment.get(f"{prefix}Schedule") or default)
+        try:
+            scheduler().delete_schedule(Name=name, GroupName=SCHEDULE_GROUP)
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] != "ResourceNotFoundException":
+                raise
+        close_scheduled(
+            {
+                "tenantId": tenant_id,
+                "sentAt": appointment.get(f"{prefix}LoggedAt"),
+                "messageLogId": appointment.get(f"{prefix}LogId"),
+            },
+            reason="the appointment was cancelled before the reminder was due",
+        )
+        logger.info("reminder cancelled", extra={"appointmentId": appointment_id, "schedule": name})
     return "cancelled"
 
 

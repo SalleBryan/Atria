@@ -61,6 +61,14 @@ INDEXES = [
         ],
         "Projection": {"ProjectionType": "ALL"},
     },
+    {
+        "IndexName": "MessageDayIndex",
+        "KeySchema": [
+            {"AttributeName": "messageDay", "KeyType": "HASH"},
+            {"AttributeName": "messageSort", "KeyType": "RANGE"},
+        ],
+        "Projection": {"ProjectionType": "ALL"},
+    },
 ]
 
 ATTRIBUTES = [
@@ -73,6 +81,8 @@ ATTRIBUTES = [
     {"AttributeName": "clinicDay", "AttributeType": "S"},
     {"AttributeName": "directoryKey", "AttributeType": "S"},
     {"AttributeName": "directorySort", "AttributeType": "S"},
+    {"AttributeName": "messageDay", "AttributeType": "S"},
+    {"AttributeName": "messageSort", "AttributeType": "S"},
 ]
 
 

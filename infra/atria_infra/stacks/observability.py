@@ -107,6 +107,7 @@ class ObservabilityStack(Stack):
             "patients": api.patient_service,
             "dispatcher": async_.dispatcher,
             "sender": async_.sender,
+            "delivery-status": async_.status,
         }
         for name, function in functions.items():
             if name != "authoriser":  # its errors are alarmed above, as a refusal of every request
@@ -148,6 +149,7 @@ class ObservabilityStack(Stack):
             "outbox": async_.outbox_dead_letters,
             "stream": async_.stream_failures,
             "reminder": async_.reminder_failures,
+            "delivery-report": async_.report_failures,
         }
         for name, queue in dead_letters.items():
             alarms.append(

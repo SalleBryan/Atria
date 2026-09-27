@@ -224,26 +224,24 @@ class TestWeeklyReport:
                 "2026-03-06T08:00:00Z",
             )
         ]
-        repository.put(
-            keys.message_log(TENANT, "2026-03-03", "2026-03-03T08:00:00Z", "ml-1"),
-            {
-                "type": "MESSAGE_LOG",
-                "tenantId": TENANT,
-                "appointmentId": made[0]["appointmentId"],
-                "kind": "APPOINTMENT_REMINDER",
-                "deliveryState": "SENT",
-            },
-        )
-        repository.put(
-            keys.message_log(TENANT, "2026-03-03", "2026-03-03T09:00:00Z", "ml-2"),
-            {
-                "type": "MESSAGE_LOG",
-                "tenantId": TENANT,
-                "appointmentId": made[1]["appointmentId"],
-                "kind": "APPOINTMENT_REMINDER",
-                "deliveryState": "FAILED",
-            },
-        )
+        # Arranged when booked, weeks before: the row is filed under that day,
+        # and the appointment points at it (FR-REM-01).
+        for n, state in ((0, "SENT"), (1, "FAILED")):
+            logged = f"2026-02-0{n + 1}T08:00:00Z"
+            repository.put(
+                keys.message_log(TENANT, logged[:10], logged, f"ml-{n}"),
+                {
+                    "type": "MESSAGE_LOG",
+                    "tenantId": TENANT,
+                    "appointmentId": made[n]["appointmentId"],
+                    "kind": "APPOINTMENT_REMINDER",
+                    "deliveryState": state,
+                },
+            )
+            key = keys.appointment(TENANT, made[n]["appointmentId"])
+            repository.put(
+                key, {**repository.get(key), "reminderLogId": f"ml-{n}", "reminderLoggedAt": logged}
+            )
         CLOCK["now"] = dt.datetime(2026, 3, 5, 7, 0, tzinfo=dt.UTC)
         act(made[0]["appointmentId"], "arrive", staff_context())
         act(made[0]["appointmentId"], "start", doctor(clinician))

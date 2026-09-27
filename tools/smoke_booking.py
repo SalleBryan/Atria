@@ -175,15 +175,8 @@ def ensure_admin(idp, pool_id: str) -> str:  # noqa: ANN001  boto3 client
 
 
 def sign_in(idp, pool_id: str, client_id: str, username: str, password: str) -> str:  # noqa: ANN001
-    response = idp.admin_initiate_auth(
-        UserPoolId=pool_id,
-        ClientId=client_id,
-        AuthFlow="ADMIN_USER_PASSWORD_AUTH",
-        AuthParameters={"USERNAME": username, "PASSWORD": password},
-    )
-    if "AuthenticationResult" not in response:
-        raise SystemExit(f"sign-in needs a challenge: {response.get('ChallengeName')}")
-    return str(response["AuthenticationResult"]["AccessToken"])
+    """An administrator answers an authenticator challenge; devkit handles it."""
+    return devkit.sign_in(idp, pool_id, client_id, username, password)
 
 
 def call(

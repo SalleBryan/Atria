@@ -159,6 +159,14 @@ def message_log(tenant_id: str, day: str, sent_at: str, message_id: str) -> Key:
     return Key(f"{TENANT}{tenant_id}#MSG#{day}", f"{sent_at}#{message_id}")
 
 
+def provider_message(provider_message_id: str) -> Key:
+    """Where a provider's message identifier points back to its log row.
+
+    A delivery report names only the provider's identifier, and an SMS report
+    not even the tenant, so this is the one message key outside a tenant."""
+    return Key(f"PROVIDER#{provider_message_id}", "MESSAGE")
+
+
 def idempotency(tenant_id: str, key: str) -> Key:
     """One record per idempotency key, per tenant.
 

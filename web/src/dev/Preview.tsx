@@ -8,6 +8,7 @@
  *     http://localhost:5173/__preview?as=clinician          a clinician's own calendar
  *     http://localhost:5173/__preview?as=manager            a clinic manager
  *     http://localhost:5173/__preview?as=admin              a tenant administrator
+ *     http://localhost:5173/__preview?as=admin-new          one yet to set up an authenticator
  *
  * It exists so screens can be looked at and clicked through without anyone
  * signing in with a real password. main.tsx loads it only on the dev server
@@ -130,6 +131,8 @@ const PEOPLE: Record<string, Me> = {
     languages: ["fr", "en"],
   },
 };
+// FR-ACC-11: the console asks for an authenticator before anything else.
+PEOPLE["admin-new"] = { ...PEOPLE.admin!, secondFactorRequired: true };
 
 export default function Preview() {
   const query = new URLSearchParams(window.location.search);

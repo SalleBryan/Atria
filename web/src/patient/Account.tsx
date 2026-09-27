@@ -12,6 +12,7 @@
 import { type ComponentType, useState } from "react";
 
 import { useSession } from "../auth/session";
+import { SignOutMenu } from "../components/SignOutMenu";
 import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Mail, Phone, Pin, Shield, User } from "../components/icons";
 import { useTier } from "../layout/fit";
 import { clock, join, past, upcoming, usePatientData } from "./data";
@@ -49,7 +50,7 @@ function masked(phone: string | null | undefined): string {
 }
 
 export function Account() {
-  const { state: session, signOut } = useSession();
+  const { state: session } = useSession();
   const { state } = usePatientData();
   const [section, setSection] = useState<Section>("details");
   // On a phone (Mobile · Account, 41:2) the sections are a menu, each opening
@@ -117,9 +118,7 @@ export function Account() {
             </button>
           ))}
         </nav>
-        <button type="button" className="outline-danger sign-out" onClick={() => void signOut()}>
-          Sign out
-        </button>
+        <SignOutMenu className="outline-danger sign-out">Sign out</SignOutMenu>
       </section>
 
       <section className="find-detail glass account-detail" aria-labelledby="section-title" key={section}>

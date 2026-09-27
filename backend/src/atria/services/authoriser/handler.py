@@ -13,6 +13,7 @@ service calls core.permissions.require with the subject to decide that.
 from __future__ import annotations
 
 import os
+import time
 from typing import Any
 
 from aws_lambda_powertools import Logger
@@ -26,6 +27,11 @@ logger = Logger(service="atria-authoriser")
 
 ISSUER = os.environ.get("COGNITO_ISSUER", "")
 AUDIENCES = tuple(a for a in os.environ.get("COGNITO_CLIENT_IDS", "").split(",") if a)
+
+# An administrator signs in again after this long, however often the session
+# refreshed in between (FR-ACC-10). The administration client's refresh token
+# lives a day; this holds the staff client to the same for an administrator.
+ADMIN_SESSION_SECONDS = 24 * 3600
 
 
 def bearer_token(event: dict[str, Any]) -> str:
@@ -87,7 +93,15 @@ def context_for(principal: Principal) -> dict[str, str]:
         "phoneVerified": "true" if principal.phone_verified else "false",
         "languages": ",".join(principal.languages),
         "permissions": ",".join(sorted(permissions.granted_to(principal))),
+        "secondFactor": "true" if principal.second_factor else "false",
     }
+
+
+def admin_session_expired(claims: token_module.Claims, now: float) -> bool:
+    """An administrator's sign-in is older than an administrator's session."""
+    if "TENANT_ADMIN" not in claims.roles or claims.auth_time is None:
+        return False
+    return now - claims.auth_time > ADMIN_SESSION_SECONDS
 
 
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
@@ -107,7 +121,11 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
             patient_profile_id=claims.patient_profile_id,
             phone_verified=claims.phone_verified,
             languages=claims.languages,
+            # Only an administrator's second factor is asked about.
+            second_factor=claims.second_factor or "TENANT_ADMIN" not in claims.roles,
         )
+        if admin_session_expired(claims, time.time()):
+            raise Unauthenticated("the administrator session has ended; sign in again")
     except Unauthenticated as exc:
         logger.info("denied", extra={"reason": exc.message})
         # A deny policy rather than a raised Unauthorized, so the caller gets

@@ -24,9 +24,13 @@ Development only. Every record written here is synthetic.
 
 from __future__ import annotations
 
+import base64
 import contextlib
+import hashlib
+import hmac
 import json
 import secrets
+import struct
 import time
 import urllib.error
 import urllib.request
@@ -122,17 +126,104 @@ def call(
 
 
 # ------------------------------------------------------------------ accounts
-def sign_in(idp: Any, pool_id: str, client_id: str, username: str, secret: str) -> str:
-    """The development admin password flow, which is enabled for dev alone."""
-    result = idp.admin_initiate_auth(
+TOTP_STEP = 30
+
+
+def totp(secret: str, at: float | None = None) -> str:
+    """The six digits an authenticator shows for this secret now (RFC 6238)."""
+    key = base64.b32decode(secret + "=" * (-len(secret) % 8), casefold=True)
+    counter = int((time.time() if at is None else at) // TOTP_STEP)
+    digest = hmac.new(key, struct.pack(">Q", counter), hashlib.sha1).digest()
+    offset = digest[-1] & 0x0F
+    value = struct.unpack(">I", digest[offset : offset + 4])[0] & 0x7FFFFFFF
+    return f"{value % 1_000_000:06d}"
+
+
+def next_step() -> None:
+    """Wait for a fresh code: Cognito refuses one it has already accepted."""
+    time.sleep(TOTP_STEP - time.time() % TOTP_STEP + 1)
+
+
+def _totp_parameter(username: str) -> str:
+    return f"/{PREFIX}/smoke/totp/{username.replace('@', '-at-')}"
+
+
+def _stored_totp(username: str) -> str | None:
+    ssm = boto3.client("ssm", region_name=REGION)
+    try:
+        found = ssm.get_parameter(Name=_totp_parameter(username), WithDecryption=True)
+    except ssm.exceptions.ParameterNotFound:
+        return None
+    return str(found["Parameter"]["Value"])
+
+
+def _enrol(idp: Any, pool_id: str, username: str, access_token: str) -> None:
+    """Give a synthetic administrator an authenticator, as the console does
+    for a real one (FR-ACC-11), and keep its secret for the next run."""
+    secret = str(idp.associate_software_token(AccessToken=access_token)["SecretCode"])
+    idp.verify_software_token(AccessToken=access_token, UserCode=totp(secret))
+    idp.admin_set_user_mfa_preference(
         UserPoolId=pool_id,
-        ClientId=client_id,
-        AuthFlow="ADMIN_USER_PASSWORD_AUTH",
-        AuthParameters={"USERNAME": username, "PASSWORD": secret},
+        Username=username,
+        SoftwareTokenMfaSettings={"Enabled": True, "PreferredMfa": True},
     )
-    if "AuthenticationResult" not in result:
-        raise SystemExit(f"sign-in needs a challenge: {result.get('ChallengeName')}")
-    return str(result["AuthenticationResult"]["AccessToken"])
+    boto3.client("ssm", region_name=REGION).put_parameter(
+        Name=_totp_parameter(username), Value=secret, Type="SecureString", Overwrite=True
+    )
+    print(f"authenticator set up for {username}")
+    next_step()
+
+
+def sign_in(idp: Any, pool_id: str, client_id: str, username: str, secret: str) -> str:
+    """The development admin password flow, which is enabled for dev alone.
+
+    An administrator acts only with a second factor (FR-ACC-11), so a
+    synthetic one is given an authenticator on first use and answers its
+    challenge from the stored secret after that."""
+    for _attempt in range(3):
+        result = idp.admin_initiate_auth(
+            UserPoolId=pool_id,
+            ClientId=client_id,
+            AuthFlow="ADMIN_USER_PASSWORD_AUTH",
+            AuthParameters={"USERNAME": username, "PASSWORD": secret},
+        )
+        if result.get("ChallengeName") == "SOFTWARE_TOKEN_MFA":
+            stored = _stored_totp(username)
+            if stored is None:
+                # Enrolled on another machine, or the secret was lost: start again.
+                idp.admin_set_user_mfa_preference(
+                    UserPoolId=pool_id,
+                    Username=username,
+                    SoftwareTokenMfaSettings={"Enabled": False, "PreferredMfa": False},
+                )
+                continue
+            try:
+                result = idp.admin_respond_to_auth_challenge(
+                    UserPoolId=pool_id,
+                    ClientId=client_id,
+                    ChallengeName="SOFTWARE_TOKEN_MFA",
+                    Session=result["Session"],
+                    ChallengeResponses={
+                        "USERNAME": username,
+                        "SOFTWARE_TOKEN_MFA_CODE": totp(stored),
+                    },
+                )
+            except idp.exceptions.CodeMismatchException:
+                next_step()  # this code was already used by an earlier sign-in
+                continue
+        if "AuthenticationResult" not in result:
+            raise SystemExit(f"sign-in needs a challenge: {result.get('ChallengeName')}")
+        token = str(result["AuthenticationResult"]["AccessToken"])
+        user = idp.admin_get_user(UserPoolId=pool_id, Username=username)
+        admin = any(
+            a["Name"] == "custom:roles" and "TENANT_ADMIN" in a["Value"]
+            for a in user.get("UserAttributes", [])
+        )
+        if admin and "SOFTWARE_TOKEN_MFA" not in (user.get("UserMFASettingList") or []):
+            _enrol(idp, pool_id, username, token)
+            continue
+        return token
+    raise SystemExit(f"could not sign in as {username}")
 
 
 def admin_token(idp: Any, pool_id: str, client_id: str, tenant_id: str = TENANT_ID) -> str:

@@ -17,6 +17,13 @@ provisioned.
 Roles reaching the token here is what makes a role change take effect at the
 next sign-in and not before (ADR 0015).
 
+An administrator's token also says whether their account has an
+authenticator enabled (FR-ACC-11). Cognito requires an enabled authenticator
+at every sign-in, so the account's setting is what the token reports. It is
+read from Cognito rather than from the table: a person could switch their
+authenticator off with their own access token, and the next token must then
+say so.
+
 Trigger version V2_0, which is what allows access token customisation.
 """
 
@@ -24,6 +31,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import boto3
 from atria_spec import roles as spec
 from aws_lambda_powertools import Logger
 
@@ -35,7 +43,35 @@ logger = Logger(service="atria-pre-token")
 CUSTOM = "custom:"
 ATTRIBUTE_CLAIMS = ("tenantId", "personId", "roles")
 
+# The roles whose token must say whether a second factor is enabled.
+SECOND_FACTOR_ROLES = frozenset({"TENANT_ADMIN"})
+TOTP = "SOFTWARE_TOKEN_MFA"
+
 _people: People | None = None
+_cognito: Any = None
+
+
+def cognito() -> Any:
+    global _cognito
+    if _cognito is None:
+        _cognito = boto3.client("cognito-idp")
+    return _cognito
+
+
+def totp_enabled(event: dict[str, Any]) -> bool:
+    """Whether the account behind this sign-in has an authenticator enabled.
+
+    A lookup that fails says no: the administrator then signs in without their
+    powers and is asked to set one up, which is safe, where saying yes on a
+    failure would not be."""
+    try:
+        user = cognito().admin_get_user(
+            UserPoolId=str(event.get("userPoolId") or ""), Username=str(event.get("userName") or "")
+        )
+    except Exception:
+        logger.exception("could not read the account's second factor")
+        return False
+    return TOTP in (user.get("UserMFASettingList") or [])
 
 
 def people() -> People:
@@ -116,6 +152,9 @@ def resolve_claims(event: dict[str, Any]) -> dict[str, str]:
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     """Write the caller into the access token and the id token."""
     claims = resolve_claims(event)
+    roles = set(claims.get("roles", "").split(","))
+    if roles & SECOND_FACTOR_ROLES and totp_enabled(event):
+        claims["secondFactor"] = "true"
     logger.info(
         "claims added",
         extra={"claims": sorted(claims), "trigger": event.get("triggerSource")},

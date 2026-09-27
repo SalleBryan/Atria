@@ -29,6 +29,8 @@ INDEX_KEYS = {
     # Sparse: only a bookable clinician profile carries directoryKey, so
     # suspending an account drops it out of the directory.
     "DirectoryIndex": ("directoryKey", "directorySort"),
+    # Sparse: a message log row joins it once it settles (FR-MSG-05, FR-MSG-06).
+    "MessageDayIndex": ("messageDay", "messageSort"),
 }
 
 

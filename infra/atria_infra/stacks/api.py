@@ -130,6 +130,19 @@ class ApiStack(Stack):
         data.main_table.grant_read_data(self.directory_service)
         # Except its own audit entries: a day list shows patients (FR-PRV-06).
         grant_audit_write(data.main_table, self.directory_service)
+        # The delivery figures name the sender identities and whether email and
+        # SMS are still in their sandboxes (FR-MSG-06). Reads of the account,
+        # which have no narrower resource; nothing that sends or changes it.
+        self.directory_service.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "ses:ListEmailIdentities",
+                    "ses:GetAccount",
+                    "sns:GetSMSSandboxAccountStatus",
+                ],
+                resources=["*"],
+            )
+        )
 
         self.availability_service = self._service(
             "AvailabilityService",
@@ -377,7 +390,8 @@ class ApiStack(Stack):
             )
         # The front desk's day, and who is working it.
         # The unit's week in figures (services/directory/report.py), read only.
-        for path in ("day", "roster", "report"):
+        # The unit's message log (services/directory/messages.py), FR-MSG-05.
+        for path in ("day", "roster", "report", "messages"):
             one_clinic.add_resource(path).add_method(
                 "GET",
                 directory_integration,
@@ -386,6 +400,13 @@ class ApiStack(Stack):
             )
 
         self.api.root.add_resource("reports").add_method(
+            "GET",
+            directory_integration,
+            authorizer=self.request_authoriser,
+            authorization_type=apigateway.AuthorizationType.CUSTOM,
+        )
+        # The administrator's delivery figures, FR-MSG-06.
+        self.api.root.add_resource("messages").add_resource("delivery").add_method(
             "GET",
             directory_integration,
             authorizer=self.request_authoriser,

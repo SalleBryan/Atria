@@ -146,3 +146,19 @@ input {
   outline: 3px solid rgba(74, 131, 240, 0.45);
   outline-offset: 2px;
 }
+
+/* One scrollbar everywhere (feedback 2026-09-27): slim, rounded, inset, and
+   no arrow buttons. Styled through ::-webkit-scrollbar only, because Chrome
+   ignores those styles on any element that also sets scrollbar-width and
+   draws its own, arrows included. Firefox, which has no ::-webkit-scrollbar,
+   gets the standard properties instead. A list that hides its bar
+   (scrollbar-width: none) still does. */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { border-radius: 99px; background: rgba(20, 45, 95, 0.22); }
+::-webkit-scrollbar-thumb:hover { background: rgba(20, 45, 95, 0.36); }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: rgba(20, 45, 95, 0.22) transparent; }
+}

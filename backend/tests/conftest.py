@@ -13,7 +13,9 @@ import boto3
 import pytest
 from moto import mock_aws
 
+from atria.data.audit import AuditLog
 from atria.data.repository import Repository
+from atria.http import audit
 
 TABLE_NAME = "atria-test-main"
 
@@ -107,6 +109,32 @@ def table(aws_credentials):
 @pytest.fixture
 def repository(table):
     return Repository(table=table)
+
+
+@pytest.fixture(autouse=True)
+def audit_log(request):
+    """Every staff request writes an audit entry; in a test, to the test table.
+
+    A test with no table gets a log that keeps entries in memory, so a service
+    test built on stubs still records, and can assert on what it recorded.
+    """
+    if "table" in request.fixturenames:
+        log = AuditLog(Repository(table=request.getfixturevalue("table")))
+    else:
+        log = MemoryAuditLog()
+    audit.use(log)
+    yield log
+    audit.use(None)
+
+
+class MemoryAuditLog(AuditLog):
+    def __init__(self) -> None:
+        super().__init__(repository=None)  # type: ignore[arg-type]
+        self.written: list[dict] = []
+
+    def record(self, item):
+        self.written.append(item)
+        return item
 
 
 @pytest.fixture

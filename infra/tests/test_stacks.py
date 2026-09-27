@@ -11,6 +11,7 @@ authorised), FR-TEN-01 (the single table design and its indexes) and ADR 0014
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import aws_cdk as cdk
@@ -312,7 +313,8 @@ class TestApiStack:
         assert ("/appointment-types", "GET") in served
 
     def test_the_directory_service_cannot_write(self, synthesised):
-        """It answers questions. Only a booking writes a lock."""
+        """It answers questions. Only a booking writes a lock; the directory
+        adds its own audit entries and nothing else."""
         template = template_for(synthesised, "api")
         functions = template.find_resources("AWS::Lambda::Function")
         directory_role = next(
@@ -326,6 +328,8 @@ class TestApiStack:
             for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
                 action = statement.get("Action")
                 actions = action if isinstance(action, list) else [action]
+                if "#AUDIT#" in json.dumps(statement.get("Condition", {})):
+                    continue
                 assert not any(a and "PutItem" in str(a) for a in actions)
 
     def test_the_staff_service_can_manage_pool_accounts(self, synthesised):
@@ -668,9 +672,9 @@ class TestAsyncStack:
 class TestObservabilityStack:
     def test_alarms_cover_errors_latency_and_the_authoriser(self, synthesised):
         template = template_for(synthesised, "observability")
-        # The API's three, errors for seven functions, throttles for eight, four
+        # The API's three, errors for eight functions, throttles for nine, four
         # table throttles, three dead letter queues, SES bounces and SMS spend.
-        template.resource_count_is("AWS::CloudWatch::Alarm", 3 + 7 + 8 + 4 + 3 + 2)
+        template.resource_count_is("AWS::CloudWatch::Alarm", 3 + 8 + 9 + 4 + 3 + 2)
 
     def test_every_alarm_notifies_the_topic(self, synthesised):
         template = template_for(synthesised, "observability")
@@ -753,3 +757,56 @@ def test_availability_has_its_own_writing_function(synthesised: cdk.App) -> None
     assert ("/clinicians/{id}/hours", "PUT") in served
     assert ("/clinicians/{id}/time-off", "POST") in served
     assert ("/clinicians/{id}/time-off/{groupId}", "DELETE") in served
+
+
+def test_the_audit_log_is_read_and_exported(synthesised: cdk.App) -> None:
+    served = routes(template_for(synthesised, "api"))
+    assert ("/audit", "GET") in served
+    assert ("/audit/export", "GET") in served
+
+
+def audit_statements(template: Template, effect: str) -> list[dict[str, Any]]:
+    found = []
+    for policy in template.find_resources("AWS::IAM::Policy").values():
+        for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
+            condition = json.dumps(statement.get("Condition", {}))
+            if statement.get("Effect") == effect and "#AUDIT#" in condition:
+                found.append(statement)
+    return found
+
+
+def test_no_function_can_change_or_remove_an_audit_entry(synthesised: cdk.App) -> None:
+    """FR-ADM-04: every policy that grants table writes also denies them on the audit partitions."""
+    checked = 0
+    for stack in ("api", "async", "identity"):
+        for policy in template_for(synthesised, stack).find_resources("AWS::IAM::Policy").values():
+            statements = policy["Properties"]["PolicyDocument"]["Statement"]
+            writes = any(
+                "dynamodb:UpdateItem" in json.dumps(st.get("Action")) and st.get("Effect") == "Allow"
+                for st in statements
+            )
+            if not writes:
+                continue
+            checked += 1
+            denies = [
+                st
+                for st in statements
+                if st.get("Effect") == "Deny" and "#AUDIT#" in json.dumps(st.get("Condition", {}))
+            ]
+            assert len(denies) == 1
+            assert set(denies[0]["Action"]) == {
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:BatchWriteItem",
+            }
+    # Identity, staff, booking, availability, the sender and post confirmation at least.
+    assert checked >= 6
+
+
+def test_read_only_functions_may_only_add_audit_entries(synthesised: cdk.App) -> None:
+    allows = audit_statements(template_for(synthesised, "api"), "Allow")
+    # The directory (day lists) and the audit service (exports).
+    assert len(allows) == 2
+    for statement in allows:
+        assert statement["Action"] == "dynamodb:PutItem"
+        assert "ForAllValues:StringLike" in statement["Condition"]

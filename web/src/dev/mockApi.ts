@@ -34,7 +34,13 @@ const clinics = [
   },
   { clinicId: "u-rhb-medicine", name: "Medical Outpatient Unit", address: HOSPITAL, phone: "+1 202 555 0151", openingHours: WEEKDAYS },
   { clinicId: "u-rhb-paediatrics", name: "Paediatrics Unit", address: HOSPITAL, phone: "+1 202 555 0152", openingHours: WEEKDAYS },
-  { clinicId: "u-rhb-maternity", name: "Maternity and Gynaecology Unit", address: HOSPITAL, phone: "+1 202 555 0153", openingHours: WEEKDAYS },
+  {
+    clinicId: "u-rhb-maternity",
+    name: "Maternity and Gynaecology Unit",
+    address: HOSPITAL,
+    phone: "+1 202 555 0153",
+    openingHours: WEEKDAYS,
+  },
   { clinicId: "u-rhb-eye", name: "Eye Unit", address: HOSPITAL, phone: "+1 202 555 0154", openingHours: WEEKDAYS },
 ];
 const clinicians = [
@@ -173,7 +179,9 @@ const appointments: Record<string, unknown>[] = [
 const clinicDate = (instant: unknown) => new Date(new Date(String(instant)).getTime() + OFFSET_MS).toISOString().slice(0, 10);
 
 function named(found: Record<string, unknown>[]) {
-  return Object.fromEntries(found.map((a) => [a.patientProfileId, patients[String(a.patientProfileId)] ?? { givenName: null, familyName: null }]));
+  return Object.fromEntries(
+    found.map((a) => [a.patientProfileId, patients[String(a.patientProfileId)] ?? { givenName: null, familyName: null }]),
+  );
 }
 
 const byStart = (a: Record<string, unknown>, b: Record<string, unknown>) => String(a.startAt).localeCompare(String(b.startAt));
@@ -205,10 +213,7 @@ function freeStarts(clinicianId: string, date: string, typeId: string) {
     if (when.getTime() < Date.now() + (type.minNoticeMinutes ?? 0) * 60000) continue;
     if (looksTaken(clinicianId, when)) continue;
     const clash = appointments.some(
-      (a) =>
-        a.clinicianProfileId === clinicianId &&
-        a.state === "BOOKED" &&
-        Math.abs(new Date(String(a.startAt)).getTime() - start) < held,
+      (a) => a.clinicianProfileId === clinicianId && a.state === "BOOKED" && Math.abs(new Date(String(a.startAt)).getTime() - start) < held,
     );
     if (clash) continue;
     slots.push({ startAt: iso(when), endAt: iso(new Date(start + type.durationUnits * GRID * 60000)) });
@@ -243,12 +248,20 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     const found = appointments
       .filter((a) => a.clinicId === day[1] && clinicDate(a.startAt) >= from && clinicDate(a.startAt) <= to)
       .sort(byStart);
-    return json(200, { clinicId: day[1], from, to, timezone: "Africa/Douala", count: found.length, appointments: found, patients: named(found) }, 380);
+    return json(
+      200,
+      { clinicId: day[1], from, to, timezone: "Africa/Douala", count: found.length, appointments: found, patients: named(found) },
+      380,
+    );
   }
   if (method === "GET" && day) {
     const date = url.searchParams.get("date") ?? clinicDate(new Date());
     const found = appointments.filter((a) => a.clinicId === day[1] && clinicDate(a.startAt) === date).sort(byStart);
-    return json(200, { clinicId: day[1], date, timezone: "Africa/Douala", count: found.length, appointments: found, patients: named(found) }, 380);
+    return json(
+      200,
+      { clinicId: day[1], date, timezone: "Africa/Douala", count: found.length, appointments: found, patients: named(found) },
+      380,
+    );
   }
   const calendar = path.match(/^\/clinicians\/([^/]+)\/calendar$/);
   if (method === "GET" && calendar) {
@@ -258,7 +271,20 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       .filter((a) => a.clinicianProfileId === calendar[1] && clinicDate(a.startAt) >= from && clinicDate(a.startAt) <= to)
       .sort(byStart);
     const clinicId = clinicians.find((c) => c.clinicianProfileId === calendar[1])?.clinicId;
-    return json(200, { clinicianProfileId: calendar[1], clinicId, from, to, timezone: "Africa/Douala", count: found.length, appointments: found, patients: named(found) }, 380);
+    return json(
+      200,
+      {
+        clinicianProfileId: calendar[1],
+        clinicId,
+        from,
+        to,
+        timezone: "Africa/Douala",
+        count: found.length,
+        appointments: found,
+        patients: named(found),
+      },
+      380,
+    );
   }
   const slots = path.match(/^\/clinicians\/([^/]+)\/slots$/);
   if (method === "GET" && slots && url.searchParams.get("from")) {
@@ -274,7 +300,17 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   if (method === "GET" && slots) {
     const date = url.searchParams.get("date") ?? "";
     const typeId = url.searchParams.get("typeId") ?? "";
-    return json(200, { clinicianProfileId: slots[1], date, appointmentTypeId: typeId, gridUnitMinutes: GRID, slots: freeStarts(slots[1] as string, date, typeId) }, 260);
+    return json(
+      200,
+      {
+        clinicianProfileId: slots[1],
+        date,
+        appointmentTypeId: typeId,
+        gridUnitMinutes: GRID,
+        slots: freeStarts(slots[1] as string, date, typeId),
+      },
+      260,
+    );
   }
   const one = path.match(/^\/appointments\/([^/]+)$/);
   if (one) {
@@ -301,15 +337,32 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     const held = (availability[id] ??= { hours: {}, timeOff: [] });
     if (method === "GET" && avail[2] === "availability") {
       const unitHours = Object.fromEntries([0, 1, 2, 3, 4].map((d) => [String(d), { start: "08:00", end: "16:00" }]));
-      return json(200, { clinicianProfileId: id, usesUnitHours: !Object.keys(held.hours).length, hours: held.hours, unitHours, timeOff: held.timeOff });
+      return json(200, {
+        clinicianProfileId: id,
+        usesUnitHours: !Object.keys(held.hours).length,
+        hours: held.hours,
+        unitHours,
+        timeOff: held.timeOff,
+      });
     }
     if (method === "PUT" && avail[2] === "hours") {
-      const days = ((body as { days?: Record<string, { start: string; end: string } | null> }).days ?? {}) as Record<string, { start: string; end: string } | null>;
+      const days = ((body as { days?: Record<string, { start: string; end: string } | null> }).days ?? {}) as Record<
+        string,
+        { start: string; end: string } | null
+      >;
       held.hours = Object.fromEntries(Object.entries(days).filter(([, v]) => v)) as Record<string, { start: string; end: string }>;
       return json(200, { clinicianProfileId: id, usesUnitHours: false, hours: held.hours }, 500);
     }
     if (method === "POST" && avail[2] === "time-off") {
-      const request = body as { kind: string; date?: string; from?: string; to?: string; startTime?: string; endTime?: string; reason: string };
+      const request = body as {
+        kind: string;
+        date?: string;
+        from?: string;
+        to?: string;
+        startTime?: string;
+        endTime?: string;
+        reason: string;
+      };
       const item = {
         groupId: `x-${Date.now()}`,
         kind: request.kind,
@@ -350,11 +403,61 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     found.version = Number(found.version) + 1;
     return json(200, found, 500);
   }
+  if (method === "GET" && path === "/audit") {
+    const { reachable, chosen } = auditSelection(url);
+    const limit = Number(url.searchParams.get("limit") ?? 50);
+    const offset = Number(url.searchParams.get("cursor") ?? 0);
+    const actors = new Map(reachable.map((e) => [e.actorPersonId, { personId: e.actorPersonId, name: e.actorName, role: e.actorRole }]));
+    return json(200, {
+      from: url.searchParams.get("from"),
+      to: url.searchParams.get("to"),
+      count: chosen.length,
+      nextCursor: offset + limit < chosen.length ? String(offset + limit) : null,
+      entries: chosen.slice(offset, offset + limit),
+      actors: [...actors.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      actions: [...new Set(reachable.map((e) => e.action))].sort(),
+    });
+  }
+  if (method === "GET" && path === "/audit/export") {
+    const { chosen } = auditSelection(url);
+    const rows = [
+      "occurredAt,actor,actorRole,action,kind,subjectType,subjectId,clinicId,patientProfileIds,reason,flags,ip",
+      ...chosen.map((e) =>
+        [
+          e.occurredAt,
+          e.actorName,
+          e.actorRole,
+          e.action,
+          e.kind,
+          e.subjectType,
+          e.subjectId,
+          e.clinicId,
+          "",
+          e.reason ?? "",
+          e.flags.join(" "),
+          e.source.ip,
+        ]
+          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+          .join(","),
+      ),
+    ];
+    return new Promise((resolve) =>
+      window.setTimeout(
+        () =>
+          resolve(
+            new Response(rows.join("\r\n"), {
+              status: 200,
+              headers: { "Content-Type": "text/csv", "Content-Disposition": 'attachment; filename="atria-audit-preview.csv"' },
+            }),
+          ),
+        500,
+      ),
+    );
+  }
   if (method === "GET" && path === "/admin/staff") {
     // Searched, filtered and paged as the API does it (atria.services.identity.staff.list_accounts).
     const sorted = [...staffAccounts].sort((a, b) => String(a.familyName).localeCompare(String(b.familyName)));
-    const statusOf = (a: Record<string, unknown>) =>
-      a.status === "SUSPENDED" ? "suspended" : a.mustSetPassword ? "awaiting" : "active";
+    const statusOf = (a: Record<string, unknown>) => (a.status === "SUSPENDED" ? "suspended" : a.mustSetPassword ? "awaiting" : "active");
     const count = (keyOf: (a: Record<string, unknown>) => string[]) =>
       sorted.reduce<Record<string, number>>((all, a) => {
         for (const key of keyOf(a)) all[key] = (all[key] ?? 0) + 1;
@@ -372,9 +475,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
             `${a.familyName} ${a.givenName}`,
             String(a.signInName),
             ...(a.roles as string[]).map((r) => ROLE_WORDS[r] ?? r.toLowerCase()),
-          ].some((f) =>
-            f.toLowerCase().includes(q),
-          )) &&
+          ].some((f) => f.toLowerCase().includes(q))) &&
         (!role || (a.roles as string[]).includes(role)) &&
         (!clinic || a.clinicId === clinic) &&
         (!status || statusOf(a) === status),
@@ -409,8 +510,16 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     return json(200, { ...found, note: "Sessions revoked." });
   }
   if (method === "POST" && path === "/admin/staff") {
-    const request = body as { givenName: string; familyName: string; phoneE164: string; email?: string; clinicId?: string; roles: string[] };
-    if (usedPhones.has(request.phoneE164)) return json(409, { code: "conflict", message: "that phone number or email is already in use" }, 600);
+    const request = body as {
+      givenName: string;
+      familyName: string;
+      phoneE164: string;
+      email?: string;
+      clinicId?: string;
+      roles: string[];
+    };
+    if (usedPhones.has(request.phoneE164))
+      return json(409, { code: "conflict", message: "that phone number or email is already in use" }, 600);
     usedPhones.add(request.phoneE164);
     staffAccounts.push({
       staffId: `s-${Math.random().toString(16).slice(2, 10)}`,
@@ -482,10 +591,24 @@ const staffAccounts: Record<string, unknown>[] = [
   ["s-gone", "Joyce", "Ebolo", "j.ebolo@example.com", "u-rhb-medicine", ["RECEPTIONIST"], "SUSPENDED", false],
   // Enough more to fill a few pages. Invented names, and 555-01xx numbers that reach nobody.
   ...[
-    ["Brice", "Tagne"], ["Chantal", "Ekambi"], ["Didier", "Foka"], ["Estelle", "Nana"], ["Fabrice", "Mvondo"],
-    ["Gisele", "Atangana"], ["Herve", "Kamga"], ["Ines", "Beyala"], ["Joel", "Essomba"], ["Laure", "Mbida"],
-    ["Marc", "Onana"], ["Nadege", "Ze"], ["Olivier", "Abena"], ["Patricia", "Ndzie"], ["Quentin", "Etoundi"],
-    ["Rose", "Messi"], ["Serge", "Bikoe"], ["Therese", "Mballa"],
+    ["Brice", "Tagne"],
+    ["Chantal", "Ekambi"],
+    ["Didier", "Foka"],
+    ["Estelle", "Nana"],
+    ["Fabrice", "Mvondo"],
+    ["Gisele", "Atangana"],
+    ["Herve", "Kamga"],
+    ["Ines", "Beyala"],
+    ["Joel", "Essomba"],
+    ["Laure", "Mbida"],
+    ["Marc", "Onana"],
+    ["Nadege", "Ze"],
+    ["Olivier", "Abena"],
+    ["Patricia", "Ndzie"],
+    ["Quentin", "Etoundi"],
+    ["Rose", "Messi"],
+    ["Serge", "Bikoe"],
+    ["Therese", "Mballa"],
   ].map(([given, family], i) => [
     `s-extra-${i}`,
     given,
@@ -506,6 +629,59 @@ const staffAccounts: Record<string, unknown>[] = [
   status,
   mustSetPassword,
 }));
+
+// The audit log (atria.services.audit.log): a spread of the last ten days, by
+// the preview's own staff. Invented, like everything here.
+const AUDIT_ACTORS = [
+  { personId: "p-desk", name: "Nadine Fotso", role: "RECEPTIONIST", clinicId: "u-rhb-medicine" },
+  { personId: "p-nkoulou", name: "Jean-Paul Nkoulou", role: "CLINICIAN", clinicId: "u-rhb-medicine" },
+  { personId: "p-manager", name: "Rodrigue Owona", role: "CLINIC_MANAGER", clinicId: "u-rhb-medicine" },
+  { personId: "p-admin", name: "Sandrine Eyenga", role: "TENANT_ADMIN", clinicId: null },
+];
+const AUDIT_KINDS: [string, "READ" | "WRITE", string, number, string | null][] = [
+  ["schedule.day", "READ", "CLINIC", 9, null],
+  ["appointment.read", "READ", "APPOINTMENT", 1, null],
+  ["appointment.arrive", "WRITE", "APPOINTMENT", 1, null],
+  ["appointment.reschedule", "WRITE", "APPOINTMENT", 1, "Patient asked for the afternoon"],
+  ["appointment.cancel", "WRITE", "APPOINTMENT", 1, "Clinician called away"],
+  ["schedule.calendar", "READ", "CLINICIAN", 6, null],
+  ["availability.time_off", "WRITE", "CLINICIAN", 0, "Conference in Douala"],
+  ["staff.update_roles", "WRITE", "STAFF", 0, null],
+];
+const auditEntries = Array.from({ length: 64 }, (_, i) => {
+  const actor = AUDIT_ACTORS[i % 3 === 2 && i % 9 === 8 ? 3 : i % 3]!;
+  const [action, kind, subjectType, patientCount, reason] = AUDIT_KINDS[(i * 5) % AUDIT_KINDS.length]!;
+  const occurredAt = new Date(Date.now() - i * 3.6 * 3600000 - 7 * 60000).toISOString();
+  return {
+    auditEntryId: `au-${i}`,
+    occurredAt,
+    actorPersonId: actor.personId,
+    actorName: actor.name,
+    actorRole: actor.role,
+    action,
+    kind,
+    subjectType,
+    subjectId: `${subjectType.toLowerCase()}-${i}`,
+    clinicId: actor.clinicId ?? "u-rhb-opd",
+    patientCount,
+    reason,
+    flags: i === 4 ? ["POTENTIAL_SELF_BENEFIT"] : [],
+    source: { ip: `196.202.${10 + (i % 4)}.${20 + (i % 7)}` },
+  };
+});
+
+function auditSelection(url: URL) {
+  const from = url.searchParams.get("from") ?? "0000";
+  const to = `${url.searchParams.get("to") ?? "9999"}T23:59:59Z`;
+  const actor = url.searchParams.get("actor");
+  const action = url.searchParams.get("action");
+  const kind = url.searchParams.get("kind");
+  const reachable = auditEntries.filter((e) => e.occurredAt >= from && e.occurredAt <= to);
+  const chosen = reachable.filter(
+    (e) => (!actor || e.actorPersonId === actor) && (!action || e.action === action) && (!kind || e.kind === kind),
+  );
+  return { from, reachable, chosen };
+}
 
 export function installMockApi(): void {
   const real = window.fetch.bind(window);

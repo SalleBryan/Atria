@@ -15,6 +15,7 @@ record.
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import Any
 
 from aws_lambda_powertools import Logger
@@ -24,10 +25,11 @@ from atria.core import lifecycle, permissions
 from atria.core.errors import AtriaError, Conflict, Invalid
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
+from atria.data.audit import POTENTIAL_SELF_BENEFIT
 from atria.data.booking import FUTURE_YEARS, HISTORY_YEARS, Booking
 from atria.data.idempotency import COMPLETED, Idempotency, validate_key
 from atria.data.repository import Repository
-from atria.http import paging, requests, responses
+from atria.http import audit, paging, requests, responses
 from atria.http.handler import api
 from atria.http.views import appointment_view
 
@@ -97,6 +99,39 @@ def subject_of(appointment: dict[str, Any]) -> Subject:
         clinician_profile_id=appointment.get("clinicianProfileId"),
         clinic_id=appointment.get("clinicId"),
     )
+
+
+# Guard REASONED_AND_AUDITED: how close the actor's own visit has to be to
+# the one they move or cancel for the entry to be flagged. Either side, with
+# the same clinician, which is the time a move could free up for them.
+SELF_BENEFIT_WINDOW = dt.timedelta(hours=24)
+
+# States in which the actor's own visit still holds time worth gaining.
+HOLDING = ("BOOKED", "CONFIRMED", "RESCHEDULED", "ARRIVED")
+
+
+def flag_self_benefit(caller: Principal, appointment: dict[str, Any], data: Booking) -> None:
+    """Flag a staff change made near the actor's own booking (POTENTIAL_SELF_BENEFIT).
+
+    Not a refusal: the flag puts the entry on the unit manager's list, where
+    a person decides whether it was what it looks like.
+    """
+    if not caller.is_staff or caller.patient_profile_id is None:
+        return
+    start = rules.parse_instant(appointment["startAt"], name="startAt")
+    own = data.appointments_for_patient(
+        caller.tenant_id,
+        caller.patient_profile_id,
+        since=rules.instant(start - SELF_BENEFIT_WINDOW),
+        until=rules.instant(start + SELF_BENEFIT_WINDOW),
+    )
+    if any(
+        a.get("clinicianProfileId") == appointment.get("clinicianProfileId")
+        and a.get("appointmentId") != appointment.get("appointmentId")
+        and a.get("state") in HOLDING
+        for a in own
+    ):
+        audit.note(POTENTIAL_SELF_BENEFIT)
 
 
 def mine(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
@@ -194,6 +229,7 @@ def cancel(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
         cancellation_window_minutes=int(appointment_type.get("cancellationWindowMinutes") or 0),
     )
 
+    flag_self_benefit(caller, appointment, data)
     cancelled, _event = data.cancel(
         tenant_id=principal.tenant_id,
         appointment=appointment,

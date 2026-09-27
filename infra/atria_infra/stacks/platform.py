@@ -15,6 +15,8 @@ import pathlib
 from typing import Any
 
 from aws_cdk import Duration, RemovalPolicy, Stack
+from aws_cdk import aws_dynamodb as dynamodb
+from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_logs as logs
 from constructs import Construct
@@ -24,6 +26,9 @@ from atria_infra.config import Environment
 # Must match infra/build.py.
 RUNTIME = lambda_.Runtime.PYTHON_3_13
 ARCHITECTURE = lambda_.Architecture.X86_64
+
+# The partitions audit entries live in (atria.data.keys.audit_entry).
+AUDIT_PARTITIONS = "TENANT#*#AUDIT#*"
 
 
 class PlatformStack(Stack):
@@ -94,4 +99,32 @@ def service_function(
         timeout=Duration.seconds(timeout_seconds),
         tracing=lambda_.Tracing.ACTIVE,
         log_group=log_group,
+    )
+
+
+def grant_table_write(table: dynamodb.ITable, function: lambda_.IFunction) -> None:
+    """Read and write on the table, except changing or removing an audit entry.
+
+    Every write grant goes through here, so no function can edit the past
+    whatever else it may do (FR-ADM-04). A deny outranks every allow.
+    """
+    table.grant_read_write_data(function)
+    function.add_to_role_policy(
+        iam.PolicyStatement(
+            effect=iam.Effect.DENY,
+            actions=["dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:BatchWriteItem"],
+            resources=[table.table_arn],
+            conditions={"ForAnyValue:StringLike": {"dynamodb:LeadingKeys": [AUDIT_PARTITIONS]}},
+        )
+    )
+
+
+def grant_audit_write(table: dynamodb.ITable, function: lambda_.IFunction) -> None:
+    """Let a read only function add audit entries, and write nothing else."""
+    function.add_to_role_policy(
+        iam.PolicyStatement(
+            actions=["dynamodb:PutItem"],
+            resources=[table.table_arn],
+            conditions={"ForAllValues:StringLike": {"dynamodb:LeadingKeys": [AUDIT_PARTITIONS]}},
+        )
     )

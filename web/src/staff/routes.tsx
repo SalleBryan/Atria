@@ -5,6 +5,7 @@
 
 import { Route } from "react-router-dom";
 
+import { AuditLog } from "./AuditLog";
 import { Availability } from "./Availability";
 import { DaySchedule } from "./DaySchedule";
 import { StaffAccounts } from "./StaffAccounts";
@@ -19,5 +20,6 @@ export const staffRoutes = (
     <Route path="/console/visits/:id" element={<VisitPage />} />
     <Route path="/console/availability" element={<Availability />} />
     <Route path="/console/staff" element={<StaffAccounts />} />
+    <Route path="/console/audit" element={<AuditLog />} />
   </Route>
 );

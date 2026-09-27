@@ -31,7 +31,12 @@ from atria.core.errors import Forbidden, Invalid
 from atria.core.principal import Principal
 from atria.http import requests
 from atria.http.views import appointment_view
-from atria.services.booking.appointments import booking, role_used, subject_of
+from atria.services.booking.appointments import (
+    booking,
+    flag_self_benefit,
+    role_used,
+    subject_of,
+)
 
 logger = Logger(service="atria-booking")
 
@@ -134,6 +139,7 @@ def reschedule(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
         minutes=minutes,
     )
 
+    flag_self_benefit(caller, appointment, data)
     moved, _event = data.reschedule(
         tenant_id=tenant_id,
         appointment=appointment,

@@ -348,6 +348,12 @@
   .account-row > :nth-child(2) { display: none; }
   .account-row > :nth-child(3) { grid-column: 1; }
   .account-actions { grid-column: 2; grid-row: 2; }
+  /* The audit log: who, then what, then the record and when side by side. */
+  .account-row.audit-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .audit-row > .audit-action { display: block; grid-column: 1 / -1; }
+  .audit-row > .audit-record { display: block; grid-column: 1; grid-row: 3; }
+  .audit-row > .audit-when { grid-column: 2; grid-row: 3; text-align: right; }
+  .audit-export { width: 100%; }
 
   /* Cancel (Mobile · Cancel visit, 37:2): a bottom sheet with a grab handle,
      rising from the foot of the screen. Staff cancelling uses it too. */

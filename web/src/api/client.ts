@@ -35,11 +35,28 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
   const text = await response.text();
   const data: unknown = text ? JSON.parse(text) : undefined;
   if (!response.ok) {
-    const message =
-      (data as { message?: string } | undefined)?.message ?? `The request failed (${response.status}).`;
+    const message = (data as { message?: string } | undefined)?.message ?? `The request failed (${response.status}).`;
     throw new ApiError(response.status, message, (data as { detail?: unknown } | undefined)?.detail);
   }
   return data as T;
+}
+
+/**
+ * A file the API sends, such as an export, with the name it suggests. Errors
+ * still arrive as JSON and are thrown as ApiError, as `api` does.
+ */
+export async function apiFile(path: string): Promise<{ blob: Blob; name: string | null }> {
+  const session = await fetchAuthSession().catch(() => undefined);
+  const token = session?.tokens?.accessToken?.toString();
+  const headers = new Headers();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(`/api${path}`, { headers });
+  if (!response.ok) {
+    const data = (await response.json().catch(() => undefined)) as { message?: string; detail?: unknown } | undefined;
+    throw new ApiError(response.status, data?.message ?? `The request failed (${response.status}).`, data?.detail);
+  }
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  return { blob: await response.blob(), name: /filename="([^"]+)"/.exec(disposition)?.[1] ?? null };
 }
 
 /**

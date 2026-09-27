@@ -24,7 +24,12 @@ from constructs import Construct
 from atria_infra.config import Environment
 from atria_infra.stacks.data import DataStack
 from atria_infra.stacks.identity import IdentityStack
-from atria_infra.stacks.platform import PlatformStack, service_function
+from atria_infra.stacks.platform import (
+    PlatformStack,
+    grant_audit_write,
+    grant_table_write,
+    service_function,
+)
 
 # POST /appointments/{id}/<action>, the moves after booking.
 VISIT_ACTIONS = ("reschedule", "confirm", "arrive", "start", "complete", "no-show")
@@ -79,7 +84,7 @@ class ApiStack(Stack):
             description="Profile completion, phone verification",
             environment=common_environment,
         )
-        data.main_table.grant_read_write_data(self.identity_service)
+        grant_table_write(data.main_table, self.identity_service)
 
         self.staff_service = self._service(
             "StaffService",
@@ -87,7 +92,7 @@ class ApiStack(Stack):
             description="Tenant administrator creates, changes and suspends staff accounts",
             environment={**common_environment, "USER_POOL_ID": pool.user_pool_id},
         )
-        data.main_table.grant_read_write_data(self.staff_service)
+        grant_table_write(data.main_table, self.staff_service)
         # Scoped to this one pool and to exactly the calls the service makes:
         # create an account, roll it back if the table write fails, and end a
         # suspended account's sessions. Nothing that reads the pool's users:
@@ -112,7 +117,7 @@ class ApiStack(Stack):
         # Read and write on the one table: the booking transaction writes the
         # appointment, its first event and a lock per grid unit, and reads the
         # tenant, the appointment type, the patient and the clinician first.
-        data.main_table.grant_read_write_data(self.booking_service)
+        grant_table_write(data.main_table, self.booking_service)
 
         self.directory_service = self._service(
             "DirectoryService",
@@ -123,6 +128,8 @@ class ApiStack(Stack):
         # Read only. The directory and the slot search answer questions; the
         # only thing that writes a lock is a booking.
         data.main_table.grant_read_data(self.directory_service)
+        # Except its own audit entries: a day list shows patients (FR-PRV-06).
+        grant_audit_write(data.main_table, self.directory_service)
 
         self.availability_service = self._service(
             "AvailabilityService",
@@ -132,7 +139,17 @@ class ApiStack(Stack):
         )
         # Writes hours and time off, and moves the visits inside time off to
         # DISRUPTED. Never a lock: only a booking holds time.
-        data.main_table.grant_read_write_data(self.availability_service)
+        grant_table_write(data.main_table, self.availability_service)
+
+        self.audit_service = self._service(
+            "AuditService",
+            handler="atria.services.audit.log.handler",
+            description="Reads the audit trail back and exports it",
+            environment=common_environment,
+        )
+        # Reads the log, and adds the one entry an export leaves. Never edits.
+        data.main_table.grant_read_data(self.audit_service)
+        grant_audit_write(data.main_table, self.audit_service)
 
         self.access_log = logs.LogGroup(
             self,
@@ -312,6 +329,17 @@ class ApiStack(Stack):
             authorizer=self.request_authoriser,
             authorization_type=apigateway.AuthorizationType.CUSTOM,
         )
+
+        # /audit and /audit/export. audit.read decides who reaches them.
+        audit_integration = apigateway.LambdaIntegration(self.audit_service, proxy=True)
+        audit = self.api.root.add_resource("audit")
+        for resource in (audit, audit.add_resource("export")):
+            resource.add_method(
+                "GET",
+                audit_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
 
     def _service(
         self,

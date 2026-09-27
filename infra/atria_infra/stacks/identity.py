@@ -24,7 +24,7 @@ from constructs import Construct
 
 from atria_infra.config import Environment
 from atria_infra.stacks.data import DataStack
-from atria_infra.stacks.platform import PlatformStack, service_function
+from atria_infra.stacks.platform import PlatformStack, grant_table_write, service_function
 
 
 class IdentityStack(Stack):
@@ -244,7 +244,7 @@ class IdentityStack(Stack):
         # This one writes, unlike the pre-token trigger: it creates the person
         # and the profile. It reads as well, to recognise a confirmation
         # Cognito has already delivered once.
-        data.main_table.grant_read_write_data(self.post_confirmation)
+        grant_table_write(data.main_table, self.post_confirmation)
         self.user_pool.add_trigger(
             cognito.UserPoolOperation.POST_CONFIRMATION,
             self.post_confirmation,

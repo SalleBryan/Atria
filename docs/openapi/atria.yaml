@@ -31,6 +31,8 @@ security:
 tags:
   - name: Identity and accounts
     description: Who the caller is, profile completion, phone verification, staff accounts.
+  - name: Audit
+    description: The audit trail of staff access to patient data and privileged changes.
 
 paths:
   /me:
@@ -1242,6 +1244,81 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /audit:
+    get:
+      tags: [Audit]
+      operationId: listAudit
+      summary: The audit trail, newest first (FR-ADM-04, FR-ADM-05)
+      description: |
+        Permission audit.read: a tenant administrator reads the tenant's
+        entries, a unit manager their unit's. Every staff read and change of
+        patient data is an entry, and so is every other privileged change
+        (FR-PRV-06). Dates are UTC days, a week back by default, 31 at most.
+        An entry counts the patients it touched and never names them; the
+        export does. No entry can be edited or deleted.
+      parameters:
+        - $ref: "#/components/parameters/AuditFrom"
+        - $ref: "#/components/parameters/AuditTo"
+        - $ref: "#/components/parameters/AuditActor"
+        - $ref: "#/components/parameters/AuditAction"
+        - $ref: "#/components/parameters/AuditKind"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of entries, and everyone and everything in the range for the filters.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [from, to, count, nextCursor, entries, actors, actions]
+                properties:
+                  from: { type: string, format: date }
+                  to: { type: string, format: date }
+                  count: { type: integer }
+                  nextCursor: { type: [string, "null"] }
+                  entries:
+                    type: array
+                    items: { $ref: "#/components/schemas/AuditEntry" }
+                  actors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        personId: { type: string }
+                        name: { type: string }
+                        role: { type: [string, "null"] }
+                  actions: { type: array, items: { type: string } }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /audit/export:
+    get:
+      tags: [Audit]
+      operationId: exportAudit
+      summary: The same entries as a CSV file (FR-ADM-04)
+      description: |
+        Permission audit.read, the same filters as the list, at most 10,000
+        rows. Each row names the patient records the action touched, the
+        source address, browser and request id. The export is itself an
+        entry (audit.export).
+      parameters:
+        - $ref: "#/components/parameters/AuditFrom"
+        - $ref: "#/components/parameters/AuditTo"
+        - $ref: "#/components/parameters/AuditActor"
+        - $ref: "#/components/parameters/AuditAction"
+        - $ref: "#/components/parameters/AuditKind"
+      responses:
+        "200":
+          description: A CSV file, sent as an attachment.
+          content:
+            text/csv:
+              schema: { type: string }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
 components:
   parameters:
     AppointmentId:
@@ -1279,6 +1356,36 @@ components:
       schema: { type: string }
       description: The staff membership id, scoped to the caller's tenant.
 
+    AuditFrom:
+      name: from
+      in: query
+      schema: { type: string, format: date }
+      description: The first UTC day. A week before `to` by default.
+
+    AuditTo:
+      name: to
+      in: query
+      schema: { type: string, format: date }
+      description: The last UTC day, included. Today by default. At most 31 days after `from`.
+
+    AuditActor:
+      name: actor
+      in: query
+      schema: { type: string }
+      description: Only this person's entries (their personId or staff id).
+
+    AuditAction:
+      name: action
+      in: query
+      schema: { type: string, example: appointment.cancel }
+      description: One action, or a family of them ("appointment" is every appointment action).
+
+    AuditKind:
+      name: kind
+      in: query
+      schema: { type: string, enum: [READ, WRITE] }
+      description: Reads of patient data, or changes.
+
   securitySchemes:
     cognito:
       type: http
@@ -1290,6 +1397,30 @@ components:
         created with.
 
   schemas:
+    AuditEntry:
+      type: object
+      description: One recorded action. Written once, never changed.
+      properties:
+        auditEntryId: { type: string }
+        occurredAt: { type: string, format: date-time }
+        actorPersonId: { type: string }
+        actorName: { type: string }
+        actorRole: { type: [string, "null"], enum: [RECEPTIONIST, CLINICIAN, CLINIC_MANAGER, TENANT_ADMIN, null] }
+        action: { type: string, example: appointment.read }
+        kind: { type: string, enum: [READ, WRITE] }
+        subjectType: { type: string, enum: [APPOINTMENT, CLINIC, CLINICIAN, STAFF, AUDIT_LOG] }
+        subjectId: { type: string }
+        clinicId: { type: [string, "null"] }
+        patientCount: { type: integer }
+        reason: { type: [string, "null"] }
+        flags:
+          type: array
+          items: { type: string, enum: [POTENTIAL_SELF_BENEFIT] }
+        source:
+          type: object
+          properties:
+            ip: { type: string }
+
     Span:
       type: object
       required: [start, end]

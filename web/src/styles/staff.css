@@ -160,7 +160,6 @@
   overflow-y: auto;
   list-style: none;
 }
-.day-rows { scrollbar-width: thin; scrollbar-color: var(--line-soft) transparent; }
 /* Search, then the clinician chips, above the list; the pager sits under it. */
 .day-tools { display: flex; flex: none; align-items: center; gap: 12px; min-width: 0; margin-top: 14px; }
 .day-search { flex: 0 1 300px; min-width: 220px; height: 46px; }
@@ -294,8 +293,6 @@
   margin: 0 -8px;
   padding: 0 8px 4px;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-soft) transparent;
 }
 .panel-actions { display: flex; flex: none; flex-direction: column; gap: calc(7px + 2px * var(--tall)); margin-top: auto; padding-top: calc(8px + 4px * var(--tall)); }
 .panel-actions .staff-primary { height: calc(42px + 6px * var(--tall)); }
@@ -535,7 +532,7 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   padding: 22px;
   border-radius: 28px;
 }
-.visit-page-main { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-soft) transparent; container-type: inline-size; }
+.visit-page-main { overflow-y: auto; container-type: inline-size; }
 .visit-page-main,
 .visit-page-side { padding: calc(16px + 6px * var(--tall)) 22px; }
 /* The appointment and the people sit side by side once the card is wide
@@ -697,8 +694,7 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   overflow: auto;
   margin: 0 8px 14px 0;
   padding: 0 10px 4px 18px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-soft) transparent;
+ 
   scrollbar-gutter: stable;
 }
 .week-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -915,7 +911,7 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 .accounts-head { padding: 4px 14px 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--ink-muted); }
 .accounts-head > :first-child { padding-left: 54px; }
 /* The rows take what the card has left; a page holds as many as fit (StaffAccounts). */
-.accounts-rows { display: flex; flex: 1; flex-direction: column; gap: 8px; min-height: 0; margin: 0; padding: 0; overflow-y: auto; list-style: none; scrollbar-width: thin; transition: opacity var(--fade); }
+.accounts-rows { display: flex; flex: 1; flex-direction: column; gap: 8px; min-height: 0; margin: 0; padding: 0; overflow-y: auto; list-style: none; transition: opacity var(--fade); }
 .accounts-rows > .skeleton { flex: none; height: 68px; border-radius: 18px; }
 .accounts-rows-loading { opacity: 0.55; }
 .account-row {
@@ -962,6 +958,17 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
 .account-actions .square-button { color: var(--blue-600); }
 .account-actions .account-suspend { color: var(--status-cancelled); }
 .account-actions .square-button:disabled { opacity: 0.35; cursor: not-allowed; }
+/* The audit log (AuditLog.tsx): Staff accounts' card and rows, its own columns. */
+.accounts-head.audit-head,
+.account-row.audit-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 150px 150px; }
+.audit-row .account-role { display: block; }
+.audit-action { min-width: 0; }
+.audit-action .account-name { display: flex; align-items: center; gap: 8px; }
+.audit-flag { flex: none; padding: 3px 9px; font-size: 11px; }
+.audit-export { flex: none; padding: 0 20px; }
+.admin-app .audit-export { color: var(--admin-base); background: rgba(139, 92, 240, 0.12); }
+.admin-app .audit-export:hover { background: rgba(139, 92, 240, 0.18); }
+.admin-app .audit-export:disabled { color: var(--ink-muted); background: var(--surface-field); }
 .accounts-dialog-icon { background: linear-gradient(140deg, var(--admin-light), var(--admin-base)) !important; }
 .role-grid-one { grid-template-columns: minmax(0, 1fr); margin-top: 16px; }
 .dialog .staff-primary { height: 52px; }
@@ -1006,6 +1013,12 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   .account-row { grid-template-columns: minmax(0, 1fr) 110px 170px 88px; }
   .accounts-head > :nth-child(4),
   .account-role { display: none; }
+  /* The audit log keeps when and from where, and drops the record's kind. */
+  .accounts-head.audit-head,
+  .account-row.audit-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 140px; }
+  .accounts-head.audit-head > :nth-child(4) { display: block; }
+  .accounts-head.audit-head > :nth-child(3),
+  .audit-row .audit-record { display: none; }
 }
 
 .sheet {
@@ -1035,8 +1048,7 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   min-height: 0;
   overflow-y: auto;
   padding: 18px 30px 22px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-soft) transparent;
+ 
 }
 .sheet-body > .dialog-label { margin: 0; }
 .sheet-label { margin-top: 10px !important; }
@@ -1199,17 +1211,8 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   overflow-y: auto;
   scrollbar-gutter: stable;
 }
-/* Chrome and Safari draw the bar from these; setting the standard
-   scrollbar-width as well would make Chrome ignore them and draw its own,
-   arrows included. The track starts below the close button. */
-.move-scroll::-webkit-scrollbar { width: 6px; }
-.move-scroll::-webkit-scrollbar-button { display: none; height: 0; }
-.move-scroll::-webkit-scrollbar-track { margin: 44px 0 8px; background: transparent; }
-.move-scroll::-webkit-scrollbar-thumb { border-radius: 99px; background: rgba(20, 45, 95, 0.22); }
-.move-scroll::-webkit-scrollbar-thumb:hover { background: rgba(20, 45, 95, 0.36); }
-@supports not selector(::-webkit-scrollbar) {
-  .move-scroll { scrollbar-width: thin; scrollbar-color: rgba(20, 45, 95, 0.22) transparent; }
-}
+/* The platform's scrollbar (tokens.css), its track starting below the close button. */
+.move-scroll::-webkit-scrollbar-track { margin: 44px 0 8px; }
 .move-dialog form { display: flex; flex-direction: column; gap: 10px; }
 .dialog-close { position: absolute; top: 18px; right: 18px; z-index: 2; background: #ffffff; box-shadow: 0 2px 8px rgba(16, 42, 94, 0.12); }
 /* Content fades out under the dialog's edges as it scrolls, instead of being cut. */

@@ -2,7 +2,8 @@
 
 It turns a domain error into the right status code, keeps unexpected failures
 from leaking a stack trace to the caller, and logs with the request id so a
-report from a clinic can be traced to one invocation.
+report from a clinic can be traced to one invocation. It is also where staff
+access to patient data is recorded (http.audit), so no route can forget to.
 """
 
 from __future__ import annotations
@@ -26,8 +27,12 @@ def api(func: Handler) -> Handler:
 
     def wrapper(event: Event, context: Any) -> dict[str, Any]:
         request_id = getattr(context, "aws_request_id", None)
+        # Imported here: the recorder reads requests, which imports this package.
+        from atria.http import audit
+
+        audit.begin()
         try:
-            return func(event, context)
+            return audit.after(event, func(event, context))
         except AtriaError as exc:
             # Expected: the caller asked for something the rules refuse.
             # "reason" rather than "message": the log record reserves that name.

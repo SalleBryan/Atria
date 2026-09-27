@@ -29,7 +29,7 @@ from constructs import Construct
 
 from atria_infra.config import Environment
 from atria_infra.stacks.data import DataStack
-from atria_infra.stacks.platform import PlatformStack, service_function
+from atria_infra.stacks.platform import PlatformStack, grant_table_write, service_function
 
 # A notice that has failed this many times is not going to succeed by being
 # tried again in the same shape. Parking it keeps the queue moving.
@@ -194,7 +194,7 @@ class AsyncStack(Stack):
         )
         # It reads the appointment, the patient and the clinic, and writes the
         # message log, so it needs both directions on the one table.
-        data.main_table.grant_read_write_data(self.sender)
+        grant_table_write(data.main_table, self.sender)
         self.sender.add_event_source(
             sources.SqsEventSource(
                 self.outbox,

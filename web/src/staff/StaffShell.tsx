@@ -8,7 +8,8 @@
  * The Rev A sidebar also lists Patients, Clinicians and Messages. The patient
  * register, the staff directory and the message log have no Phase 1 endpoint
  * (they are Phase 2), so those items are left out rather than leading to
- * empty screens. An administrator also gets Staff accounts (FR-ACC-04).
+ * empty screens. An administrator also gets Staff accounts (FR-ACC-04), and an
+ * administrator or unit manager the Audit log (FR-ADM-04).
  */
 
 import { type ComponentType, type CSSProperties, useLayoutEffect, useRef, useState } from "react";
@@ -16,7 +17,7 @@ import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import type { Me } from "../api/client";
 import { useSession } from "../auth/session";
-import { Calendar, Clock, Pulse, SignOut, User } from "../components/icons";
+import { Calendar, Clock, Pulse, Shield, SignOut, User } from "../components/icons";
 import { Waiting } from "../components/Waiting";
 import { initials } from "../patient/data";
 import { ROLE_LABEL, roleOf, StaffDataProvider, useStaffData } from "./data";
@@ -70,6 +71,14 @@ function Shell({ me }: { me: Me }) {
       matches: (path) => path.startsWith("/console/staff"),
     });
   }
+  if (role === "TENANT_ADMIN" || role === "CLINIC_MANAGER") {
+    destinations.push({
+      to: "/console/audit",
+      label: "Audit log",
+      icon: Shield,
+      matches: (path) => path.startsWith("/console/audit"),
+    });
+  }
   const selected = Math.max(
     0,
     destinations.findIndex((d) => d.matches(pathname)),
@@ -82,8 +91,7 @@ function Shell({ me }: { me: Me }) {
     setAt(selected);
   }, [selected]);
 
-  const clinic =
-    state.status === "ready" ? state.data.clinics.find((c) => c.clinicId === me.clinicId)?.name : undefined;
+  const clinic = state.status === "ready" ? state.data.clinics.find((c) => c.clinicId === me.clinicId)?.name : undefined;
   const name = [me.givenName, me.familyName].filter(Boolean).join(" ") || "Staff account";
 
   return (

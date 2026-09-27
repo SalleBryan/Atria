@@ -165,9 +165,10 @@ class IdentityStack(Stack):
             supported_identity_providers=[cognito.UserPoolClientIdentityProvider.COGNITO],
             access_token_validity=access,
             id_token_validity=access,
-            # Shorter than the patient client: a staff console runs on a shared
-            # desk machine.
-            refresh_token_validity=Duration.days(7),
+            # A working day: a staff console runs on a shared desk machine, and
+            # "trust this workstation" keeps a session for 12 hours at most
+            # (FR-ACC-10), which this enforces whatever the browser keeps.
+            refresh_token_validity=Duration.hours(12),
             prevent_user_existence_errors=True,
             enable_token_revocation=True,
         )

@@ -942,3 +942,14 @@ class TestDeliveryReports:
         assert "ses:ListEmailIdentities" in policy
         assert "sns:GetSMSSandboxAccountStatus" in policy
         assert "ses:SendEmail" not in policy
+
+
+def test_a_staff_session_lasts_a_working_day(synthesised: cdk.App) -> None:
+    """FR-ACC-10: a trusted workstation keeps a staff session 12 hours at most."""
+    clients = template_for(synthesised, "identity").find_resources("AWS::Cognito::UserPoolClient")
+    staff = next(
+        c["Properties"]
+        for c in clients.values()
+        if str(c["Properties"].get("ClientName", "")).endswith("-staff")
+    )
+    assert (staff["RefreshTokenValidity"], staff["TokenValidityUnits"]["RefreshToken"]) == (720, "minutes")

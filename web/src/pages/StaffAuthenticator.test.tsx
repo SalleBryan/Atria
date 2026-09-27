@@ -17,7 +17,7 @@ const auth = vi.hoisted(() => ({
 }));
 const session = vi.hoisted(() => ({ refresh: vi.fn(), signOut: vi.fn() }));
 vi.mock("aws-amplify/auth", () => auth);
-vi.mock("../auth/config", () => ({ configureFor: vi.fn() }));
+vi.mock("../auth/config", () => ({ configureFor: vi.fn(), setStaffTrust: vi.fn(), TRUST_HOURS: 12 }));
 vi.mock("qrcode", () => ({ default: { toDataURL: vi.fn(async () => "data:image/png;base64,AAAA") } }));
 vi.mock("../auth/session", async (original) => ({
   ...(await original<typeof import("../auth/session")>()),

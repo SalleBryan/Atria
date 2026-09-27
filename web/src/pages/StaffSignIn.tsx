@@ -6,20 +6,20 @@
  * sign-in with a forced change. The temporary password is kept in memory for
  * the next screen, which must refuse it as the new one (ADR 0018).
  *
- * The frame's "Trust this workstation for 12 hours" is FR-ACC-10, Phase 2,
- * and is left out rather than shown doing nothing; a staff session here always
- * ends with the tab.
+ * The frame's "Trust this workstation for 12 hours" is FR-ACC-10: the session
+ * then outlives the tab on this browser for 12 hours. Administrators are
+ * refused it once signed in, and their session ends with the tab.
  */
 
 import { signIn, signOut } from "aws-amplify/auth";
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import { configureFor } from "../auth/config";
+import { configureFor, setStaffTrust, TRUST_HOURS } from "../auth/config";
 import { messageFor } from "../auth/errors";
 import { firstSignIn, useSession } from "../auth/session";
 import { AuthLayout, StaffBrand } from "../components/AuthLayout";
-import { Button, Field, Notice, StatusPill } from "../components/controls";
+import { Button, Checkbox, Field, Notice, StatusPill } from "../components/controls";
 import { Lock, Mail } from "../components/icons";
 
 export const STAFF_FOOTER = (
@@ -37,6 +37,7 @@ export function StaffSignIn() {
   const notice = (location.state as { notice?: string } | null)?.notice;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [trust, setTrust] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +49,7 @@ export function StaffSignIn() {
     setBusy(true);
     const username = email.trim();
     try {
+      setStaffTrust(trust);
       const result = await signIn({ username, password });
       if (result.nextStep.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
         firstSignIn.hold(username, password);
@@ -113,7 +115,10 @@ export function StaffSignIn() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
         />
-        <div className="aux aux-end">
+        <div className="aux">
+          <Checkbox checked={trust} onChange={setTrust}>
+            Trust this workstation for {TRUST_HOURS} hours
+          </Checkbox>
           <Link className="link" to="/staff/reset-password" state={{ email }}>
             Forgot password?
           </Link>
@@ -124,7 +129,7 @@ export function StaffSignIn() {
       </form>
       <Notice>
         Signing in for the first time? You will be asked to replace the temporary password your administrator sent
-        you before the console opens.
+        you before the console opens. Administrators are never kept signed in: their session ends with the tab.
       </Notice>
     </AuthLayout>
   );

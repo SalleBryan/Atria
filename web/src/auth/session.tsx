@@ -12,7 +12,7 @@ import { Hub } from "aws-amplify/utils";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { api, type Me } from "../api/client";
-import { type Audience, configureFor, lastAudience } from "./config";
+import { type Audience, configureFor, lastAudience, trusted, untrust } from "./config";
 
 type State =
   | { status: "loading" }
@@ -36,7 +36,10 @@ async function resolve(audience: Audience): Promise<State> {
   const session = await fetchAuthSession().catch(() => null);
   if (!session?.tokens?.accessToken) return { status: "signed-out" };
   try {
-    return { status: "signed-in", me: await api<Me>("/me"), audience };
+    const me = await api<Me>("/me");
+    // An administrator never keeps a session past the tab (FR-ACC-10).
+    if (audience === "staff" && me.roles.includes("TENANT_ADMIN") && trusted()) untrust();
+    return { status: "signed-in", me, audience };
   } catch (error) {
     return {
       status: "unresolved",
@@ -72,6 +75,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Revoking everywhere needs the network. This device signs out anyway.
       await amplifySignOut();
     }
+    untrust();
     setState({ status: "signed-out" });
   }, []);
 

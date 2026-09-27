@@ -8,7 +8,7 @@ import { StaffSignIn } from "./StaffSignIn";
 
 const auth = vi.hoisted(() => ({ signIn: vi.fn(), signOut: vi.fn(), confirmSignIn: vi.fn() }));
 const session = vi.hoisted(() => ({ refresh: vi.fn() }));
-const config = vi.hoisted(() => ({ configureFor: vi.fn() }));
+const config = vi.hoisted(() => ({ configureFor: vi.fn(), setStaffTrust: vi.fn(), TRUST_HOURS: 12 }));
 vi.mock("aws-amplify/auth", () => auth);
 vi.mock("../auth/config", () => config);
 vi.mock("../auth/session", async (original) => ({
@@ -121,5 +121,27 @@ describe("StaffFirstSignIn", () => {
     await choose("Douala-Front-Desk-9", "Douala-Front-Desk-8");
     expect(screen.getByText("The two passwords do not match.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled();
+  });
+});
+
+describe("Trust this workstation (FR-ACC-10)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("is off unless ticked, and set before signing in", async () => {
+    auth.signIn.mockResolvedValue({ isSignedIn: true, nextStep: { signInStep: "DONE" } });
+    session.refresh.mockResolvedValue({ status: "signed-in", me: { staffId: "s-1" } });
+    renderAt("/staff/sign-in", <StaffSignIn />);
+    await userEvent.setup().click(screen.getByText("Trust this workstation for 12 hours"));
+    await signInAs();
+    expect(config.setStaffTrust).toHaveBeenCalledWith(true);
+    expect(config.setStaffTrust.mock.invocationCallOrder[0]!).toBeLessThan(auth.signIn.mock.invocationCallOrder[0]!);
+  });
+
+  it("is not trusted by default", async () => {
+    auth.signIn.mockResolvedValue({ isSignedIn: true, nextStep: { signInStep: "DONE" } });
+    session.refresh.mockResolvedValue({ status: "signed-in", me: { staffId: "s-1" } });
+    renderAt("/staff/sign-in", <StaffSignIn />);
+    await signInAs();
+    expect(config.setStaffTrust).toHaveBeenCalledWith(false);
   });
 });

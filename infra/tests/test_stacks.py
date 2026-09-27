@@ -672,9 +672,9 @@ class TestAsyncStack:
 class TestObservabilityStack:
     def test_alarms_cover_errors_latency_and_the_authoriser(self, synthesised):
         template = template_for(synthesised, "observability")
-        # The API's three, errors for eight functions, throttles for nine, four
+        # The API's three, errors for nine functions, throttles for ten, four
         # table throttles, three dead letter queues, SES bounces and SMS spend.
-        template.resource_count_is("AWS::CloudWatch::Alarm", 3 + 8 + 9 + 4 + 3 + 2)
+        template.resource_count_is("AWS::CloudWatch::Alarm", 3 + 9 + 10 + 4 + 3 + 2)
 
     def test_every_alarm_notifies_the_topic(self, synthesised):
         template = template_for(synthesised, "observability")
@@ -810,3 +810,16 @@ def test_read_only_functions_may_only_add_audit_entries(synthesised: cdk.App) ->
     for statement in allows:
         assert statement["Action"] == "dynamodb:PutItem"
         assert "ForAllValues:StringLike" in statement["Condition"]
+
+
+def test_the_settings_routes_exist(synthesised: cdk.App) -> None:
+    served = routes(template_for(synthesised, "api"))
+    for route in (
+        ("/admin/settings", "GET"),
+        ("/admin/settings", "PATCH"),
+        ("/admin/clinics/{id}", "PATCH"),
+        ("/admin/appointment-types", "POST"),
+        ("/admin/appointment-types/{id}", "PATCH"),
+        ("/admin/fee-bands/{id}", "PUT"),
+    ):
+        assert route in served

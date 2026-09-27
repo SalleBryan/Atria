@@ -151,6 +151,14 @@ class ApiStack(Stack):
         data.main_table.grant_read_data(self.audit_service)
         grant_audit_write(data.main_table, self.audit_service)
 
+        self.settings_service = self._service(
+            "SettingsService",
+            handler="atria.services.admin.settings.handler",
+            description="Tenant settings, units, appointment types and fee bands",
+            environment=common_environment,
+        )
+        grant_table_write(data.main_table, self.settings_service)
+
         self.access_log = logs.LogGroup(
             self,
             "AccessLog",
@@ -329,6 +337,28 @@ class ApiStack(Stack):
             authorizer=self.request_authoriser,
             authorization_type=apigateway.AuthorizationType.CUSTOM,
         )
+
+        # The administrator's settings (services/admin/settings.py). Each route
+        # is its own permission, checked in the service.
+        settings_integration = apigateway.LambdaIntegration(self.settings_service, proxy=True)
+        admin_settings = admin.add_resource("settings")
+        admin_clinic = admin.add_resource("clinics").add_resource("{id}")
+        admin_types = admin.add_resource("appointment-types")
+        admin_band = admin.add_resource("fee-bands").add_resource("{id}")
+        for resource, method in (
+            (admin_settings, "GET"),
+            (admin_settings, "PATCH"),
+            (admin_clinic, "PATCH"),
+            (admin_types, "POST"),
+            (admin_types.add_resource("{id}"), "PATCH"),
+            (admin_band, "PUT"),
+        ):
+            resource.add_method(
+                method,
+                settings_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
 
         # /audit and /audit/export. audit.read decides who reaches them.
         audit_integration = apigateway.LambdaIntegration(self.audit_service, proxy=True)

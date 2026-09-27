@@ -1,14 +1,13 @@
 """A tenant's catalogue: its clinics and the appointment types it offers.
 
 Both are listed through DirectoryIndex, beside the clinicians, each kind in
-its own partition of the index: TENANT#<t>#CLINIC and TENANT#<t>#TYPE. The
-index is sparse, so an item is listed only while it carries directoryKey: a
-clinic always, an appointment type only while it is active, which is how
-retiring a type drops it from what a patient can pick without deleting it.
+its own partition of the index: TENANT#<t>#CLINIC and TENANT#<t>#TYPE. Every
+type is listed, retired ones too, because the administrator's list needs them;
+what a patient can pick is the active ones (appointment_types), which is how
+retiring a type drops it from booking without deleting it.
 
-Nothing here writes clinics or types yet; they are seeded (tools/devkit.py)
-until the administration routes arrive in Phase 2. The two listing helpers are
-what any writer must apply, so a seeded item and a created one list alike.
+atria.data.settings writes both. The two listing helpers are what any writer
+must apply, so a seeded item and a created one list alike.
 """
 
 from __future__ import annotations
@@ -37,11 +36,10 @@ def clinic_listing(tenant_id: str, clinic_id: str, name: str) -> dict[str, str]:
 
 
 def appointment_type_listing(
-    tenant_id: str, type_id: str, name: str, *, active: bool
+    tenant_id: str, type_id: str, name: str, *, active: bool = True
 ) -> dict[str, str]:
-    """The attributes that list an active appointment type; none for a retired one."""
-    if not active:
-        return {}
+    """The attributes that list an appointment type, retired or not (see the module note)."""
+    del active  # kept in the signature: callers say what they are listing
     return {
         "directoryKey": directory_key(tenant_id, APPOINTMENT_TYPE),
         "directorySort": f"{name.casefold()}#{type_id}",
@@ -64,7 +62,11 @@ class Catalogue:
         return self._listed(tenant_id, CLINIC)
 
     def appointment_types(self, tenant_id: str) -> list[Item]:
-        return [t for t in self._listed(tenant_id, APPOINTMENT_TYPE) if t.get("active", True)]
+        """What can be booked: the active types."""
+        return [t for t in self.all_appointment_types(tenant_id) if t.get("active", True)]
+
+    def all_appointment_types(self, tenant_id: str) -> list[Item]:
+        return self._listed(tenant_id, APPOINTMENT_TYPE)
 
 
 def as_listed(item: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:

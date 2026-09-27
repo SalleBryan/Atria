@@ -53,6 +53,9 @@ export interface Clinic {
   name: string;
   address: string | null;
   phone: string | null;
+  /** What the unit sees, as patients read it. */
+  description?: string | null;
+  services?: string[] | null;
   openingHours: Record<string, { start: string; end: string }> | null;
 }
 
@@ -67,13 +70,38 @@ export interface AppointmentType {
   minNoticeMinutes: number | null;
   maxAdvanceDays: number | null;
   cancellationWindowMinutes: number | null;
+  /** Lets a patient request it (a procedure). */
+  patientRequestable?: boolean | null;
+  /** The units that offer it; absent, every unit on its line. */
+  clinicIds?: string[] | null;
+}
+
+/** Whether a type can be booked at a unit (atria.core.settings.offered_at). */
+export function offeredAt(type: AppointmentType, clinicId: string | null | undefined): boolean {
+  return !type.clinicIds?.length || (clinicId != null && type.clinicIds.includes(clinicId));
+}
+
+/**
+ * The specialist types a patient can book at a unit, the first visit first:
+ * what a booking screen offers, and what it asks for free times by.
+ */
+export function specialistTypes(types: AppointmentType[], clinicId: string | null | undefined): AppointmentType[] {
+  return types
+    .filter((t) => t.serviceLine === "SPECIALIST" && t.durationUnits && offeredAt(t, clinicId))
+    .sort((a, b) => Number(b.code === "SPEC_FIRST") - Number(a.code === "SPEC_FIRST"));
 }
 
 export const ZONE = PACK.timezone ?? "Africa/Douala";
 
 interface Loaded {
   appointments: Appointment[];
+  /** Everyone in the directory, so any visit can name its clinician. */
   clinicians: Clinician[];
+  /**
+   * Those a patient books by appointment. The outpatient department's doctors
+   * see the day's queue instead, so search and suggestions leave them out.
+   */
+  bookable: Clinician[];
   clinics: Clinic[];
   types: AppointmentType[];
   gridUnitMinutes: number;
@@ -101,6 +129,7 @@ async function load(): Promise<Loaded> {
   return {
     appointments: visits.appointments,
     clinicians: directory.clinicians,
+    bookable: directory.clinicians.filter((c) => specialistTypes(types.appointmentTypes, c.clinicId).length > 0),
     clinics: clinics.clinics,
     types: types.appointmentTypes,
     gridUnitMinutes: types.gridUnitMinutes,

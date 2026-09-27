@@ -216,3 +216,18 @@ export const ArrowUpRight = (p: IconProps) => (
     <path d="m7 17 10-10M17 15V7H9" />
   </Icon>
 );
+/** Settings: three sliders. */
+export const Sliders = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" />
+    <circle cx="15" cy="6" r="2" />
+    <circle cx="9" cy="12" r="2" />
+    <circle cx="17" cy="18" r="2" />
+  </Icon>
+);
+/** Edit: a pencil. */
+export const Pencil = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M14.5 5.5l4 4M4 20l1-5L15.5 4.5a2.1 2.1 0 0 1 3 0l1 1a2.1 2.1 0 0 1 0 3L9 19l-5 1Z" />
+  </Icon>
+);

@@ -15,6 +15,7 @@ Outputs:
     web/src/generated/entities.ts
     web/src/generated/keys.ts
     web/src/generated/regionPacks.ts
+    web/src/generated/hospital.ts
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ import json
 import pathlib
 import sys
 
+from atria_spec import hospital as HOSPITAL
 from atria_spec import keys as KEYS_SPEC
 from atria_spec import lifecycle as LC
 from atria_spec import model as MODEL_SPEC
@@ -310,12 +312,51 @@ def region_packs_ts() -> str:
     return "\n".join(out)
 
 
+NL = chr(10)
+
+
+def hospital_ts() -> str:
+    """The demonstration tenant, so the development preview shows the same
+    hospital the development tenant is seeded with (tools/seed_dev.py)."""
+
+    def const(name: str, value: object) -> str:
+        return f"export const {name} = " + json.dumps(value, indent=2, ensure_ascii=False) + " as const;" + NL
+
+    clinicians = [
+        {
+            "givenName": g,
+            "familyName": f,
+            "specialty": sp,
+            "registrationYear": y,
+            "clinicId": u,
+            "languages": langs,
+        }
+        for g, f, sp, y, u, langs in HOSPITAL.CLINICIANS
+    ]
+    desk = [{"givenName": g, "familyName": f, "clinicId": u, "role": r} for g, f, u, r in HOSPITAL.DESK_AND_MANAGERS]
+    out = [
+        BANNER,
+        const(
+            "HOSPITAL",
+            {"name": HOSPITAL.NAME, "place": HOSPITAL.PLACE, "address": HOSPITAL.ADDRESS, "profile": HOSPITAL.PROFILE},
+        ),
+        const("UNITS", HOSPITAL.UNITS),
+        const("FEE_BANDS", HOSPITAL.FEE_BANDS),
+        const("APPOINTMENT_TYPES", HOSPITAL.APPOINTMENT_TYPES),
+        const("CLINICIANS", clinicians),
+        const("DESK_AND_MANAGERS", desk),
+        const("TENANT_SETTINGS", HOSPITAL.TENANT_SETTINGS),
+    ]
+    return NL.join(out)
+
+
 TARGETS = {
     "web/src/generated/permissions.ts": permissions_ts,
     "web/src/generated/lifecycle.ts": lifecycle_ts,
     "web/src/generated/entities.ts": entities_ts,
     "web/src/generated/keys.ts": keys_ts,
     "web/src/generated/regionPacks.ts": region_packs_ts,
+    "web/src/generated/hospital.ts": hospital_ts,
 }
 
 

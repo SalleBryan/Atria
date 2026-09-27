@@ -33,6 +33,7 @@ import urllib.request
 from typing import Any
 
 import boto3
+from atria_spec import hospital
 from atria_spec.region_packs import region_pack
 
 REGION = "us-east-1"
@@ -248,20 +249,22 @@ def put_region_pack(table: Any, code: str = REGION_PACK_CODE) -> dict[str, Any]:
 
 
 def put_tenant(table: Any, tenant_id: str = TENANT_ID) -> dict[str, Any]:
+    """The tenant with the agreed settings (atria_spec.hospital), keeping what use has set.
+
+    A re-seed must not unlock the region pack: firstAppointmentAt, and any
+    setting an administrator has since changed, are kept.
+    """
+    existing = table.get_item(Key={"pk": f"TENANT#{tenant_id}", "sk": "META"}).get("Item") or {}
     item = {
         "pk": f"TENANT#{tenant_id}",
         "sk": "META",
         "type": "TENANT",
         "tenantId": tenant_id,
-        "name": "Regional Hospital of Buea",
+        "name": hospital.NAME,
         "regionPackCode": REGION_PACK_CODE,
-        "gridUnitMinutes": GRID_UNIT_MINUTES,
-        "qualityProgrammeEnabled": False,
-        # Refused where the pack forbids it, and the Cameroon pack does (D-11).
-        "ratingAffectsFee": False,
-        "noShowStrikeThreshold": 0,
-        "noShowStrikeWindowDays": 180,
+        **hospital.TENANT_SETTINGS,
         "status": "ACTIVE",
+        **{k: v for k, v in existing.items() if k not in ("pk", "sk", "type", "tenantId", "name")},
     }
     table.put_item(Item=item)
     return item
@@ -289,6 +292,8 @@ def put_clinic(
     address: str | None = None,
     hours: dict | None = None,
     tenant_id: str = TENANT_ID,
+    description: str | None = None,
+    services: list[str] | None = None,
 ) -> dict[str, Any]:
     """A clinic (a unit, to the people using Atria) in a region the pack has.
 
@@ -298,16 +303,20 @@ def put_clinic(
     pack = region_pack(REGION_PACK_CODE)
     if region not in pack["administrativeRegions"]:
         raise SystemExit(f"{region} is not a region of the {pack['code']} pack")
+    key = {"pk": f"TENANT#{tenant_id}#CLINIC#{clinic_id}", "sk": "PROFILE"}
+    existing = table.get_item(Key=key).get("Item") or {}
     item = {
-        "pk": f"TENANT#{tenant_id}#CLINIC#{clinic_id}",
-        "sk": "PROFILE",
+        **key,
         "type": "CLINIC",
         "clinicId": clinic_id,
         "tenantId": tenant_id,
         "name": name,
         "address": address or f"{city}, {region}",
-        "phone": fictional_phone(),
+        # Kept across re-seeds, so a unit's number does not change every run.
+        "phone": existing.get("phone") or fictional_phone(),
         "openingHours": hours or weekday_hours(),
+        **({"description": description} if description else {}),
+        **({"services": services} if services else {}),
         # Listed in the tenant's directory, as atria.data.catalogue.clinic_listing does.
         "directoryKey": f"TENANT#{tenant_id}#CLINIC",
         "directorySort": f"{name.casefold()}#{clinic_id}",
@@ -358,17 +367,16 @@ def put_appointment_type(
         "appointmentTypeId": type_id,
         "tenantId": tenant_id,
         "code": code,
-        **APPOINTMENT_TYPES[code],
+        **APPOINTMENT_TYPES.get(code, {}),
         "minNoticeMinutes": 30,
         "maxAdvanceDays": 60,
         "cancellationWindowMinutes": 1440,
         "active": True,
         **overrides,
     }
-    # Listed while active, as atria.data.catalogue.appointment_type_listing does.
-    if item.get("active"):
-        item["directoryKey"] = f"TENANT#{tenant_id}#TYPE"
-        item["directorySort"] = f"{str(item['name']).casefold()}#{type_id}"
+    # Listed, retired or not, as atria.data.catalogue.appointment_type_listing does.
+    item["directoryKey"] = f"TENANT#{tenant_id}#TYPE"
+    item["directorySort"] = f"{str(item['name']).casefold()}#{type_id}"
     item = {name: value for name, value in item.items() if value is not None}
     table.put_item(Item=item)
     return item

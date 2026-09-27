@@ -14,7 +14,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { byPopularity, ChipRow, FilterMenu } from "../components/FilterMenu";
 import { Clock } from "../components/icons";
-import { type Clinician, clock, clinicianName, initials, SENIORITY, usePatientData } from "./data";
+import { type Clinician, clock, clinicianName, initials, SENIORITY, specialistTypes, usePatientData } from "./data";
 
 const GRADIENTS = [
   ["#6f9bf5", "#3564d6"],
@@ -29,13 +29,16 @@ export function AvailableToday() {
   const [specialty, setSpecialty] = useState<string | null>(null);
   const [next, setNext] = useState<Record<string, string | null>>({});
 
-  const type = data?.types.find((t) => t.serviceLine === "SPECIALIST" && t.durationUnits);
+  // Asked per clinician, by the first visit their unit offers.
+  const typeFor = (clinicId: string | null) => specialistTypes(data?.types ?? [], clinicId)[0];
   const today = clock.isoDate(new Date());
 
   useEffect(() => {
-    if (!data || !type) return;
+    if (!data) return;
     let live = true;
-    for (const clinician of data.clinicians) {
+    for (const clinician of data.bookable) {
+      const type = typeFor(clinician.clinicId);
+      if (!type) continue;
       api<{ slots: { startAt: string }[] }>(
         `/clinicians/${encodeURIComponent(clinician.clinicianProfileId)}/slots?date=${today}&typeId=${encodeURIComponent(type.appointmentTypeId)}`,
       )
@@ -45,16 +48,16 @@ export function AvailableToday() {
     return () => {
       live = false;
     };
-  }, [data, type, today]);
+  }, [data, today]);
 
-  const specialties = useMemo(() => byPopularity(data?.clinicians ?? [], (c) => c.specialty), [data]);
+  const specialties = useMemo(() => byPopularity(data?.bookable ?? [], (c) => c.specialty), [data]);
   const [menuOpen, setMenuOpen] = useState(false);
   const more = useRef<HTMLButtonElement>(null);
-  const open = (data?.clinicians ?? [])
+  const open = (data?.bookable ?? [])
     .filter((c) => next[c.clinicianProfileId])
     .filter((c) => !specialty || c.specialty === specialty)
     .sort((a, b) => String(next[a.clinicianProfileId]).localeCompare(String(next[b.clinicianProfileId])));
-  const waiting = data ? data.clinicians.some((c) => !(c.clinicianProfileId in next)) : true;
+  const waiting = data ? data.bookable.some((c) => !(c.clinicianProfileId in next)) : true;
 
   return (
     <section className="today" aria-labelledby="today-title">

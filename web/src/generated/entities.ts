@@ -102,6 +102,22 @@ export interface Tenant {
   noShowStrikeThreshold?: number;
   /** Rolling window, default 180 */
   noShowStrikeWindowDays?: number;
+  /** The pack's languages the tenant offers. FR-ADM-03 */
+  languages?: string[];
+  /** First reminder before the visit, default 24. FR-REM-01 */
+  reminderLeadHours?: number;
+  /** 0 is off, the default; 2 when switched on */
+  secondReminderHours?: number;
+  /** Arrival window move that texts a ticket holder, default 30 */
+  queueMoveThresholdMinutes?: number;
+  /** DESK_OR_GUARDIAN_ACCOUNT */
+  guardianConsent?: string;
+  /** Within the pack's sender policy. FR-ADM-03 */
+  smsSenderId?: string;
+  /** The name emails are sent from. FR-ADM-03 */
+  emailSenderName?: string;
+  /** Set by the first booking; locks the region pack. FR-TEN-07 */
+  firstAppointmentAt?: string;
   /** ONBOARDING, ACTIVE, SUSPENDED */
   status?: TenantStatus;
 }
@@ -115,6 +131,10 @@ export interface Clinic {
   /** Formatted per the region pack */
   address?: string;
   phone?: string;
+  /** What the unit sees, as patients read it */
+  description?: string;
+  /** The services offered, for search and the unit page */
+  services?: string[];
   /** Per weekday */
   openingHours?: Record<string, unknown>;
 }
@@ -145,6 +165,8 @@ export interface AppointmentType {
   intakeFormId?: string;
   /** FEE_BAND */
   feeBandId?: string;
+  /** Units offering it; absent means every unit on its line */
+  clinicIds?: string[];
   active?: boolean;
 }
 
@@ -553,6 +575,14 @@ export const ENTITY_ATTRIBUTES: Record<string, readonly EntityAttribute[]> = {
     { name: "ratingAffectsFee", kind: "bool", key: "", note: "Refused when the region pack forbids it" },
     { name: "noShowStrikeThreshold", kind: "int", key: "", note: "0 disables strikes, which is the default. D-07" },
     { name: "noShowStrikeWindowDays", kind: "int", key: "", note: "Rolling window, default 180" },
+    { name: "languages", kind: "list", key: "", note: "The pack's languages the tenant offers. FR-ADM-03" },
+    { name: "reminderLeadHours", kind: "int", key: "", note: "First reminder before the visit, default 24. FR-REM-01" },
+    { name: "secondReminderHours", kind: "int", key: "", note: "0 is off, the default; 2 when switched on" },
+    { name: "queueMoveThresholdMinutes", kind: "int", key: "", note: "Arrival window move that texts a ticket holder, default 30" },
+    { name: "guardianConsent", kind: "enum", key: "", note: "DESK_OR_GUARDIAN_ACCOUNT" },
+    { name: "smsSenderId", kind: "string", key: "", note: "Within the pack's sender policy. FR-ADM-03" },
+    { name: "emailSenderName", kind: "string", key: "", note: "The name emails are sent from. FR-ADM-03" },
+    { name: "firstAppointmentAt", kind: "datetime", key: "", note: "Set by the first booking; locks the region pack. FR-TEN-07" },
     { name: "status", kind: "enum", key: "", note: "ONBOARDING, ACTIVE, SUSPENDED" },
   ],
   "CLINIC": [
@@ -561,6 +591,8 @@ export const ENTITY_ATTRIBUTES: Record<string, readonly EntityAttribute[]> = {
     { name: "name", kind: "string", key: "", note: "" },
     { name: "address", kind: "string", key: "", note: "Formatted per the region pack" },
     { name: "phone", kind: "string", key: "", note: "" },
+    { name: "description", kind: "string", key: "", note: "What the unit sees, as patients read it" },
+    { name: "services", kind: "list", key: "", note: "The services offered, for search and the unit page" },
     { name: "openingHours", kind: "json", key: "", note: "Per weekday" },
   ],
   "APPOINTMENT_TYPE": [
@@ -578,6 +610,7 @@ export const ENTITY_ATTRIBUTES: Record<string, readonly EntityAttribute[]> = {
     { name: "cancellationWindowMinutes", kind: "int", key: "", note: "Boundary between in window and late. D-07" },
     { name: "intakeFormId", kind: "string", key: "FK", note: "INTAKE_FORM, nullable" },
     { name: "feeBandId", kind: "string", key: "FK", note: "FEE_BAND" },
+    { name: "clinicIds", kind: "list", key: "", note: "Units offering it; absent means every unit on its line" },
     { name: "active", kind: "bool", key: "", note: "" },
   ],
   "INTAKE_FORM": [

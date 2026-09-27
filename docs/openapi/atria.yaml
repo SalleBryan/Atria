@@ -31,6 +31,8 @@ security:
 tags:
   - name: Identity and accounts
     description: Who the caller is, profile completion, phone verification, staff accounts.
+  - name: Settings
+    description: The tenant administrator's settings, units, appointment types and fee bands.
   - name: Audit
     description: The audit trail of staff access to patient data and privileged changes.
 
@@ -1244,6 +1246,166 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /admin/settings:
+    get:
+      tags: [Settings]
+      operationId: getSettings
+      summary: Everything the settings screens show, in one read (FR-ADM-03, FR-ADM-06, FR-ADM-09)
+      description: |
+        Permission clinic.manage (a tenant administrator). The tenant's
+        settings with the region pack lock and its reason (FR-TEN-07), the
+        pack, the units, every appointment type including retired ones, and
+        the fee bands in force.
+      responses:
+        "200":
+          description: The overview.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenant: { $ref: "#/components/schemas/TenantSettings" }
+                  regionPack: { type: object }
+                  clinics: { type: array, items: { type: object } }
+                  appointmentTypes: { type: array, items: { $ref: "#/components/schemas/AppointmentTypeSettings" } }
+                  feeBands: { type: array, items: { $ref: "#/components/schemas/FeeBand" } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    patch:
+      tags: [Settings]
+      operationId: changeSettings
+      summary: Change the tenant's settings and switches
+      description: |
+        Each field needs its permission: regionPackCode region_pack.choose;
+        qualityProgrammeEnabled, ratingAffectsFee and the no-show strike
+        fields feature_flag.set; the rest clinic.manage. The region pack and
+        the grid unit are refused once the tenant has its first appointment
+        (detail.locked). ratingAffectsFee is refused where the pack forbids
+        it (FR-TEN-05). A no-show threshold of 0 is off, the default
+        (FR-TEN-04). Unknown fields are refused.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TenantSettings" }
+      responses:
+        "200":
+          description: The settings after the change.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TenantSettings" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/clinics/{id}:
+    patch:
+      tags: [Settings]
+      operationId: changeUnit
+      summary: A unit's profile, services and opening hours (FR-ADM-03)
+      description: |
+        Permission clinic.manage. Opening hours are weekday (0 Monday) to
+        {start, end} on the grid, or null for closed. Patients see the change
+        at once.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 80 }
+                address: { type: string, maxLength: 160 }
+                phone: { type: string, example: "+237600000000" }
+                description: { type: string, maxLength: 300 }
+                services: { type: array, maxItems: 12, items: { type: string, maxLength: 60 } }
+                openingHours: { $ref: "#/components/schemas/WeekHours" }
+      responses:
+        "200": { description: The unit after the change. }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /admin/appointment-types:
+    post:
+      tags: [Settings]
+      operationId: createAppointmentType
+      summary: A new appointment type, without a release (FR-ADM-06)
+      description: |
+        Permission appointment_type.manage. A GENERAL type is queued and has
+        no duration; a PROCEDURE is booked by STAFF and may be
+        patientRequestable. feeBandId must be one of the tenant's bands;
+        clinicIds, where given, limits it to those units (FR-TEN-02).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppointmentTypeSettings" }
+      responses:
+        "201":
+          description: The type, offered at once.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppointmentTypeSettings" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/appointment-types/{id}:
+    patch:
+      tags: [Settings]
+      operationId: changeAppointmentType
+      summary: Change or retire an appointment type
+      description: |
+        Permission appointment_type.manage. The service line cannot change.
+        active false retires it: it leaves booking and stays on visits
+        already booked.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppointmentTypeSettings" }
+      responses:
+        "200": { description: The type after the change. }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /admin/fee-bands/{id}:
+    put:
+      tags: [Settings]
+      operationId: setFeeBand
+      summary: A fee band's amount, as a new version from today (FR-ADM-06)
+      description: |
+        Permission fee_band.manage. The version it replaces is kept and stays
+        what the ledger uses for visits before today. Amounts are in XAF,
+        whole francs.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [practice, baseAmountMinor]
+              properties:
+                practice: { type: string, maxLength: 60 }
+                baseAmountMinor: { type: integer, minimum: 0 }
+                scheduleReference: { type: string, maxLength: 160 }
+      responses:
+        "200":
+          description: The new version.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FeeBand" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /audit:
     get:
       tags: [Audit]
@@ -1397,6 +1559,54 @@ components:
         created with.
 
   schemas:
+    TenantSettings:
+      type: object
+      properties:
+        name: { type: string }
+        regionPackCode: { type: string, example: CM }
+        gridUnitMinutes: { type: integer, enum: [5, 10, 15, 20, 30] }
+        languages: { type: array, items: { type: string } }
+        reminderLeadHours: { type: integer, minimum: 1, maximum: 72 }
+        secondReminderHours: { type: integer, minimum: 0, maximum: 12, description: "0 is off" }
+        queueMoveThresholdMinutes: { type: integer, minimum: 10, maximum: 120 }
+        noShowStrikeThreshold: { type: integer, minimum: 0, maximum: 10, description: "0 is off" }
+        noShowStrikeWindowDays: { type: integer, minimum: 30, maximum: 365 }
+        qualityProgrammeEnabled: { type: boolean }
+        ratingAffectsFee: { type: boolean }
+        guardianConsent: { type: string, enum: [DESK_OR_GUARDIAN_ACCOUNT] }
+        smsSenderId: { type: string, pattern: "^[A-Za-z][A-Za-z0-9]{2,10}$" }
+        emailSenderName: { type: string, maxLength: 60 }
+        firstAppointmentAt: { type: [string, "null"], format: date-time, readOnly: true }
+        regionPackLocked: { type: boolean, readOnly: true }
+        lockReason: { type: [string, "null"], readOnly: true }
+
+    AppointmentTypeSettings:
+      type: object
+      properties:
+        appointmentTypeId: { type: string, readOnly: true }
+        name: { type: string, maxLength: 80 }
+        code: { type: string }
+        serviceLine: { type: string, enum: [GENERAL, SPECIALIST, PROCEDURE] }
+        durationUnits: { type: [integer, "null"], minimum: 1, maximum: 48 }
+        bufferUnits: { type: integer, minimum: 0, maximum: 12 }
+        bookableBy: { type: string, enum: [PATIENT, STAFF, BOTH] }
+        patientRequestable: { type: boolean }
+        minNoticeMinutes: { type: integer }
+        maxAdvanceDays: { type: integer }
+        cancellationWindowMinutes: { type: integer }
+        feeBandId: { type: string }
+        clinicIds: { type: [array, "null"], items: { type: string } }
+        active: { type: boolean }
+
+    FeeBand:
+      type: object
+      properties:
+        feeBandId: { type: string }
+        practice: { type: string }
+        baseAmountMinor: { type: integer, description: Whole XAF }
+        scheduleReference: { type: string }
+        effectiveFrom: { type: string, format: date }
+
     AuditEntry:
       type: object
       description: One recorded action. Written once, never changed.

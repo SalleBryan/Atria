@@ -96,6 +96,23 @@ ROUTES: dict[tuple[str, str], Route] = {
     ("POST", "/admin/staff/{id}/suspend"): Route(
         "staff.suspend", WRITE, "STAFF", "id", patient_data=False
     ),
+    ("PATCH", "/admin/settings"): Route("settings.tenant", WRITE, "TENANT", patient_data=False),
+    ("PATCH", "/admin/clinics/{id}"): Route(
+        "settings.unit", WRITE, "CLINIC", "id", patient_data=False
+    ),
+    ("POST", "/admin/appointment-types"): Route(
+        "settings.type_create",
+        WRITE,
+        "APPOINTMENT_TYPE",
+        subject_field="appointmentTypeId",
+        patient_data=False,
+    ),
+    ("PATCH", "/admin/appointment-types/{id}"): Route(
+        "settings.type_change", WRITE, "APPOINTMENT_TYPE", "id", patient_data=False
+    ),
+    ("PUT", "/admin/fee-bands/{id}"): Route(
+        "settings.fee_band", WRITE, "FEE_BAND", "id", patient_data=False
+    ),
     ("GET", "/audit/export"): Route("audit.export", READ, "AUDIT_LOG", patient_data=False),
 }
 

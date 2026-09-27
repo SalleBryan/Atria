@@ -1280,3 +1280,131 @@ button.bottom-item { border: 0; font: inherit; background: transparent; cursor: 
   .availability-cols { grid-template-columns: minmax(0, 1fr); }
   .availability-card { overflow: visible; }
 }
+
+/* Hospital settings (Settings.tsx): Staff accounts' page, Availability's cards and dialogs. */
+.settings-tabs { align-self: flex-start; }
+.settings-form { display: flex; flex: 1; flex-direction: column; gap: 12px; min-height: 0; }
+.settings-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; flex: 1; min-height: 0; }
+.settings-card { gap: 14px; }
+.settings-card .field { margin: 0; }
+.settings-row { display: flex; flex-direction: column; gap: 8px; padding: 12px 0 0; border-top: 1px solid var(--line-hairline); }
+.settings-row-text { display: flex; flex-direction: column; gap: 3px; }
+.settings-row-title { font-size: 13.5px; font-weight: 600; color: var(--ink-800); }
+.settings-row-help { font-size: 12px; line-height: 1.45; color: var(--ink-muted); }
+.settings-row-control { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.settings-row-control .picker-field { height: 40px; border-radius: 13px; }
+.settings-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.settings-stack { flex-direction: column; align-items: flex-start; }
+.settings-checks { display: flex; flex-wrap: wrap; gap: 18px; }
+.settings-value { font-size: 13px; color: var(--ink-650); }
+.settings-pack { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-650); }
+.settings-pack-code {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 26px;
+  border-radius: 9px;
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #ffffff;
+  background: var(--gradient-primary);
+}
+.admin-app .settings-pack-code { background: linear-gradient(140deg, var(--admin-light), var(--admin-base)); }
+.settings-save {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0 4px;
+  font-size: 13px;
+  color: var(--ink-muted);
+  opacity: 0.55;
+  transition: opacity var(--fade);
+}
+.settings-save > span { margin-right: auto; }
+.settings-save-on { opacity: 1; }
+.settings-save .outline-button,
+.settings-save .staff-primary { height: 44px; padding: 0 20px; }
+.settings-card-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 6px 14px; }
+.settings-card-top p { margin: 0; font-size: 13px; color: var(--ink-muted); }
+.settings-banner { margin: 0 0 14px; }
+.accounts-head.settings-units-head,
+.account-row.settings-unit-row { grid-template-columns: minmax(0, 1fr) 220px 180px 60px; }
+.accounts-head.settings-types-head,
+.account-row.settings-type-row { grid-template-columns: minmax(0, 1fr) 170px 180px 180px 60px; }
+.accounts-head.settings-types-head > :first-child,
+.accounts-head.settings-fees-head > :first-child { padding-left: 0; }
+.accounts-head.settings-fees-head,
+.account-row.settings-fee-row { grid-template-columns: minmax(0, 1fr) 180px 260px 60px; }
+.settings-unit-row .account-avatar { color: var(--blue-600); background: rgba(47, 107, 228, 0.12); }
+.admin-app .settings-unit-row .account-avatar { color: var(--admin-base); background: rgba(139, 92, 240, 0.12); }
+.settings-unit-row .account-role,
+.settings-type-row .account-role,
+.settings-fee-row .account-role { display: block; }
+.settings-type-name { display: flex; align-items: center; gap: 8px; }
+.settings-type-name .chip { flex: none; padding: 3px 9px; font-size: 11px; }
+.settings-amount { font-family: var(--font-display); font-size: 16px !important; }
+.settings-dialog { max-width: 560px; }
+.settings-dialog-form { display: flex; flex-direction: column; gap: 12px; }
+.settings-dialog-form .field { margin: 0; }
+.settings-label { font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-muted); }
+.settings-services { display: flex; flex-wrap: wrap; gap: 8px; }
+.settings-service { display: inline-flex; align-items: center; gap: 6px; }
+.settings-service button { display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 99px; color: inherit; background: transparent; cursor: pointer; }
+.settings-service button:hover { background: rgba(47, 107, 228, 0.16); }
+.settings-grow { flex: 1; min-width: 180px; }
+.settings-add { align-self: flex-end; height: 54px; padding: 0 18px; }
+.settings-unit-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
+.settings-matrix-wrap { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--line-hairline); border-radius: 20px; background: #ffffff; }
+.settings-matrix { width: 100%; border-collapse: collapse; font-size: 13px; }
+.settings-matrix th,
+.settings-matrix td { padding: 9px 12px; text-align: center; border-bottom: 1px solid var(--line-hairline); }
+.settings-matrix thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  background: #ffffff;
+}
+.settings-matrix tbody th { font-weight: 600; text-align: left; color: var(--ink-800); white-space: nowrap; }
+.settings-matrix tbody tr:hover { background: rgba(47, 107, 228, 0.04); }
+.settings-matrix .chip { padding: 3px 10px; font-size: 11px; }
+.settings-none { color: var(--line-soft); font-weight: 700; }
+.settings-roles { display: flex; flex-direction: column; }
+@media (max-width: 1199px) {
+  .settings-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .accounts-head.settings-units-head,
+  .account-row.settings-unit-row { grid-template-columns: minmax(0, 1fr) 160px 60px; }
+  .accounts-head.settings-units-head > :nth-child(2),
+  .settings-unit-row > :nth-child(2) { display: none; }
+  .accounts-head.settings-types-head,
+  .account-row.settings-type-row { grid-template-columns: minmax(0, 1fr) 150px 150px 60px; }
+  .accounts-head.settings-types-head > :nth-child(4),
+  .settings-type-row > :nth-child(4) { display: none; }
+}
+@media (max-width: 767px) {
+  .settings-page { height: auto; }
+  .settings-tabs { align-self: stretch; overflow-x: auto; scrollbar-width: none; }
+  .settings-tabs::-webkit-scrollbar { display: none; }
+  .settings-tabs .segment { flex: none; padding: 0 12px; white-space: nowrap; }
+  .settings-cols { grid-template-columns: minmax(0, 1fr); }
+  .settings-card-top { flex-direction: column; align-items: stretch; padding: 0 0 12px; }
+  .account-row.settings-unit-row,
+  .account-row.settings-type-row,
+  .account-row.settings-fee-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .settings-unit-row > .account-role,
+  .settings-type-row > .account-role,
+  .settings-fee-row > .account-role { grid-column: 1; }
+  .settings-unit-checks { grid-template-columns: minmax(0, 1fr); }
+  .settings-save:not(.settings-save-on) { display: none; }
+  .settings-save { position: sticky; bottom: 84px; padding: 10px 12px; border-radius: 20px; background: rgba(255, 255, 255, 0.94); box-shadow: 0 8px 24px rgba(16, 42, 94, 0.14); }
+}
+.settings-unit-row .account-role span,
+.settings-type-row .account-role span,
+.settings-fee-row .account-role span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

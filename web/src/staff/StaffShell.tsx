@@ -17,7 +17,7 @@ import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import type { Me } from "../api/client";
 import { useSession } from "../auth/session";
-import { Calendar, Clock, Pulse, Shield, SignOut, User } from "../components/icons";
+import { Calendar, Clock, Pulse, Shield, SignOut, Sliders, User } from "../components/icons";
 import { Waiting } from "../components/Waiting";
 import { initials } from "../patient/data";
 import { ROLE_LABEL, roleOf, StaffDataProvider, useStaffData } from "./data";
@@ -69,6 +69,14 @@ function Shell({ me }: { me: Me }) {
       label: "Staff accounts",
       icon: User,
       matches: (path) => path.startsWith("/console/staff"),
+    });
+  }
+  if (role === "TENANT_ADMIN") {
+    destinations.push({
+      to: "/console/settings",
+      label: "Settings",
+      icon: Sliders,
+      matches: (path) => path.startsWith("/console/settings"),
     });
   }
   if (role === "TENANT_ADMIN" || role === "CLINIC_MANAGER") {

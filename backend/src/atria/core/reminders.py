@@ -36,6 +36,19 @@ REMINDABLE = ("BOOKED", "CONFIRMED", "RESCHEDULED", "DISRUPTED")
 _NAME = re.compile(r"^[0-9A-Za-z_.-]{1,64}$")
 
 
+# The widest lead a tenant may set: three days (FR-ADM-03).
+MAX_LEAD_HOURS = 72
+
+
+def lead_for(tenant: dict[str, object]) -> dt.timedelta:
+    """The tenant's reminder lead time, 24 hours where it has set none."""
+    try:
+        hours = int(str(tenant.get("reminderLeadHours") or 24))
+    except ValueError:
+        hours = 24
+    return dt.timedelta(hours=min(max(hours, 1), MAX_LEAD_HOURS))
+
+
 @dataclass(frozen=True, slots=True)
 class Plan:
     """What to do about a reminder for one appointment."""

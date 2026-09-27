@@ -340,7 +340,9 @@ def schedule_reminder(job: dict[str, Any], *, queued_at: dt.datetime | None) -> 
     if start is None:  # pragma: no cover  every appointment has a start
         return "skipped"
     zone = zone_for(tenant_id)
-    decided = reminders.plan(start, now=data.now(), zone=zone)
+    decided = reminders.plan(
+        start, now=data.now(), zone=zone, lead=reminders.lead_for(data.tenant(tenant_id))
+    )
 
     if decided.send_now:
         # FR-REM-06: too close for a reminder, so the confirmation goes by SMS

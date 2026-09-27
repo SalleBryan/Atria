@@ -41,6 +41,7 @@ import { careChoices, careSuggestions } from "./careSearch";
 import {
   type Appointment,
   type AppointmentType,
+  specialistTypes,
   type Clinician,
   clinicianName,
   clock,
@@ -137,22 +138,16 @@ export function FindCare() {
   const [freshness, setFreshness] = useState(0);
 
   const data = state.status === "ready" ? state.data : undefined;
-  const bookable = useMemo(
-    () => (data?.types ?? []).filter((t) => t.serviceLine === "SPECIALIST" && t.durationUnits),
-    [data],
-  );
-  const type: AppointmentType | undefined = bookable.find((t) => t.appointmentTypeId === typeId) ?? bookable[0];
-  const minutes = (type?.durationUnits ?? 0) * (data?.gridUnitMinutes ?? 10);
 
   // Most clinicians first: the specialties, clinics and languages people are likeliest to want.
   const { specialties, clinics: clinicOptions, languages: languageOptions } = useMemo(
-    () => careChoices(data?.clinicians ?? [], data?.clinics ?? []),
+    () => careChoices(data?.bookable ?? [], data?.clinics ?? []),
     [data],
   );
   const listed = useMemo(() => {
     const words = query.trim();
     const clinicName = (id: string | null) => data?.clinics.find((k) => k.clinicId === id)?.name ?? "";
-    return (data?.clinicians ?? []).filter((c) => {
+    return (data?.bookable ?? []).filter((c) => {
       if (specialty && c.specialty !== specialty) return false;
       if (clinicFilter && c.clinicId !== clinicFilter) return false;
       if (language && !c.languages.includes(language)) return false;
@@ -165,7 +160,7 @@ export function FindCare() {
 
   // What the search bar guesses from: every category Find care can narrow by.
   const suggestions = careSuggestions(
-    data?.clinicians ?? [],
+    data?.bookable ?? [],
     data?.clinics ?? [],
     { specialties, clinics: clinicOptions, languages: languageOptions },
     {
@@ -193,6 +188,10 @@ export function FindCare() {
   );
 
   const selected = listed.find((c) => c.clinicianProfileId === selectedId) ?? listed[0];
+  // What can be booked with this clinician: the specialist types their unit offers.
+  const bookable = useMemo(() => specialistTypes(data?.types ?? [], selected?.clinicId), [data, selected?.clinicId]);
+  const type: AppointmentType | undefined = bookable.find((t) => t.appointmentTypeId === typeId) ?? bookable[0];
+  const minutes = (type?.durationUnits ?? 0) * (data?.gridUnitMinutes ?? 10);
   // The list is paged to what its box holds, never scrolled without end.
   const rowsBox = useRef<HTMLUListElement>(null);
   const size = useRowsThatFit(rowsBox, { row: ".clinician", pitch: 84, gap: 10 });

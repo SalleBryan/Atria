@@ -129,6 +129,7 @@ def reschedule(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     appointment_type = data.appointment_type(tenant_id, str(appointment["appointmentTypeId"]))
     minutes = rules.grid_unit_minutes(data.tenant(tenant_id))
     rules.require_on_grid(request.start_at, minutes=minutes)
+    rules.require_offered(appointment_type, clinic_id)
     rules.require_bookable(
         appointment_type, by_patient=not by_staff, now=now, start_at=request.start_at
     )

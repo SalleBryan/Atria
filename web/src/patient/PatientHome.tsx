@@ -68,7 +68,7 @@ export function PatientHome() {
   // Guesses from everything Find care can narrow by, and goes there already narrowed.
   const ready = state.status === "ready" ? state.data : undefined;
   const suggestions = useMemo(() => {
-    const clinicians = ready?.clinicians ?? [];
+    const clinicians = ready?.bookable ?? [];
     const clinics = ready?.clinics ?? [];
     const go = (name: string, value: string) => navigate(`/find-care?${name}=${encodeURIComponent(value)}`);
     return careSuggestions(clinicians, clinics, careChoices(clinicians, clinics), {

@@ -236,6 +236,22 @@ class Repository:
             raise
         return dict(response["Attributes"])
 
+    def set_if_absent(self, key: Key, field: str, value: Any) -> bool:
+        """Set one attribute on an existing item unless it already has one. True if set."""
+        try:
+            self._table.update_item(
+                Key=key.as_item(),
+                UpdateExpression="SET #f = :v",
+                ConditionExpression="attribute_exists(pk) AND attribute_not_exists(#f)",
+                ExpressionAttributeNames={"#f": field},
+                ExpressionAttributeValues={":v": value},
+            )
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                return False
+            raise
+        return True
+
     def delete(self, key: Key) -> None:
         """Remove one item. Absent is success: the caller wanted it gone."""
         self._table.delete_item(Key=key.as_item())

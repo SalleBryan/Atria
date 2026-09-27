@@ -134,6 +134,21 @@ def flag_self_benefit(caller: Principal, appointment: dict[str, Any], data: Book
         audit.note(POTENTIAL_SELF_BENEFIT)
 
 
+def no_shows(data: Booking, tenant_id: str, patient_profile_id: str, tenant: dict[str, Any]) -> int:
+    """Missed visits in the tenant's rolling window, for the strike rule (FR-TEN-04)."""
+    if not int(tenant.get("noShowStrikeThreshold") or 0):
+        return 0
+    days = int(tenant.get("noShowStrikeWindowDays") or 180)
+    now = data.now()
+    found = data.appointments_for_patient(
+        tenant_id,
+        patient_profile_id,
+        since=rules.instant(now - dt.timedelta(days=days)),
+        until=rules.instant(now),
+    )
+    return sum(1 for a in found if a.get("state") == "NO_SHOW")
+
+
 def mine(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     """A patient's own appointments, upcoming or past, earliest first (FR-VIS-01).
 
@@ -289,7 +304,8 @@ def create(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
     data.patient_profile(caller.tenant_id, request.patient_profile_id)
 
     appointment_type = data.appointment_type(caller.tenant_id, request.appointment_type_id)
-    minutes = rules.grid_unit_minutes(data.tenant(caller.tenant_id))
+    tenant = data.tenant(caller.tenant_id)
+    minutes = rules.grid_unit_minutes(tenant)
     rules.require_on_grid(request.start_at, minutes=minutes)
     rules.require_bookable(
         appointment_type,
@@ -297,6 +313,14 @@ def create(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
         now=data.now(),
         start_at=request.start_at,
     )
+    rules.require_offered(appointment_type, clinic_id)
+    if by_patient:
+        rules.require_within_strikes(
+            tenant,
+            no_shows=no_shows(data, caller.tenant_id, request.patient_profile_id, tenant),
+            now=data.now(),
+            start_at=request.start_at,
+        )
 
     occupancy = rules.occupancy(
         request.start_at,
@@ -315,6 +339,11 @@ def create(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
         actor_role=role_used(caller, "appointment.create"),
         local_day=occupancy.start_at.astimezone(data.zone(caller.tenant_id)).date().isoformat(),
     )
+    if not tenant.get("firstAppointmentAt"):
+        # FR-TEN-07: the region pack and grid lock from here on.
+        data.mark_first_appointment(
+            caller.tenant_id, str(appointment.get("createdAt") or rules.instant(data.now()))
+        )
     logger.info(
         "appointment booked",
         extra={

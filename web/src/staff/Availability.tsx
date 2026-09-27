@@ -19,16 +19,15 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { useSession } from "../auth/session";
 import { Checkbox, Notice } from "../components/controls";
-import { CheckMark, Clock, Close, Plus } from "../components/icons";
-import { DatePicker, halfHours, type PickerOption, SelectMenu } from "../components/Pickers";
+import { Clock, Close, Plus } from "../components/icons";
+import { DatePicker, SelectMenu } from "../components/Pickers";
+import { daysOf, type Hours, timeOptions, type Week, weekFrom, WeekHours } from "../components/WeekHours";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { MATRIX } from "../generated/permissions";
 import { clock, initials } from "../patient/data";
 import { doctor, roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
 import { Snackbar } from "./Snackbar";
-
-type Hours = Record<string, { start: string; end: string }>;
 
 interface TimeOff {
   groupId: string;
@@ -48,19 +47,11 @@ interface Availability {
   timeOff: TimeOff[];
 }
 
-const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-
 const KIND: Record<TimeOff["kind"], { label: string; tone: string; hint: string }> = {
   BLOCK: { label: "Blocked", tone: "neutral", hint: "Free time taken out of booking. Refused where a visit is booked." },
   LEAVE: { label: "Leave", tone: "awaiting", hint: "Whole days. Visits inside are disrupted and each patient asked to choose again." },
   UNAVAILABLE: { label: "Unavailable", tone: "cancelled", hint: "Visits inside are disrupted and each patient asked to choose again." },
 };
-
-/** Half hours, plus a saved time that is not on one, so it is never shown as blank. */
-function timeOptions(current: string): PickerOption[] {
-  const times = halfHours();
-  return times.some((t) => t.id === current) ? times : [...times, { id: current, label: current }].sort((a, b) => a.id.localeCompare(b.id));
-}
 
 const can = (role: string, permission: keyof typeof MATRIX) => (MATRIX[permission] as Record<string, string>)[role] !== "none";
 
@@ -237,15 +228,7 @@ function WeekEditor({
   editable: boolean;
   onSaved: (message: string) => void;
 }) {
-  const start = found.usesUnitHours ? found.unitHours : found.hours;
-  const [week, setWeek] = useState<Record<string, { on: boolean; start: string; end: string }>>(() =>
-    Object.fromEntries(
-      WEEKDAYS.map((_, day) => {
-        const span = start[String(day)];
-        return [String(day), { on: Boolean(span), start: span?.start ?? "08:00", end: span?.end ?? "16:00" }];
-      }),
-    ),
-  );
+  const [week, setWeek] = useState<Week>(() => weekFrom(found.usesUnitHours ? found.unitHours : found.hours));
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -253,7 +236,7 @@ function WeekEditor({
     event.preventDefault();
     setBusy(true);
     setFailure(null);
-    const days = Object.fromEntries(Object.entries(week).map(([day, v]) => [day, v.on ? { start: v.start, end: v.end } : null]));
+    const days = daysOf(week);
     try {
       await api(`/clinicians/${encodeURIComponent(clinicianId)}/hours`, { method: "PUT", json: { days } });
       onSaved("Working hours saved. New bookings follow them from now.");
@@ -270,46 +253,7 @@ function WeekEditor({
           ? "Following the unit's opening hours. Save to give this clinician hours of their own."
           : "Hours of their own. A day left off is a day off."}
       </p>
-      <ol className="week-rows">
-        {WEEKDAYS.map((name, day) => {
-          const row = week[String(day)] as { on: boolean; start: string; end: string };
-          const set = (patch: Partial<typeof row>) => setWeek((w) => ({ ...w, [String(day)]: { ...row, ...patch } }));
-          return (
-            <li key={name} className={`week-row${row.on ? "" : " week-row-off"}`}>
-              <label className={`checkbox week-day${editable ? "" : " checkbox-off"}`}>
-                <input type="checkbox" checked={row.on} disabled={!editable} onChange={(event) => set({ on: event.target.checked })} />
-                <span className="checkbox-box" aria-hidden="true">
-                  <CheckMark size={13} />
-                </span>
-                <span>{name}</span>
-              </label>
-              {row.on ? (
-                <span className="week-times">
-                  <SelectMenu
-                    label={`${name} start`}
-                    value={row.start}
-                    options={timeOptions(row.start)}
-                    width={140}
-                    disabled={!editable}
-                    onChange={(start) => set({ start })}
-                  />
-                  <span aria-hidden="true">to</span>
-                  <SelectMenu
-                    label={`${name} end`}
-                    value={row.end}
-                    options={timeOptions(row.end)}
-                    width={140}
-                    disabled={!editable}
-                    onChange={(end) => set({ end })}
-                  />
-                </span>
-              ) : (
-                <span className="week-off">Day off</span>
-              )}
-            </li>
-          );
-        })}
-      </ol>
+      <WeekHours week={week} onChange={setWeek} editable={editable} />
       {failure && <Notice tone="error">{failure}</Notice>}
       {editable && (
         <button type="submit" className="staff-primary" disabled={busy} aria-busy={busy || undefined}>

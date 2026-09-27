@@ -187,6 +187,37 @@ def require_bookable(
         )
 
 
+def require_offered(appointment_type: dict[str, object], clinic_id: str) -> None:
+    """A type limited to some units is booked only there (FR-ADM-06)."""
+    offered = appointment_type.get("clinicIds")
+    if offered and clinic_id not in offered:  # type: ignore[operator]
+        raise Invalid("that appointment type is not offered at this clinician's unit")
+
+
+# FR-TEN-04: over the threshold, a patient books only this close to the visit.
+STRIKE_HORIZON = dt.timedelta(hours=24)
+
+
+def require_within_strikes(
+    tenant: dict[str, object], *, no_shows: int, now: dt.datetime, start_at: dt.datetime
+) -> None:
+    """A patient over the tenant's no-show threshold books only within 24 hours.
+
+    Off unless the tenant set a threshold. Never a lock-out: a visit in the
+    next 24 hours can always be booked, and the refusal says why (D-07).
+    """
+    threshold = _whole(tenant.get("noShowStrikeThreshold"), name="noShowStrikeThreshold")
+    if not threshold or no_shows < threshold:
+        return
+    if start_at > now + STRIKE_HORIZON:
+        days = _whole(tenant.get("noShowStrikeWindowDays"), name="noShowStrikeWindowDays") or 180
+        raise Invalid(
+            f"after {no_shows} missed visits in {days} days, visits can be booked up to 24 hours"
+            " ahead. The desk can book further ahead for you.",
+            detail={"noShows": no_shows, "threshold": threshold, "bookWithinHours": 24},
+        )
+
+
 CANCELLED_BY = ("PATIENT", "CLINIC")
 
 # What the outcome entitles the patient to. Recorded, never settled: no money

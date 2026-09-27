@@ -57,7 +57,7 @@ LISTED_FIELDS = (
 )
 
 # A clinic as a patient chooses between them and finds their way there.
-CLINIC_FIELDS = ("clinicId", "name", "address", "phone", "openingHours")
+CLINIC_FIELDS = ("clinicId", "name", "address", "phone", "description", "services", "openingHours")
 
 # An appointment type as a client needs it to ask for free starts and to say
 # what is being booked: its length and buffer are in the tenant's grid units.
@@ -72,6 +72,8 @@ TYPE_FIELDS = (
     "minNoticeMinutes",
     "maxAdvanceDays",
     "cancellationWindowMinutes",
+    "patientRequestable",
+    "clinicIds",
 )
 
 _people: People | None = None
@@ -195,6 +197,7 @@ def list_slots(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     )
 
     appointment_type = data.appointment_type(principal.tenant_id, str(type_id))
+    rules.require_offered(appointment_type, clinic_id)
     minutes = rules.grid_unit_minutes(data.tenant(principal.tenant_id))
     zone = data.zone(principal.tenant_id)
     clinic = data.clinic(principal.tenant_id, clinic_id)

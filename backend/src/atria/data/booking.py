@@ -163,6 +163,14 @@ class Booking:
     def tenant(self, tenant_id: str) -> Item:
         return self._repo.require(keys.tenant(tenant_id), what="tenant")
 
+    def mark_first_appointment(self, tenant_id: str, when: str) -> None:
+        """Record the tenant's first booking, which locks its region pack (FR-TEN-07).
+
+        Written only while absent, so the date is the first booking's even
+        when two arrive together.
+        """
+        self._repo.set_if_absent(keys.tenant(tenant_id), "firstAppointmentAt", when)
+
     def appointment_type(self, tenant_id: str, type_id: str) -> Item:
         return self._repo.require(
             keys.appointment_type(tenant_id, type_id), what="appointment type"

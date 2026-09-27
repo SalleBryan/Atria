@@ -38,6 +38,14 @@ MODEL = {
     ("ratingAffectsFee", "bool", "", "Refused when the region pack forbids it"),
     ("noShowStrikeThreshold", "int", "", "0 disables strikes, which is the default. D-07"),
     ("noShowStrikeWindowDays", "int", "", "Rolling window, default 180"),
+    ("languages", "list", "", "The pack's languages the tenant offers. FR-ADM-03"),
+    ("reminderLeadHours", "int", "", "First reminder before the visit, default 24. FR-REM-01"),
+    ("secondReminderHours", "int", "", "0 is off, the default; 2 when switched on"),
+    ("queueMoveThresholdMinutes", "int", "", "Arrival window move that texts a ticket holder, default 30"),
+    ("guardianConsent", "enum", "", "DESK_OR_GUARDIAN_ACCOUNT"),
+    ("smsSenderId", "string", "", "Within the pack's sender policy. FR-ADM-03"),
+    ("emailSenderName", "string", "", "The name emails are sent from. FR-ADM-03"),
+    ("firstAppointmentAt", "datetime", "", "Set by the first booking; locks the region pack. FR-TEN-07"),
     ("status", "enum", "", "ONBOARDING, ACTIVE, SUSPENDED"),
  ]),
 
@@ -47,6 +55,8 @@ MODEL = {
     ("name", "string", "", ""),
     ("address", "string", "", "Formatted per the region pack"),
     ("phone", "string", "", ""),
+    ("description", "string", "", "What the unit sees, as patients read it"),
+    ("services", "list", "", "The services offered, for search and the unit page"),
     ("openingHours", "json", "", "Per weekday"),
  ]),
 
@@ -66,6 +76,7 @@ MODEL = {
     ("cancellationWindowMinutes", "int", "", "Boundary between in window and late. D-07"),
     ("intakeFormId", "string", "FK", "INTAKE_FORM, nullable"),
     ("feeBandId", "string", "FK", "FEE_BAND"),
+    ("clinicIds", "list", "", "Units offering it; absent means every unit on its line"),
     ("active", "bool", "", ""),
  ]),
 

@@ -11,83 +11,117 @@
  * local times are built with a fixed offset.
  */
 
+import { APPOINTMENT_TYPES, CLINICIANS, FEE_BANDS, HOSPITAL, TENANT_SETTINGS, UNITS } from "../generated/hospital";
+
 const OFFSET_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const GRID = 10;
 
 /**
- * The Regional Hospital of Buea's outpatient units, which the API calls
- * clinics: the general outpatient department, where Phase 2's walk-in queue
- * will run, and the units where specialists see patients by appointment.
+ * The Regional Hospital Buea as the development tenant is seeded with it
+ * (atria_spec.hospital, generated): its outpatient units, appointment types
+ * and invented staff. Unit phone numbers are fictional.
  */
-const HOSPITAL = "Regional Hospital Buea, Buea";
-const WEEKDAYS = Object.fromEntries([0, 1, 2, 3, 4].map((day) => [String(day), { start: "07:30", end: "15:30" }]));
-const clinics = [
-  {
-    clinicId: "u-rhb-opd",
-    name: "General Outpatient Department",
-    address: HOSPITAL,
-    phone: "+1 202 555 0147",
-    openingHours: Object.fromEntries(
-      [0, 1, 2, 3, 4].map((day) => [String(day), { start: "07:30", end: "17:00" }]).concat([["5", { start: "08:00", end: "12:00" }]]),
-    ),
-  },
-  { clinicId: "u-rhb-medicine", name: "Medical Outpatient Unit", address: HOSPITAL, phone: "+1 202 555 0151", openingHours: WEEKDAYS },
-  { clinicId: "u-rhb-paediatrics", name: "Paediatrics Unit", address: HOSPITAL, phone: "+1 202 555 0152", openingHours: WEEKDAYS },
-  {
-    clinicId: "u-rhb-maternity",
-    name: "Maternity and Gynaecology Unit",
-    address: HOSPITAL,
-    phone: "+1 202 555 0153",
-    openingHours: WEEKDAYS,
-  },
-  { clinicId: "u-rhb-eye", name: "Eye Unit", address: HOSPITAL, phone: "+1 202 555 0154", openingHours: WEEKDAYS },
-];
-const clinicians = [
-  ["s-mbarga", "Esther", "Mbarga", "Paediatrics", 2008, "u-rhb-paediatrics", "EXPERIENCED", ["en", "fr"]],
-  ["s-nkoulou", "Jean-Paul", "Nkoulou", "Cardiology", 1999, "u-rhb-medicine", "SENIOR", ["en", "fr"]],
-  ["s-bello", "Aicha", "Bello", "Dermatology", 2015, "u-rhb-medicine", "EXPERIENCED", ["en", "fr"]],
-  ["s-tabi", "Ernest", "Tabi", "Internal medicine", 2010, "u-rhb-medicine", "EXPERIENCED", ["en"]],
-  ["s-tchoupo", "Samuel", "Tchoupo", "Gynaecology", 2011, "u-rhb-maternity", "EXPERIENCED", ["en", "fr"]],
-  ["s-fonkou", "Grace", "Fonkou", "Ophthalmology", 2019, "u-rhb-eye", "ESTABLISHED", ["en"]],
-].map(([id, given, family, specialty, year, clinic, band, languages]) => ({
-  clinicianProfileId: id,
-  clinicId: clinic,
-  givenName: given,
-  familyName: family,
-  specialty,
-  qualifications: [],
-  registrationYear: year,
-  seniorityBand: band,
-  languages,
+const clinics = UNITS.map((unit, i) => ({
+  clinicId: unit.clinicId,
+  name: unit.name,
+  address: HOSPITAL.address,
+  phone: `+1 202 555 01${String(47 + i).padStart(2, "0")}`,
+  description: unit.description,
+  services: [...unit.services],
+  openingHours: unit.openingHours as Record<string, { start: string; end: string }>,
 }));
 
-const types = [
-  {
-    appointmentTypeId: "at-spec-first",
-    code: "SPEC_FIRST",
-    name: "First specialist consultation",
-    serviceLine: "SPECIALIST",
-    durationUnits: 3,
-    bufferUnits: 1,
-    bookableBy: "BOTH",
-    minNoticeMinutes: 30,
-    maxAdvanceDays: 60,
-    cancellationWindowMinutes: 1440,
-  },
-  {
-    appointmentTypeId: "at-spec-follow",
-    code: "SPEC_FOLLOW",
-    name: "Follow-up consultation",
-    serviceLine: "SPECIALIST",
-    durationUnits: 2,
-    bufferUnits: 1,
-    bookableBy: "BOTH",
-    minNoticeMinutes: 30,
-    maxAdvanceDays: 60,
-    cancellationWindowMinutes: 1440,
-  },
-];
+function band(year: number): string {
+  const years = new Date().getUTCFullYear() - year;
+  return years >= 20 ? "SENIOR" : years >= 10 ? "EXPERIENCED" : years >= 3 ? "ESTABLISHED" : "RECENT";
+}
+
+const clinicians = CLINICIANS.map((c) => ({
+  clinicianProfileId: `s-${c.familyName.toLowerCase()}`,
+  clinicId: c.clinicId,
+  givenName: c.givenName,
+  familyName: c.familyName,
+  specialty: c.specialty,
+  qualifications: [],
+  registrationYear: c.registrationYear,
+  seniorityBand: band(c.registrationYear),
+  languages: [...c.languages],
+}));
+
+interface MockType {
+  appointmentTypeId: string;
+  code: string | null;
+  name: string;
+  serviceLine: string;
+  durationUnits: number | null;
+  bufferUnits: number;
+  bookableBy: string;
+  patientRequestable: boolean;
+  clinicIds: string[] | null;
+  feeBandId: string;
+  minNoticeMinutes: number;
+  maxAdvanceDays: number;
+  cancellationWindowMinutes: number;
+  active: boolean;
+}
+
+const types: MockType[] = APPOINTMENT_TYPES.map((t) => ({
+  appointmentTypeId: t.appointmentTypeId,
+  code: t.code,
+  name: t.name,
+  serviceLine: t.serviceLine,
+  durationUnits: t.durationUnits,
+  bufferUnits: t.bufferUnits,
+  bookableBy: t.bookableBy,
+  patientRequestable: "patientRequestable" in t ? t.patientRequestable : false,
+  clinicIds: "clinicIds" in t ? [...t.clinicIds] : null,
+  feeBandId: t.feeBandId,
+  minNoticeMinutes: 30,
+  maxAdvanceDays: 60,
+  cancellationWindowMinutes: 1440,
+  active: true,
+}));
+
+// The tenant's settings and fee bands (atria.services.admin.settings).
+const tenant: Record<string, unknown> = {
+  tenantId: "t-cm-001",
+  name: HOSPITAL.name,
+  regionPackCode: "CM",
+  ...TENANT_SETTINGS,
+  languages: [...TENANT_SETTINGS.languages],
+  firstAppointmentAt: "2026-09-19T08:12:40Z",
+};
+const feeBands = FEE_BANDS.map((b) => ({
+  ...b,
+  scheduleReference: "Atria fair rates, 2026-09-26",
+  effectiveFrom: "2026-09-26",
+}));
+const regionPack = {
+  code: "CM",
+  currency: "XAF",
+  dialCode: "+237",
+  languages: ["fr", "en"],
+  timezone: "Africa/Douala",
+  allowsRatingFeeLink: false,
+};
+
+function settingsOverview() {
+  const locked = Boolean(tenant.firstAppointmentAt);
+  return {
+    tenant: {
+      ...tenant,
+      regionPackLocked: locked,
+      lockReason: locked
+        ? `Locked since the first appointment on 19 September 2026. Bookings were made against this pack's currency, phone rules and clock.`
+        : null,
+    },
+    regionPack,
+    clinics,
+    appointmentTypes: types,
+    feeBands,
+  };
+}
 
 /** A clinic-local wall time, days from today, as a UTC instant. */
 function local(daysFromToday: number, hour: number, minute = 0): Date {
@@ -156,7 +190,7 @@ const appointments: Record<string, unknown>[] = [
   appointment("s-tchoupo", "at-spec-first", local(4, 9), "DISRUPTED", 6),
   appointment("s-nkoulou", "at-spec-first", local(-20, 9), "COMPLETED", 27),
   appointment("s-fonkou", "at-spec-first", local(-5, 11, 30), "PATIENT_CANCELLED", 12),
-  // A day at the Medical Outpatient Unit, for the staff console.
+  // A day at the Medical Unit, for the staff console.
   appointment("s-tabi", "at-spec-follow", local(0, 8, 30), "BOOKED", 3, { patient: "pp-tagne" }),
   appointment("s-nkoulou", "at-spec-first", local(0, 9), "BOOKED", 10, { patient: "pp-ekambi" }),
   appointment("s-bello", "at-spec-follow", local(0, 9, 40), "PATIENT_CANCELLED", 5, { patient: "pp-foka" }),
@@ -206,7 +240,9 @@ function freeStarts(clinicianId: string, date: string, typeId: string) {
     const [h, m] = clock.split(":").map(Number) as [number, number];
     return Date.UTC(year, month - 1, day, h, m) - OFFSET_MS;
   };
-  const held = (type.durationUnits + type.bufferUnits) * GRID * 60000;
+  const units = type.durationUnits ?? 0;
+  if (!units) return [];
+  const held = (units + type.bufferUnits) * GRID * 60000;
   const slots = [];
   for (let start = at(hours.start); start + held <= at(hours.end); start += GRID * 60000 * 3) {
     const when = new Date(start);
@@ -216,7 +252,7 @@ function freeStarts(clinicianId: string, date: string, typeId: string) {
       (a) => a.clinicianProfileId === clinicianId && a.state === "BOOKED" && Math.abs(new Date(String(a.startAt)).getTime() - start) < held,
     );
     if (clash) continue;
-    slots.push({ startAt: iso(when), endAt: iso(new Date(start + type.durationUnits * GRID * 60000)) });
+    slots.push({ startAt: iso(when), endAt: iso(new Date(start + units * GRID * 60000)) });
   }
   return slots;
 }
@@ -401,6 +437,45 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     }
     found.state = next[acted[2] as string] as string;
     found.version = Number(found.version) + 1;
+    return json(200, found, 500);
+  }
+  if (path === "/admin/settings") {
+    if (method === "GET") return json(200, settingsOverview());
+    if (method === "PATCH") {
+      Object.assign(tenant, body as Record<string, unknown>);
+      return json(200, settingsOverview().tenant, 500);
+    }
+  }
+  const unit = path.match(/^\/admin\/clinics\/([^/]+)$/);
+  if (method === "PATCH" && unit) {
+    const found = clinics.find((c) => c.clinicId === unit[1]);
+    if (!found) return json(404, { code: "not_found", message: "no such unit" });
+    Object.assign(found, body as Record<string, unknown>);
+    for (const [day, span] of Object.entries(found.openingHours)) if (!span) delete found.openingHours[day];
+    return json(200, found, 500);
+  }
+  if (method === "POST" && path === "/admin/appointment-types") {
+    const created: MockType = {
+      ...(body as MockType),
+      appointmentTypeId: `at-${Math.random().toString(16).slice(2, 8)}`,
+      code: null,
+      active: true,
+    };
+    types.push(created);
+    return json(201, created, 500);
+  }
+  const visitType = path.match(/^\/admin\/appointment-types\/([^/]+)$/);
+  if (method === "PATCH" && visitType) {
+    const found = types.find((t) => t.appointmentTypeId === visitType[1]);
+    if (!found) return json(404, { code: "not_found", message: "no such appointment type" });
+    Object.assign(found, body as Record<string, unknown>);
+    return json(200, found, 500);
+  }
+  const band = path.match(/^\/admin\/fee-bands\/([^/]+)$/);
+  if (method === "PUT" && band) {
+    const found = feeBands.find((b) => b.feeBandId === band[1]);
+    if (!found) return json(404, { code: "not_found", message: "no such fee band" });
+    Object.assign(found, body as Record<string, unknown>, { effectiveFrom: new Date().toISOString().slice(0, 10) });
     return json(200, found, 500);
   }
   if (method === "GET" && path === "/audit") {

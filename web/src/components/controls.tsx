@@ -157,14 +157,16 @@ export function Checkbox({
   checked,
   onChange,
   children,
+  disabled = false,
 }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
   children: ReactNode;
+  disabled?: boolean;
 }) {
   return (
-    <label className="checkbox">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+    <label className={`checkbox${disabled ? " checkbox-off" : ""}`}>
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
       <span className="checkbox-box" aria-hidden="true">
         <CheckMark size={13} />
       </span>

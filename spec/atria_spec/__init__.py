@@ -5,6 +5,6 @@ lifecycles. Everything that runs on AWS imports this package; the browser and
 the mobile client get generated copies from spec/generate.py.
 """
 
-from atria_spec import keys, lifecycle, model, roles
+from atria_spec import hospital, keys, lifecycle, model, roles
 
-__all__ = ["keys", "lifecycle", "model", "roles"]
+__all__ = ["hospital", "keys", "lifecycle", "model", "roles"]

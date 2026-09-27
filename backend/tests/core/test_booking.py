@@ -25,6 +25,8 @@ REQUEST = {
     "appointmentTypeId": "at-spec-first",
     "clinicianProfileId": "s-clin-1",
     "startAt": START,
+    "channel": "PHONE",
+    "callbackPhone": "+12025550199",
 }
 
 TYPE = {
@@ -102,9 +104,37 @@ class TestValidate:
         with pytest.raises(Invalid):
             booking.validate(body, by_patient=False, own_patient_profile_id=None)
 
-    def test_the_channel_defaults_to_online(self):
-        request = booking.validate(REQUEST, by_patient=False, own_patient_profile_id=None)
+    def test_fr_stf_14_a_patients_own_booking_is_online_whatever_it_says(self):
+        request = booking.validate(REQUEST, by_patient=True, own_patient_profile_id="pp-1")
         assert request.channel == "ONLINE"
+
+    def test_fr_stf_14_staff_say_how_the_patient_came(self):
+        body = {k: v for k, v in REQUEST.items() if k != "channel"}
+        with pytest.raises(Invalid):
+            booking.validate(body, by_patient=False, own_patient_profile_id=None)
+        with pytest.raises(Invalid):
+            booking.validate(
+                {**REQUEST, "channel": "ONLINE"}, by_patient=False, own_patient_profile_id=None
+            )
+
+    def test_fr_stf_14_a_phone_booking_needs_a_callback_number(self):
+        body = {**REQUEST, "callbackPhone": "call me"}
+        with pytest.raises(Invalid):
+            booking.validate(body, by_patient=False, own_patient_profile_id=None)
+        request = booking.validate(REQUEST, by_patient=False, own_patient_profile_id=None)
+        assert request.callback_phone == "+12025550199"
+
+    def test_fr_stf_14_a_referral_records_where_it_came_from(self):
+        body = {**REQUEST, "channel": "REFERRAL"}
+        with pytest.raises(Invalid):
+            booking.validate(body, by_patient=False, own_patient_profile_id=None)
+        body |= {"referringFacility": "Muea Health Centre", "referralNote": "Chest pain on effort"}
+        request = booking.validate(body, by_patient=False, own_patient_profile_id=None)
+        assert request.referral == {
+            "referringFacility": "Muea Health Centre",
+            "referringClinicianName": "",
+            "referralNote": "Chest pain on effort",
+        }
 
 
 class TestOccupancy:

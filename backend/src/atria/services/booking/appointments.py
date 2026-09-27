@@ -110,14 +110,10 @@ SELF_BENEFIT_WINDOW = dt.timedelta(hours=24)
 HOLDING = ("BOOKED", "CONFIRMED", "RESCHEDULED", "ARRIVED")
 
 
-def flag_self_benefit(caller: Principal, appointment: dict[str, Any], data: Booking) -> None:
-    """Flag a staff change made near the actor's own booking (POTENTIAL_SELF_BENEFIT).
-
-    Not a refusal: the flag puts the entry on the unit manager's list, where
-    a person decides whether it was what it looks like.
-    """
+def near_own_visit(caller: Principal, appointment: dict[str, Any], data: Booking) -> bool:
+    """Whether the actor holds a visit with the same clinician near this one."""
     if not caller.is_staff or caller.patient_profile_id is None:
-        return
+        return False
     start = rules.parse_instant(appointment["startAt"], name="startAt")
     own = data.appointments_for_patient(
         caller.tenant_id,
@@ -125,12 +121,21 @@ def flag_self_benefit(caller: Principal, appointment: dict[str, Any], data: Book
         since=rules.instant(start - SELF_BENEFIT_WINDOW),
         until=rules.instant(start + SELF_BENEFIT_WINDOW),
     )
-    if any(
+    return any(
         a.get("clinicianProfileId") == appointment.get("clinicianProfileId")
         and a.get("appointmentId") != appointment.get("appointmentId")
         and a.get("state") in HOLDING
         for a in own
-    ):
+    )
+
+
+def flag_self_benefit(caller: Principal, appointment: dict[str, Any], data: Booking) -> None:
+    """Flag a staff change made near the actor's own booking (POTENTIAL_SELF_BENEFIT).
+
+    The flag puts the entry on the unit manager's weekly list, where a person
+    decides whether it was what it looks like (FR-STF-13).
+    """
+    if near_own_visit(caller, appointment, data):
         audit.note(POTENTIAL_SELF_BENEFIT)
 
 
@@ -314,6 +319,16 @@ def create(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
         start_at=request.start_at,
     )
     rules.require_offered(appointment_type, clinic_id)
+    if (
+        request.channel == "REFERRAL"
+        and appointment_type.get("serviceLine") not in rules.REFERRAL_LINES
+    ):
+        raise Invalid("a referral is for a specialist visit or a procedure")
+    if request.channel == "WALK_IN":
+        zone = data.zone(caller.tenant_id)
+        if request.start_at.astimezone(zone).date() != data.now().astimezone(zone).date():
+            # A walk-in is someone at the desk now; a later day is a phone or a referral.
+            raise Invalid("a walk-in is booked for today")
     if by_patient:
         rules.require_within_strikes(
             tenant,

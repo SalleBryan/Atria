@@ -13,23 +13,17 @@
  * taken, which is true until the move lands.
  */
 
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { api } from "../api/client";
 import { type Appointment, type AppointmentType, clock, initials } from "../patient/data";
 import { Notice } from "./controls";
-import { ChevronLeft, ChevronRight, Clock, Close } from "./icons";
+import { Clock, Close } from "./icons";
 import { LoadingIndicator } from "./LoadingIndicator";
-
-interface Slot {
-  startAt: string;
-  endAt: string;
-}
+import { type Slot, WeekSlots } from "./WeekSlots";
 
 type MovedBy = "PATIENT" | "CLINIC";
 
-const WEEK = 7;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** What the desk can say; every option names whose move it is, "Other" asks. */
 const REASONS: { label: string; by: MovedBy | null }[] = [
@@ -39,10 +33,6 @@ const REASONS: { label: string; by: MovedBy | null }[] = [
   { label: "Unit schedule changed", by: "CLINIC" },
   { label: "Other", by: null },
 ];
-
-function shift(date: string, byDays: number): string {
-  return new Date(Date.parse(`${date}T12:00:00Z`) + byDays * DAY_MS).toISOString().slice(0, 10);
-}
 
 function sentence(text: string): string {
   const trimmed = text.trim();
@@ -68,10 +58,7 @@ export function MoveVisit({
   onClose: () => void;
   onMoved: (moved: Appointment) => void;
 }) {
-  const today = clock.isoDate(new Date());
-  const [weekStart, setWeekStart] = useState(today);
-  const [counts, setCounts] = useState<Record<string, Slot[] | undefined>>({});
-  const [day, setDay] = useState<string | null>(null);
+  const [fresh, setFresh] = useState(0);
   const [slot, setSlot] = useState<Slot | null>(null);
   const [reason, setReason] = useState<(typeof REASONS)[number] | null>(null);
   const [other, setOther] = useState<MovedBy | null>(null);
@@ -80,7 +67,6 @@ export function MoveVisit({
   const [failure, setFailure] = useState<string | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
 
-  const week = useMemo(() => Array.from({ length: WEEK }, (_, n) => shift(weekStart, n)), [weekStart]);
   const typeId = appointment.appointmentTypeId;
   const clinicianId = appointment.clinicianProfileId ?? "";
 
@@ -91,29 +77,7 @@ export function MoveVisit({
     return () => window.removeEventListener("keydown", onKey);
   }, [busy, onClose]);
 
-  useEffect(() => {
-    let live = true;
-    const from = week[0] as string;
-    const to = week[WEEK - 1] as string;
-    setCounts({});
-    api<{ days: Record<string, Slot[]> }>(
-      `/clinicians/${encodeURIComponent(clinicianId)}/slots?from=${from}&to=${to}&typeId=${encodeURIComponent(typeId)}`,
-    )
-      .then((found) => {
-        if (!live) return;
-        const next: Record<string, Slot[]> = {};
-        for (const date of week) next[date] = date < today ? [] : (found.days[date] ?? []);
-        setCounts(next);
-        setDay((current) => current ?? week.find((date) => (next[date] ?? []).length) ?? null);
-      })
-      .catch(() => live && setFailure("Free times could not be loaded. Check your connection and try again."));
-    return () => {
-      live = false;
-    };
-  }, [clinicianId, typeId, week, today]);
-
   const by = reason?.by ?? other;
-  const slots = day ? counts[day] : undefined;
   const ready = Boolean(slot) && (!byStaff || Boolean(reason && by));
 
   async function move(event: FormEvent) {
@@ -137,7 +101,7 @@ export function MoveVisit({
       setFailure(`${sentence(caught instanceof Error ? caught.message : "The visit could not be moved")} Nothing was changed.`);
       setBusy(false);
       // The time may have been taken; read the week again.
-      setWeekStart((start) => `${start}`);
+      setFresh((n) => n + 1);
       setSlot(null);
     }
   }
@@ -180,76 +144,16 @@ export function MoveVisit({
           </div>
 
           <form id="move-form" onSubmit={move}>
-            <div className="row-head">
-              <p className="dialog-label">NEW DAY</p>
-              <div className="week-nav">
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label="Previous week"
-                  disabled={weekStart <= today}
-                  onClick={() => setWeekStart((start) => (shift(start, -WEEK) < today ? today : shift(start, -WEEK)))}
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label="Next week"
-                  onClick={() => setWeekStart((start) => shift(start, WEEK))}
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-            <div className="days" role="radiogroup" aria-label="Day">
-              {week.map((date) => {
-                const free = counts[date];
-                const on = date === day;
-                return (
-                  <button
-                    key={date}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    className={`day${on ? " day-on" : ""}${free && !free.length ? " day-closed" : ""}`}
-                    disabled={!free?.length}
-                    onClick={() => {
-                      setDay(date);
-                      setSlot(null);
-                    }}
-                  >
-                    <span className="day-name">{clock.weekday(`${date}T12:00:00Z`)}</span>
-                    <span className="day-number">{Number(date.slice(8))}</span>
-                    <span className="day-free">
-                      {free === undefined ? <LoadingIndicator size={12} label="Checking" /> : free.length ? `${free.length} free` : "None"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <p className="dialog-label">NEW TIME</p>
-            <div className="slots move-slots" role="radiogroup" aria-label="Time">
-              {slots?.map((option) => {
-                const on = option.startAt === slot?.startAt;
-                return (
-                  <button
-                    key={option.startAt}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    className={`slot${on ? " slot-on" : ""}`}
-                    onClick={() => setSlot(option)}
-                  >
-                    {clock.time(option.startAt)}
-                  </button>
-                );
-              })}
-              {slots && !slots.length && <p className="empty">No times left on this day.</p>}
-              {!slots && day && <LoadingIndicator size={24} label="Finding free times" />}
-              {!day && counts[week[0] as string] !== undefined && <p className="empty">No free times this week. Try the next one.</p>}
-            </div>
+            <WeekSlots
+              clinicianId={clinicianId}
+              typeId={typeId}
+              slot={slot}
+              onSlot={setSlot}
+              dayLabel="NEW DAY"
+              timeLabel="NEW TIME"
+              fresh={fresh}
+              onFailure={setFailure}
+            />
 
             {byStaff && (
               <>

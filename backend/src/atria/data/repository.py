@@ -236,6 +236,20 @@ class Repository:
             raise
         return dict(response["Attributes"])
 
+    def increment(self, key: Key, field: str) -> int:
+        """Add one to a counter and return the new value, starting it at 1.
+
+        Atomic in DynamoDB, so two callers never get the same number.
+        """
+        response = self._table.update_item(
+            Key=key.as_item(),
+            UpdateExpression="ADD #f :one",
+            ExpressionAttributeNames={"#f": field},
+            ExpressionAttributeValues={":one": 1},
+            ReturnValues="UPDATED_NEW",
+        )
+        return int(str(response["Attributes"][field]))
+
     def set_if_absent(self, key: Key, field: str, value: Any) -> bool:
         """Set one attribute on an existing item unless it already has one. True if set."""
         try:

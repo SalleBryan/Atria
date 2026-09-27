@@ -38,6 +38,7 @@ from atria.data.repository import Repository
 from atria.http import paging, requests, responses
 from atria.http.handler import api
 from atria.services.directory import availability as availability_views
+from atria.services.directory import roster as roster_views
 from atria.services.directory import schedule as schedule_views
 
 logger = Logger(service="atria-directory")
@@ -268,6 +269,8 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         return responses.ok(
             schedule_views.calendar(principal, event, data=booking(), people=people())
         )
+    if method == "GET" and resource.endswith("/roster"):
+        return responses.ok(roster_views.roster(principal, event, data=booking(), people=people()))
     if method == "GET" and resource.endswith("/day"):
         return responses.ok(
             schedule_views.clinic_day(principal, event, data=booking(), people=people())

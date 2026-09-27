@@ -101,6 +101,7 @@ def main() -> int:
                 "clinicianProfileId": clinician,
                 "startAt": stamp(start),
                 "channel": "PHONE",
+                "callbackPhone": "+12025550199",
             },
         )
         if status != 201:

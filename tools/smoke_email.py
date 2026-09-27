@@ -309,6 +309,7 @@ def main() -> int:
                 "clinicianProfileId": clinician["staffId"],
                 "startAt": start,
                 "channel": "PHONE",
+                "callbackPhone": "+12025550199",
             },
             headers={"Idempotency-Key": f"email-{RUN}-{index:03d}"},
         )

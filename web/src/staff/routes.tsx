@@ -7,6 +7,9 @@ import { Route } from "react-router-dom";
 
 import { AuditLog } from "./AuditLog";
 import { Availability } from "./Availability";
+import { BookForPatient } from "./BookForPatient";
+import { PatientRecordPage, Patients } from "./Patients";
+import { RosterPage } from "./Roster";
 import { DaySchedule } from "./DaySchedule";
 import { Settings } from "./Settings";
 import { StaffAccounts } from "./StaffAccounts";
@@ -23,5 +26,9 @@ export const staffRoutes = (
     <Route path="/console/staff" element={<StaffAccounts />} />
     <Route path="/console/audit" element={<AuditLog />} />
     <Route path="/console/settings" element={<Settings />} />
+    <Route path="/console/patients" element={<Patients />} />
+    <Route path="/console/patients/:id" element={<PatientRecordPage />} />
+    <Route path="/console/book" element={<BookForPatient />} />
+    <Route path="/console/roster" element={<RosterPage />} />
   </Route>
 );

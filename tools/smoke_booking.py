@@ -299,6 +299,7 @@ def main() -> int:
         "clinicianProfileId": clinician_id,
         "startAt": start,
         "channel": "PHONE",
+        "callbackPhone": "+12025550199",
     }
 
     status, raw = call(f"{base}/appointments", receptionist_token, method="POST", body=booking)

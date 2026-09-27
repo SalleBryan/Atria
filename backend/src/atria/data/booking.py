@@ -96,7 +96,8 @@ def appointment_item(
         "channel": request.channel,
         "bookedByPersonId": booked_by_person_id,
         "bookedByRole": booked_by_role,
-        "referralId": request.referral_id,
+        "referralId": request.referral_id or (f"rf-{appointment_id}" if request.referral else None),
+        "callbackPhone": request.callback_phone,
         "careContextId": request.care_context_id,
         "version": 1,
         "createdAt": created_at,
@@ -448,6 +449,21 @@ class Booking:
             for unit in occupancy.units
         ]
         writes.append((keys.appointment(tenant_id, appointment_id), appointment))
+        if request.referral:
+            # Where the visit came from, in the same transaction (D-12, FR-STF-14).
+            writes.append(
+                (
+                    keys.referral(tenant_id, appointment_id),
+                    {
+                        "type": "REFERRAL",
+                        "referralId": appointment["referralId"],
+                        "appointmentId": appointment_id,
+                        "tenantId": tenant_id,
+                        **request.referral,
+                        "receivedAt": occurred_at,
+                    },
+                )
+            )
         writes.append(
             (
                 keys.appointment_event(

@@ -315,6 +315,7 @@ def main() -> int:
                 "clinicianProfileId": clinician["staffId"],
                 "startAt": stamp(start),
                 "channel": "PHONE",
+                "callbackPhone": "+12025550199",
             },
         )
         if status != 201:

@@ -16,6 +16,7 @@ create response, and never stored or logged (FR-ACC-04).
 
 from __future__ import annotations
 
+import datetime as dt
 import os
 import secrets
 import string
@@ -30,6 +31,7 @@ from atria.core import staff as rules
 from atria.core.errors import AtriaError, Conflict, Invalid
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
+from atria.data import keys
 from atria.data.people import People
 from atria.data.repository import Repository
 from atria.http import paging, requests, responses
@@ -254,7 +256,80 @@ def list_accounts(
     shown, more = paging.window(
         found, limit=query.get("limit"), cursor=query.get("cursor"), default=DEFAULT_PAGE
     )
+    held = allowances(principal.tenant_id, [str(a["staffId"]) for a in shown])
+    shown = [{**a, "priorityAllowance": held.get(str(a["staffId"]))} for a in shown]
     return {**more, "total": len(everyone), "accounts": shown, "facets": facets}
+
+
+# Guard BOUNDED_PRIORITY (FR-STF-13): the most a month's allowance can be.
+MAX_PRIORITY_QUOTA = 10
+
+
+def this_month() -> str:
+    return dt.datetime.now(tz=dt.UTC).strftime("%Y-%m")
+
+
+def allowance_view(item: dict[str, Any]) -> dict[str, Any]:
+    """The allowance as it stands this month: a new month starts at none used."""
+    month = this_month()
+    return {
+        "quotaPerMonth": int(item.get("quotaPerMonth") or 0),
+        "usedThisMonth": int(item.get("usedThisMonth") or 0)
+        if item.get("usageMonth") == month
+        else 0,
+        "month": month,
+        "grantedByPersonId": item.get("grantedByPersonId"),
+        "grantedAt": item.get("grantedAt"),
+    }
+
+
+def allowances(tenant_id: str, staff_ids: list[str]) -> dict[str, dict[str, Any]]:
+    repo = people().repository
+    wanted = [keys.priority_allowance(tenant_id, s) for s in staff_ids]
+    found = repo.get_many(wanted)
+    out = {}
+    for staff_id, key in zip(staff_ids, wanted, strict=True):
+        item = found.get((key.pk, key.sk))
+        if item and int(item.get("quotaPerMonth") or 0) > 0:
+            out[staff_id] = allowance_view(item)
+    return out
+
+
+def set_priority(principal: Principal, staff_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    """Grant, change or withdraw a staff member's monthly priority allowance.
+
+    The only staff priority there is (guard BOUNDED_PRIORITY): explicit,
+    bounded, and shown with its usage. 0 withdraws it.
+    """
+    permissions.require(
+        principal, "priority_allowance.grant", Subject(tenant_id=principal.tenant_id)
+    )
+    quota = body.get("quotaPerMonth")
+    if (
+        isinstance(quota, bool)
+        or not isinstance(quota, int)
+        or not 0 <= quota <= MAX_PRIORITY_QUOTA
+    ):
+        raise Invalid(f"quotaPerMonth is a whole number from 0 to {MAX_PRIORITY_QUOTA}")
+    membership = people().staff(principal.tenant_id, staff_id)
+    if membership.get("status") in ("SUSPENDED", "ENDED"):
+        raise Conflict("a suspended account holds no allowance")
+    repo = people().repository
+    key = keys.priority_allowance(principal.tenant_id, staff_id)
+    current = repo.get(key) or {}
+    item = {
+        "type": "PRIORITY_ALLOWANCE",
+        "priorityAllowanceId": current.get("priorityAllowanceId") or f"pa-{staff_id}",
+        "staffMembershipId": staff_id,
+        "tenantId": principal.tenant_id,
+        "quotaPerMonth": quota,
+        "usedThisMonth": int(current.get("usedThisMonth") or 0),
+        "usageMonth": current.get("usageMonth") or this_month(),
+        "grantedByPersonId": principal.person_id,
+        "grantedAt": dt.datetime.now(tz=dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    repo.put(key, item)
+    return {"staffId": staff_id, "priorityAllowance": allowance_view(item) if quota else None}
 
 
 def change_roles(principal: Principal, staff_id: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -318,6 +393,9 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     if method == "PATCH" and resource.endswith("/roles"):
         staff_id = requests.path_parameter(event, "id")
         return responses.ok(change_roles(principal, staff_id, requests.json_body(event)))
+    if method == "PUT" and resource.endswith("/priority-allowance"):
+        staff_id = requests.path_parameter(event, "id")
+        return responses.ok(set_priority(principal, staff_id, requests.json_body(event)))
     if method == "POST" and resource.endswith("/suspend"):
         return responses.ok(suspend(principal, requests.path_parameter(event, "id")))
 

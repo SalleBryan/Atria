@@ -811,5 +811,6 @@ export const TENANT_SETTINGS = {
   "ratingAffectsFee": false,
   "guardianConsent": "DESK_OR_GUARDIAN_ACCOUNT",
   "smsSenderId": "RHBUEA",
-  "emailSenderName": "Regional Hospital Buea"
+  "emailSenderName": "Regional Hospital Buea",
+  "patientNumberPrefix": "RHB"
 } as const;

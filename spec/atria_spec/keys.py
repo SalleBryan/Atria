@@ -10,6 +10,7 @@ INDEXES rows are (name, partition key, sort key, what it answers).
 
 KEYS = [
     ('Tenant', 'TENANT#t', 'META', 'Main'),
+    ('Counter', 'TENANT#t', 'COUNTER#name', 'Main'),
     ('Region pack', 'REGION#code', 'PACK', 'Main'),
     ('Clinic', 'TENANT#t#CLINIC#c', 'PROFILE', 'Main'),
     ('Appointment type', 'TENANT#t#TYPE#id', 'TYPE', 'Main'),
@@ -17,6 +18,7 @@ KEYS = [
     ('Fee band', 'TENANT#t#FEE#id', 'FROM#effectiveFrom', 'Main'),
     ('Person', 'PERSON#p', 'PERSON', 'Main'),
     ('Patient profile', 'TENANT#t#PAT#pp', 'PROFILE', 'Main'),
+    ('Register entry', 'TENANT#t#REG', 'kind#value#pp', 'Main'),
     ('Staff membership', 'TENANT#t#STAFF#s', 'MEMBERSHIP', 'Main'),
     ('Clinician profile', 'TENANT#t#STAFF#s', 'CLINICIAN', 'Main'),
     ('Consent record', 'PERSON#p', 'CONSENT#grantedAt#id', 'Main'),

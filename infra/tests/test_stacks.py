@@ -672,9 +672,9 @@ class TestAsyncStack:
 class TestObservabilityStack:
     def test_alarms_cover_errors_latency_and_the_authoriser(self, synthesised):
         template = template_for(synthesised, "observability")
-        # The API's three, errors for nine functions, throttles for ten, four
+        # The API's three, errors for ten functions, throttles for eleven, four
         # table throttles, three dead letter queues, SES bounces and SMS spend.
-        template.resource_count_is("AWS::CloudWatch::Alarm", 3 + 9 + 10 + 4 + 3 + 2)
+        template.resource_count_is("AWS::CloudWatch::Alarm", 3 + 10 + 11 + 4 + 3 + 2)
 
     def test_every_alarm_notifies_the_topic(self, synthesised):
         template = template_for(synthesised, "observability")
@@ -821,5 +821,19 @@ def test_the_settings_routes_exist(synthesised: cdk.App) -> None:
         ("/admin/appointment-types", "POST"),
         ("/admin/appointment-types/{id}", "PATCH"),
         ("/admin/fee-bands/{id}", "PUT"),
+    ):
+        assert route in served
+
+
+def test_the_staff_console_routes_exist(synthesised: cdk.App) -> None:
+    served = routes(template_for(synthesised, "api"))
+    for route in (
+        ("/patients", "GET"),
+        ("/patients", "POST"),
+        ("/patients/{id}", "GET"),
+        ("/patients/me/appointments", "GET"),
+        ("/clinics/{id}/roster", "GET"),
+        ("/audit/changes", "GET"),
+        ("/admin/staff/{id}/priority-allowance", "PUT"),
     ):
         assert route in served

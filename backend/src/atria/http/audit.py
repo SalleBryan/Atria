@@ -76,6 +76,11 @@ ROUTES: dict[tuple[str, str], Route] = {
         )
         for name in VISIT_ACTIONS
     },
+    ("GET", "/patients"): Route("patient.search", READ, "REGISTER"),
+    ("GET", "/patients/{id}"): Route("patient.read", READ, "PATIENT", "id"),
+    ("POST", "/patients"): Route(
+        "patient.create", WRITE, "PATIENT", subject_field="patientProfileId"
+    ),
     ("GET", "/clinicians/{id}/calendar"): Route("schedule.calendar", READ, "CLINICIAN", "id"),
     ("GET", "/clinics/{id}/day"): Route("schedule.day", READ, "CLINIC", "id"),
     ("PUT", "/clinicians/{id}/hours"): Route(
@@ -92,6 +97,9 @@ ROUTES: dict[tuple[str, str], Route] = {
     ),
     ("PATCH", "/admin/staff/{id}/roles"): Route(
         "staff.update_roles", WRITE, "STAFF", "id", patient_data=False
+    ),
+    ("PUT", "/admin/staff/{id}/priority-allowance"): Route(
+        "staff.priority_allowance", WRITE, "STAFF", "id", patient_data=False
     ),
     ("POST", "/admin/staff/{id}/suspend"): Route(
         "staff.suspend", WRITE, "STAFF", "id", patient_data=False
@@ -117,7 +125,7 @@ ROUTES: dict[tuple[str, str], Route] = {
 }
 
 # Response fields that carry appointments, each naming its patient.
-LIST_FIELDS = ("appointments", "disrupted")
+LIST_FIELDS = ("appointments", "disrupted", "results")
 
 _log: store.AuditLog | None = None
 _flags: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar("audit_flags", default=())

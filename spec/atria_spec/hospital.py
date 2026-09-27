@@ -318,6 +318,7 @@ TENANT_SETTINGS: dict[str, Any] = {
     "guardianConsent": "DESK_OR_GUARDIAN_ACCOUNT",
     "smsSenderId": "RHBUEA",
     "emailSenderName": "Regional Hospital Buea",
+    "patientNumberPrefix": "RHB",
 }
 
 

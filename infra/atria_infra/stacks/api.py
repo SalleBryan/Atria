@@ -151,6 +151,14 @@ class ApiStack(Stack):
         data.main_table.grant_read_data(self.audit_service)
         grant_audit_write(data.main_table, self.audit_service)
 
+        self.patient_service = self._service(
+            "PatientService",
+            handler="atria.services.patients.register.handler",
+            description="The patient register: search, minimal records and the record",
+            environment=common_environment,
+        )
+        grant_table_write(data.main_table, self.patient_service)
+
         self.settings_service = self._service(
             "SettingsService",
             handler="atria.services.admin.settings.handler",
@@ -234,7 +242,7 @@ class ApiStack(Stack):
                 authorization_type=apigateway.AuthorizationType.CUSTOM,
             )
         staff_member = staff.add_resource("{id}")
-        for path, method in (("roles", "PATCH"), ("suspend", "POST")):
+        for path, method in (("roles", "PATCH"), ("suspend", "POST"), ("priority-allowance", "PUT")):
             staff_member.add_resource(path).add_method(
                 method,
                 staff_integration,
@@ -274,7 +282,21 @@ class ApiStack(Stack):
                 authorizer=self.request_authoriser,
                 authorization_type=apigateway.AuthorizationType.CUSTOM,
             )
-        self.api.root.add_resource("patients").add_resource("me").add_resource("appointments").add_method(
+        patients = self.api.root.add_resource("patients")
+        # The register (services/patients/register.py), beside the patient's own list.
+        patient_integration = apigateway.LambdaIntegration(self.patient_service, proxy=True)
+        for resource, method in (
+            (patients, "GET"),
+            (patients, "POST"),
+            (patients.add_resource("{id}"), "GET"),
+        ):
+            resource.add_method(
+                method,
+                patient_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
+        patients.add_resource("me").add_resource("appointments").add_method(
             "GET",
             booking_integration,
             authorizer=self.request_authoriser,
@@ -331,12 +353,15 @@ class ApiStack(Stack):
             )
         # The front desk's day. appointment.read at clinic scope decides who
         # reaches it; a clinician's scope is their own and is refused.
-        clinics.add_resource("{id}").add_resource("day").add_method(
-            "GET",
-            directory_integration,
-            authorizer=self.request_authoriser,
-            authorization_type=apigateway.AuthorizationType.CUSTOM,
-        )
+        one_clinic = clinics.add_resource("{id}")
+        # The front desk's day, and who is working it.
+        for path in ("day", "roster"):
+            one_clinic.add_resource(path).add_method(
+                "GET",
+                directory_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
 
         # The administrator's settings (services/admin/settings.py). Each route
         # is its own permission, checked in the service.
@@ -363,7 +388,7 @@ class ApiStack(Stack):
         # /audit and /audit/export. audit.read decides who reaches them.
         audit_integration = apigateway.LambdaIntegration(self.audit_service, proxy=True)
         audit = self.api.root.add_resource("audit")
-        for resource in (audit, audit.add_resource("export")):
+        for resource in (audit, audit.add_resource("export"), audit.add_resource("changes")):
             resource.add_method(
                 "GET",
                 audit_integration,

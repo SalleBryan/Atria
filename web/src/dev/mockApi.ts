@@ -182,6 +182,38 @@ const patients: Record<string, { givenName: string; familyName: string }> = {
 
 const desk = { bookedByRole: "RECEPTIONIST", channel: "WALK_IN" };
 
+/**
+ * The register (atria.services.patients.register): the patients above with
+ * invented patient numbers and fictional 555-01xx numbers, so nothing here
+ * reaches a real phone.
+ */
+const register = Object.entries(patients).map(([id, name], i) => ({
+  patientProfileId: id,
+  ...name,
+  phoneE164: `+1202555${String(1100 + i * 7)}`,
+  patientNumber: `RHB-${String(120 + i * 13).padStart(6, "0")}`,
+  dateOfBirth: `${1958 + ((i * 7) % 60)}-${String(1 + (i % 12)).padStart(2, "0")}-${String(3 + i).padStart(2, "0")}`,
+  email: i === 0 ? "amina.ngo@example.com" : null,
+  preferredLanguage: i % 3 === 0 ? "fr" : "en",
+  hasAccount: i % 2 === 0,
+  phoneVerified: i % 2 === 0,
+  emailVerified: i === 0,
+  source: i % 2 === 0 ? "SELF" : "DESK",
+  createdAt: "2026-09-19T08:12:40Z",
+}));
+let registerNext = 300;
+
+function fold(text: string) {
+  return text
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9 ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+// Priority allowances by staff id (atria.services.identity.staff.set_priority).
+const allowances: Record<string, { quotaPerMonth: number; usedThisMonth: number }> = { "s-desk": { quotaPerMonth: 2, usedThisMonth: 1 } };
+
 const appointments: Record<string, unknown>[] = [
   // The patient preview's own visits.
   appointment("s-mbarga", "at-spec-first", local(2, 10), "BOOKED", 1),
@@ -439,6 +471,122 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     found.version = Number(found.version) + 1;
     return json(200, found, 500);
   }
+  if (method === "GET" && path === "/patients") {
+    const q = (url.searchParams.get("q") ?? "").trim();
+    const digits = q.replace(/[\s().-]/g, "");
+    const found = register.filter((p) =>
+      /^\+?\d{4,}$/.test(digits)
+        ? String(p.phoneE164).includes(digits.replace(/^\+/, ""))
+        : /^[a-z]{1,4}-?\d{2,}$/i.test(q)
+          ? String(p.patientNumber).replace("-", "").toLowerCase().startsWith(q.replace("-", "").toLowerCase())
+          : fold(`${p.familyName} ${p.givenName}`).startsWith(fold(q)) || fold(`${p.givenName} ${p.familyName}`).startsWith(fold(q)),
+    );
+    return json(200, { q, count: found.length, results: found.slice(0, 20) }, 260);
+  }
+  if (method === "POST" && path === "/patients") {
+    const made = body as { givenName: string; familyName: string; phoneE164: string; dateOfBirth?: string; sameNumberConfirmed?: boolean };
+    const shared = register.filter((p) => p.phoneE164 === made.phoneE164);
+    if (shared.length && !made.sameNumberConfirmed) {
+      return json(409, { code: "conflict", message: "a patient already has that number", detail: { patients: shared } });
+    }
+    registerNext += 1;
+    const entry = {
+      patientProfileId: `pp-desk-${registerNext}`,
+      givenName: made.givenName,
+      familyName: made.familyName,
+      phoneE164: made.phoneE164,
+      patientNumber: `RHB-${String(registerNext).padStart(6, "0")}`,
+      dateOfBirth: made.dateOfBirth ?? null,
+      email: null,
+      preferredLanguage: "en",
+      hasAccount: false,
+      phoneVerified: false,
+      emailVerified: false,
+      source: "DESK",
+      createdAt: new Date().toISOString(),
+    };
+    register.push(entry as (typeof register)[number]);
+    patients[entry.patientProfileId] = { givenName: made.givenName, familyName: made.familyName };
+    return json(201, entry, 500);
+  }
+  const record = path.match(/^\/patients\/([^/]+)$/);
+  if (method === "GET" && record && record[1] !== "me") {
+    const found = register.find((p) => p.patientProfileId === record[1]);
+    if (!found) return json(404, { code: "not_found", message: "no such patient" });
+    const visits = appointments
+      .filter((a) => a.patientProfileId === found.patientProfileId)
+      .sort((a, b) => String(b.startAt).localeCompare(String(a.startAt)));
+    return json(200, { ...found, visitScope: "clinic", appointments: visits }, 300);
+  }
+  const roster = path.match(/^\/clinics\/([^/]+)\/roster$/);
+  if (method === "GET" && roster) {
+    const date = url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
+    const unit = clinics.find((c) => c.clinicId === roster[1]);
+    const weekday = (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7;
+    const hours = unit?.openingHours[String(weekday)];
+    const now = new Date(Date.now() + OFFSET_MS).toISOString().slice(11, 16);
+    const today = date === new Date().toISOString().slice(0, 10);
+    const rows = clinicians
+      .filter((c) => c.clinicId === roster[1])
+      .map((c, i) => {
+        const visits = appointments.filter(
+          (a) => a.clinicianProfileId === c.clinicianProfileId && String(a.startAt).slice(0, 10) === date && a.state !== "PATIENT_CANCELLED",
+        ).length + (i * 3) % 7;
+        const leave = Boolean(hours) && i === 2;
+        const status = !hours
+          ? "OFF"
+          : leave
+            ? "LEAVE"
+            : !today
+              ? "SCHEDULED"
+              : now < hours.start
+                ? "LATER"
+                : now < hours.end
+                  ? "ON_SHIFT"
+                  : "FINISHED";
+        const working = hours ? (Number(hours.end.slice(0, 2)) - Number(hours.start.slice(0, 2))) * 60 : 0;
+        return {
+          clinicianProfileId: c.clinicianProfileId,
+          givenName: c.givenName,
+          familyName: c.familyName,
+          specialty: c.specialty,
+          status,
+          startsAt: hours?.start ?? null,
+          endsAt: hours?.end ?? null,
+          timeOff: !hours ? [] : leave ? [{ kind: "LEAVE", startTime: null, endTime: null }] : i === 1 ? [{ kind: "BLOCK", startTime: "12:00", endTime: "13:00" }] : [],
+          visits: leave || !hours ? 0 : visits,
+          bookedMinutes: leave || !hours ? 0 : visits * 30,
+          workingMinutes: leave ? 0 : working,
+          load: leave || !working ? null : Math.min(1, (visits * 30) / working),
+        };
+      });
+    return json(200, { clinicId: roster[1], date, clinicians: rows, onShift: rows.filter((r) => r.status === "ON_SHIFT").length }, 300);
+  }
+  if (method === "GET" && path === "/audit/changes") {
+    const week = url.searchParams.get("week") ?? new Date().toISOString().slice(0, 10);
+    const inWeek = auditEntries.filter(
+      (e) => (e.action === "appointment.cancel" || e.action === "appointment.reschedule") && e.occurredAt.slice(0, 10) >= week,
+    );
+    const groups = new Map<string, Record<string, unknown> & { changes: unknown[] }>();
+    for (const e of inWeek) {
+      const g = groups.get(e.actorPersonId) ?? {
+        actorPersonId: e.actorPersonId,
+        actorName: e.actorName,
+        actorRole: e.actorRole,
+        cancellations: 0,
+        reschedules: 0,
+        flagged: 0,
+        changes: [],
+      };
+      if (e.action === "appointment.cancel") g.cancellations = Number(g.cancellations) + 1;
+      else g.reschedules = Number(g.reschedules) + 1;
+      if (e.flags.length) g.flagged = Number(g.flagged) + 1;
+      g.changes.push({ auditEntryId: e.auditEntryId, occurredAt: e.occurredAt, action: e.action, appointmentId: "a-4958", reason: e.reason, flags: e.flags });
+      groups.set(e.actorPersonId, g);
+    }
+    const actors = [...groups.values()].sort((a, b) => Number(b.flagged) - Number(a.flagged));
+    return json(200, { week, to: week, actors, total: inWeek.length, flagged: inWeek.filter((e) => e.flags.length).length }, 300);
+  }
   if (path === "/admin/settings") {
     if (method === "GET") return json(200, settingsOverview());
     if (method === "PATCH") {
@@ -561,7 +709,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     return json(200, {
       count: found.length,
       total: sorted.length,
-      accounts: found.slice(start, after),
+      accounts: found.slice(start, after).map((a) => ({ ...a, priorityAllowance: allowances[String(a.staffId)] ?? null })),
       nextCursor: after < found.length ? btoa(String(after)) : null,
       facets: {
         roles: count((a) => a.roles as string[]),
@@ -569,6 +717,14 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         status: count((a) => [statusOf(a)]),
       },
     });
+  }
+  const allowance = path.match(/^\/admin\/staff\/([^/]+)\/priority-allowance$/);
+  if (method === "PUT" && allowance) {
+    const quota = Number((body as { quotaPerMonth: number }).quotaPerMonth);
+    const id = allowance[1] as string;
+    if (quota) allowances[id] = { quotaPerMonth: quota, usedThisMonth: allowances[id]?.usedThisMonth ?? 0 };
+    else delete allowances[id];
+    return json(200, { staffId: id, priorityAllowance: allowances[id] ?? null }, 400);
   }
   const roles = path.match(/^\/admin\/staff\/([^/]+)\/roles$/);
   if (method === "PATCH" && roles) {
@@ -627,7 +783,13 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     );
   }
   if (method === "POST" && path === "/appointments") {
-    const request = body as { clinicianProfileId: string; appointmentTypeId: string; startAt: string };
+    const request = body as {
+      clinicianProfileId: string;
+      appointmentTypeId: string;
+      startAt: string;
+      patientProfileId?: string;
+      channel?: string;
+    };
     const date = request.startAt ? new Date(new Date(request.startAt).getTime() + OFFSET_MS).toISOString().slice(0, 10) : "";
     const free = freeStarts(request.clinicianProfileId, date, request.appointmentTypeId).some((s) => s.startAt === request.startAt);
     // Ten o'clock slots are "just taken" once, so the conflict screen can be seen.
@@ -635,7 +797,15 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       conflictShown = true;
       return json(409, { code: "conflict", message: "that time has just been taken" }, 600);
     }
-    const made = appointment(request.clinicianProfileId, request.appointmentTypeId, new Date(request.startAt), "BOOKED", 0);
+    // A booking from the desk names its patient and channel (FR-BKG-07, FR-STF-14).
+    const made = appointment(
+      request.clinicianProfileId,
+      request.appointmentTypeId,
+      new Date(request.startAt),
+      "BOOKED",
+      0,
+      request.patientProfileId ? { patient: request.patientProfileId, bookedByRole: "RECEPTIONIST", channel: request.channel } : {},
+    );
     appointments.push(made);
     return json(201, made, 700);
   }

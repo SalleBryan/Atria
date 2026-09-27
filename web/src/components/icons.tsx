@@ -231,3 +231,16 @@ export const Pencil = (p: IconProps) => (
     <path d="M14.5 5.5l4 4M4 20l1-5L15.5 4.5a2.1 2.1 0 0 1 3 0l1 1a2.1 2.1 0 0 1 0 3L9 19l-5 1Z" />
   </Icon>
 );
+/** Priority: a star. */
+export const Star = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9Z" />
+  </Icon>
+);
+/** People: two figures. */
+export const Users = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <circle cx="9" cy="8" r="3.2" />
+    <path d="M3.5 19.5c.6-3 2.8-4.8 5.5-4.8s4.9 1.8 5.5 4.8M15.5 5.2a3 3 0 0 1 0 5.6M17.5 14.9c1.6.6 2.7 2.2 3 4.6" />
+  </Icon>
+);

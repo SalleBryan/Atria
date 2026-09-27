@@ -19,6 +19,7 @@ from atria.data import keys
 # One builder call per specification row, with placeholder values.
 BUILT = {
     "Tenant": keys.tenant("t1"),
+    "Counter": keys.counter("t1", "patientNumber"),
     "Region pack": keys.region_pack("CM"),
     "Clinic": keys.clinic("t1", "c1"),
     "Appointment type": keys.appointment_type("t1", "ty1"),
@@ -26,6 +27,7 @@ BUILT = {
     "Fee band": keys.fee_band("t1", "fb1", "2026-01-01"),
     "Person": keys.person("p1"),
     "Patient profile": keys.patient_profile("t1", "pp1"),
+    "Register entry": keys.register_entry("t1", "NAME", "ngo amina", "pp1"),
     "Staff membership": keys.staff_membership("t1", "s1"),
     "Clinician profile": keys.clinician_profile("t1", "s1"),
     "Consent record": keys.consent_record("p1", "2026-01-01T09:00:00Z", "co1"),

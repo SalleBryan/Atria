@@ -71,6 +71,7 @@ function respond() {
     if (path === "/clinics") return { clinics: [{ clinicId: "c-med", name: "Medical Outpatient Unit" }] };
     if (path === "/appointment-types") return { appointmentTypes: [] };
     if (path.startsWith("/clinics/")) return { appointments: [], patients: {} };
+    if (path.startsWith("/audit/changes")) return { week: "2026-09-21", to: "2026-09-27", actors: [], total: 0, flagged: 0 };
     if (path.startsWith("/audit?")) {
       const kind = new URL(path, "http://x").searchParams.get("kind");
       const entries = ENTRIES.filter((e) => !kind || e.kind === kind);
@@ -89,6 +90,10 @@ function respond() {
     }
     throw new Error(`unexpected ${path}`);
   });
+}
+
+async function openFullLog() {
+  await userEvent.setup().click(await screen.findByRole("tab", { name: "Full log" }));
 }
 
 function renderLog(me: Me = MANAGER) {
@@ -110,6 +115,7 @@ describe("Audit log", () => {
 
   it("lists who did what, to how many patients, and from where (FR-ADM-04)", async () => {
     renderLog();
+    await openFullLog();
     const list = await screen.findByRole("region", { name: "Audit entries" });
     expect(await within(list).findByText("Viewed a unit's day")).toBeInTheDocument();
     expect(within(list).getByText("9 patients")).toBeInTheDocument();
@@ -120,6 +126,7 @@ describe("Audit log", () => {
 
   it("asks for a week by default, and today when chosen", async () => {
     renderLog();
+    await openFullLog();
     await screen.findByText("Viewed a unit's day");
     expect(asked.find((p) => p.startsWith("/audit?"))).toMatch(/from=.*&to=/);
     await userEvent.setup().click(screen.getByRole("radio", { name: "Today" }));
@@ -131,11 +138,17 @@ describe("Audit log", () => {
   it("filters to changes from the menu", async () => {
     const user = userEvent.setup();
     renderLog();
+    await openFullLog();
     await screen.findByText("Viewed a unit's day");
     await user.click(screen.getByRole("button", { name: /Filters/ }));
     await user.click(await screen.findByRole("radio", { name: "Changes" }));
     expect(asked.at(-1)).toContain("kind=WRITE");
     expect(await screen.findByText("1 entry")).toBeInTheDocument();
+  });
+
+  it("opens a unit manager on the week's changes (FR-STF-13)", async () => {
+    renderLog();
+    expect(await screen.findByText("No reschedules or cancellations by staff this week.")).toBeInTheDocument();
   });
 
   it("is in the navigation for a unit manager", async () => {

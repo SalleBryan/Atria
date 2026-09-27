@@ -62,6 +62,16 @@ def patient_profile(tenant_id: str, patient_profile_id: str) -> Key:
     return Key(f"{TENANT}{tenant_id}#PAT#{patient_profile_id}", "PROFILE")
 
 
+def counter(tenant_id: str, name: str) -> Key:
+    """A tenant's running number, such as the next patient number."""
+    return Key(f"{TENANT}{tenant_id}", f"COUNTER#{name}")
+
+
+def register_entry(tenant_id: str, kind: str, value: str, patient_profile_id: str) -> Key:
+    """One way of finding a patient: kind is NAME, PHONE or NUM (atria.data.register)."""
+    return Key(f"{TENANT}{tenant_id}#REG", f"{kind}#{value}#{patient_profile_id}")
+
+
 def staff_membership(tenant_id: str, staff_id: str) -> Key:
     return Key(f"{TENANT}{tenant_id}#STAFF#{staff_id}", "MEMBERSHIP")
 

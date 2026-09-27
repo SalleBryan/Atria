@@ -15,14 +15,14 @@
  */
 
 import { type CSSProperties, useEffect, useRef, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 
 import { api, apiFile } from "../api/client";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
-import { Download, Shield } from "../components/icons";
-import { Pager, useRowsThatFit } from "../components/Pager";
+import { ChevronLeft, ChevronRight, Download, Shield } from "../components/icons";
+import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { initials } from "../patient/data";
 import { roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
@@ -139,6 +139,8 @@ export function AuditLog() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
+  // A unit manager opens on the week's changes (FR-STF-13); an administrator on the log.
+  const [view, setView] = useState<"changes" | "log">(role === "CLINIC_MANAGER" ? "changes" : "log");
   const more = useRef<HTMLButtonElement>(null);
   const rowsBox = useRef<HTMLUListElement>(null);
   const size = useRowsThatFit(rowsBox, { row: ".audit-row", pitch: ROW_PITCH });
@@ -202,20 +204,58 @@ export function AuditLog() {
     }
   };
 
-  return (
-    <div className="accounts-page audit-page">
-      <header className="accounts-top">
-        <div>
-          <h1>Audit log</h1>
-          <p>
-            {role === "TENANT_ADMIN" ? "Every unit" : (clinicName(state.me.clinicId) ?? "Your unit")} · who opened or changed what, and when
-          </p>
-        </div>
+  const tabs = (
+    <div className="segmented settings-tabs" role="tablist" aria-label="Audit">
+      {(
+        [
+          ["changes", "This week's changes"],
+          ["log", "Full log"],
+        ] as const
+      ).map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          role="tab"
+          aria-selected={view === id}
+          className={`segment${view === id ? " segment-on" : ""}`}
+          onClick={() => setView(id)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+  const heading = (
+    <header className="accounts-top">
+      <div>
+        <h1>Audit log</h1>
+        <p>
+          {role === "TENANT_ADMIN" ? "Every unit" : (clinicName(state.me.clinicId) ?? "Your unit")} · who opened or changed what, and when
+        </p>
+      </div>
+      {view === "log" && (
         <button type="button" className="tonal-button audit-export" onClick={() => void download()} disabled={exporting || !page?.count}>
           <Download size={16} />
           {exporting ? "Exporting" : "Export CSV"}
         </button>
-      </header>
+      )}
+    </header>
+  );
+
+  if (view === "changes") {
+    return (
+      <div className="accounts-page audit-page">
+        {heading}
+        {tabs}
+        <WeeklyChanges />
+      </div>
+    );
+  }
+
+  return (
+    <div className="accounts-page audit-page">
+      {heading}
+      {tabs}
 
       <p className="accounts-banner">
         <Shield size={18} />
@@ -330,5 +370,140 @@ export function AuditLog() {
       </section>
       <Snackbar message={said} onDone={() => setSaid(null)} />
     </div>
+  );
+}
+
+interface ChangeGroup {
+  actorPersonId: string;
+  actorName: string;
+  actorRole: string | null;
+  cancellations: number;
+  reschedules: number;
+  flagged: number;
+  changes: { auditEntryId: string; occurredAt: string; action: string; appointmentId: string; reason: string | null; flags: string[] }[];
+}
+
+interface Week {
+  week: string;
+  to: string;
+  actors: ChangeGroup[];
+  total: number;
+  flagged: number;
+}
+
+function monday(date: Date): string {
+  const day = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 6) % 7));
+  return day.toISOString().slice(0, 10);
+}
+
+/**
+ * Every reschedule and cancellation made by staff in a week, grouped by who
+ * made them, flagged ones first (FR-STF-13). Read-only, from the audit trail.
+ */
+function WeeklyChanges() {
+  const thisWeek = monday(new Date());
+  const [week, setWeek] = useState(thisWeek);
+  const [found, setFound] = useState<Week | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const groupsBox = useRef<HTMLUListElement>(null);
+  // A page is as many people as the card holds, never an endless scroll.
+  const size = useRowsThatFit(groupsBox, { row: ".changes-group", pitch: 220, gap: 12, least: 1 });
+  const pages = usePages(found?.actors ?? [], size, week);
+
+  useEffect(() => {
+    let live = true;
+    setFound(null);
+    api<Week>(`/audit/changes?week=${week}`)
+      .then((data) => live && setFound(data))
+      .catch((error: unknown) => live && setFailure(error instanceof Error ? sentence(error.message) : "The week could not be loaded."));
+    return () => {
+      live = false;
+    };
+  }, [week]);
+
+  const step = (days: number) => setWeek(new Date(Date.parse(`${week}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10));
+  const range = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
+
+  return (
+    <section className="glass accounts-card changes-card" aria-label="This week's changes">
+      <div className="settings-card-top">
+        <div className="changes-week">
+          <button type="button" className="square-button" aria-label="Previous week" onClick={() => step(-7)}>
+            <ChevronLeft size={16} />
+          </button>
+          <span>
+            {range.format(new Date(`${week}T12:00:00Z`))} to {range.format(new Date(Date.parse(`${week}T12:00:00Z`) + 6 * 86400000))}
+          </span>
+          <button type="button" className="square-button" aria-label="Next week" disabled={week >= thisWeek} onClick={() => step(7)}>
+            <ChevronRight size={16} />
+          </button>
+        </div>
+        <p>
+          {found
+            ? `${found.total} ${found.total === 1 ? "change" : "changes"}${found.flagged ? `, ${found.flagged} flagged for review` : ""}`
+            : "Loading"}
+        </p>
+      </div>
+      {failure && <Notice tone="error">{failure}</Notice>}
+      <ul ref={groupsBox} className="accounts-rows changes-list">
+        {!found ? (
+          [0, 1, 2].map((n) => <li key={n} className="skeleton day-row-skeleton" aria-hidden="true" />)
+        ) : found.actors.length ? (
+          pages.shown.map((group, index) => {
+            const [given, ...rest] = group.actorName.split(" ");
+            return (
+              <li key={group.actorPersonId} className="changes-group" style={{ "--i": index } as CSSProperties}>
+                <div className="account-who">
+                  <span className="account-avatar" aria-hidden="true">
+                    {initials(given, rest.join(" ")) || "?"}
+                  </span>
+                  <span className="account-text">
+                    <span className="account-name">{group.actorName}</span>
+                    <span className="account-sub">
+                      {ROLE_NAME[group.actorRole ?? ""] ?? "Staff"} · {group.reschedules} moved, {group.cancellations} cancelled
+                    </span>
+                  </span>
+                  {group.flagged > 0 && <span className="chip chip-awaiting">{group.flagged} flagged</span>}
+                </div>
+                <ol className="changes-rows">
+                  {group.changes.map((change) => (
+                    <li key={change.auditEntryId}>
+                      <span className="changes-when">{when.format(new Date(change.occurredAt))}</span>
+                      <span className="changes-what">
+                        {ACTION_LABEL[change.action] ?? change.action}
+                        {change.flags.map((flag) => (
+                          <span key={flag} className="chip chip-awaiting audit-flag">
+                            {FLAG_LABEL[flag] ?? flag}
+                          </span>
+                        ))}
+                      </span>
+                      <span className="changes-why">{change.reason ? `“${change.reason}”` : "No reason recorded"}</span>
+                      <Link className="link" to={`/console/visits/${change.appointmentId}`}>
+                        Open visit
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+              </li>
+            );
+          })
+        ) : (
+          <li className="today-empty">No reschedules or cancellations by staff this week.</li>
+        )}
+      </ul>
+      {found && found.actors.length > 0 && (
+        <Pager
+          noun="people"
+          first={pages.first}
+          last={pages.last}
+          total={pages.total}
+          page={pages.page}
+          pages={pages.pages}
+          onPrevious={pages.previous}
+          onNext={pages.next}
+        />
+      )}
+    </section>
   );
 }

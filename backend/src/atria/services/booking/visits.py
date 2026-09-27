@@ -34,6 +34,7 @@ from atria.http.views import appointment_view
 from atria.services.booking.appointments import (
     booking,
     flag_self_benefit,
+    near_own_visit,
     role_used,
     subject_of,
 )
@@ -140,6 +141,20 @@ def reschedule(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
         minutes=minutes,
     )
 
+    later = request.start_at > rules.parse_instant(appointment["startAt"], name="startAt")
+    if (
+        by_staff
+        and later
+        and not caller.has_role("CLINIC_MANAGER")
+        and near_own_visit(caller, appointment, data)
+    ):
+        # Guard NO_SELF_BENEFITING_RESCHEDULE (FR-STF-12): moving someone later
+        # could free time near the actor's own visit, so a manager decides.
+        raise Forbidden(
+            "you hold a visit with this clinician near this time, so you cannot move this"
+            " patient later. A unit manager can make this change.",
+            detail={"rule": "NO_SELF_BENEFITING_RESCHEDULE"},
+        )
     flag_self_benefit(caller, appointment, data)
     moved, _event = data.reschedule(
         tenant_id=tenant_id,

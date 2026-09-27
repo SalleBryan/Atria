@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
 import { MoveVisit } from "../components/MoveVisit";
@@ -63,7 +63,9 @@ export function VisitPage() {
   const { state: directory } = useStaffData();
   const [visit, setVisit] = useState<Loading<Appointment>>({ status: "loading" });
   const [fresh, setFresh] = useState(0);
-  const [said, setSaid] = useState<string | null>(null);
+  // A booking made at the desk lands here, saying what it did.
+  const arrived = (useLocation().state as { said?: string } | null)?.said ?? null;
+  const [said, setSaid] = useState<string | null>(arrived);
   const [acting, setActing] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   // Mobile · Staff appointment (180:2): a back bar, and the actions held at the foot.

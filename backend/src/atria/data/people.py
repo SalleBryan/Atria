@@ -22,7 +22,7 @@ from typing import Any
 
 from atria.core import staff as rules
 from atria.core.errors import Conflict, Invalid, NotFound
-from atria.data import keys
+from atria.data import keys, register
 from atria.data.repository import Item, Repository
 
 PERSON_INDEX = "PersonIndex"
@@ -227,6 +227,10 @@ class People:
     def __init__(self, repository: Repository, *, clock: Any = None) -> None:
         self._repo = repository
         self._clock = clock or (lambda: dt.datetime.now(tz=dt.UTC))
+
+    @property
+    def repository(self) -> Repository:
+        return self._repo
 
     @property
     def current_year(self) -> int:
@@ -451,11 +455,80 @@ class People:
             patient_profile_id=profile_id, person_id=person_id, tenant_id=tenant_id
         )
         person["patientProfiles"] = [patient_profile_summary(profile)]
+        number = self.number_patient(tenant_id)
+        profile["patientNumber"] = number
 
         self._repo.write_together(
             [
                 (keys.person(person_id), person),
                 (keys.patient_profile(tenant_id, profile_id), profile),
+                *register.entries(
+                    tenant_id=tenant_id,
+                    patient_profile_id=profile_id,
+                    person_id=person_id,
+                    given_name=given_name,
+                    family_name=family_name,
+                    phone_e164=phone_e164 or None,
+                    patient_number=number,
+                ),
+            ]
+        )
+        return person, profile
+
+    def number_patient(self, tenant_id: str) -> str:
+        """The next patient number, with the tenant's prefix (atria.data.register)."""
+        tenant = self._repo.get(keys.tenant(tenant_id)) or {}
+        prefix = str(tenant.get("patientNumberPrefix") or register.DEFAULT_PREFIX)
+        return register.Register(self._repo).next_number(tenant_id, prefix)
+
+    def create_desk_patient(
+        self,
+        *,
+        tenant_id: str,
+        given_name: str,
+        family_name: str,
+        phone_e164: str,
+        date_of_birth: str | None,
+        preferred_language: str | None,
+        created_by_person_id: str,
+    ) -> tuple[Item, Item]:
+        """A minimal patient record made at the desk, with no account (FR-BKG-07).
+
+        The person has no sign-in: if they register later with the same
+        number, the desk links the two; nothing here guesses that for them.
+        """
+        person_id = new_id("p")
+        profile_id = new_id("pp")
+        person = person_item(
+            person_id=person_id,
+            cognito_sub=None,
+            given_name=given_name,
+            family_name=family_name,
+            phone_e164=phone_e164,
+            preferred_language=preferred_language,
+        )
+        if date_of_birth:
+            person["dateOfBirth"] = date_of_birth
+        profile = patient_profile_item(
+            patient_profile_id=profile_id, person_id=person_id, tenant_id=tenant_id
+        )
+        number = self.number_patient(tenant_id)
+        profile.update(patientNumber=number, createdByPersonId=created_by_person_id, source="DESK")
+        person["patientProfiles"] = [patient_profile_summary(profile)]
+        self._repo.write_together(
+            [
+                (keys.person(person_id), person),
+                (keys.patient_profile(tenant_id, profile_id), profile),
+                *register.entries(
+                    tenant_id=tenant_id,
+                    patient_profile_id=profile_id,
+                    person_id=person_id,
+                    given_name=given_name,
+                    family_name=family_name,
+                    phone_e164=phone_e164,
+                    patient_number=number,
+                    date_of_birth=date_of_birth,
+                ),
             ]
         )
         return person, profile

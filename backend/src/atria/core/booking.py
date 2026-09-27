@@ -22,6 +22,7 @@ clinic.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -48,6 +49,15 @@ DERIVED_FIELDS = (
 
 CHANNELS = ("ONLINE", "WALK_IN", "PHONE", "REFERRAL")
 
+# What staff choose from. ONLINE is set by the system for a patient's own
+# booking, never chosen (FR-STF-14).
+STAFF_CHANNELS = ("WALK_IN", "PHONE", "REFERRAL")
+
+# A referral is a door into the specialist and procedure lines (D-12).
+REFERRAL_LINES = ("SPECIALIST", "PROCEDURE")
+
+CALLBACK = re.compile(r"^\+[1-9]\d{7,14}$")
+
 BOOKABLE_BY = ("PATIENT", "STAFF", "BOTH")
 
 DEFAULT_GRID_UNIT_MINUTES = 10
@@ -69,6 +79,10 @@ class BookingRequest:
     referral_id: str | None = None
     care_context_id: str | None = None
     reason: str | None = None
+    callback_phone: str | None = None
+    """PHONE: the number to call back on (FR-STF-14)."""
+    referral: dict[str, str] | None = None
+    """REFERRAL: referringFacility, referringClinicianName, referralNote."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -291,9 +305,34 @@ def validate(
     else:
         patient_profile_id = _required(body, "patientProfileId")
 
-    channel = (_text(body, "channel") or "ONLINE").upper()
-    if channel not in CHANNELS:
-        raise Invalid("unknown channel", detail={"allowed": list(CHANNELS)})
+    callback_phone: str | None = None
+    referral: dict[str, str] | None = None
+    if by_patient:
+        # A patient's own booking is ONLINE whatever the client says.
+        channel = "ONLINE"
+    else:
+        channel = (_text(body, "channel") or "").upper()
+        if channel not in STAFF_CHANNELS:
+            raise Invalid(
+                "say how the patient reached the desk",
+                detail={"allowed": list(STAFF_CHANNELS)},
+            )
+        if channel == "PHONE":
+            callback_phone = (_text(body, "callbackPhone") or "").replace(" ", "")
+            if not CALLBACK.match(callback_phone):
+                raise Invalid("a phone booking needs the number to call back on, as +237...")
+        if channel == "REFERRAL":
+            facility = _text(body, "referringFacility")
+            if not facility:
+                raise Invalid("a referral needs the referring facility")
+            note = _text(body, "referralNote") or ""
+            if len(note) > 500 or len(facility) > 120:
+                raise Invalid("the referral facility or note is too long")
+            referral = {
+                "referringFacility": facility,
+                "referringClinicianName": (_text(body, "referringClinicianName") or "")[:120],
+                "referralNote": note,
+            }
 
     return BookingRequest(
         patient_profile_id=patient_profile_id,
@@ -304,6 +343,8 @@ def validate(
         referral_id=_text(body, "referralId"),
         care_context_id=_text(body, "careContextId"),
         reason=_text(body, "reason"),
+        callback_phone=callback_phone,
+        referral=referral,
     )
 
 

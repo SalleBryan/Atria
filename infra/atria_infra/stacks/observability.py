@@ -104,6 +104,7 @@ class ObservabilityStack(Stack):
             "availability": api.availability_service,
             "audit": api.audit_service,
             "settings": api.settings_service,
+            "patients": api.patient_service,
             "dispatcher": async_.dispatcher,
             "sender": async_.sender,
         }

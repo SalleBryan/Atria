@@ -21,6 +21,7 @@ export const MAIN_TABLE = "Main";
 /** Key patterns, one row per entity. The pattern text is the shape, not a template string. */
 export const KEY_PATTERNS: readonly KeyPattern[] = [
   { entity: "Tenant", pk: "TENANT#t", sk: "META", table: "Main" },
+  { entity: "Counter", pk: "TENANT#t", sk: "COUNTER#name", table: "Main" },
   { entity: "Region pack", pk: "REGION#code", sk: "PACK", table: "Main" },
   { entity: "Clinic", pk: "TENANT#t#CLINIC#c", sk: "PROFILE", table: "Main" },
   { entity: "Appointment type", pk: "TENANT#t#TYPE#id", sk: "TYPE", table: "Main" },
@@ -28,6 +29,7 @@ export const KEY_PATTERNS: readonly KeyPattern[] = [
   { entity: "Fee band", pk: "TENANT#t#FEE#id", sk: "FROM#effectiveFrom", table: "Main" },
   { entity: "Person", pk: "PERSON#p", sk: "PERSON", table: "Main" },
   { entity: "Patient profile", pk: "TENANT#t#PAT#pp", sk: "PROFILE", table: "Main" },
+  { entity: "Register entry", pk: "TENANT#t#REG", sk: "kind#value#pp", table: "Main" },
   { entity: "Staff membership", pk: "TENANT#t#STAFF#s", sk: "MEMBERSHIP", table: "Main" },
   { entity: "Clinician profile", pk: "TENANT#t#STAFF#s", sk: "CLINICIAN", table: "Main" },
   { entity: "Consent record", pk: "PERSON#p", sk: "CONSENT#grantedAt#id", table: "Main" },

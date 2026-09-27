@@ -83,6 +83,7 @@ def main() -> int:
                 "clinicianProfileId": clinician_id,
                 "startAt": start,
                 "channel": "PHONE",
+                "callbackPhone": "+12025550199",
             },
         )
         if status != 201:

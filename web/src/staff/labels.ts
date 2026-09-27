@@ -51,4 +51,5 @@ export const CHANNEL: Record<string, string> = {
   APP: "Atria app",
   PHONE: "By phone",
   WALK_IN: "At the desk",
+  REFERRAL: "Referred",
 };

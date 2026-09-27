@@ -38,6 +38,9 @@ BODY = {
     "appointmentTypeId": "at-spec-first",
     "clinicianProfileId": CLINICIAN,
     "startAt": START,
+    # Staff say how the patient reached them (FR-STF-14); a patient's own is ONLINE.
+    "channel": "PHONE",
+    "callbackPhone": "+12025550199",
 }
 
 SPECIALIST_TYPE = {

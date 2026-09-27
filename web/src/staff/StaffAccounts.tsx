@@ -39,10 +39,12 @@ import {
   Plus,
   Repeat,
   Shield,
+  Star,
   User,
 } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { Pager } from "../components/Pager";
+import { SelectMenu } from "../components/Pickers";
 import { PhoneField } from "../components/PhoneField";
 import { SearchSuggest, type SuggestionGroup } from "../components/SearchSuggest";
 import { MATRIX, REQUIRED_ON_CREATE, type Role } from "../generated/permissions";
@@ -95,6 +97,8 @@ interface Listed {
   roles: StaffRole[];
   status: "INVITED" | "ACTIVE" | "SUSPENDED" | "ENDED";
   mustSetPassword: boolean | null;
+  /** The only staff priority there is: explicit, monthly, and shown with its usage (FR-STF-13). */
+  priorityAllowance?: { quotaPerMonth: number; usedThisMonth: number } | null;
 }
 
 type Status = "awaiting" | "active" | "suspended";
@@ -158,6 +162,7 @@ export function StaffAccounts() {
   const [creating, setCreating] = useState(false);
   const [changing, setChanging] = useState<Listed | null>(null);
   const [suspending, setSuspending] = useState<Listed | null>(null);
+  const [granting, setGranting] = useState<Listed | null>(null);
   const [said, setSaid] = useState<string | null>(null);
   const admin = state.status === "signed-in" && roleOf(state.me) === "TENANT_ADMIN";
   const phone = useTier() === "mobile";
@@ -425,9 +430,23 @@ export function StaffAccounts() {
                     </span>
                     <span className="account-role">
                       <span>{account.roles.map((r) => ROLE_NAME[r] ?? r).join(", ")}</span>
-                      <span>{clinicName(account.clinicId) ?? (adminRole ? "Every unit" : "")}</span>
+                      <span>
+                        {account.priorityAllowance
+                          ? `Priority ${account.priorityAllowance.usedThisMonth} of ${account.priorityAllowance.quotaPerMonth} used`
+                          : (clinicName(account.clinicId) ?? (adminRole ? "Every unit" : ""))}
+                      </span>
                     </span>
                     <span className="account-actions">
+                      <button
+                        type="button"
+                        className="square-button"
+                        aria-label={`${name}'s priority allowance`}
+                        title="Priority allowance"
+                        disabled={off || adminRole}
+                        onClick={() => setGranting(account)}
+                      >
+                        <Star size={15} />
+                      </button>
                       <button
                         type="button"
                         className="square-button"
@@ -491,6 +510,16 @@ export function StaffAccounts() {
           onClose={() => setChanging(null)}
           onDone={(message) => {
             setChanging(null);
+            done(message);
+          }}
+        />
+      )}
+      {granting && (
+        <PriorityAllowance
+          account={granting}
+          onClose={() => setGranting(null)}
+          onDone={(message) => {
+            setGranting(null);
             done(message);
           }}
         />
@@ -930,6 +959,76 @@ function Secret({ label, value, mono }: { label: string; value: string; mono?: b
         {copied ? <CheckMark size={14} /> : <Clipboard size={14} />}
         {copied ? "Copied" : "Copy"}
       </button>
+    </div>
+  );
+}
+
+/**
+ * A staff member's monthly priority allowance (FR-STF-13, guard BOUNDED_PRIORITY).
+ *
+ * The only staff priority Atria has: a number of priority places a month,
+ * granted here by an administrator, shown with its usage, and nowhere
+ * implicit. None withdraws it.
+ */
+function PriorityAllowance({ account, onClose, onDone }: { account: Listed; onClose: () => void; onDone: (message: string) => void }) {
+  const [quota, setQuota] = useState(String(account.priorityAllowance?.quotaPerMonth ?? 0));
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const name = [account.givenName, account.familyName].filter(Boolean).join(" ");
+
+  async function save() {
+    setBusy(true);
+    setFailure(null);
+    try {
+      await api(`/admin/staff/${account.staffId}/priority-allowance`, { method: "PUT", json: { quotaPerMonth: Number(quota) } });
+      onDone(Number(quota) ? `${name} holds ${quota} priority ${Number(quota) === 1 ? "place" : "places"} a month.` : `${name} holds no priority allowance.`);
+    } catch (caught) {
+      setFailure(`${sentence(caught instanceof Error ? caught.message : "The allowance could not be saved")} Nothing was changed.`);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="scrim" onClick={() => !busy && onClose()}>
+      <div className="dialog staff-dialog" role="dialog" aria-modal="true" aria-labelledby="priority-title" onClick={(e) => e.stopPropagation()}>
+        <span className="dialog-icon dialog-icon-blue accounts-dialog-icon" aria-hidden="true">
+          <Star size={22} />
+        </span>
+        <h2 id="priority-title">Priority for {name}</h2>
+        <p className="dialog-lede">
+          The only priority staff have: a set number of priority places in a month, for their own or a dependant's visit. It is shown on
+          this list with how much is used, and every use is in the audit log.
+        </p>
+        <div className="off-fields">
+          <div className="off-field">
+            <span>A month</span>
+            <SelectMenu
+              label="Priority places a month"
+              value={quota}
+              width={220}
+              options={[0, 1, 2, 3, 4, 5].map((n) => ({ id: String(n), label: n ? `${n} ${n === 1 ? "place" : "places"}` : "None" }))}
+              onChange={setQuota}
+            />
+          </div>
+          {account.priorityAllowance && (
+            <div className="off-field">
+              <span>Used this month</span>
+              <span className="settings-value">
+                {account.priorityAllowance.usedThisMonth} of {account.priorityAllowance.quotaPerMonth}
+              </span>
+            </div>
+          )}
+        </div>
+        {failure && <Notice tone="error">{failure}</Notice>}
+        <div className="dialog-actions">
+          <button type="button" className="outline-button keep" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button type="button" className="staff-primary" onClick={() => void save()} disabled={busy} aria-busy={busy || undefined}>
+            {busy ? "Saving" : "Save allowance"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

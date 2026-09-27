@@ -222,12 +222,92 @@ def export(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     return csv_response
 
 
+# FR-STF-13: what the weekly list is made of.
+CHANGES = ("appointment.cancel", "appointment.reschedule")
+
+
+def weekly_changes(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    """Staff reschedules and cancellations in a week, grouped by who made them (FR-STF-13).
+
+    Read-only, from the audit trail, so it cannot disagree with it. The week
+    is the Monday given (UTC days), this week by default. Each actor's changes
+    are listed with their reasons and flags, flagged ones first.
+    """
+    permissions.require(principal, "audit.read")
+    store = log()
+    raw = requests.query_parameter(event, "week")
+    today = store.now().date()
+    monday = schedule.parse_date(raw, name="week") if raw else today
+    monday -= dt.timedelta(days=monday.weekday())
+    sunday = monday + dt.timedelta(days=6)
+    entries = (
+        [
+            e
+            for e in in_scope(
+                principal, store.entries(principal.tenant_id, monday, min(sunday, today))
+            )
+            if e.get("action") in CHANGES and e.get("kind") == WRITE
+        ]
+        if monday <= today
+        else []
+    )
+    named = names(
+        store.repository, {str(e["actorPersonId"]) for e in entries if e.get("actorPersonId")}
+    )
+    groups: dict[str, dict[str, Any]] = {}
+    for e in entries:
+        actor = str(e.get("actorPersonId") or "")
+        group = groups.setdefault(
+            actor,
+            {
+                "actorPersonId": actor,
+                "actorName": named.get(actor, "Unknown account"),
+                "actorRole": e.get("actorRole"),
+                "cancellations": 0,
+                "reschedules": 0,
+                "flagged": 0,
+                "changes": [],
+            },
+        )
+        group["cancellations" if e.get("action") == "appointment.cancel" else "reschedules"] += 1
+        group["flagged"] += 1 if e.get("flags") else 0
+        group["changes"].append(
+            {
+                "auditEntryId": e.get("auditEntryId"),
+                "occurredAt": e.get("occurredAt"),
+                "action": e.get("action"),
+                "appointmentId": e.get("subjectId"),
+                "reason": e.get("reason"),
+                "flags": list(e.get("flags") or []),
+            }
+        )
+    ordered = sorted(
+        groups.values(),
+        key=lambda g: (
+            -int(g["flagged"]),
+            -(int(g["cancellations"]) + int(g["reschedules"])),
+            g["actorName"],
+        ),
+    )
+    for group in ordered:
+        group["changes"].sort(key=lambda c: (not c["flags"], str(c["occurredAt"])))
+    return {
+        "week": monday.isoformat(),
+        "to": sunday.isoformat(),
+        "actors": ordered,
+        "total": len(entries),
+        "flagged": sum(1 for e in entries if e.get("flags")),
+    }
+
+
 @api
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     """GET /audit and GET /audit/export."""
     principal = requests.principal_from(event)
     method = str(event.get("httpMethod", "")).upper()
     resource = str(event.get("resource", ""))
+    if method == "GET" and resource.endswith("/audit/changes"):
+        return responses.ok(weekly_changes(principal, event))
     if method == "GET" and resource.endswith("/audit/export"):
         return export(principal, event)
     if method == "GET" and resource.endswith("/audit"):

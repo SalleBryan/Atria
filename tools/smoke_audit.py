@@ -98,6 +98,7 @@ def main() -> int:
             "clinicianProfileId": clinician["staffId"],
             "startAt": start,
             "channel": "PHONE",
+            "callbackPhone": "+12025550199",
         },
     )
     visit = json.loads(booked_raw)

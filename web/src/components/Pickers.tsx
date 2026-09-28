@@ -9,12 +9,12 @@
  * a dialog never clips them, and all close on Escape or a tap outside.
  */
 
-import { type CSSProperties, type ReactNode, useCallback, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { clock } from "../patient/data";
 import { useMenu } from "./FilterMenu";
-import { Calendar, ChevronLeft, ChevronRight } from "./icons";
+import { Calendar, ChevronLeft, ChevronRight, Search } from "./icons";
 
 export interface PickerOption {
   id: string;
@@ -43,6 +43,7 @@ export function SelectMenu({
   width = 260,
   className = "",
   placeholder = "Choose",
+  searchable = false,
 }: {
   label: string;
   value: string | null;
@@ -54,12 +55,29 @@ export function SelectMenu({
   className?: string;
   /** What an empty picker says. */
   placeholder?: string;
+  /** A search box over the list, for long lists such as every clinician. */
+  searchable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const search = useRef<HTMLInputElement>(null);
+  // The menu takes focus as it opens; a searchable one hands it to the box.
+  useEffect(() => {
+    if (!open || !searchable) return;
+    const frame = requestAnimationFrame(() => search.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [open, searchable]);
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const close = useCallback(() => setOpen(false), []);
-  const { place, admin } = useMenu({ open, onClose: close, anchor: button, panel, width, align: "start", roomNeeded: 220 });
+  const close = useCallback(() => {
+    setOpen(false);
+    setQuery("");
+  }, []);
+  const { place, admin } = useMenu({ open, onClose: close, anchor: button, panel, width, align: "start", roomNeeded: searchable ? 300 : 220 });
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = words.length
+    ? options.filter((o) => words.every((w) => `${o.label} ${o.hint ?? ""}`.toLowerCase().includes(w)))
+    : options;
   const chosen = options.find((o) => o.id === value);
 
   return (
@@ -82,8 +100,29 @@ export function SelectMenu({
         createPortal(
           <div className={`menu-layer${admin ? " menu-admin" : ""}`}>
             <div className="menu-scrim menu-scrim-clear" onClick={close} aria-hidden="true" />
-            <div ref={panel} className="suggest picker-list" role="listbox" aria-label={label} style={place}>
-              {options.map((option, i) => {
+            <div ref={panel} className={`suggest picker-list${searchable ? " picker-searchable" : ""}`} role="listbox" aria-label={label} style={place}>
+              {searchable && (
+                <div className="picker-search">
+                  <Search size={15} />
+                  <input
+                    type="search"
+                    aria-label={`Search ${label.toLowerCase()}`}
+                    placeholder="Search"
+                    ref={search}
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && shown[0]) {
+                        event.preventDefault();
+                        onChange(shown[0].id);
+                        close();
+                      }
+                    }}
+                  />
+                </div>
+              )}
+              {searchable && !shown.length && <p className="picker-none">Nothing matches "{query.trim()}".</p>}
+              {shown.map((option, i) => {
                 const on = option.id === value;
                 return (
                   <button

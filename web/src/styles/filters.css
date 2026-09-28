@@ -403,3 +403,20 @@
    own height, width and outline. */
 .picker-field.field-select { width: 100%; height: 54px; border-radius: 17px; }
 .picker-field.select-invalid { border-color: var(--status-cancelled); }
+
+/* A long picker's search box (2026-09-29): pinned above the choices. */
+.picker-search {
+  position: sticky;
+  top: -6px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -6px -6px 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line-hairline);
+  color: var(--ink-muted);
+  background: #ffffff;
+}
+.picker-search input { flex: 1; min-width: 0; border: 0; outline: none; font: inherit; font-size: 13.5px; color: var(--ink-primary); background: none; }
+.picker-none { margin: 0; padding: 14px; font-size: 12.5px; color: var(--ink-muted); }

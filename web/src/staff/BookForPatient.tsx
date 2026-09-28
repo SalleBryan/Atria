@@ -280,6 +280,8 @@ export function BookForPatient() {
             value={clinicianId}
             width={340}
             className="book-picker"
+            placeholder="Choose a clinician"
+            searchable
             icon={<Stethoscope size={15} />}
             onChange={(id) => {
               setClinicianId(id);

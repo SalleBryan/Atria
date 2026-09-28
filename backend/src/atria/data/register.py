@@ -179,6 +179,30 @@ class Register:
             if entry["sk"] not in keep:
                 self._repo.delete(keys.Key(str(entry["pk"]), str(entry["sk"])))
 
+    def entries_of(self, tenant_id: str, patient_profile_id: str) -> list[Item]:
+        return [
+            e
+            for e in self._repo.query_partition(partition(tenant_id))
+            if e.get("patientProfileId") == patient_profile_id
+        ]
+
+    def mark_deletion(self, tenant_id: str, patient_profile_id: str, purge_at: str | None) -> None:
+        """Flag a patient's entries as deleted until purge_at, or clear the flag (2026-09-29).
+
+        The desk's search leaves flagged entries out; the administrator sees
+        them, so a deletion can be restored within its 30 days.
+        """
+        for entry in self.entries_of(tenant_id, patient_profile_id):
+            key = keys.Key(str(entry["pk"]), str(entry["sk"]))
+            if purge_at:
+                self._repo.put(key, {**entry, "deletionPurgeAt": purge_at})
+            else:
+                self._repo.put(key, {k: v for k, v in entry.items() if k != "deletionPurgeAt"})
+
+    def remove(self, tenant_id: str, patient_profile_id: str) -> None:
+        for entry in self.entries_of(tenant_id, patient_profile_id):
+            self._repo.delete(keys.Key(str(entry["pk"]), str(entry["sk"])))
+
 
 def view(entry: dict[str, Any]) -> dict[str, Any]:
     """A search result: who, and enough to tell two people of one name apart."""
@@ -189,4 +213,5 @@ def view(entry: dict[str, Any]) -> dict[str, Any]:
         "phoneE164": entry.get("phoneE164"),
         "patientNumber": entry.get("patientNumber"),
         "dateOfBirth": entry.get("dateOfBirth"),
+        "deletionPurgeAt": entry.get("deletionPurgeAt"),
     }

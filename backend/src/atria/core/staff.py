@@ -25,7 +25,7 @@ STAFF_ROLES = tuple(r for r in spec.ROLES if r != "PATIENT")
 # Roles whose scope is one clinic, so an account carrying one needs a clinic.
 CLINIC_SCOPED_ROLES = ("RECEPTIONIST", "CLINICIAN", "CLINIC_MANAGER")
 
-MEMBERSHIP_STATUSES = ("INVITED", "ACTIVE", "SUSPENDED", "ENDED")
+MEMBERSHIP_STATUSES = ("INVITED", "ACTIVE", "SUSPENDED", "DELETION_PENDING", "ENDED")
 
 # E.164. The region pack narrows this further for the tenant's own country;
 # this is the shape every number must have whatever the country.

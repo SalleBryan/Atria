@@ -59,19 +59,31 @@ def pack_for(tenant_id: str) -> dict[str, Any]:
 
 
 def search(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
-    permissions.require(principal, "patient.read")
+    scope = permissions.require(principal, "patient.read")
     if not principal.is_staff:
         raise permissions_error("patient.read")
+    # A deleted account waiting out its 30 days is the administrator's to
+    # restore; the desk no longer finds it (services/identity/deletion.py).
+    everyone_shown = scope == "tenant"
+
+    def shown(entry: dict[str, Any]) -> bool:
+        return everyone_shown or not entry.get("deletionPurgeAt")
+
     query = (requests.query_parameter(event, "q") or "").strip()
     if len(query) > 60:
         raise Invalid("that search is too long")
     if not query:
         # No search: the register itself, a page at a time (2026-09-28).
-        listed, paging = page(Register(repository()).everyone(principal.tenant_id), event)
+        everyone = [e for e in Register(repository()).everyone(principal.tenant_id) if shown(e)]
+        listed, paging = page(everyone, event)
         return {"q": "", **paging, "results": [view(e) for e in listed]}
-    found = Register(repository()).search(
-        principal.tenant_id, query, dial_code=str(pack_for(principal.tenant_id)["dialCode"])
-    )
+    found = [
+        e
+        for e in Register(repository()).search(
+            principal.tenant_id, query, dial_code=str(pack_for(principal.tenant_id)["dialCode"])
+        )
+        if shown(e)
+    ]
     return {
         "q": query,
         "count": len(found),

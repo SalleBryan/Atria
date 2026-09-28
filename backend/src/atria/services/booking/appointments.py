@@ -25,6 +25,7 @@ from atria.core import lifecycle, permissions
 from atria.core.errors import AtriaError, Conflict, Invalid, NotFound
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
+from atria.data import keys
 from atria.data.audit import POTENTIAL_SELF_BENEFIT
 from atria.data.booking import FUTURE_YEARS, HISTORY_YEARS, Booking
 from atria.data.idempotency import COMPLETED, Idempotency, validate_key
@@ -342,6 +343,11 @@ def create(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
     )
 
     data = booking()
+    if by_patient:
+        # A deleted account waiting out its 30 days books nothing until restored.
+        me = data.repository.get(keys.person(caller.person_id)) or {}
+        if me.get("deletion"):
+            raise Conflict("this account is deleted; restore it to book again")
     membership = data.bookable_clinician(caller.tenant_id, request.clinician_profile_id)
     clinic_id = str(membership["clinicId"])
 
@@ -506,3 +512,63 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     # Every route on this function is listed above, so this is a wiring mistake
     # in the API stack rather than anything the caller did.
     raise AtriaError(f"no handler for {method} {resource}")
+
+
+# The states a visit is still to come in, and so can be called off.
+STILL_AHEAD = ("BOOKED", "CONFIRMED", "RESCHEDULED")
+
+
+def cancel_ahead(
+    *,
+    tenant_id: str,
+    patient_profile_id: str,
+    cancelled_by: str,
+    actor_person_id: str,
+    actor_role: str | None,
+    reason: str,
+) -> int:
+    """Call off every visit a patient still has ahead, as one cancellation each.
+
+    For an account being deleted (2026-09-29): each visit goes through the
+    same closure a cancellation does, so its time is freed, the ledger
+    records the outcome and the patient is told. Returns how many.
+    """
+    data = booking()
+    now = data.now()
+    ahead = data.appointments_for_patient(
+        tenant_id,
+        patient_profile_id,
+        since=rules.instant(now),
+        until=rules.instant(now + dt.timedelta(days=400)),
+    )
+    minutes = rules.grid_unit_minutes(data.tenant(tenant_id))
+    done = 0
+    for appointment in ahead:
+        if appointment.get("state") not in STILL_AHEAD:
+            continue
+        kind = data.appointment_type(tenant_id, str(appointment["appointmentTypeId"]))
+        decided = rules.cancellation(
+            cancelled_by=cancelled_by,
+            start_at=rules.parse_instant(appointment["startAt"], name="startAt"),
+            now=now,
+            cancellation_window_minutes=int(kind.get("cancellationWindowMinutes") or 0),
+        )
+        entry = Ledger(data.repository).entry_for(
+            tenant_id=tenant_id,
+            appointment=appointment,
+            outcome=decided.outcome,
+            occurred_at=rules.instant(now),
+            zone=data.zone(tenant_id),
+        )
+        data.cancel(
+            tenant_id=tenant_id,
+            appointment=appointment,
+            cancellation=decided,
+            actor_person_id=actor_person_id,
+            actor_role=actor_role,
+            reason=reason,
+            minutes=minutes,
+            also=[entry],
+        )
+        done += 1
+    return done

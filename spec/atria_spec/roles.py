@@ -75,6 +75,8 @@ MATRIX = {
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
  "patient.update":          {"PATIENT":"own","RECEPTIONIST":"clinic","CLINICIAN":"none",
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
+ "patient.delete":          {"PATIENT":"own","RECEPTIONIST":"none","CLINICIAN":"none",
+                             "CLINIC_MANAGER":"none","TENANT_ADMIN":"tenant"},
  "staff.create":            {"PATIENT":"none","RECEPTIONIST":"none","CLINICIAN":"none",
                              "CLINIC_MANAGER":"none","TENANT_ADMIN":"tenant"},
  "staff.update_roles":      {"PATIENT":"none","RECEPTIONIST":"none","CLINICIAN":"none",

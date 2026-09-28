@@ -39,6 +39,7 @@ from atria.data.people import People
 from atria.data.repository import Repository
 from atria.http import requests, responses
 from atria.http.handler import api
+from atria.services.identity import deletion
 
 _people: People | None = None
 
@@ -110,6 +111,8 @@ def missing(person: dict[str, Any]) -> list[str]:
     if not person.get("termsAcceptedAt"):
         lacking.append("terms")
     return lacking
+
+
 USER_POOL_ID = os.environ.get("USER_POOL_ID", "")
 _cognito: Any = None
 
@@ -161,10 +164,9 @@ def edit(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
         phone = str(body["phoneE164"] or "").strip()
         if not E164.match(phone):
             raise Invalid("phoneE164 must be an international number, such as +237...")
-        if person.get("phoneE164") and person.get("phoneVerified"):
+        if person.get("phoneE164") and person.get("phoneVerifiedAt"):
             raise Conflict("a verified mobile changes with a code sent to it")
         changes["phoneE164"] = phone
-        changes["phoneVerified"] = False
     if body.get("acceptTerms") is True and not person.get("termsAcceptedAt"):
         accepted = dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
         changes["termsAcceptedAt"] = accepted
@@ -237,7 +239,7 @@ def take_verified_email(principal: Principal) -> dict[str, Any]:
 
 @api
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
-    """GET /me, PATCH /me, POST /me/email"""
+    """GET /me, PATCH /me, POST /me/email, DELETE /me, POST /me/restore"""
     principal = requests.principal_from(event)
     method = str(event.get("httpMethod", "")).upper()
     resource = str(event.get("resource", ""))
@@ -245,6 +247,12 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         edit(principal, requests.json_body(event))
     elif method == "POST" and resource == "/me/email":
         take_verified_email(principal)
+    elif method == "DELETE" and resource == "/me":
+        return responses.ok(
+            deletion.delete_own(people(), principal, now=dt.datetime.now(tz=dt.UTC))
+        )
+    elif method == "POST" and resource == "/me/restore":
+        deletion.restore_own(people(), principal)
     person = person_details(principal)
     extra: dict[str, Any] = {}
     try:
@@ -253,6 +261,11 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
             "dateOfBirth": record.get("dateOfBirth"),
             "preferredLanguage": record.get("preferredLanguage"),
             "missing": missing(record) if principal.patient_profile_id else [],
+            # A patient who deleted their account and signed in again inside
+            # the 30 days is offered to take it back (services/identity/deletion.py).
+            "deletion": deletion.pending_view(record["deletion"])
+            if record.get("deletion")
+            else None,
         }
     except NotFound:
         pass

@@ -36,6 +36,7 @@ from atria.data.people import People
 from atria.data.repository import Repository
 from atria.http import paging, requests, responses
 from atria.http.handler import api
+from atria.services.identity import deletion
 
 logger = Logger(service="atria-staff")
 
@@ -88,6 +89,8 @@ def account_view(membership: dict[str, Any], person: dict[str, Any]) -> dict[str
         "phoneE164": person.get("phoneE164"),
         "email": person.get("email"),
         "employeeNumber": membership.get("employeeNumber"),
+        # Deleted and waiting out its 30 days: when it becomes final.
+        "purgeAt": (membership.get("deletion") or {}).get("purgeAt"),
     }
 
 
@@ -162,13 +165,15 @@ DEFAULT_PAGE = 25
 
 # The list's status filter. Awaiting means the temporary password has not been
 # replaced yet; active means neither awaiting nor suspended.
-STATUS_FILTERS = ("awaiting", "active", "suspended")
+STATUS_FILTERS = ("awaiting", "active", "suspended", "deleted")
 
 
 def status_of(account: dict[str, Any]) -> str:
     """The list's word for an account: awaiting, active or suspended."""
     if account.get("status") == "SUSPENDED":
         return "suspended"
+    if account.get("status") == "DELETION_PENDING":
+        return "deleted"
     return "awaiting" if account.get("mustSetPassword") else "active"
 
 
@@ -398,6 +403,32 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         return responses.ok(set_priority(principal, staff_id, requests.json_body(event)))
     if method == "POST" and resource.endswith("/suspend"):
         return responses.ok(suspend(principal, requests.path_parameter(event, "id")))
+    # Deleting and restoring accounts, with 30 days' grace (deletion.py).
+    now = dt.datetime.now(tz=dt.UTC)
+    if method == "DELETE" and resource.endswith("/admin/staff/{id}"):
+        return responses.ok(
+            deletion.delete_staff(
+                people(), actor=principal, staff_id=requests.path_parameter(event, "id"), now=now
+            )
+        )
+    if method == "POST" and resource.endswith("/admin/staff/{id}/restore"):
+        return responses.ok(
+            deletion.restore_staff(
+                people(), actor=principal, staff_id=requests.path_parameter(event, "id")
+            )
+        )
+    if method == "DELETE" and resource.endswith("/admin/patients/{id}"):
+        return responses.ok(
+            deletion.delete_patient_as_admin(
+                people(), principal, requests.path_parameter(event, "id"), now=now
+            )
+        )
+    if method == "POST" and resource.endswith("/admin/patients/{id}/restore"):
+        return responses.ok(
+            deletion.restore_patient_as_admin(
+                people(), principal, requests.path_parameter(event, "id")
+            )
+        )
 
     # Every route on this function is listed above, so this is a wiring
     # mistake in the API stack rather than anything the caller did.

@@ -237,12 +237,13 @@ class TestEditingOneself:
         assert result["statusCode"] == 200, result
         assert body_of(self.call("GET", "/me"))["missing"] == []
         saved = amina.get(keys.person("p-1"))
-        assert (saved["phoneE164"], saved["phoneVerified"]) == ("+12025550199", False)
+        assert saved["phoneE164"] == "+12025550199"
+        assert "phoneVerifiedAt" not in saved
         assert saved["termsVersion"]
 
     def test_a_verified_mobile_is_not_changed_here(self, amina):
         person = amina.get(keys.person("p-1"))
-        amina.put(keys.person("p-1"), {**person, "phoneVerified": True})
+        amina.put(keys.person("p-1"), {**person, "phoneVerifiedAt": "2026-09-01T10:00:00Z"})
         assert self.call("PATCH", "/me", {"phoneE164": "+12025550199"})["statusCode"] == 409
 
     def test_a_mobile_must_be_international(self, amina):

@@ -117,6 +117,18 @@ class TestRegister:
     def test_one_letter_finds_nothing(self, desk):
         assert body_of(search("n"))["results"] == []
 
+    def test_no_search_lists_the_register(self, desk):
+        """The Patients page opens on the register itself (2026-09-28)."""
+        found = body_of(search(""))
+        assert [r["patientProfileId"] for r in found["results"]] == [PATIENT]
+        assert (found["count"], found["nextCursor"]) == (1, None)
+
+    def test_the_listing_is_audited_like_a_search(self, desk, audit_log):
+        search("")
+        today = audit_log.now().date()
+        (entry,) = audit_log.entries(TENANT, today, today)
+        assert entry["patientProfileIds"] == [PATIENT]
+
     def test_a_patient_cannot_search(self, desk):
         patient = {
             "personId": "p-x",

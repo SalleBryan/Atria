@@ -23,6 +23,7 @@ import { Clock, Close, Plus } from "../components/icons";
 import { DatePicker, SelectMenu } from "../components/Pickers";
 import { daysOf, type Hours, timeOptions, type Week, weekFrom, WeekHours } from "../components/WeekHours";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { LoadingPane } from "../components/LoadingPane";
 import { MATRIX } from "../generated/permissions";
 import { clock, initials } from "../patient/data";
 import { doctor, roleOf, useStaffData } from "./data";
@@ -160,7 +161,7 @@ export function Availability() {
               }}
             />
           ) : (
-            <LoadingIndicator size={28} label="Loading hours" />
+            <LoadingPane label="Loading hours" />
           )}
         </section>
 
@@ -175,7 +176,7 @@ export function Availability() {
             )}
           </div>
           {!found ? (
-            <LoadingIndicator size={28} label="Loading time off" />
+            <LoadingPane label="Loading time off" />
           ) : found.timeOff.length ? (
             <ul className="time-off-list">
               {found.timeOff.map((item) => (
@@ -257,6 +258,7 @@ function WeekEditor({
       {failure && <Notice tone="error">{failure}</Notice>}
       {editable && (
         <button type="submit" className="staff-primary" disabled={busy} aria-busy={busy || undefined}>
+          {busy ? <LoadingIndicator size={20} label="Saving" /> : null}
           {busy ? "Saving" : "Save hours"}
         </button>
       )}
@@ -426,6 +428,7 @@ function TimeOffDialog({
             Keep the time
           </button>
           <button type="submit" form="off-form" className="staff-primary" disabled={busy || !reason.trim()} aria-busy={busy || undefined}>
+            {busy ? <LoadingIndicator size={20} label="Saving" /> : null}
             {busy ? "Saving" : "Take time off"}
           </button>
         </div>

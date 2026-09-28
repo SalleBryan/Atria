@@ -80,12 +80,21 @@ describe("Cancelling from the desk", () => {
     expect(dialog).toHaveTextContent("inside the 24 hour window, so it counts as a late cancellation");
   });
 
+  it("keeps the note box closed until Other is chosen", async () => {
+    const { dialog, user } = open();
+    expect(within(dialog).queryByRole("textbox", { name: "Note" })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("radio", { name: "Double booking" }));
+    expect(within(dialog).queryByRole("textbox", { name: "Note" })).not.toBeInTheDocument();
+  });
+
   it("asks who called it off for any other reason, and keeps the note", async () => {
     const { dialog, user } = open();
     await user.click(within(dialog).getByRole("radio", { name: "Other" }));
     const submit = within(dialog).getByRole("button", { name: "Cancel appointment" });
     expect(submit).toBeDisabled();
     await user.click(within(dialog).getByRole("radio", { name: "The patient" }));
+    // "Other" says why before it can be recorded.
+    expect(submit).toBeDisabled();
     await user.type(within(dialog).getByRole("textbox", { name: "Note" }), "Moved away");
     await user.click(submit);
     expect(api).toHaveBeenCalledWith("/appointments/a-1", {

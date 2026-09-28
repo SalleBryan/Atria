@@ -21,7 +21,7 @@ import { api } from "../api/client";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
 import { ChevronLeft, ChevronRight, Shield } from "../components/icons";
-import { LoadingIndicator } from "../components/LoadingIndicator";
+import { LoadingPane } from "../components/LoadingPane";
 import { SelectMenu } from "../components/Pickers";
 import { roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
@@ -159,7 +159,7 @@ export function Reports() {
 
       {failure && <Notice tone="error">{failure}</Notice>}
       {!found ? (
-        <LoadingIndicator size={28} label="Loading the report" />
+        <LoadingPane label="Loading the report" />
       ) : (
         <>
           <section className="reports-tiles" aria-label="The week in numbers">

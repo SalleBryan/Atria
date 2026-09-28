@@ -28,6 +28,7 @@ import { api } from "../api/client";
 import { type CountryCode, HOME_COUNTRY, PACK, normalisePhone } from "../auth/phone";
 import { useSession } from "../auth/session";
 import { Field, Notice } from "../components/controls";
+import { LoadingRow } from "../components/LoadingPane";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
 import {
   Building,
@@ -51,6 +52,7 @@ import { MATRIX, REQUIRED_ON_CREATE, type Role } from "../generated/permissions"
 import { useTier } from "../layout/fit";
 import { initials } from "../patient/data";
 import { roleOf, useStaffData } from "./data";
+import { phoneShown } from "./Patients";
 import { sentence } from "./labels";
 import { Snackbar } from "./Snackbar";
 
@@ -400,7 +402,7 @@ export function StaffAccounts() {
         </div>
         <ul ref={rowsBox} className={`accounts-rows${loading && page ? " accounts-rows-loading" : ""}`}>
           {!page
-            ? [0, 1, 2, 3].map((n) => <li key={n} className="skeleton day-row-skeleton" aria-hidden="true" />)
+            ? [<LoadingRow key="loading" />]
             : accounts.map((account, index) => {
                 const off = account.status === "SUSPENDED" || account.status === "ENDED";
                 const adminRole = account.roles.includes("TENANT_ADMIN");
@@ -419,7 +421,7 @@ export function StaffAccounts() {
                       </span>
                       <span className="account-text">
                         <span className="account-name">{name}</span>
-                        <span className="account-sub">{account.signInName ?? "No sign-in name"}</span>
+                        <span className="account-sub">{account.signInName ? (account.signInName.startsWith("+") ? phoneShown(account.signInName) : account.signInName) : "No sign-in name"}</span>
                       </span>
                     </span>
                     <span>
@@ -602,6 +604,7 @@ function ChangeRole({ account, onClose, onDone }: { account: Listed; onClose: ()
                 Keep {ROLE_NAME[current].toLowerCase()}
               </button>
               <button type="submit" className="staff-primary" disabled={!role || busy} aria-busy={busy || undefined}>
+                {busy ? <LoadingIndicator size={20} label="Saving" /> : null}
                 {busy ? "Saving" : "Change role"}
               </button>
             </div>
@@ -829,19 +832,16 @@ function CreateStaff({ onClose, onDone }: { onClose: () => void; onDone: (name: 
                 />
                 {needs.has("clinicId") && (
                   <div className="field">
-                    <label className="field-label" htmlFor="staff-clinic">
-                      Clinic
-                    </label>
-                    <div className={`input select${errors.clinicId ? " input-invalid" : ""}`}>
-                      <select id="staff-clinic" value={form.clinicId} onChange={set("clinicId")} aria-invalid={errors.clinicId ? true : undefined}>
-                        <option value="">Choose a unit</option>
-                        {clinics.map((clinic) => (
-                          <option key={clinic.clinicId} value={clinic.clinicId}>
-                            {clinic.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <span className="field-label">Unit</span>
+                    <SelectMenu
+                      label="Unit"
+                      placeholder="Choose a unit"
+                      value={form.clinicId || null}
+                      width={340}
+                      className={`field-select${errors.clinicId ? " select-invalid" : ""}`}
+                      options={clinics.map((clinic) => ({ id: clinic.clinicId, label: clinic.name }))}
+                      onChange={(id) => set("clinicId")({ target: { value: id } })}
+                    />
                     {errors.clinicId && <p className="field-error">{errors.clinicId}</p>}
                   </div>
                 )}
@@ -1025,6 +1025,7 @@ function PriorityAllowance({ account, onClose, onDone }: { account: Listed; onCl
             Cancel
           </button>
           <button type="button" className="staff-primary" onClick={() => void save()} disabled={busy} aria-busy={busy || undefined}>
+            {busy ? <LoadingIndicator size={20} label="Saving" /> : null}
             {busy ? "Saving" : "Save allowance"}
           </button>
         </div>

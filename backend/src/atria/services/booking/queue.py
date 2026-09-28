@@ -149,11 +149,15 @@ def list_for_unit(principal: Principal, event: dict[str, Any]) -> dict[str, Any]
         raise Invalid("that range is wider than a month")
     found = sessions().for_unit(principal.tenant_id, clinic_id, first, last)
     if not principal.is_staff:
-        # A patient sees what they can take a place in.
+        # A patient sees what they can take a place in: not a session that
+        # has closed, nor one whose hours are already over today.
+        now = data.now()
         found = [
             s
             for s in found
-            if s.get("status") != "CLOSED" and str(s["sessionDate"]) >= today.isoformat()
+            if s.get("status") != "CLOSED"
+            and str(s["sessionDate"]) >= today.isoformat()
+            and now < window_of(s, zone).closes_at
         ]
     return {
         "clinicId": clinic_id,
@@ -218,7 +222,10 @@ def issue(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
 
     zone = data.zone(principal.tenant_id)
     today = data.now().astimezone(zone).date()
-    if str(session["sessionDate"]) < today.isoformat():
+    if (
+        str(session["sessionDate"]) < today.isoformat()
+        or data.now() >= window_of(session, zone).closes_at
+    ):
         raise Conflict("that session is over")
     kind = general_type(principal.tenant_id, clinic_id)
     if by_patient and str(kind.get("bookableBy", "BOTH")) == "STAFF":

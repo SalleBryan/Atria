@@ -14,7 +14,7 @@ import { Navigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
-import { LoadingIndicator } from "../components/LoadingIndicator";
+import { LoadingRow } from "../components/LoadingPane";
 import { DatePicker } from "../components/Pickers";
 import { clock, initials } from "../patient/data";
 import { doctor, roleOf, useStaffData } from "./data";
@@ -113,9 +113,7 @@ export function RosterPage() {
         </div>
         <ul className="accounts-rows">
           {!found ? (
-            <li>
-              <LoadingIndicator size={28} label="Loading the roster" />
-            </li>
+            <LoadingRow label="Loading the roster" />
           ) : rows.length ? (
             rows.map((row, index) => {
               const status = ROSTER_STATUS[row.status];

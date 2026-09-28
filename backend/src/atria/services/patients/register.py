@@ -32,6 +32,7 @@ from atria.data.register import Register, view
 from atria.data.repository import Repository
 from atria.http import requests, responses
 from atria.http.handler import api
+from atria.http.paging import page
 from atria.http.views import appointment_view
 
 _repo: Repository | None = None
@@ -64,10 +65,19 @@ def search(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     query = (requests.query_parameter(event, "q") or "").strip()
     if len(query) > 60:
         raise Invalid("that search is too long")
+    if not query:
+        # No search: the register itself, a page at a time (2026-09-28).
+        listed, paging = page(Register(repository()).everyone(principal.tenant_id), event)
+        return {"q": "", **paging, "results": [view(e) for e in listed]}
     found = Register(repository()).search(
         principal.tenant_id, query, dial_code=str(pack_for(principal.tenant_id)["dialCode"])
     )
-    return {"q": query, "count": len(found), "results": [view(e) for e in found]}
+    return {
+        "q": query,
+        "count": len(found),
+        "nextCursor": None,
+        "results": [view(e) for e in found],
+    }
 
 
 def permissions_error(permission: str) -> AtriaError:

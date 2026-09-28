@@ -26,6 +26,7 @@ import { CodeInput, isComplete } from "../components/CodeInput";
 import { Notice } from "../components/controls";
 import { Info, Key, Shield } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { LoadingPane } from "../components/LoadingPane";
 import { STAFF_FOOTER } from "./StaffSignIn";
 
 const ISSUER = "Atria";
@@ -184,7 +185,7 @@ export function StaffAuthenticatorSetup({ me }: { me: Me }) {
         Administrators sign in with a password and a code from an authenticator app. Scan this with Google
         Authenticator, Microsoft Authenticator or any app like them, then type the code it shows.
       </p>
-      {setup.status === "loading" && <LoadingIndicator size={28} label="Preparing your authenticator" />}
+      {setup.status === "loading" && <LoadingPane label="Preparing your authenticator" />}
       {setup.status === "failed" && <Notice tone="error">{setup.message}</Notice>}
       {setup.status === "ready" && (
         <div className="totp-setup">

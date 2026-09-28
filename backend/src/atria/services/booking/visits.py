@@ -105,6 +105,9 @@ def _moved(
 def reschedule(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     """Move a visit to a free time, keeping its reference (FR-VIS-07)."""
     caller, appointment = _load(principal, event, "appointment.reschedule")
+    if appointment.get("sessionId") or not appointment.get("clinicianProfileId"):
+        # A place in the queue or a request holds no time of its own to move.
+        raise Invalid("a queue place or a request is not moved; give it up and take another")
     body = _body(event)
     by_staff = caller.is_staff
 

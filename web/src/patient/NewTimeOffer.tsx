@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { Notice } from "../components/controls";
 import { Alert } from "../components/icons";
-import { LoadingIndicator } from "../components/LoadingIndicator";
+import { LoadingPane } from "../components/LoadingPane";
 import { type Appointment, clock } from "./data";
 
 interface Slot {
@@ -80,7 +80,7 @@ export function NewTimeOffer({
         Your clinician can no longer see you at {clock.time(appointment.startAt)}. Choose a new time below; please don't come in at the old one.
       </p>
       {offers === null ? (
-        <LoadingIndicator size={24} label="Finding the next free times" />
+        <LoadingPane className="compact" label="Finding the next free times" />
       ) : offers.length ? (
         <div className="new-time-offers">
           {offers.map((slot) => (

@@ -20,6 +20,7 @@ import { Calendar, Chart, Clock, Inbox, ListOrdered, Mail, Pulse, Shield, SignOu
 import { offeredAt } from "../patient/data";
 import { runsQueue } from "./Queue";
 import { SignOutMenu } from "../components/SignOutMenu";
+import { MoreMenu } from "./MoreMenu";
 import { Waiting } from "../components/Waiting";
 import { initials } from "../patient/data";
 import { ROLE_LABEL, roleOf, StaffDataProvider, useStaffData } from "./data";
@@ -147,6 +148,17 @@ function Shell({ me }: { me: Me }) {
     destinations.findIndex((d) => d.matches(pathname)),
   );
 
+  // A phone's bar holds four destinations and "More" (or "Sign out" when
+  // four is all there is); the one open is always among the four.
+  const BAR = 4;
+  const fits = destinations.length <= BAR;
+  const bar = fits
+    ? destinations
+    : selected < BAR - 1
+      ? destinations.slice(0, BAR)
+      : [...destinations.slice(0, BAR - 1), destinations[selected] as Destination];
+  const rest = fits ? [] : destinations.filter((d) => !bar.includes(d));
+
   const [at, setAt] = useState(selected);
   const pill = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
@@ -211,7 +223,7 @@ function Shell({ me }: { me: Me }) {
       </main>
 
       <nav className="bottom-nav" aria-label="Console">
-        {destinations.map(({ to, label, icon: IconComponent, matches }) => (
+        {bar.map(({ to, label, icon: IconComponent, matches }) => (
           <NavLink
             key={to}
             to={to}
@@ -224,12 +236,16 @@ function Shell({ me }: { me: Me }) {
             <span className="bottom-label">{label}</span>
           </NavLink>
         ))}
-        <SignOutMenu className="bottom-item" align="end">
-          <span className="bottom-indicator">
-            <SignOut size={20} />
-          </span>
-          <span className="bottom-label">Sign out</span>
-        </SignOutMenu>
+        {rest.length ? (
+          <MoreMenu items={rest} active={rest.some((d) => d.matches(pathname))} />
+        ) : (
+          <SignOutMenu className="bottom-item" align="end">
+            <span className="bottom-indicator">
+              <SignOut size={20} />
+            </span>
+            <span className="bottom-label">Sign out</span>
+          </SignOutMenu>
+        )}
       </nav>
     </div>
   );

@@ -148,6 +148,34 @@ class TestSessions:
     def test_the_desk_does_not_publish(self, opd):
         assert publish(context=staff_context())["statusCode"] == 403
 
+    def test_a_session_over_today_takes_no_one(self, opd):
+        # NOW is 10:00 on 2026-03-01: a 07:00 to 09:00 session that day is over.
+        made = call(
+            "POST",
+            "/clinics/{id}/sessions",
+            context=MANAGER,
+            path={"id": DOUALA},
+            body={
+                "date": "2026-03-01",
+                "startTime": "07:00",
+                "endTime": "09:00",
+                "rosteredClinicianCount": 1,
+            },
+        )
+        assert made["statusCode"] == 201, made
+        session_id = body_of(made)["sessionId"]
+        listed = body_of(
+            call(
+                "GET",
+                "/clinics/{id}/sessions",
+                context=patient_context(),
+                path={"id": DOUALA},
+                query={"from": "2026-03-01", "to": "2026-03-01"},
+            )
+        )
+        assert listed["sessions"] == []
+        assert ticket(session_id)["statusCode"] == 409
+
     def test_sessions_cannot_overlap(self, opd):
         publish()
         assert publish(start="11:00", end="14:00")["statusCode"] == 409
@@ -213,6 +241,32 @@ class TestTickets:
             )
         )
         assert (found["sessionId"], found["state"]) == (session["sessionId"], "BOOKED")
+
+    def test_the_patient_gives_up_their_place(self, opd):
+        """A ticket holds no clinician and no units, so cancelling frees none (2026-09-28)."""
+        session = body_of(publish())
+        made = body_of(ticket(session["sessionId"]))
+        result = call(
+            "DELETE",
+            "/appointments/{id}",
+            context=patient_context(),
+            path={"id": made["appointmentId"]},
+            body={},
+        )
+        assert result["statusCode"] == 200, result["body"]
+        assert body_of(result)["state"] == "PATIENT_CANCELLED"
+
+    def test_a_ticket_is_not_moved_like_a_visit(self, opd):
+        session = body_of(publish())
+        made = body_of(ticket(session["sessionId"]))
+        result = call(
+            "POST",
+            "/appointments/{id}/reschedule",
+            context=patient_context(),
+            path={"id": made["appointmentId"]},
+            body={"startAt": "2026-03-05T08:00:00Z"},
+        )
+        assert result["statusCode"] == 400
 
 
 def act(appointment_id, action, context=None, body=None):

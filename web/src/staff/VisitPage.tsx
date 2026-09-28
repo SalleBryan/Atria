@@ -21,6 +21,7 @@ import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
 
 import { api, ApiError } from "../api/client";
 import { FeeRecord } from "../components/FeeRecord";
+import { LoadingPane } from "../components/LoadingPane";
 import { MoveVisit } from "../components/MoveVisit";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
@@ -128,8 +129,7 @@ export function VisitPage() {
     return (
       <div className="visit-page" aria-busy="true">
         <Crumbs back={back} text="Schedule" />
-        <span className="skeleton visit-skeleton-hero" />
-        <span className="skeleton visit-skeleton-body" />
+        <LoadingPane label="Loading the visit" />
       </div>
     );
   }

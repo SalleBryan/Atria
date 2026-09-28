@@ -20,6 +20,8 @@ import { Link, Navigate } from "react-router-dom";
 import { api, apiFile } from "../api/client";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
+import { LoadingRow } from "../components/LoadingPane";
+import { LoadingIndicator } from "../components/LoadingIndicator";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
 import { ChevronLeft, ChevronRight, Download, Shield } from "../components/icons";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
@@ -236,6 +238,7 @@ export function AuditLog() {
       {view === "log" && (
         <button type="button" className="tonal-button audit-export" onClick={() => void download()} disabled={exporting || !page?.count}>
           <Download size={16} />
+          {exporting ? <LoadingIndicator size={20} label="Exporting" /> : null}
           {exporting ? "Exporting" : "Export CSV"}
         </button>
       )}
@@ -308,7 +311,7 @@ export function AuditLog() {
         </div>
         <ul ref={rowsBox} className={`accounts-rows${loading && page ? " accounts-rows-loading" : ""}`}>
           {!page
-            ? [0, 1, 2, 3].map((n) => <li key={n} className="skeleton day-row-skeleton" aria-hidden="true" />)
+            ? [<LoadingRow key="loading" />]
             : entries.map((entry, index) => {
                 const [given, ...rest] = entry.actorName.split(" ");
                 return (
@@ -448,7 +451,7 @@ function WeeklyChanges() {
       {failure && <Notice tone="error">{failure}</Notice>}
       <ul ref={groupsBox} className="accounts-rows changes-list">
         {!found ? (
-          [0, 1, 2].map((n) => <li key={n} className="skeleton day-row-skeleton" aria-hidden="true" />)
+          <LoadingRow />
         ) : found.actors.length ? (
           pages.shown.map((group, index) => {
             const [given, ...rest] = group.actorName.split(" ");

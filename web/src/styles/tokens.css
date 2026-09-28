@@ -156,9 +156,27 @@ input {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
 ::-webkit-scrollbar-track { background: transparent; }
+/* Inset from the ends, so a bar in a rounded card or dialog stays inside
+   its corners rather than running past them (2026-09-28). */
+::-webkit-scrollbar-track:vertical { margin: 18px 0; }
+::-webkit-scrollbar-track:horizontal { margin: 0 18px; }
 ::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-thumb { border-radius: 99px; background: rgba(20, 45, 95, 0.22); }
 ::-webkit-scrollbar-thumb:hover { background: rgba(20, 45, 95, 0.36); }
 @supports not selector(::-webkit-scrollbar) {
   * { scrollbar-width: thin; scrollbar-color: rgba(20, 45, 95, 0.22) transparent; }
 }
+
+/* Loading (LoadingPane.tsx): the indicator centred in what it stands for. */
+.loading-pane {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  width: 100%;
+  min-height: 240px;
+  padding: 24px;
+  list-style: none;
+  animation: fade-in var(--fade) both;
+}
+.loading-row { flex: 1; border: 0; background: none; }
+.loading-pane.compact { min-height: 120px; padding: 12px; }

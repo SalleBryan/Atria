@@ -78,14 +78,18 @@ export function MoveVisit({
   }, [busy, onClose]);
 
   const by = reason?.by ?? other;
-  const ready = Boolean(slot) && (!byStaff || Boolean(reason && by));
+  const ready = Boolean(slot) && (!byStaff || Boolean(reason && by && (reason.by !== null || note.trim())));
 
   async function move(event: FormEvent) {
     event.preventDefault();
     if (!slot || !ready) return;
     setBusy(true);
     setFailure(null);
-    const written = reason ? (note.trim() ? `${reason.label}: ${note.trim()}` : reason.label) : note.trim();
+    const written = reason
+      ? reason.by === null && note.trim()
+        ? `${reason.label}: ${note.trim()}`
+        : reason.label
+      : note.trim();
     try {
       const moved = await api<Appointment>(`/appointments/${appointment.appointmentId}/reschedule`, {
         method: "POST",
@@ -195,14 +199,17 @@ export function MoveVisit({
                 )}
               </>
             )}
-            <textarea
-              className="dialog-text"
-              aria-label="Note"
-              placeholder={byStaff ? "Optional note, kept with the move" : "Optional: tell the unit why"}
-              maxLength={400}
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-            />
+            {/* The desk writes only for "Other"; a patient may always say why. */}
+            {(!byStaff || reason?.by === null) && (
+              <textarea
+                className="dialog-text"
+                aria-label="Note"
+                placeholder={byStaff ? "Say why, in a few words. Kept with the move" : "Optional: tell the unit why"}
+                maxLength={400}
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+              />
+            )}
 
             {failure && <Notice tone="error">{failure}</Notice>}
           </form>

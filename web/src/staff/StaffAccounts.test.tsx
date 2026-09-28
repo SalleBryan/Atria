@@ -128,7 +128,8 @@ describe("Staff accounts", () => {
     renderAccounts();
     const { user, sheet } = await openForm();
     await person(user, sheet);
-    await user.selectOptions(within(sheet).getByRole("combobox"), "c-akwa");
+    await user.click(within(sheet).getByRole("button", { name: /^Unit:/ }));
+    await user.click(screen.getByRole("option", { name: "Medical Outpatient Unit" }));
     await user.click(within(sheet).getByRole("button", { name: "Create account" }));
     expect(create).toHaveBeenCalledWith({
       givenName: "Kofi",
@@ -149,7 +150,8 @@ describe("Staff accounts", () => {
     const { user, sheet } = await openForm();
     await user.click(within(sheet).getByRole("radio", { name: "Clinician" }));
     await person(user, sheet);
-    await user.selectOptions(within(sheet).getByRole("combobox"), "c-akwa");
+    await user.click(within(sheet).getByRole("button", { name: /^Unit:/ }));
+    await user.click(screen.getByRole("option", { name: "Medical Outpatient Unit" }));
     await user.click(within(sheet).getByRole("button", { name: "Create account" }));
     expect(sheet).toHaveTextContent("Enter their specialty.");
     expect(sheet).toHaveTextContent("Choose at least one language they consult in.");
@@ -169,7 +171,7 @@ describe("Staff accounts", () => {
     renderAccounts();
     const { user, sheet } = await openForm();
     await user.click(within(sheet).getByRole("radio", { name: "Tenant administrator" }));
-    expect(within(sheet).queryByRole("combobox")).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole("button", { name: /^Unit:/ })).not.toBeInTheDocument();
     await person(user, sheet);
     await user.click(within(sheet).getByRole("button", { name: "Create account" }));
     expect(sheet).toHaveTextContent("An administrator signs in with an email address.");
@@ -197,7 +199,8 @@ describe("Staff accounts", () => {
     renderAccounts();
     const { user, sheet } = await openForm();
     await person(user, sheet);
-    await user.selectOptions(within(sheet).getByRole("combobox"), "c-akwa");
+    await user.click(within(sheet).getByRole("button", { name: /^Unit:/ }));
+    await user.click(screen.getByRole("option", { name: "Medical Outpatient Unit" }));
     await user.click(within(sheet).getByRole("button", { name: "Create account" }));
     expect(
       await within(sheet).findByText("That phone number or email is already in use. Nothing was created; check the details and try again."),

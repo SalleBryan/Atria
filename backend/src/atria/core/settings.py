@@ -202,7 +202,7 @@ def tenant_changes(
 
 def clinic_changes(body: dict[str, Any], *, minutes: int) -> dict[str, Any]:
     """The unit fields a PATCH /admin/clinics/{id} sets, checked."""
-    known = {"name", "address", "phone", "description", "services", "openingHours"}
+    known = {"name", "address", "phone", "description", "services", "openingHours", "location"}
     unknown = sorted(set(body) - known)
     if unknown:
         raise Invalid("those unit fields do not exist", detail={"unknown": unknown})
@@ -237,7 +237,41 @@ def clinic_changes(body: dict[str, Any], *, minutes: int) -> dict[str, Any]:
         out["openingHours"] = {
             str(day): {"start": start, "end": end} for day, (start, end) in sorted(hours.items())
         }
+    if "location" in body:
+        out["location"] = unit_location(body["location"])
     return out
+
+
+def unit_location(raw: Any) -> dict[str, Any] | None:
+    """Where a unit is inside its hospital, so directions reach the unit and not the gate.
+
+    The building, the floor and a line of walking directions are read by
+    people; the entrance's latitude and longitude place the unit on the
+    hospital map and are where a maps app routes to. Null clears it.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise Invalid("location is an object: building, floor, directions, lat, lng")
+    unknown = sorted(set(raw) - {"building", "floor", "directions", "lat", "lng"})
+    if unknown:
+        raise Invalid("those location fields do not exist", detail={"unknown": unknown})
+    out: dict[str, Any] = {}
+    for field, limit in (("building", 60), ("floor", 30), ("directions", 300)):
+        if raw.get(field) not in (None, ""):
+            out[field] = _text(raw, field, limit=limit) or ""
+    has_lat, has_lng = raw.get("lat") is not None, raw.get("lng") is not None
+    if has_lat != has_lng:
+        raise Invalid("an entrance needs both lat and lng")
+    if has_lat:
+        try:
+            lat, lng = float(raw["lat"]), float(raw["lng"])
+        except (TypeError, ValueError) as exc:
+            raise Invalid("lat and lng are numbers") from exc
+        if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+            raise Invalid("that entrance is not on the map")
+        out["lat"], out["lng"] = str(round(lat, 6)), str(round(lng, 6))
+    return out or None
 
 
 def appointment_type_fields(

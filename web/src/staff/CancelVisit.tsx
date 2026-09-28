@@ -70,10 +70,10 @@ export function CancelVisit({
 
   async function cancel(event: FormEvent) {
     event.preventDefault();
-    if (!reason || !by) return;
+    if (!reason || !by || (reason.by === null && !note.trim())) return;
     setBusy(true);
     setFailure(null);
-    const written = note.trim() ? `${reason.label}: ${note.trim()}` : reason.label;
+    const written = reason.by === null && note.trim() ? `${reason.label}: ${note.trim()}` : reason.label;
     try {
       await api(`/appointments/${appointment.appointmentId}`, {
         method: "DELETE",
@@ -161,14 +161,17 @@ export function CancelVisit({
             </div>
           )}
 
-          <textarea
-            className="dialog-text"
-            aria-label="Note"
-            placeholder="Optional note, kept with the cancellation"
-            maxLength={500}
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-          />
+          {reason?.by === null && (
+            <textarea
+              className="dialog-text"
+              aria-label="Note"
+              placeholder="Say why, in a few words. Kept with the cancellation"
+              maxLength={500}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              autoFocus
+            />
+          )}
 
           {by && (
             <div className={`dialog-note${by === "PATIENT" && late ? " dialog-note-late" : ""}`}>
@@ -202,7 +205,12 @@ export function CancelVisit({
             <button type="button" className="outline-button keep" onClick={onClose} disabled={busy}>
               Keep appointment
             </button>
-            <button type="submit" className="danger-button" disabled={busy || !by} aria-busy={busy || undefined}>
+            <button
+              type="submit"
+              className="danger-button"
+              disabled={busy || !by || (reason?.by === null && !note.trim())}
+              aria-busy={busy || undefined}
+            >
               {busy ? <LoadingIndicator size={20} label="Cancelling" /> : null}
               {busy ? "Cancelling" : "Cancel appointment"}
             </button>

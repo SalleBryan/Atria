@@ -71,7 +71,16 @@ SETTING_PERMISSION = {
     "noShowStrikeWindowDays": "feature_flag.set",
 }
 
-CLINIC_FIELDS = ("clinicId", "name", "address", "phone", "description", "services", "openingHours")
+CLINIC_FIELDS = (
+    "clinicId",
+    "name",
+    "address",
+    "phone",
+    "description",
+    "services",
+    "openingHours",
+    "location",
+)
 TYPE_FIELDS = (
     "appointmentTypeId",
     "code",

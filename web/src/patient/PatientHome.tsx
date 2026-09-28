@@ -20,6 +20,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
+import { LoadingPane } from "../components/LoadingPane";
 import { SearchSuggest } from "../components/SearchSuggest";
 import {
   Bell,
@@ -45,6 +46,7 @@ import {
   until,
   upcoming,
   usePatientData,
+  directionsTo,
 } from "./data";
 import { useTier } from "../layout/fit";
 import { AvailableToday } from "./AvailableToday";
@@ -155,7 +157,7 @@ export function PatientHome() {
       </header>
 
       {!data ? (
-        <HomeSkeleton />
+        <LoadingPane label="Loading your visits" />
       ) : (
         <>
           {phone && (
@@ -400,9 +402,7 @@ function Activity({
 function ClinicCard({ clinic }: { clinic?: Clinic }) {
   if (!clinic) return null;
   const today = hoursOn(clinic);
-  const directions = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    [clinic.name, clinic.address].filter(Boolean).join(", "),
-  )}`;
+  const directions = directionsTo(clinic);
   return (
     <section className="panel glass clinic-card" aria-label="Where your next visit is">
       <div className="map" aria-hidden="true">
@@ -426,26 +426,5 @@ function ClinicCard({ clinic }: { clinic?: Clinic }) {
         Get directions
       </a>
     </section>
-  );
-}
-
-function HomeSkeleton() {
-  return (
-    <div className="skeleton-home" aria-hidden="true">
-      <span className="skeleton skeleton-hero" />
-      <div className="home-cols">
-        <div className="home-left">
-          <div className="quick-actions">
-            {[0, 1, 2, 3].map((index) => (
-              <span key={index} className="skeleton skeleton-quick" />
-            ))}
-          </div>
-          <span className="skeleton skeleton-panel" />
-        </div>
-        <div className="home-right">
-          <span className="skeleton skeleton-panel" />
-        </div>
-      </div>
-    </div>
   );
 }

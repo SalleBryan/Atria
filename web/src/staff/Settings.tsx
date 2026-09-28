@@ -24,9 +24,11 @@ import { Navigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useSession } from "../auth/session";
 import { Checkbox, Field, Notice } from "../components/controls";
-import { Building, Clock, Close, Pencil, Plus, Shield, Sliders } from "../components/icons";
+import { Building, Clock, Close, Pencil, Pin, Plus, Shield, Sliders } from "../components/icons";
+import type { UnitLocation } from "../patient/data";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { LoadingPane } from "../components/LoadingPane";
 import { type PickerOption, SelectMenu } from "../components/Pickers";
 import { daysOf, type Hours, type Week, weekFrom, WeekHours } from "../components/WeekHours";
 import { MATRIX, PERMISSIONS } from "../generated/permissions";
@@ -74,6 +76,7 @@ export interface Unit {
   description: string | null;
   services: string[] | null;
   openingHours: Hours | null;
+  location?: UnitLocation | null;
 }
 
 export interface VisitType {
@@ -197,7 +200,7 @@ export function Settings() {
 
       {!found ? (
         <section className="glass accounts-card settings-card" aria-busy="true">
-          <LoadingIndicator size={28} label="Loading settings" />
+          <LoadingPane label="Loading settings" />
         </section>
       ) : tab === "hospital" ? (
         <HospitalTab key={fresh} found={found} onSaved={done} />
@@ -438,6 +441,7 @@ function HospitalTab({ found, onSaved }: { found: Overview; onSaved: (message: s
           Undo
         </button>
         <button type="submit" className="staff-primary" disabled={!dirty || busy} aria-busy={busy || undefined}>
+          {busy ? <LoadingIndicator size={20} label="Saving" /> : null}
           {busy ? "Saving" : "Save changes"}
         </button>
       </div>
@@ -575,6 +579,7 @@ function Dialog({
             Cancel
           </button>
           <button type="submit" form={formId} className="staff-primary" disabled={busy || !canSubmit} aria-busy={busy || undefined}>
+            {busy ? <LoadingIndicator size={20} label="Saving" /> : null}
             {busy ? "Saving" : submitLabel}
           </button>
         </div>
@@ -590,6 +595,12 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit; onClose: () => void
   const [services, setServices] = useState<string[]>(unit.services ?? []);
   const [adding, setAdding] = useState("");
   const [week, setWeek] = useState<Week>(() => weekFrom(unit.openingHours, { start: "07:30", end: "15:30" }));
+  const [building, setBuilding] = useState(unit.location?.building ?? "");
+  const [floor, setFloor] = useState(unit.location?.floor ?? "");
+  const [way, setWay] = useState(unit.location?.directions ?? "");
+  const [lat, setLat] = useState(String(unit.location?.lat ?? ""));
+  const [lng, setLng] = useState(String(unit.location?.lng ?? ""));
+  const [locating, setLocating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -599,6 +610,39 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit; onClose: () => void
     setAdding("");
   }
 
+  /** Standing at the unit's door, the administrator can take its position from the device. */
+  function here() {
+    if (!navigator.geolocation) {
+      setFailure("This browser cannot share a position. Type the entrance's latitude and longitude instead.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLat(position.coords.latitude.toFixed(6));
+        setLng(position.coords.longitude.toFixed(6));
+        setLocating(false);
+      },
+      () => {
+        setFailure("The position could not be read. Type the entrance's latitude and longitude instead.");
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000 },
+    );
+  }
+
+  const placed = lat.trim() !== "" || lng.trim() !== "";
+  const pointOk = !placed || (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) && lat.trim() !== "" && lng.trim() !== "");
+  const location =
+    building.trim() || floor.trim() || way.trim() || placed
+      ? {
+          ...(building.trim() ? { building: building.trim() } : {}),
+          ...(floor.trim() ? { floor: floor.trim() } : {}),
+          ...(way.trim() ? { directions: way.trim() } : {}),
+          ...(placed ? { lat: Number(lat), lng: Number(lng) } : {}),
+        }
+      : null;
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -606,7 +650,14 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit; onClose: () => void
     try {
       await api(`/admin/clinics/${encodeURIComponent(unit.clinicId)}`, {
         method: "PATCH",
-        json: { name: name.trim(), phone: phone.replace(/\s/g, ""), description: description.trim(), services, openingHours: daysOf(week) },
+        json: {
+          name: name.trim(),
+          phone: phone.replace(/\s/g, ""),
+          description: description.trim(),
+          services,
+          openingHours: daysOf(week),
+          location,
+        },
       });
       onDone(`${name.trim()} saved. Patients see the change now.`);
     } catch (caught) {
@@ -625,7 +676,7 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit; onClose: () => void
       formId="unit-form"
       submit={submit}
       submitLabel="Save unit"
-      canSubmit={Boolean(name.trim())}
+      canSubmit={Boolean(name.trim()) && pointOk}
     >
       <Field label="Name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
       <Field label="Phone" value={phone} maxLength={16} placeholder="+237..." onChange={(e) => setPhone(e.target.value)} />
@@ -671,6 +722,41 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit; onClose: () => void
       </span>
       <span className="settings-label">Opening hours</span>
       <WeekHours week={week} onChange={setWeek} closedLabel="Closed" />
+      <span className="settings-label">Where it is in the hospital</span>
+      <p className="settings-hint">
+        Patients see this on the hospital map, and directions take them to this entrance rather than the main gate.
+      </p>
+      <span className="settings-pair">
+        <Field label="Building" value={building} maxLength={60} placeholder="Block B" onChange={(e) => setBuilding(e.target.value)} />
+        <Field label="Floor" value={floor} maxLength={30} placeholder="Ground floor" onChange={(e) => setFloor(e.target.value)} />
+      </span>
+      <label className="settings-label" htmlFor="unit-way">
+        Walking directions from the gate
+      </label>
+      <textarea
+        id="unit-way"
+        className="dialog-text"
+        maxLength={300}
+        placeholder="Follow the blue line past the pharmacy; the unit is on the left."
+        value={way}
+        onChange={(e) => setWay(e.target.value)}
+      />
+      <span className="settings-inline">
+        <Field label="Entrance latitude" className="settings-grow" inputMode="decimal" value={lat} placeholder="4.1532" onChange={(e) => setLat(e.target.value)} />
+        <Field
+          label="Entrance longitude"
+          className="settings-grow"
+          inputMode="decimal"
+          value={lng}
+          placeholder="9.2406"
+          error={pointOk ? undefined : "Both numbers, in decimal degrees"}
+          onChange={(e) => setLng(e.target.value)}
+        />
+        <button type="button" className="tonal-button settings-add" onClick={here} disabled={locating} aria-busy={locating || undefined}>
+          {locating ? <LoadingIndicator size={18} label="Finding where you are" /> : <Pin size={15} />}
+          I am at the door
+        </button>
+      </span>
       {failure && <Notice tone="error">{failure}</Notice>}
     </Dialog>
   );

@@ -356,8 +356,14 @@ class TestApiStack:
         assert "cognito-idp:AdminCreateUser" in actions
         assert "cognito-idp:AdminDeleteUser" in actions
         assert "cognito-idp:AdminUserGlobalSignOut" in actions
-        # The staff list reads the table, never the pool's users.
-        assert "cognito-idp:AdminGetUser" not in actions
+        # The staff list reads the table, never the pool's users; only the
+        # identity service reads one account, for its verified email.
+        readers = [
+            p
+            for p in policies.values()
+            if "cognito-idp:AdminGetUser" in json.dumps(p["Properties"]["PolicyDocument"])
+        ]
+        assert len(readers) == 1 and "IdentityService" in json.dumps(readers[0]["Properties"]["Roles"])
         assert "cognito-idp:ListUsers" not in actions
         # The identity service (GET /me) must not carry these: it never
         # touches the pool, only the token it was handed.

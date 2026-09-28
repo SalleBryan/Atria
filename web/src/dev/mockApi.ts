@@ -30,6 +30,15 @@ const clinics = UNITS.map((unit, i) => ({
   description: unit.description,
   services: [...unit.services],
   openingHours: unit.openingHours as Record<string, { start: string; end: string }>,
+  // An invented site plan: blocks A to D around the main gate, three units a
+  // block, so the hospital map has something to draw in development.
+  location: {
+    building: `Block ${"ABCD"[Math.floor(i / 3) % 4]}`,
+    floor: i % 3 === 0 ? "Ground floor" : i % 3 === 1 ? "First floor" : "Ground floor, east wing",
+    directions: `From the main gate, follow the ${["blue", "green", "yellow", "red"][Math.floor(i / 3) % 4]} line to Block ${"ABCD"[Math.floor(i / 3) % 4]}.`,
+    lat: (4.1532 + (Math.floor(i / 3) % 2) * 0.0011 - (i % 3) * 0.00022).toFixed(6),
+    lng: (9.2406 + Math.floor(i / 6) * 0.0014 + (i % 3) * 0.00035).toFixed(6),
+  },
 }));
 
 function band(year: number): string {
@@ -600,7 +609,11 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   }
   const unitSessions = path.match(/^\/clinics\/([^/]+)\/sessions$/);
   if (unitSessions && method === "GET") {
-    return json(200, { clinicId: unitSessions[1], sessions: opdSessions.filter((s) => s.clinicId === unitSessions[1]).map(sessionView) }, 300);
+    // As the API does, a patient is not offered a session whose hours are over.
+    const hospitalNow = new Date(Date.now() + OFFSET_MS).toISOString();
+    const patient = !window.location.pathname.startsWith("/console");
+    const open = (s: MockSession) => !patient || `${s.sessionDate}T${s.endTime}` > hospitalNow.slice(0, 16);
+    return json(200, { clinicId: unitSessions[1], sessions: opdSessions.filter((s) => s.clinicId === unitSessions[1] && open(s)).map(sessionView) }, 300);
   }
   if (unitSessions && method === "POST") {
     const made = body as { date: string; startTime: string; endTime: string; rosteredClinicianCount: number };
@@ -894,6 +907,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   }
   if (method === "GET" && path === "/patients") {
     const q = (url.searchParams.get("q") ?? "").trim();
+    if (!q) return json(200, { q, count: register.length, nextCursor: null, results: [...register].reverse() }, 260);
     const digits = q.replace(/[\s().-]/g, "");
     const found = register.filter((p) =>
       /^\+?\d{4,}$/.test(digits)
@@ -904,6 +918,8 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     );
     return json(200, { q, count: found.length, results: found.slice(0, 20) }, 260);
   }
+  if (method === "PATCH" && path === "/me") return json(200, {}, 300);
+  if (method === "POST" && path === "/me/email") return json(200, {}, 300);
   if (method === "POST" && path === "/patients") {
     const made = body as { givenName: string; familyName: string; phoneE164: string; dateOfBirth?: string; sameNumberConfirmed?: boolean };
     const shared = register.filter((p) => p.phoneE164 === made.phoneE164);

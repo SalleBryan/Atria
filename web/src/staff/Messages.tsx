@@ -19,8 +19,9 @@ import { Link, Navigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
+import { LoadingRow } from "../components/LoadingPane";
 import { ChevronLeft, ChevronRight, Mail, Phone, Shield } from "../components/icons";
-import { LoadingIndicator } from "../components/LoadingIndicator";
+import { LoadingPane } from "../components/LoadingPane";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { SelectMenu } from "../components/Pickers";
 import { roleOf, useStaffData } from "./data";
@@ -255,7 +256,7 @@ function UnitMessages({ admin, clinicId, tabs }: { admin: boolean; clinicId: str
         </div>
         <ul ref={rowsBox} className="accounts-rows">
           {!found
-            ? [0, 1, 2, 3].map((n) => <li key={n} className="skeleton day-row-skeleton" aria-hidden="true" />)
+            ? [<LoadingRow key="loading" />]
             : pages.shown.map((m, index) => <MessageRow key={m.messageLogId} message={m} index={index} />)}
           {found && !found.messages.length && <li className="today-empty">Nothing went out for this unit on this day.</li>}
         </ul>
@@ -339,7 +340,7 @@ function DeliveryFigures({ days }: { days: string }) {
   }, [days]);
 
   if (failure) return <Notice tone="error">{failure}</Notice>;
-  if (!found) return <LoadingIndicator size={28} label="Loading the figures" />;
+  if (!found) return <LoadingPane label="Loading the figures" />;
   const { email, sms } = found.totals;
 
   return (

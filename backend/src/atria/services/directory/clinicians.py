@@ -60,7 +60,16 @@ LISTED_FIELDS = (
 )
 
 # A clinic as a patient chooses between them and finds their way there.
-CLINIC_FIELDS = ("clinicId", "name", "address", "phone", "description", "services", "openingHours")
+CLINIC_FIELDS = (
+    "clinicId",
+    "name",
+    "address",
+    "phone",
+    "description",
+    "services",
+    "openingHours",
+    "location",
+)
 
 # An appointment type as a client needs it to ask for free starts and to say
 # what is being booked: its length and buffer are in the tenant's grid units.

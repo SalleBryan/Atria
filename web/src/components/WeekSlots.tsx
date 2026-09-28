@@ -12,6 +12,7 @@ import { api } from "../api/client";
 import { clock } from "../patient/data";
 import { ChevronLeft, ChevronRight } from "./icons";
 import { LoadingIndicator } from "./LoadingIndicator";
+import { LoadingPane } from "./LoadingPane";
 
 export interface Slot {
   startAt: string;
@@ -155,7 +156,7 @@ export function WeekSlots({
           );
         })}
         {slots && !slots.length && <p className="empty">No times left on this day.</p>}
-        {!slots && day && <LoadingIndicator size={24} label="Finding free times" />}
+        {!slots && day && <LoadingPane className="compact" label="Finding free times" />}
         {!day && counts[week[0] as string] !== undefined && (
           <p className="empty">{onlyToday ? "No free times left today." : "No free times this week. Try the next one."}</p>
         )}

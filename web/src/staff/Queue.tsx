@@ -21,6 +21,7 @@ import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
 import { Close, Plus, Users } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { LoadingPane, LoadingRow } from "../components/LoadingPane";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { DatePicker, SelectMenu } from "../components/Pickers";
 import { timeOptions } from "../components/WeekHours";
@@ -139,7 +140,7 @@ export function QueuePage() {
       {failure && <Notice tone="error">{failure}</Notice>}
       {tab === "live" ? (
         sessions === null ? (
-          <LoadingIndicator size={28} label="Loading" />
+          <LoadingPane label="Loading" />
         ) : todays.length ? (
           <LiveQueueCard key={`${todays[0]!.sessionId}-${fresh}`} sessions={todays} onDone={done} />
         ) : (
@@ -306,9 +307,7 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
       </div>
       <ul ref={rowsBox} className="accounts-rows queue-rows">
         {!found ? (
-          <li>
-            <LoadingIndicator size={28} label="Loading the queue" />
-          </li>
+          <LoadingRow label="Loading the queue" />
         ) : found.appointments.length ? (
           pages.shown.map((t, index) => {
             const name = found.patients[t.patientProfileId] ?? { givenName: null, familyName: null };
@@ -506,6 +505,7 @@ function WalkInDialog({ sessionId, onClose, onDone }: { sessionId: string; onClo
             Cancel
           </button>
           <button type="submit" form="walk-in-form" className="staff-primary" disabled={!patient || busy} aria-busy={busy || undefined}>
+            {busy ? <LoadingIndicator size={20} label="Adding" /> : null}
             {busy ? "Adding" : "Give them a place"}
           </button>
         </div>
@@ -550,9 +550,7 @@ function SessionsCard({
       </div>
       <ul ref={rowsBox} className="accounts-rows">
         {!sessions ? (
-          <li>
-            <LoadingIndicator size={28} label="Loading sessions" />
-          </li>
+          <LoadingRow label="Loading sessions" />
         ) : sessions.length ? (
           pages.shown.map((s, index) => {
             const status = STATUS[s.status];
@@ -689,6 +687,7 @@ function PublishDialog({ clinicId, onClose, onDone }: { clinicId: string; onClos
             Cancel
           </button>
           <button type="submit" form="publish-form" className="staff-primary" disabled={busy || end <= start} aria-busy={busy || undefined}>
+            {busy ? <LoadingIndicator size={20} label="Publishing" /> : null}
             {busy ? "Publishing" : "Publish"}
           </button>
         </div>

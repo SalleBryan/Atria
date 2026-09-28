@@ -42,6 +42,7 @@ export function SelectMenu({
   disabled = false,
   width = 260,
   className = "",
+  placeholder = "Choose",
 }: {
   label: string;
   value: string | null;
@@ -51,6 +52,8 @@ export function SelectMenu({
   disabled?: boolean;
   width?: number;
   className?: string;
+  /** What an empty picker says. */
+  placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
@@ -72,7 +75,7 @@ export function SelectMenu({
         onClick={() => setOpen((shown) => !shown)}
       >
         {chosen?.lead ?? icon}
-        <span className="picker-value">{chosen?.label ?? "Choose"}</span>
+        <span className={`picker-value${chosen ? "" : " picker-empty"}`}>{chosen?.label ?? placeholder}</span>
         <Chevron />
       </button>
       {open &&

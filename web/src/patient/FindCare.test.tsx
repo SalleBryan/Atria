@@ -127,6 +127,6 @@ describe("FindCare", () => {
     respond(() => ({}));
     renderFindCare();
     expect(await screen.findByRole("button", { name: "Book appointment" })).toBeDisabled();
-    expect(screen.getByText("Pick a time above to continue")).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.className === "dock-title" && element.textContent === "Pick a time above to continue")).toBeInTheDocument();
   });
 });

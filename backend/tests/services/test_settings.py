@@ -203,6 +203,49 @@ class TestUnits:
         )
         assert "Medical Unit" in listed["body"]
 
+    def test_a_unit_knows_where_its_door_is(self, configured):
+        location = {
+            "building": "Block B",
+            "floor": "Ground floor",
+            "directions": "Left of the main entrance, past the pharmacy.",
+            "lat": 4.1527,
+            "lng": 9.2410,
+        }
+        changed = body_of(
+            call(
+                "PATCH",
+                "/admin/clinics/{id}",
+                path={"id": DOUALA},
+                body={"name": "Medical Unit", "location": location},
+            )
+        )
+        assert changed["location"] == {**location, "lat": "4.1527", "lng": "9.241"}
+        listed = directory.handler(
+            {
+                "httpMethod": "GET",
+                "resource": "/clinics",
+                "requestContext": {"authorizer": patient_context()},
+            },
+            None,
+        )
+        assert "Block B" in listed["body"]
+
+    @pytest.mark.parametrize(
+        "location",
+        [
+            {"lat": 4.15},
+            {"lat": 95, "lng": 9.2},
+            {"lat": "north", "lng": 9.2},
+            {"room": "4"},
+            "Block B",
+        ],
+    )
+    def test_a_location_that_cannot_be_used_is_refused(self, configured, location):
+        result = call(
+            "PATCH", "/admin/clinics/{id}", path={"id": DOUALA}, body={"location": location}
+        )
+        assert result["statusCode"] == 400
+
 
 TYPE = {
     "name": "Antenatal visit",

@@ -48,6 +48,7 @@ import {
 } from "./data";
 import { useTier } from "../layout/fit";
 import { staffState } from "./labels";
+import { LoadingIndicator } from "../components/LoadingIndicator";
 
 const HOUR_PX = 56;
 const PALETTE = ["blue", "violet", "teal", "amber", "green", "rose"] as const;
@@ -359,6 +360,11 @@ function WeekGrid({
   return (
     <div className="week-grid" style={{ "--days": days.length, "--hours": hours.length } as CSSProperties} aria-busy={loading || undefined}>
       <div className="week-corner" />
+      {loading && (
+        <div className="week-loading">
+          <LoadingIndicator size={44} label="Loading the week" />
+        </div>
+      )}
       {days.map((day, i) => (
         <div key={day} className={`week-head${day === todayIs ? " week-head-today" : ""}`} style={{ "--i": i } as CSSProperties}>
           <span>{DAY_NAMES[i]}</span>
@@ -375,7 +381,6 @@ function WeekGrid({
           const mine = appointments.filter((a) => clock.isoDate(a.startAt) === day);
           return (
             <div key={day} className="week-day" style={{ "--i": i } as CSSProperties} aria-label={clock.long(noonOf(day))} role="group">
-              {loading && <span className="skeleton week-skeleton" />}
               {lanes(mine).map(({ appointment, lane, of }, index) => {
                 const top = ((minutesOfDay(appointment.startAt) - startHour * 60) / 60) * HOUR_PX;
                 const height = Math.max(22, (minutesOf(appointment) / 60) * HOUR_PX - 3);

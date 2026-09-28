@@ -25,6 +25,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useSession } from "../auth/session";
 import { Button, Notice } from "../components/controls";
+import { SelectMenu } from "../components/Pickers";
+import { LoadingRow } from "../components/LoadingPane";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
 import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Clock, Close, Filter, Info, User } from "../components/icons";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
@@ -244,16 +246,13 @@ export function DaySchedule() {
           </p>
         </div>
         {role === "TENANT_ADMIN" && data && (
-          <label className="clinic-picker">
-            <span>Unit</span>
-            <select value={clinicId} onChange={(event) => go({ clinic: event.target.value, visit: null })}>
-              {data.clinics.map((clinic) => (
-                <option key={clinic.clinicId} value={clinic.clinicId}>
-                  {clinic.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SelectMenu
+            label="Unit"
+            value={clinicId ?? null}
+            width={300}
+            options={data.clinics.map((clinic) => ({ id: clinic.clinicId, label: clinic.name }))}
+            onChange={(id) => go({ clinic: id, visit: null })}
+          />
         )}
       </header>
 
@@ -452,9 +451,7 @@ function DayList({
   if (state.status === "loading") {
     return (
       <ol ref={rowsBox} className="day-rows" aria-busy="true">
-        {[0, 1, 2, 3, 4].map((n) => (
-          <li key={n} className="skeleton day-row-skeleton" style={{ animationDelay: `${n * 80}ms` }} />
-        ))}
+        <LoadingRow label="Loading the day" />
       </ol>
     );
   }

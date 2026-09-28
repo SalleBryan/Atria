@@ -81,10 +81,15 @@ class ApiStack(Stack):
         self.identity_service = self._service(
             "IdentityService",
             handler="atria.services.identity.handler.handler",
-            description="Profile completion, phone verification",
-            environment=common_environment,
+            description="Who the caller is, and their own details",
+            environment={**common_environment, "USER_POOL_ID": pool.user_pool_id},
         )
         grant_table_write(data.main_table, self.identity_service)
+        # POST /me/email reads the address Cognito has verified, one account
+        # at a time; it changes nothing in the pool.
+        self.identity_service.add_to_role_policy(
+            iam.PolicyStatement(actions=["cognito-idp:AdminGetUser"], resources=[pool.user_pool_arn])
+        )
 
         self.staff_service = self._service(
             "StaffService",
@@ -234,12 +239,14 @@ class ApiStack(Stack):
         )
 
         me = self.api.root.add_resource("me")
-        me.add_method(
-            "GET",
-            apigateway.LambdaIntegration(self.identity_service, proxy=True),
-            authorizer=self.request_authoriser,
-            authorization_type=apigateway.AuthorizationType.CUSTOM,
-        )
+        identity_integration = apigateway.LambdaIntegration(self.identity_service, proxy=True)
+        for resource, method in ((me, "GET"), (me, "PATCH"), (me.add_resource("email"), "POST")):
+            resource.add_method(
+                method,
+                identity_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
 
         # /admin/staff (GET lists, POST creates), /admin/staff/{id}/roles,
         # /admin/staff/{id}/suspend.

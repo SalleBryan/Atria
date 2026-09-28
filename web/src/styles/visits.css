@@ -267,7 +267,7 @@
   letter-spacing: -0.02em;
   color: var(--ink-primary);
 }
-.dialog-lede { margin: 8px 0 0; font-size: 13px; line-height: 1.6; color: var(--ink-600); }
+.dialog-lede { margin: 8px 0 16px; font-size: 13px; line-height: 1.6; color: var(--ink-600); }
 .dialog-visit {
   display: flex;
   align-items: center;

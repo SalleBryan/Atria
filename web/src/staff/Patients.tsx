@@ -16,11 +16,13 @@
 import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { api, ApiError } from "../api/client";
+import { api, apiAll, ApiError } from "../api/client";
 import { useSession } from "../auth/session";
 import { Checkbox, Field, Notice } from "../components/controls";
 import { ArrowLeft, Calendar, ChevronRight, Close, Phone, Plus, Search, Shield, User } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { LoadingPane } from "../components/LoadingPane";
+import { LoadingRow } from "../components/LoadingPane";
 import { SelectMenu } from "../components/Pickers";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { MATRIX } from "../generated/permissions";
@@ -57,7 +59,10 @@ export const fullName = (p: Pick<RegisterEntry, "givenName" | "familyName">) =>
 export function phoneShown(phone: string | null | undefined): string {
   if (!phone) return "No phone";
   const cm = /^\+237(\d)(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(phone);
-  return cm ? `+237 ${cm.slice(1).join(" ")}` : phone;
+  if (cm) return `+237 ${cm.slice(1).join(" ")}`;
+  // The fictional North American numbers used in testing: +1 202 555 0147.
+  const nanp = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(phone);
+  return nanp ? `+1 ${nanp.slice(1).join(" ")}` : phone;
 }
 
 export function age(dateOfBirth: string | null | undefined): string | null {
@@ -72,14 +77,18 @@ export function age(dateOfBirth: string | null | undefined): string | null {
 
 const can = (role: string, permission: keyof typeof MATRIX) => (MATRIX[permission] as Record<string, string>)[role] !== "none";
 
-/** Searched as the desk types, a beat after they pause. */
-export function useRegisterSearch(query: string) {
+/**
+ * Searched as the desk types, a beat after they pause. With `everyone`, no
+ * search lists the whole register, newest first (2026-09-28).
+ */
+export function useRegisterSearch(query: string, { everyone = false }: { everyone?: boolean } = {}) {
   const [results, setResults] = useState<RegisterEntry[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
     const words = query.trim();
-    if (words.length < 2) {
+    const listing = everyone && words.length === 0;
+    if (words.length < 2 && !listing) {
       setResults(null);
       setBusy(false);
       return;
@@ -87,7 +96,10 @@ export function useRegisterSearch(query: string) {
     let live = true;
     setBusy(true);
     const later = window.setTimeout(() => {
-      api<{ results: RegisterEntry[] }>(`/patients?q=${encodeURIComponent(words)}`)
+      (listing
+        ? apiAll<{ results: RegisterEntry[]; nextCursor?: string | null }>("/patients", "results")
+        : api<{ results: RegisterEntry[] }>(`/patients?q=${encodeURIComponent(words)}`)
+      )
         .then((found) => {
           if (!live) return;
           setResults(found.results);
@@ -97,12 +109,12 @@ export function useRegisterSearch(query: string) {
           (error: unknown) => live && setFailure(error instanceof Error ? sentence(error.message) : "The register could not be searched."),
         )
         .finally(() => live && setBusy(false));
-    }, 250);
+    }, listing ? 0 : 250);
     return () => {
       live = false;
       window.clearTimeout(later);
     };
-  }, [query]);
+  }, [query, everyone]);
   return { results, busy, failure };
 }
 
@@ -111,7 +123,7 @@ export function Patients() {
   const role = state.status === "signed-in" ? roleOf(state.me) : "RECEPTIONIST";
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const { results, busy, failure } = useRegisterSearch(query);
+  const { results, busy, failure } = useRegisterSearch(query, { everyone: true });
   const [adding, setAdding] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
   const rowsBox = useRef<HTMLUListElement>(null);
@@ -156,7 +168,9 @@ export function Patients() {
           <span>AGE</span>
         </div>
         <ul ref={rowsBox} className="accounts-rows">
-          {results === null ? (
+          {results === null && busy ? (
+            <LoadingRow label="Loading the register" />
+          ) : results === null ? (
             <li className="today-empty patients-empty">
               <Search size={20} />
               Type two letters or more to search. Every search is recorded in the audit log.
@@ -378,6 +392,7 @@ export function NewPatient({
             Save only
           </button>
           <button type="submit" form="new-patient-form" className="staff-primary" disabled={busy || !ready} aria-busy={busy || undefined}>
+            {busy ? <LoadingIndicator size={20} label="Saving" /> : null}
             {busy ? "Saving" : "Save and book"}
           </button>
         </div>
@@ -482,7 +497,7 @@ export function PatientRecordPage() {
       {failure && <Notice tone="error">{failure}</Notice>}
 
       {!record ? (
-        !failure && <LoadingIndicator size={28} label="Loading the record" />
+        !failure && <LoadingPane label="Loading the record" />
       ) : (
         <div className="availability-cols patient-record-cols">
           <section className="glass availability-card" aria-labelledby="contact-title">

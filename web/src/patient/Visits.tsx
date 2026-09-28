@@ -22,6 +22,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 import { api } from "../api/client";
 import { Notice } from "../components/controls";
+import { LoadingPane } from "../components/LoadingPane";
 import { byPopularity, ChipRow, FilterMenu } from "../components/FilterMenu";
 import { FeeRecord } from "../components/FeeRecord";
 import { MoveVisit } from "../components/MoveVisit";
@@ -43,6 +44,7 @@ import {
   stateLabel,
   upcoming,
   usePatientData,
+  directionsTo,
 } from "./data";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -170,8 +172,7 @@ export function Visits() {
   if (!data) {
     return (
       <div className="find-care" aria-busy="true">
-        <span className="skeleton find-list-skeleton" />
-        <span className="skeleton find-detail-skeleton" />
+        <LoadingPane glass className="find-list" />
       </div>
     );
   }
@@ -402,9 +403,7 @@ function VisitDetail({
   const minutes = (type?.durationUnits ?? 0) * state.data.gridUnitMinutes;
   const active = ACTIVE_STATES.includes(appointment.state) && Date.parse(appointment.startAt) > Date.now();
   const reminderAt = new Date(Date.parse(appointment.startAt) - DAY_MS);
-  const directions = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    [clinic?.name, clinic?.address].filter(Boolean).join(", "),
-  )}`;
+  const directions = clinic ? directionsTo(clinic) : "https://www.google.com/maps";
   // Tablet (52:2) and phone (36:115) hold the actions outside the cards.
   const tablet = useTier() !== "desktop";
   async function confirm() {
@@ -426,6 +425,7 @@ function VisitDetail({
       {active && appointment.state === "BOOKED" && (
         <button type="button" className="tonal-button" disabled={confirming} aria-busy={confirming || undefined} onClick={confirm}>
           <CheckMark size={15} />
+          {confirming ? <LoadingIndicator size={20} label="Confirming" /> : null}
           {confirming ? "Confirming" : "I'll be there"}
         </button>
       )}
@@ -655,6 +655,7 @@ function CancelDialog({
 }) {
   const { state } = usePatientData();
   const [reason, setReason] = useState<string | null>(null);
+  const [other, setOther] = useState("");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
@@ -692,7 +693,7 @@ function CancelDialog({
     try {
       const result = await api<{ outcome: string }>(`/appointments/${appointment.appointmentId}`, {
         method: "DELETE",
-        json: reason ? { reason } : {},
+        json: reason ? { reason: reason === "Other" && other.trim() ? `Other: ${other.trim()}` : reason } : {},
       });
       await onCancelled(
         result.outcome === "CANCELLED_LATE"
@@ -725,10 +726,12 @@ function CancelDialog({
         </p>
         <div className="dialog-visit">
           <span className="clinician-avatar" style={{ background: "var(--gradient-primary)" }} aria-hidden="true">
-            {initials(clinician?.givenName, clinician?.familyName)}
+            {clinician ? initials(clinician.givenName, clinician.familyName) : <Stethoscope size={20} />}
           </span>
           <span className="dialog-visit-text">
-            <span className="clinician-name">{clinicianName(clinician)}</span>
+            <span className="clinician-name">
+              {clinician ? clinicianName(clinician) : appointment.sessionId ? "General consultation" : (type?.name ?? "Your visit")}
+            </span>
             <span className="who-sub">{[clinician?.specialty, clinic?.name].filter(Boolean).join(" · ")}</span>
           </span>
           <span className="dialog-when">
@@ -754,6 +757,17 @@ function CancelDialog({
               </button>
             ))}
           </div>
+          {reason === "Other" && (
+            <textarea
+              className="dialog-text"
+              aria-label="Your reason"
+              placeholder="Tell the clinic why, in a few words"
+              maxLength={300}
+              autoFocus
+              value={other}
+              onChange={(event) => setOther(event.target.value)}
+            />
+          )}
           <div className={`dialog-note${(preview ? preview.entitlement !== "FULL" : late) ? " dialog-note-late" : ""}`}>
             <Alert size={15} />
             <p>

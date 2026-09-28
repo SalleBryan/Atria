@@ -16,6 +16,7 @@ import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
 import { Close, Stethoscope } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { LoadingRow } from "../components/LoadingPane";
 import { SelectMenu } from "../components/Pickers";
 import { type Slot, WeekSlots } from "../components/WeekSlots";
 import { type Appointment, clock, initials } from "../patient/data";
@@ -79,9 +80,7 @@ export function RequestsPage() {
         </div>
         <ul className="accounts-rows">
           {!found ? (
-            <li>
-              <LoadingIndicator size={28} label="Loading requests" />
-            </li>
+            <LoadingRow label="Loading requests" />
           ) : found.appointments.length ? (
             found.appointments.map((a, index) => {
               const name = found.patients[a.patientProfileId] ?? { givenName: null, familyName: null };
@@ -243,6 +242,7 @@ function PlaceDialog({
             Cancel
           </button>
           <button type="submit" form="place-form" className="staff-primary" disabled={!slot || busy} aria-busy={busy || undefined}>
+            {busy ? <LoadingIndicator size={20} label="Placing" /> : null}
             {busy ? "Placing" : "Place it"}
           </button>
         </div>
@@ -314,6 +314,7 @@ function DeclineDialog({
             disabled={!reason.trim() || busy}
             aria-busy={busy || undefined}
           >
+            {busy ? <LoadingIndicator size={20} label="Declining" /> : null}
             {busy ? "Declining" : "Decline"}
           </button>
         </div>

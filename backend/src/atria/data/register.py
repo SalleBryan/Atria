@@ -137,6 +137,18 @@ class Register:
                 break
         return list(seen.values())
 
+    def everyone(self, tenant_id: str) -> list[Item]:
+        """Every patient once, the most recently registered first.
+
+        Read from the patient number entries, of which each patient holds
+        exactly one, so the listing needs no second pass to remove repeats."""
+        found = [
+            e
+            for e in self._repo.query_partition(partition(tenant_id), sk_prefix="NUM#")
+            if e.get("tenantId") == tenant_id
+        ]
+        return list(reversed(found))
+
     def by_phone(self, tenant_id: str, phone_e164: str) -> list[Item]:
         return [
             e

@@ -187,6 +187,14 @@ export const Close = (p: IconProps) => (
     <path d="m6.5 6.5 11 11M17.5 6.5l-11 11" />
   </Icon>
 );
+export const More = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <rect x="4" y="4" width="6.5" height="6.5" rx="2" />
+    <rect x="13.5" y="4" width="6.5" height="6.5" rx="2" />
+    <rect x="4" y="13.5" width="6.5" height="6.5" rx="2" />
+    <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2" />
+  </Icon>
+);
 export const Filter = (p: IconProps) => (
   <Icon strokeWidth={1.75} {...p}>
     <path d="M4.5 7h15M7.5 12h9M10.5 17h3" />

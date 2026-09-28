@@ -343,6 +343,7 @@ export function BookForPatient() {
             </span>
             <button type="submit" className="staff-primary" disabled={!ready || busy} aria-busy={busy || undefined}>
               <Calendar size={16} />
+              {busy ? <LoadingIndicator size={20} label="Booking" /> : null}
               {busy ? "Booking" : "Book visit"}
             </button>
           </div>

@@ -115,7 +115,7 @@ export function Pager({
   return (
     <div className="pager">
       <span className="pager-count" aria-live="polite">
-        {busy && !total ? "Loading" : total ? `${first} to ${last} of ${total}` : `No ${noun} to show`}
+        {busy && !total ? "" : total ? `${first} to ${last} of ${total}` : `No ${noun} to show`}
         {note && <span className="pager-note"> · {note}</span>}
       </span>
       {pages > 1 && (

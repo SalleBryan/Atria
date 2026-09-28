@@ -737,7 +737,6 @@
   display: grid;
   place-items: center;
   height: 46px;
-  margin-top: 14px;
   overflow: hidden;
   border: 1.5px solid var(--line-hairline);
   border-radius: 16px;
@@ -758,6 +757,8 @@
   transition: opacity var(--fade-fast);
 }
 .outline-button:hover::before { opacity: 0.06; }
+/* The clinic card's directions sit a step below its words (Home, 28:77). */
+.clinic-card .outline-button { margin-top: 14px; }
 .outline-button:hover { box-shadow: 0 6px 16px rgba(16, 42, 94, 0.08); }
 .outline-button:active { border-radius: 10px; transform: scale(0.98); }
 
@@ -832,6 +833,13 @@
     font-weight: 600;
     color: var(--ink-650);
     text-decoration: none;
+    /* A button in the bar (More, Sign out) reads like the links beside it. */
+    padding: 0;
+    border: 0;
+    font-family: inherit;
+    line-height: inherit;
+    background: none;
+    cursor: pointer;
   }
   .bottom-indicator {
     position: relative;
@@ -860,3 +868,77 @@
   .visit-row { flex-wrap: wrap; }
   .visit-text { flex-basis: calc(100% - 70px); }
 }
+
+/* Changing one's own details (EditDetails.tsx). */
+.edit-details { display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
+.edit-details-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.edit-details-note { margin: 0; font-size: 13.5px; color: var(--ink-700); }
+.edit-details-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.edit-details-actions > button { flex: 0 0 auto; min-width: 150px; height: 48px; margin: 0; justify-content: center; }
+@media (max-width: 767px) {
+  .edit-details-pair { grid-template-columns: minmax(0, 1fr); }
+  .edit-details-actions > button { flex: 1 1 0; min-width: 0; }
+}
+
+/* Account · Units: the hospital's units, its site map and the way to each door. */
+.hospital-units {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 14px;
+  flex: 1 1 0;
+  min-height: 0;
+}
+.unit-list { display: flex; flex-direction: column; min-height: 0; margin: 0; padding: 12px; }
+.unit-rows { display: flex; flex-direction: column; gap: 8px; flex: 1 1 0; min-height: 0; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.unit-rows > li { animation: rise var(--move) both, fade-in var(--fade) both; }
+.unit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 54px;
+  padding: 9px 12px;
+  border: 1.5px solid transparent;
+  border-radius: 16px;
+  text-align: left;
+  color: var(--ink-muted);
+  background: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: border-color var(--fade), background var(--fade), border-radius var(--move-fast);
+}
+.unit-row:hover { background: #ffffff; }
+.unit-row:active { border-radius: 12px; }
+.unit-row.active { border-color: var(--blue-500); background: #ffffff; color: var(--blue-500); }
+.unit-row-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.unit-row-name, .unit-row-sub { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.unit-row-name { font-size: 13.5px; font-weight: 600; color: var(--ink-primary); }
+.unit-row-sub { font-size: 11.5px; color: var(--ink-muted); }
+.unit-list .pager { margin-top: 10px; }
+
+.unit-side { display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow-y: auto; padding-right: 2px; }
+.site-map { margin: 0; padding: 0; overflow: hidden; flex: none; }
+.site-map svg { display: block; width: 100%; height: auto; }
+.site-grounds { fill: rgba(255, 255, 255, 0.55); stroke: #ffffff; stroke-width: 2; }
+.site-pin { cursor: pointer; outline: none; }
+.site-pin circle { fill: #ffffff; stroke: var(--blue-500); stroke-width: 2.5; transition: r var(--move-fast); }
+.site-pin:hover circle, .site-pin:focus-visible circle { stroke-width: 4; }
+.site-pin.active circle { fill: var(--blue-500); stroke: #ffffff; stroke-width: 3; filter: drop-shadow(0 4px 8px rgba(36, 97, 219, 0.45)); }
+.site-pin.active .site-pin-dot { fill: #ffffff; stroke: none; filter: none; }
+.site-gate rect { fill: var(--ink-800); }
+.site-gate text { fill: #ffffff; font-size: 10px; font-weight: 600; text-anchor: middle; }
+.site-map-note { margin: 0; padding: 8px 14px; font-size: 11.5px; color: var(--ink-muted); }
+.site-map-empty { display: flex; align-items: center; gap: 12px; padding: 16px; color: var(--blue-500); }
+.site-map-empty p { margin: 0; font-size: 12.5px; color: var(--ink-700); }
+.unit-detail { display: flex; flex-direction: column; gap: 12px; margin: 0; }
+.unit-detail-head > span { display: flex; flex-direction: column; gap: 3px; }
+.unit-detail-way { margin: 0; font-size: 13px; color: var(--ink-700); }
+.unit-directions { justify-content: center; width: 100%; height: 48px; text-decoration: none; }
+
+@media (max-width: 1100px) {
+  .hospital-units { grid-template-columns: minmax(0, 1fr); flex: none; }
+  .unit-side { overflow: visible; order: -1; }
+  .unit-rows { flex: none; overflow: visible; }
+}
+.unit-detail .hours { grid-template-columns: minmax(0, 1fr); }
+.site-tag rect { fill: #ffffff; stroke: var(--line-hairline); filter: drop-shadow(0 4px 10px rgba(16, 42, 94, 0.12)); }
+.site-tag text { fill: var(--ink-primary); font-size: 11px; font-weight: 600; }

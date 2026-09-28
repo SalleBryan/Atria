@@ -13,9 +13,13 @@ import { type ComponentType, useState } from "react";
 
 import { useSession } from "../auth/session";
 import { SignOutMenu } from "../components/SignOutMenu";
-import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Mail, Phone, Pin, Shield, User } from "../components/icons";
+import { Notice } from "../components/controls";
+import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Globe, Mail, Phone, Pin, Shield, User } from "../components/icons";
+import { EditDetails } from "./EditDetails";
+import { HospitalUnits } from "./HospitalUnits";
+import { LoadingPane } from "../components/LoadingPane";
 import { useTier } from "../layout/fit";
-import { clock, join, past, upcoming, usePatientData } from "./data";
+import { clock, join, languageName, past, upcoming, usePatientData } from "./data";
 import { TENANT } from "../tenant";
 
 type Section = "details" | "notifications" | "clinics";
@@ -26,7 +30,6 @@ const SECTIONS: { id: Section; label: string; icon: ComponentType<{ size?: numbe
   { id: "clinics", label: "Units", icon: Pin },
 ];
 
-const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 /**
  * The SMS reminder, word for word as atria.core.notices writes it: English
@@ -58,6 +61,12 @@ export function Account() {
   const phone = useTier() === "mobile";
   const [opened, setOpened] = useState(false);
   const me = session.status === "signed-in" ? session.me : undefined;
+  const [editing, setEditing] = useState<null | "name" | "language" | "email">(null);
+  const [said, setSaid] = useState<string | null>(null);
+  const start = (what: "name" | "language" | "email") => {
+    setSaid(null);
+    setEditing(what);
+  };
   const data = state.status === "ready" ? state.data : undefined;
   const name = [me?.givenName, me?.familyName].filter(Boolean).join(" ") || "Your account";
   const index = SECTIONS.findIndex((s) => s.id === section);
@@ -132,11 +141,34 @@ export function Account() {
           <>
             <header className="section-head">
               <h1 id="section-title">Personal details</h1>
-              <p>What Atria holds about you. The front desk at {TENANT.name} can correct any of it.</p>
+              <p>What Atria holds about you. Change your name, language and email here; the front desk at {TENANT.name} can correct the rest.</p>
             </header>
+            {said && <Notice tone="success">{said}</Notice>}
+            {editing ? (
+              <EditDetails
+                editing={editing}
+                onDone={(message) => {
+                  setEditing(null);
+                  setSaid(message);
+                }}
+              />
+            ) : null}
             <div className="inner-card settings-card">
-              <Row icon={User} tone="tone-blue" title="Name" sub={name} />
-              <Row icon={Mail} tone="tone-green" title="Email" sub={me?.email ?? "Not given"} />
+              <Row icon={User} tone="tone-blue" title="Name" sub={name} end={<EditLink label="Change your name" onClick={() => start("name")} />} />
+              <Row
+                icon={Mail}
+                tone="tone-green"
+                title="Email"
+                sub={me?.email ?? "Not given"}
+                end={<EditLink label="Change your email" onClick={() => start("email")} />}
+              />
+              <Row
+                icon={Globe}
+                tone="tone-blue"
+                title="Language"
+                sub={languageName(me?.languages?.[0] ?? "en")}
+                end={<EditLink label="Change your language" onClick={() => start("language")} />}
+              />
               <Row
                 icon={Phone}
                 tone="tone-amber"
@@ -159,41 +191,21 @@ export function Account() {
           <>
             <header className="section-head">
               <h1 id="section-title">Units</h1>
-              <p>The units of {TENANT.name} you can book, with their opening hours.</p>
+              <p>The units of {TENANT.name} you can book: where each one is, its hours, and the way to its door.</p>
             </header>
-            {data?.clinics.map((clinic) => (
-              <div key={clinic.clinicId} className="inner-card settings-card clinic-hours">
-                <div className="clinic-hours-head">
-                  <span>
-                    <span className="clinician-name">{clinic.name}</span>
-                    <span className="who-sub">{clinic.address}</span>
-                  </span>
-                  <a
-                    className="link"
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([clinic.name, clinic.address].filter(Boolean).join(", "))}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Directions
-                  </a>
-                </div>
-                <dl className="hours">
-                  {WEEKDAYS.map((day, i) => {
-                    const hours = clinic.openingHours?.[String(i)];
-                    return (
-                      <div key={day}>
-                        <dt>{day}</dt>
-                        <dd>{hours ? `${hours.start} to ${hours.end}` : "Closed"}</dd>
-                      </div>
-                    );
-                  })}
-                </dl>
-              </div>
-            ))}
+            {data ? <HospitalUnits clinics={data.clinics} hospital={TENANT.name} /> : <LoadingPane label="Loading the units" />}
           </>
         )}
       </section>
     </div>
+  );
+}
+
+function EditLink({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" className="link-button" aria-label={label} onClick={onClick}>
+      Change
+    </button>
   );
 }
 

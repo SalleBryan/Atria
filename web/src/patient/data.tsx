@@ -65,6 +65,40 @@ export interface Clinic {
   description?: string | null;
   services?: string[] | null;
   openingHours: Record<string, { start: string; end: string }> | null;
+  /** Where the unit is inside its hospital; the entrance is where directions lead. */
+  location?: UnitLocation | null;
+}
+
+export interface UnitLocation {
+  building?: string;
+  floor?: string;
+  directions?: string;
+  /** The entrance, as decimal degrees in text. */
+  lat?: string;
+  lng?: string;
+}
+
+/** The unit's entrance on the map, when the hospital has placed it. */
+export function entranceOf(clinic: Clinic): { lat: number; lng: number } | null {
+  const lat = Number(clinic.location?.lat);
+  const lng = Number(clinic.location?.lng);
+  return clinic.location?.lat && clinic.location?.lng && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+/** Where a unit is, in words: "Block B · Ground floor". */
+export function whereInside(clinic: Clinic): string {
+  return [clinic.location?.building, clinic.location?.floor].filter(Boolean).join(" · ");
+}
+
+/**
+ * Walking directions to the unit's own door when the hospital has placed it,
+ * so a patient is not left at the gate of a large site; otherwise a search
+ * for the unit at the hospital's address.
+ */
+export function directionsTo(clinic: Clinic): string {
+  const door = entranceOf(clinic);
+  if (door) return `https://www.google.com/maps/dir/?api=1&destination=${door.lat},${door.lng}&travelmode=walking`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([clinic.name, clinic.address].filter(Boolean).join(", "))}`;
 }
 
 export interface AppointmentType {

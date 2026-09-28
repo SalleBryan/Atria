@@ -22,6 +22,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
 import { Notice } from "../components/controls";
+import { LoadingPane } from "../components/LoadingPane";
 import {
   Alert,
   ChevronLeft,
@@ -272,8 +273,7 @@ export function FindCare() {
   if (!data) {
     return (
       <div className="find-care" aria-busy="true">
-        <span className="skeleton find-list-skeleton" />
-        <span className="skeleton find-detail-skeleton" />
+        <LoadingPane glass className="find-list" />
       </div>
     );
   }
@@ -550,7 +550,7 @@ export function FindCare() {
                   );
                 })}
                 {slots && !slots.length && <p className="empty">No times left on this day.</p>}
-                {!slots && day && <LoadingIndicator size={28} label="Finding free times" />}
+                {!slots && day && <LoadingPane label="Finding free times" />}
               </div>
             </div>
 
@@ -570,13 +570,19 @@ export function FindCare() {
                   ) : (
                     <>
                       <span className="dock-label">No time selected</span>
-                      <span className="dock-title">Pick a time above to continue</span>
+                      <span className="dock-title">Pick a time<span className="wide-only"> above to continue</span></span>
                     </>
                   )}
                 </div>
-                <button type="submit" className="dock-button" disabled={!slot || booking} aria-busy={booking || undefined}>
+                <button
+                  type="submit"
+                  className="dock-button"
+                  disabled={!slot || booking}
+                  aria-busy={booking || undefined}
+                  aria-label={booking ? "Booking" : "Book appointment"}
+                >
                   {booking ? <LoadingIndicator size={22} label="Booking" /> : null}
-                  <span>{booking ? "Booking" : "Book appointment"}</span>
+                  <span aria-hidden="true">{booking ? "Booking" : <>Book<span className="wide-only"> appointment</span></>}</span>
                 </button>
               </div>
             </form>

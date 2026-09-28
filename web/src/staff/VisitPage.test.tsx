@@ -121,7 +121,13 @@ describe("One visit, from the desk", () => {
 });
 
 describe("What the desk can do to a visit (wave 2)", () => {
-  beforeEach(() => vi.clearAllMocks());
+  // Mid-morning, so "half an hour from now" is still today however late the suite runs.
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-28T09:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
 
   function respondWith(visit: Record<string, unknown>) {
     respond(visit);

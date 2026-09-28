@@ -369,7 +369,7 @@ class Booking:
         event["outcome"] = cancellation.outcome
         event["entitlement"] = cancellation.entitlement
 
-        clinician_id = str(appointment["clinicianProfileId"])
+        clinician_id = str(appointment.get("clinicianProfileId") or "")
         self._repo.change_together(
             creates=[
                 (

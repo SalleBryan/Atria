@@ -17,6 +17,7 @@ import { api } from "../api/client";
 import { Notice } from "../components/controls";
 import { ArrowLeft, Clock, Stethoscope, Users } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { LoadingPane } from "../components/LoadingPane";
 import { SelectMenu } from "../components/Pickers";
 import { type Appointment, clock, offeredAt, usePatientData } from "./data";
 
@@ -113,10 +114,10 @@ export function JoinQueue() {
           state.status === "ready" ? (
             <Notice tone="info">No unit runs a queue at the moment.</Notice>
           ) : (
-            <LoadingIndicator size={28} label="Loading" />
+            <LoadingPane label="Loading" />
           )
         ) : sessions === null ? (
-          <LoadingIndicator size={28} label="Loading sessions" />
+          <LoadingPane label="Loading sessions" />
         ) : !days.length ? (
           <p className="today-empty">No sessions are published for the next two weeks yet. The desk can add you when you arrive.</p>
         ) : (
@@ -187,6 +188,7 @@ export function JoinQueue() {
               </span>
             </span>
             <button type="submit" className="dock-button" disabled={!session || busy} aria-busy={busy || undefined}>
+              {busy ? <LoadingIndicator size={20} label="Taking a place" /> : null}
               {busy ? "Taking a place" : "Take a place"}
             </button>
           </div>
@@ -289,6 +291,7 @@ export function RequestProcedure() {
               <span className="dock-title">{type && unit ? `${type.name}, ${unit.name}` : "Choose a procedure"}</span>
             </span>
             <button type="submit" className="dock-button" disabled={!type || !unit || busy} aria-busy={busy || undefined}>
+              {busy ? <LoadingIndicator size={20} label="Sending" /> : null}
               {busy ? "Sending" : "Send request"}
             </button>
           </div>

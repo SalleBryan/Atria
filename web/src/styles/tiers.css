@@ -75,6 +75,9 @@
 /* =============================================================== mobile */
 
 @media (max-width: 767px) {
+  /* Words a phone leaves out where the width is short. */
+  .wide-only { display: none; }
+
   /* The frame's navigation (Mobile · Home, 28:2): a glass pill floating 20px
      in from the edges, the chosen destination on a blue squircle. */
   .bottom-nav {
@@ -88,6 +91,7 @@
     box-shadow: 0 12px 30px rgba(16, 42, 94, 0.16), inset 0 1px 0 #ffffff;
   }
   .bottom-item { gap: 3px; min-width: 0; flex: 1; font-size: 11px; color: var(--ink-550); }
+  .bottom-label { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .bottom-indicator { width: 44px; height: 36px; border-radius: 14px; }
   .bottom-item.active { color: var(--blue-700); }
   .bottom-item.active .bottom-indicator {
@@ -180,7 +184,11 @@
   }
   .find-care[data-step="detail"] .dock-row { flex-wrap: nowrap; align-items: center; }
   .find-care[data-step="detail"] .dock-selection { flex: 1; min-width: 0; }
-  .find-care[data-step="detail"] .dock-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* The words keep two lines beside the button rather than one clipped one. */
+  .find-care[data-step="detail"] .dock-title,
+  .find-care[data-step="detail"] .dock-label { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; white-space: normal; }
+  .find-care[data-step="detail"] .dock-row { gap: 12px; }
+  .find-care[data-step="detail"] .dock-button { padding: 0 20px; }
   .find-care[data-step="detail"] .detail-hero { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 16px; align-items: center; }
   .find-care[data-step="detail"] .detail-row { display: contents; }
   .find-care[data-step="detail"] .detail-bio { display: none; }
@@ -236,7 +244,7 @@
   .staff-day .staff-card-head .segmented { border-radius: 18px; }
   .staff-day .staff-card-head .segment { flex: 1; height: 42px; }
   .staff-day .staff-card-head .segment-on { color: #ffffff; background: var(--gradient-primary); box-shadow: 0 6px 14px rgba(36, 97, 219, 0.3); }
-  .staff-day .day-rows { margin-top: 12px; }
+  .staff-day .day-rows { margin: 12px 0 0; padding: 0 0 20px; }
 
   /* The console's week (Mobile · Staff week, 178:2). The desktop side panel
      gives way to the hero, which says the same for the chosen day. */

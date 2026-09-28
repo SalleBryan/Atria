@@ -177,3 +177,90 @@ class TestFirstSignIn:
         staff_id = membership["staffMembershipId"]
         assert people.activate(tenant_id="t-cm-001", staff_id=staff_id) is True
         assert people.activate(tenant_id="t-cm-001", staff_id=staff_id) is False
+
+
+class TestEditingOneself:
+    """A person changes their own name, date of birth and language; the
+    email only as Cognito verified it (2026-09-28)."""
+
+    @pytest.fixture
+    def amina(self, wired):
+        wired.put(
+            keys.tenant("t-cm-001"),
+            {"type": "TENANT", "tenantId": "t-cm-001", "regionPackCode": "CM"},
+        )
+        wired.put(
+            keys.person("p-1"),
+            {
+                "type": "PERSON",
+                "personId": "p-1",
+                "cognitoSub": "sub-1",
+                "givenName": "Amina",
+                "familyName": "Ngo",
+                "email": "amina@example.com",
+                "phoneE164": "+12025550142",
+            },
+        )
+        wired.put(
+            keys.patient_profile("t-cm-001", "pp-1"),
+            {
+                "type": "PATIENT_PROFILE",
+                "patientProfileId": "pp-1",
+                "personId": "p-1",
+                "patientNumber": "RHB-000001",
+            },
+        )
+        return wired
+
+    def call(self, method, resource, body=None):
+        e = event(patientProfileId="pp-1")
+        e.update(
+            httpMethod=method,
+            resource=resource,
+            body=json.dumps(body) if body is not None else None,
+        )
+        return identity.handler(e, None)
+
+    def test_the_name_and_language_change(self, amina):
+        found = body_of(
+            self.call("PATCH", "/me", {"familyName": "Ngo Mbe", "preferredLanguage": "fr"})
+        )
+        assert (found["familyName"], found["preferredLanguage"]) == ("Ngo Mbe", "fr")
+
+    def test_the_desk_finds_the_new_name(self, amina):
+        from atria.data.register import Register
+
+        self.call("PATCH", "/me", {"givenName": "Aminatou"})
+        found = Register(amina).search("t-cm-001", "aminatou")
+        assert [e["patientProfileId"] for e in found] == ["pp-1"]
+        assert Register(amina).search("t-cm-001", "amina ngo") == []
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"givenName": "R2D2"},
+            {"dateOfBirth": "2999-01-01"},
+            {"preferredLanguage": "de"},
+            {"email": "x@y.z"},
+        ],
+    )
+    def test_what_is_refused(self, amina, body):
+        assert self.call("PATCH", "/me", body)["statusCode"] == 400
+
+    def test_the_email_is_taken_only_once_verified(self, amina, monkeypatch):
+        class Pool:
+            verified = "false"
+
+            def admin_get_user(self, **_):
+                return {
+                    "UserAttributes": [
+                        {"Name": "email", "Value": "new@example.com"},
+                        {"Name": "email_verified", "Value": self.verified},
+                    ]
+                }
+
+        pool = Pool()
+        monkeypatch.setattr(identity, "_cognito", pool)
+        assert self.call("POST", "/me/email")["statusCode"] == 409
+        pool.verified = "true"
+        assert body_of(self.call("POST", "/me/email"))["email"] == "new@example.com"

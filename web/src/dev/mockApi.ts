@@ -782,6 +782,27 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     return json(200, { clinicId: unitMessages[1], clinicName: unit?.name ?? null, day, counts, messages: rows }, 380);
   }
   // The administrator's delivery figures (FR-MSG-06).
+  if (method === "GET" && path === "/capacity") {
+    // The administrator's coming week (services/directory/capacity.py), invented.
+    const monday = new Date(Date.now() + OFFSET_MS);
+    monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7));
+    const iso = (days: number) => new Date(monday.getTime() + days * DAY_MS).toISOString().slice(0, 10);
+    return json(
+      200,
+      {
+        from: iso(0),
+        to: iso(6),
+        cliniciansOnShift: 12,
+        leave: [{ clinicianProfileId: "c-tabi", clinicianName: "Ernest Tabi", clinicId: "u-rhb-medicine", clinicName: "Medical Unit", from: iso(0), to: iso(4), booked: 14 }],
+        uncovered: [{ clinicId: "u-rhb-eye", clinicName: "Eye Unit", days: ["Fri"], dates: [iso(4)] }],
+        covered: [
+          { clinicId: "u-rhb-paeds", clinicName: "Paediatrics Unit", clinicians: 2, freeHours: 62 },
+          { clinicId: "u-rhb-opd", clinicName: "General Outpatient Department", clinicians: 3, freeHours: 48 },
+        ],
+      },
+      400,
+    );
+  }
   if (method === "GET" && path === "/messages/delivery") {
     const count = Number(url.searchParams.get("days") ?? "14");
     const today = clinicDate(new Date());

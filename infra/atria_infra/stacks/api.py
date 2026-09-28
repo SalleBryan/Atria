@@ -414,6 +414,13 @@ class ApiStack(Stack):
             authorizer=self.request_authoriser,
             authorization_type=apigateway.AuthorizationType.CUSTOM,
         )
+        # Hospital-wide capacity for the coming week (services/directory/capacity.py).
+        self.api.root.add_resource("capacity").add_method(
+            "GET",
+            directory_integration,
+            authorizer=self.request_authoriser,
+            authorization_type=apigateway.AuthorizationType.CUSTOM,
+        )
         # The administrator's delivery figures, FR-MSG-06.
         self.api.root.add_resource("messages").add_resource("delivery").add_method(
             "GET",

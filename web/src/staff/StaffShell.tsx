@@ -16,7 +16,7 @@ import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import type { Me } from "../api/client";
 import { useSession } from "../auth/session";
 import { StaffAuthenticatorSetup } from "../pages/StaffAuthenticator";
-import { Calendar, Chart, Clock, Inbox, ListOrdered, Mail, Pulse, Shield, SignOut, Sliders, Stethoscope, User, Users } from "../components/icons";
+import { Calendar, Chart, More as Grid, Clock, Inbox, ListOrdered, Mail, Pulse, Shield, SignOut, Sliders, Stethoscope, User, Users } from "../components/icons";
 import { offeredAt } from "../patient/data";
 import { runsQueue } from "./Queue";
 import { SignOutMenu } from "../components/SignOutMenu";
@@ -52,6 +52,10 @@ function Shell({ me }: { me: Me }) {
   const role = roleOf(me);
 
   const destinations: Destination[] = [
+    // The administrator starts from the institution's overview (Admin · Overview, 211:2).
+    ...(role === "TENANT_ADMIN"
+      ? [{ to: "/console/overview", label: "Overview", icon: Grid, matches: (path: string) => path.startsWith("/console/overview") }]
+      : []),
     {
       to: "/console",
       label: "Schedule",
@@ -166,6 +170,12 @@ function Shell({ me }: { me: Me }) {
     setAt(selected);
   }, [selected]);
 
+  // An administrator signs in to the overview; after that "/console" is the
+  // schedule like everyone else's, so the Schedule link still goes there.
+  if (role === "TENANT_ADMIN" && pathname === "/console" && !sawOverview()) {
+    return <Navigate to="/console/overview" replace />;
+  }
+
   const clinic = state.status === "ready" ? state.data.clinics.find((c) => c.clinicId === me.clinicId)?.name : undefined;
   const name = [me.givenName, me.familyName].filter(Boolean).join(" ") || "Staff account";
 
@@ -249,4 +259,12 @@ function Shell({ me }: { me: Me }) {
       </nav>
     </div>
   );
+}
+
+function sawOverview(): boolean {
+  try {
+    return Boolean(sessionStorage.getItem("atria.overview"));
+  } catch {
+    return true;
+  }
 }

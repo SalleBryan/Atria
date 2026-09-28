@@ -22,7 +22,7 @@
  */
 
 import { type CSSProperties, type FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 
 import { api } from "../api/client";
 import { type CountryCode, HOME_COUNTRY, PACK, normalisePhone } from "../auth/phone";
@@ -161,7 +161,9 @@ export function StaffAccounts() {
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
   const [menuOpen, setMenuOpen] = useState(false);
   const filterButton = useRef<HTMLButtonElement>(null);
-  const [creating, setCreating] = useState(false);
+  const location = useLocation();
+  // The overview's "Create account" arrives with ?create=1 and opens the form.
+  const [creating, setCreating] = useState(() => new URLSearchParams(location.search).get("create") === "1");
   const [changing, setChanging] = useState<Listed | null>(null);
   const [suspending, setSuspending] = useState<Listed | null>(null);
   const [granting, setGranting] = useState<Listed | null>(null);

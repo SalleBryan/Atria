@@ -300,3 +300,35 @@ class TestWeeklyReport:
         found = body_of(report(ADMIN, resource="/reports"))
         assert found["booked"] == 4
         assert [u["clinicId"] for u in found["units"]][:1] == [DOUALA]
+
+
+class TestCapacity:
+    """GET /capacity: the administrator's week of cover (Admin · Overview)."""
+
+    @pytest.fixture
+    def listed(self, banded, repository, monkeypatch):
+        _repo, clinician = banded
+        monkeypatch.setattr(directory, "_booking", service.booking())
+        clinic_key = keys.clinic(TENANT, DOUALA)
+        repository.put(
+            clinic_key,
+            {
+                **repository.get(clinic_key),
+                **clinic_listing(TENANT, DOUALA, "Medical Unit"),
+                "name": "Medical Unit",
+            },
+        )
+        book(clinician, start="2026-03-04T08:00:00Z")
+        return clinician
+
+    def test_the_administrator_sees_the_week(self, listed):
+        found = body_of(report(ADMIN, resource="/capacity", query={"from": "2026-03-02"}))
+        assert (found["from"], found["to"]) == ("2026-03-02", "2026-03-08")
+        assert found["cliniciansOnShift"] >= 1
+        named = [row["clinicName"] for row in found["covered"] + found["uncovered"]]
+        assert "Medical Unit" in named
+
+    def test_a_manager_does_not(self, listed):
+        assert (
+            report(MANAGER, resource="/capacity", query={"from": "2026-03-02"})["statusCode"] == 403
+        )

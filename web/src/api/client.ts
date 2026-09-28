@@ -101,4 +101,6 @@ export interface Me {
   landing: string[];
   /** An administrator who has not signed in with an authenticator yet (FR-ACC-11). */
   secondFactorRequired?: boolean;
+  /** What a patient's record still lacks: "phone", "dateOfBirth", "terms" (2026-09-29). */
+  missing?: string[];
 }

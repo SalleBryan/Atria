@@ -221,6 +221,33 @@ class TestEditingOneself:
         )
         return identity.handler(e, None)
 
+    def test_what_the_record_lacks_is_named(self, amina):
+        found = body_of(self.call("GET", "/me"))
+        assert found["missing"] == ["dateOfBirth", "terms"]
+
+    def test_a_google_patient_completes_their_record(self, amina):
+        person = amina.get(keys.person("p-1"))
+        amina.put(keys.person("p-1"), {k: v for k, v in person.items() if k != "phoneE164"})
+        assert body_of(self.call("GET", "/me"))["missing"] == ["phone", "dateOfBirth", "terms"]
+        result = self.call(
+            "PATCH",
+            "/me",
+            {"phoneE164": "+12025550199", "dateOfBirth": "1990-04-02", "acceptTerms": True},
+        )
+        assert result["statusCode"] == 200, result
+        assert body_of(self.call("GET", "/me"))["missing"] == []
+        saved = amina.get(keys.person("p-1"))
+        assert (saved["phoneE164"], saved["phoneVerified"]) == ("+12025550199", False)
+        assert saved["termsVersion"]
+
+    def test_a_verified_mobile_is_not_changed_here(self, amina):
+        person = amina.get(keys.person("p-1"))
+        amina.put(keys.person("p-1"), {**person, "phoneVerified": True})
+        assert self.call("PATCH", "/me", {"phoneE164": "+12025550199"})["statusCode"] == 409
+
+    def test_a_mobile_must_be_international(self, amina):
+        assert self.call("PATCH", "/me", {"phoneE164": "0670000000"})["statusCode"] == 400
+
     def test_the_name_and_language_change(self, amina):
         found = body_of(
             self.call("PATCH", "/me", {"familyName": "Ngo Mbe", "preferredLanguage": "fr"})

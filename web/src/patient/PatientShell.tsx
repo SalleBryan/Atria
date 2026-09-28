@@ -12,6 +12,7 @@
  * leading to an empty screen.
  */
 
+import { CompleteProfile } from "../pages/CompleteProfile";
 import { type ComponentType, type CSSProperties, useLayoutEffect, useRef, useState } from "react";
 import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
@@ -33,6 +34,8 @@ export function PatientShell() {
   if (state.status === "loading") return <Waiting />;
   if (state.status !== "signed-in") return <Navigate to="/sign-in" replace />;
   if (state.audience === "staff" || !state.me.patientProfileId) return <Navigate to="/console" replace />;
+  // A record without a mobile, a date of birth or agreed terms is finished first.
+  if (state.me.missing?.length) return <CompleteProfile me={state.me} />;
   return (
     <PatientDataProvider>
       <Shell me={state.me} />

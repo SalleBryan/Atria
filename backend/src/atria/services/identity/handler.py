@@ -89,6 +89,27 @@ def me(principal: Principal) -> dict[str, Any]:
 
 
 NAME = re.compile(r"^[^\d@#<>]{1,60}$")
+E164 = re.compile(r"^\+[1-9]\d{7,14}$")
+TERMS_VERSION = "2026-09"
+
+
+def missing(person: dict[str, Any]) -> list[str]:
+    """What a patient's record still lacks (2026-09-29).
+
+    Google gives Atria a name and an email and nothing else, and the email
+    sign-up does not ask for a date of birth, so a patient can arrive
+    without the mobile reminders go to, the date of birth the guardian rules
+    need, or a recorded agreement to the terms. The app asks for these at
+    sign-in until they are given.
+    """
+    lacking = []
+    if not person.get("phoneE164"):
+        lacking.append("phone")
+    if not person.get("dateOfBirth"):
+        lacking.append("dateOfBirth")
+    if not person.get("termsAcceptedAt"):
+        lacking.append("terms")
+    return lacking
 USER_POOL_ID = os.environ.get("USER_POOL_ID", "")
 _cognito: Any = None
 
@@ -134,6 +155,24 @@ def edit(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
             if born > dt.datetime.now(tz=dt.UTC).date() or born.year < 1900:
                 raise Invalid("that date of birth is not possible")
             changes["dateOfBirth"] = born.isoformat()
+    if "phoneE164" in body:
+        # A mobile is taken here only to fill a record that has none, or to
+        # correct one never verified; a verified number changes by code.
+        phone = str(body["phoneE164"] or "").strip()
+        if not E164.match(phone):
+            raise Invalid("phoneE164 must be an international number, such as +237...")
+        if person.get("phoneE164") and person.get("phoneVerified"):
+            raise Conflict("a verified mobile changes with a code sent to it")
+        changes["phoneE164"] = phone
+        changes["phoneVerified"] = False
+    if body.get("acceptTerms") is True and not person.get("termsAcceptedAt"):
+        accepted = dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+        changes["termsAcceptedAt"] = accepted
+        changes["termsVersion"] = TERMS_VERSION
+        repo.put(
+            keys.consent_record(principal.person_id, accepted, f"terms-{TERMS_VERSION}"),
+            {"kind": "TERMS", "version": TERMS_VERSION, "grantedAt": accepted},
+        )
     if "preferredLanguage" in body:
         language = str(body["preferredLanguage"] or "")
         allowed = languages_for(principal.tenant_id)
@@ -143,7 +182,10 @@ def edit(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
             )
         changes["preferredLanguage"] = language
     if not changes:
-        raise Invalid("nothing to change: givenName, familyName, dateOfBirth or preferredLanguage")
+        raise Invalid(
+            "nothing to change: givenName, familyName, dateOfBirth, preferredLanguage,"
+            " phoneE164 or acceptTerms"
+        )
 
     updated = {**person, **changes}
     repo.put(keys.person(principal.person_id), {k: v for k, v in updated.items() if v is not None})
@@ -210,6 +252,7 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         extra = {
             "dateOfBirth": record.get("dateOfBirth"),
             "preferredLanguage": record.get("preferredLanguage"),
+            "missing": missing(record) if principal.patient_profile_id else [],
         }
     except NotFound:
         pass

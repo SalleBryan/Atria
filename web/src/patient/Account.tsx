@@ -14,8 +14,10 @@ import { type ComponentType, useState } from "react";
 import { useSession } from "../auth/session";
 import { SignOutMenu } from "../components/SignOutMenu";
 import { Notice } from "../components/controls";
-import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Globe, Mail, Phone, Pin, Shield, User } from "../components/icons";
+import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Close, Globe, Mail, Phone, Pin, Shield, User } from "../components/icons";
 import { EditDetails } from "./EditDetails";
+import { DeleteAccountDialog } from "../components/DeleteAccountDialog";
+import { api } from "../api/client";
 import { HospitalUnits } from "./HospitalUnits";
 import { LoadingPane } from "../components/LoadingPane";
 import { useTier } from "../layout/fit";
@@ -53,7 +55,7 @@ function masked(phone: string | null | undefined): string {
 }
 
 export function Account() {
-  const { state: session } = useSession();
+  const { state: session, signOut } = useSession();
   const { state } = usePatientData();
   const [section, setSection] = useState<Section>("details");
   // On a phone (Mobile · Account, 41:2) the sections are a menu, each opening
@@ -63,6 +65,7 @@ export function Account() {
   const me = session.status === "signed-in" ? session.me : undefined;
   const [editing, setEditing] = useState<null | "name" | "language" | "email">(null);
   const [said, setSaid] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const start = (what: "name" | "language" | "email") => {
     setSaid(null);
     setEditing(what);
@@ -182,6 +185,36 @@ export function Account() {
               />
               <Row icon={Shield} tone="tone-violet" title="Who can see your record" sub="Only your healthcare institution, and you" />
             </div>
+            <div className="inner-card settings-card delete-row">
+              <Row
+                icon={Close}
+                tone="tone-red"
+                title="Delete your account"
+                sub="Your upcoming visits are cancelled. You have 30 days to change your mind."
+                end={
+                  <button type="button" className="link-button link-danger" onClick={() => setDeleting(true)}>
+                    Delete
+                  </button>
+                }
+              />
+            </div>
+            {deleting && (
+              <DeleteAccountDialog
+                title="Delete your Atria account?"
+                lede={`You will be signed out, and ${TENANT.name} stops holding your appointments.`}
+                points={[
+                  "Your upcoming visits are cancelled and their times given back.",
+                  "Sign in again within 30 days to restore your account.",
+                  "After 30 days your details are erased for good.",
+                ]}
+                confirmLabel="Delete my account"
+                onClose={() => setDeleting(false)}
+                onConfirm={async () => {
+                  await api("/me", { method: "DELETE" });
+                  await signOut();
+                }}
+              />
+            )}
           </>
         )}
 

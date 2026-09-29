@@ -335,6 +335,7 @@
   box-shadow: 0 12px 34px rgba(16, 42, 94, 0.13);
 }
 .form-card > .notice { margin-bottom: 15px; }
+.form-card > .button + .button { margin-top: 10px; }
 
 .field { display: flex; flex-direction: column; gap: 7px; padding-bottom: 15px; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

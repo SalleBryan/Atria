@@ -30,19 +30,7 @@ import { useSession } from "../auth/session";
 import { Field, Notice } from "../components/controls";
 import { LoadingRow } from "../components/LoadingPane";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
-import {
-  Building,
-  CheckMark,
-  Clipboard,
-  Close,
-  Filter,
-  Info,
-  Plus,
-  Repeat,
-  Shield,
-  Star,
-  User,
-} from "../components/icons";
+import { Building, CheckMark, Clipboard, Close, Filter, Info, Plus, Repeat, Shield, Star, Trash, Undo, User } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { Pager } from "../components/Pager";
 import { SelectMenu } from "../components/Pickers";
@@ -53,6 +41,7 @@ import { useTier } from "../layout/fit";
 import { initials } from "../patient/data";
 import { roleOf, useStaffData } from "./data";
 import { phoneShown } from "./Patients";
+import { DeleteAccountDialog, daysLeft, RestoreDialog } from "../components/DeleteAccountDialog";
 import { sentence } from "./labels";
 import { Snackbar } from "./Snackbar";
 
@@ -97,18 +86,21 @@ interface Listed {
   signInName: string | null;
   clinicId: string | null;
   roles: StaffRole[];
-  status: "INVITED" | "ACTIVE" | "SUSPENDED" | "ENDED";
+  status: "INVITED" | "ACTIVE" | "SUSPENDED" | "DELETION_PENDING" | "ENDED";
   mustSetPassword: boolean | null;
+  /** Deleted and waiting out its 30 days: when it becomes final. */
+  purgeAt?: string | null;
   /** The only staff priority there is: explicit, monthly, and shown with its usage (FR-STF-13). */
   priorityAllowance?: { quotaPerMonth: number; usedThisMonth: number } | null;
 }
 
-type Status = "awaiting" | "active" | "suspended";
+type Status = "awaiting" | "active" | "suspended" | "deleted";
 
 const STATUS_NAME: Record<Status, string> = {
   awaiting: "Awaiting first sign-in",
   active: "Active",
   suspended: "Suspended",
+  deleted: "Deleted",
 };
 
 interface Page {
@@ -166,6 +158,8 @@ export function StaffAccounts() {
   const [creating, setCreating] = useState(() => new URLSearchParams(location.search).get("create") === "1");
   const [changing, setChanging] = useState<Listed | null>(null);
   const [suspending, setSuspending] = useState<Listed | null>(null);
+  const [deleting, setDeleting] = useState<Listed | null>(null);
+  const [restoring, setRestoring] = useState<Listed | null>(null);
   const [granting, setGranting] = useState<Listed | null>(null);
   const [said, setSaid] = useState<string | null>(null);
   const admin = state.status === "signed-in" && roleOf(state.me) === "TENANT_ADMIN";
@@ -406,10 +400,14 @@ export function StaffAccounts() {
           {!page
             ? [<LoadingRow key="loading" />]
             : accounts.map((account, index) => {
-                const off = account.status === "SUSPENDED" || account.status === "ENDED";
+                const deleted = account.status === "DELETION_PENDING";
+                const off = deleted || account.status === "SUSPENDED" || account.status === "ENDED";
                 const adminRole = account.roles.includes("TENANT_ADMIN");
                 const self = state.me.staffId === account.staffId;
-                const shownStatus = off
+                const left = daysLeft(account.purgeAt);
+                const shownStatus = deleted
+                  ? { label: `Deleted · ${left} ${left === 1 ? "day" : "days"} to restore`, tone: "cancelled" }
+                  : off
                   ? { label: "Suspended", tone: "neutral" }
                   : account.mustSetPassword
                     ? { label: "Must set password", tone: "awaiting" }
@@ -441,6 +439,13 @@ export function StaffAccounts() {
                       </span>
                     </span>
                     <span className="account-actions">
+                      {deleted ? (
+                        <button type="button" className="tonal-button account-restore" onClick={() => setRestoring(account)}>
+                          <Undo size={15} />
+                          Restore
+                        </button>
+                      ) : (
+                      <>
                       <button
                         type="button"
                         className="square-button"
@@ -471,6 +476,18 @@ export function StaffAccounts() {
                       >
                         <Close size={15} />
                       </button>
+                      <button
+                        type="button"
+                        className="square-button account-suspend"
+                        aria-label={`Delete ${name}`}
+                        title="Delete"
+                        disabled={self}
+                        onClick={() => setDeleting(account)}
+                      >
+                        <Trash size={15} />
+                      </button>
+                      </>
+                      )}
                     </span>
                   </li>
                 );
@@ -535,6 +552,35 @@ export function StaffAccounts() {
           onDone={(message) => {
             setSuspending(null);
             done(message);
+          }}
+        />
+      )}
+      {deleting && (
+        <DeleteAccountDialog
+          title={`Delete ${[deleting.givenName, deleting.familyName].filter(Boolean).join(" ") || "this account"}?`}
+          lede="They are signed out everywhere and cannot sign in to the console."
+          points={[
+            "Their roles stop at once; a clinician leaves the directory.",
+            "You can restore the account from this list for 30 days.",
+            "After 30 days the sign-in and their details are erased.",
+          ]}
+          confirmLabel="Delete account"
+          onClose={() => setDeleting(null)}
+          onConfirm={async () => {
+            await api(`/admin/staff/${encodeURIComponent(deleting.staffId)}`, { method: "DELETE" });
+            setDeleting(null);
+            done("Account deleted. It can be restored for 30 days.");
+          }}
+        />
+      )}
+      {restoring && (
+        <RestoreDialog
+          name={[restoring.givenName, restoring.familyName].filter(Boolean).join(" ") || "this account"}
+          onClose={() => setRestoring(null)}
+          onConfirm={async () => {
+            await api(`/admin/staff/${encodeURIComponent(restoring.staffId)}/restore`, { method: "POST" });
+            setRestoring(null);
+            done("Account restored. They can sign in again.");
           }}
         />
       )}

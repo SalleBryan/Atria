@@ -1138,7 +1138,8 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   if (method === "GET" && path === "/admin/staff") {
     // Searched, filtered and paged as the API does it (atria.services.identity.staff.list_accounts).
     const sorted = [...staffAccounts].sort((a, b) => String(a.familyName).localeCompare(String(b.familyName)));
-    const statusOf = (a: Record<string, unknown>) => (a.status === "SUSPENDED" ? "suspended" : a.mustSetPassword ? "awaiting" : "active");
+    const statusOf = (a: Record<string, unknown>) =>
+      a.status === "DELETION_PENDING" ? "deleted" : a.status === "SUSPENDED" ? "suspended" : a.mustSetPassword ? "awaiting" : "active";
     const count = (keyOf: (a: Record<string, unknown>) => string[]) =>
       sorted.reduce<Record<string, number>>((all, a) => {
         for (const key of keyOf(a)) all[key] = (all[key] ?? 0) + 1;
@@ -1191,6 +1192,31 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     found.roles = (body as { roles: string[] }).roles;
     return json(200, { ...found, note: "The new roles apply at the account's next sign-in." });
   }
+  // Deleting and restoring accounts, with 30 days' grace (services/identity/deletion.py).
+  const purgeIn30 = () => new Date(Date.now() + 30 * DAY_MS).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const staffGone = path.match(/^\/admin\/staff\/([^/]+)(\/restore)?$/);
+  if (staffGone && (method === "DELETE" || (method === "POST" && staffGone[2]))) {
+    const found = staffAccounts.find((a) => a.staffId === staffGone[1]) as Record<string, unknown> | undefined;
+    if (!found) return json(404, { code: "not_found", message: "no such staff account" });
+    if (method === "DELETE") {
+      found.statusBefore = found.status;
+      found.status = "DELETION_PENDING";
+      found.purgeAt = purgeIn30();
+      return json(200, { purgeAt: found.purgeAt, by: "ADMIN", graceDays: 30 }, 500);
+    }
+    found.status = found.statusBefore ?? "ACTIVE";
+    found.purgeAt = null;
+    return json(200, { restored: true }, 500);
+  }
+  const patientGone = path.match(/^\/admin\/patients\/([^/]+)(\/restore)?$/);
+  if (patientGone && (method === "DELETE" || (method === "POST" && patientGone[2]))) {
+    const entry = register.find((p) => p.patientProfileId === patientGone[1]) as Record<string, unknown> | undefined;
+    if (!entry) return json(404, { code: "not_found", message: "no such patient" });
+    entry.deletionPurgeAt = method === "DELETE" ? purgeIn30() : null;
+    return json(200, method === "DELETE" ? { purgeAt: entry.deletionPurgeAt, by: "ADMIN", graceDays: 30, cancelledVisits: 1 } : { restored: true }, 500);
+  }
+  if (method === "DELETE" && path === "/me") return json(200, { purgeAt: purgeIn30(), by: "SELF", graceDays: 30, cancelledVisits: 2 }, 500);
+  if (method === "POST" && path === "/me/restore") return json(200, { restored: true }, 500);
   const suspend = path.match(/^\/admin\/staff\/([^/]+)\/suspend$/);
   if (method === "POST" && suspend) {
     const found = staffAccounts.find((a) => a.staffId === suspend[1]);

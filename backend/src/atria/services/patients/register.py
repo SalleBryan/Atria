@@ -172,6 +172,9 @@ def record(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
         # A patient's own record is the account screen, not the register.
         raise permissions_error("patient.read")
     scope = permissions.require(principal, "patient.read")
+    if profile.get("deletionPurgeAt") and scope != "tenant":
+        # Deleted and waiting out its 30 days: the administrator's alone.
+        raise NotFound("no such patient")
     person = repo.get(keys.person(str(profile["personId"]))) or {}
 
     data = Booking(repo)
@@ -204,6 +207,7 @@ def record(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
         "source": profile.get("source") or "SELF",
         "createdAt": profile.get("createdAt"),
         "visitScope": scope,
+        "deletionPurgeAt": profile.get("deletionPurgeAt"),
         "appointments": [appointment_view(v) for v in visits[:50]],
     }
 

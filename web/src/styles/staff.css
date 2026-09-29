@@ -1781,3 +1781,5 @@
   .overview-plot, .overview-x { gap: 6px; }
   .overview-legend-note { margin-left: 0; }
 }
+.patient-deleted { margin-left: 8px; font-size: 10px; }
+.account-restore { height: 34px; padding: 0 12px; }

@@ -21,6 +21,11 @@ const MESSAGES: Record<string, string> = {
 
 export function messageFor(error: unknown): string {
   const name = error instanceof Error ? error.name : "";
+  // Cognito says "User is disabled." for an account an administrator deleted
+  // (or suspended): it can be restored within 30 days, by the hospital.
+  if (name === "NotAuthorizedException" && error instanceof Error && /disabled/i.test(error.message)) {
+    return "This account has been closed by the hospital. Contact the front desk: it can be restored within 30 days of closing.";
+  }
   if (name in MESSAGES) return MESSAGES[name] as string;
   if (error instanceof Error && error.message && !/exception/i.test(error.message)) {
     return error.message;

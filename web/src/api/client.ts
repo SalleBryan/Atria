@@ -103,4 +103,6 @@ export interface Me {
   secondFactorRequired?: boolean;
   /** What a patient's record still lacks: "phone", "dateOfBirth", "terms" (2026-09-29). */
   missing?: string[];
+  /** A deletion waiting out its 30 days (services/identity/deletion.py). */
+  deletion?: { purgeAt: string; requestedAt: string; by: "SELF" | "ADMIN"; graceDays: number } | null;
 }

@@ -19,7 +19,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, apiAll, ApiError } from "../api/client";
 import { useSession } from "../auth/session";
 import { Checkbox, Field, Notice } from "../components/controls";
-import { ArrowLeft, Calendar, ChevronRight, Close, Phone, Plus, Search, Shield, User } from "../components/icons";
+import { ArrowLeft, Calendar, ChevronRight, Close, Phone, Plus, Search, Shield, Trash, Undo, User } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { LoadingPane } from "../components/LoadingPane";
 import { LoadingRow } from "../components/LoadingPane";
@@ -28,6 +28,7 @@ import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { MATRIX } from "../generated/permissions";
 import { clock, initials, languageName, type Appointment } from "../patient/data";
 import { doctor, roleOf, useStaffData } from "./data";
+import { DeleteAccountDialog, daysLeft, RestoreDialog } from "../components/DeleteAccountDialog";
 import { CHANNEL, sentence, staffState } from "./labels";
 import { Snackbar } from "./Snackbar";
 
@@ -38,6 +39,8 @@ export interface RegisterEntry {
   phoneE164: string | null;
   patientNumber: string | null;
   dateOfBirth: string | null;
+  /** Deleted and waiting out its 30 days (the administrator sees these). */
+  deletionPurgeAt?: string | null;
 }
 
 interface PatientRecord extends RegisterEntry {
@@ -185,7 +188,10 @@ export function Patients() {
                     </span>
                     <span className="account-text">
                       <span className="account-name">{fullName(p)}</span>
-                      <span className="account-sub">{p.patientNumber ?? "No patient number"}</span>
+                      <span className="account-sub">
+                        {p.patientNumber ?? "No patient number"}
+                        {p.deletionPurgeAt && <span className="chip chip-cancelled patient-deleted">Deleted · {daysLeft(p.deletionPurgeAt)} days</span>}
+                      </span>
                     </span>
                   </span>
                   <span className="account-role">
@@ -454,6 +460,9 @@ export function PatientRecordPage() {
   const role = state.status === "signed-in" ? roleOf(state.me) : "RECEPTIONIST";
   const [record, setRecord] = useState<PatientRecord | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [said, setSaid] = useState<string | null>(null);
   const rowsBox = useRef<HTMLUListElement>(null);
   const size = useRowsThatFit(rowsBox, { row: ".patient-visit", pitch: 70 });
   const pages = usePages(record?.appointments ?? [], size, id);
@@ -486,13 +495,63 @@ export function PatientRecordPage() {
             <p>{record ? [record.patientNumber, age(record.dateOfBirth)].filter(Boolean).join(" · ") : "Loading the record"}</p>
           </div>
         </div>
-        {books && record && (
+        {books && record && !record.deletionPurgeAt && (
           <Link to={`/console/book?patient=${record.patientProfileId}`} className="staff-primary accounts-new">
             <Calendar size={16} />
             Book a visit
           </Link>
         )}
+        {role === "TENANT_ADMIN" && record && (
+          record.deletionPurgeAt ? (
+            <button type="button" className="staff-primary accounts-new" onClick={() => setRestoring(true)}>
+              <Undo size={16} />
+              Restore account
+            </button>
+          ) : (
+            <button type="button" className="outline-danger accounts-new" onClick={() => setDeleting(true)}>
+              <Trash size={16} />
+              Delete account
+            </button>
+          )
+        )}
       </header>
+      {record?.deletionPurgeAt && (
+        <Notice tone="error">
+          This account is deleted. It is erased in {daysLeft(record.deletionPurgeAt)} days unless you restore it.
+        </Notice>
+      )}
+      {said && <Notice tone="success">{said}</Notice>}
+      {deleting && record && (
+        <DeleteAccountDialog
+          title={`Delete ${fullName(record)}'s account?`}
+          lede="They are signed out and cannot sign in, and the front desk no longer finds them."
+          points={[
+            "Their upcoming visits are cancelled by the institution, so they keep their full entitlement.",
+            "You can restore the account here for 30 days.",
+            "After 30 days their details and sign-in are erased; past visits stay without their name.",
+          ]}
+          confirmLabel="Delete account"
+          onClose={() => setDeleting(false)}
+          onConfirm={async () => {
+            const done = await api<{ purgeAt: string }>(`/admin/patients/${encodeURIComponent(record.patientProfileId)}`, { method: "DELETE" });
+            setDeleting(false);
+            setRecord({ ...record, deletionPurgeAt: done.purgeAt });
+            setSaid("Account deleted. Upcoming visits were cancelled.");
+          }}
+        />
+      )}
+      {restoring && record && (
+        <RestoreDialog
+          name={`${fullName(record)}'s account`}
+          onClose={() => setRestoring(false)}
+          onConfirm={async () => {
+            await api(`/admin/patients/${encodeURIComponent(record.patientProfileId)}/restore`, { method: "POST" });
+            setRestoring(false);
+            setRecord({ ...record, deletionPurgeAt: null });
+            setSaid("Account restored. They can sign in and book again.");
+          }}
+        />
+      )}
 
       {failure && <Notice tone="error">{failure}</Notice>}
 

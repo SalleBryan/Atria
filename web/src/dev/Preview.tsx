@@ -10,6 +10,7 @@
  *     http://localhost:5173/__preview?as=admin              a tenant administrator
  *     http://localhost:5173/__preview?as=admin-new          one yet to set up an authenticator
  *     http://localhost:5173/__preview?as=patient-google     a Google sign-up yet to finish their record
+ *     http://localhost:5173/__preview?as=patient-deleted    one who deleted their account and came back
  *
  * It exists so screens can be looked at and clicked through without anyone
  * signing in with a real password. main.tsx loads it only on the dev server
@@ -134,6 +135,10 @@ const PEOPLE: Record<string, Me> = {
 };
 // FR-ACC-11: the console asks for an authenticator before anything else.
 PEOPLE["admin-new"] = { ...PEOPLE.admin!, secondFactorRequired: true };
+PEOPLE["patient-deleted"] = {
+  ...PEOPLE.patient!,
+  deletion: { purgeAt: new Date(Date.now() + 23 * 86400000).toISOString(), requestedAt: new Date(Date.now() - 7 * 86400000).toISOString(), by: "SELF", graceDays: 30 },
+};
 PEOPLE["patient-google"] = { ...PEOPLE.patient!, phoneE164: null, phoneVerified: false, missing: ["phone", "dateOfBirth", "terms"] };
 
 export default function Preview() {

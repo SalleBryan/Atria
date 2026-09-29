@@ -195,6 +195,16 @@ export const More = (p: IconProps) => (
     <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2" />
   </Icon>
 );
+export const Trash = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M4.5 7h15M9.5 7V5.2c0-.66.54-1.2 1.2-1.2h2.6c.66 0 1.2.54 1.2 1.2V7M6.5 7l.8 11.4c.07 1 .9 1.6 1.9 1.6h5.6c1 0 1.83-.6 1.9-1.6L17.5 7M10 11v5M14 11v5" />
+  </Icon>
+);
+export const Undo = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M9 14 4.5 9.5 9 5M4.5 9.5h9.75a5.25 5.25 0 0 1 0 10.5H10" />
+  </Icon>
+);
 export const Filter = (p: IconProps) => (
   <Icon strokeWidth={1.75} {...p}>
     <path d="M4.5 7h15M7.5 12h9M10.5 17h3" />

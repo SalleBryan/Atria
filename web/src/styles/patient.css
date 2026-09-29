@@ -942,3 +942,8 @@
 .unit-detail .hours { grid-template-columns: minmax(0, 1fr); }
 .site-tag rect { fill: #ffffff; stroke: var(--line-hairline); filter: drop-shadow(0 4px 10px rgba(16, 42, 94, 0.12)); }
 .site-tag text { fill: var(--ink-primary); font-size: 11px; font-weight: 600; }
+
+/* Deleting an account (2026-09-29). */
+.delete-row { margin-top: 14px; }
+.link-button.link-danger { color: var(--status-cancelled); }
+.delete-points { margin: 0 0 14px; padding-left: 18px; font-size: 13px; line-height: 1.6; color: var(--ink-700); }

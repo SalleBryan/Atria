@@ -97,7 +97,7 @@ void main() {
     expect(find.text('Care that keeps time with you.'), findsOneWidget);
     await tester.tap(find.bySemanticsLabel('Next'));
     await tester.pumpAndSettle();
-    expect(find.text('A place in the queue, or a time that is yours.'), findsOneWidget);
+    expect(find.text('Three ways to be seen.'), findsOneWidget);
     await tester.tap(find.textContaining('Sign in', findRichText: true).last);
     await tester.pumpAndSettle();
     expect(find.text('Welcome back.'), findsOneWidget);

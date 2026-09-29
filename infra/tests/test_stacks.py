@@ -289,8 +289,11 @@ class TestApiStack:
         assert ("/admin/staff", "GET") in served
         assert ("/admin/staff/{id}/roles", "PATCH") in served
         assert ("/admin/staff/{id}/suspend", "POST") in served
-        # A staff account is never deleted, only suspended.
-        assert ("/admin/staff/{id}", "DELETE") not in served
+        # Deleted with 30 days to restore it (services/identity/deletion.py).
+        assert ("/admin/staff/{id}", "DELETE") in served
+        assert ("/admin/staff/{id}/restore", "POST") in served
+        assert ("/admin/patients/{id}", "DELETE") in served
+        assert ("/admin/patients/{id}/restore", "POST") in served
 
     def test_booking_is_served_on_its_own_route(self, synthesised):
         """Not under /admin: a patient books too, and the matrix decides for whom."""
@@ -364,7 +367,9 @@ class TestApiStack:
             if "cognito-idp:AdminGetUser" in json.dumps(p["Properties"]["PolicyDocument"])
         ]
         assert len(readers) == 1 and "IdentityService" in json.dumps(readers[0]["Properties"]["Roles"])
-        assert "cognito-idp:ListUsers" not in actions
+        # ListUsers only finds one account's username by its subject, to
+        # disable, enable or delete it (deletion.py); it lists nobody.
+        assert "cognito-idp:AdminDisableUser" in actions
         # The identity service (GET /me) must not carry these: it never
         # touches the pool, only the token it was handed.
         assert "cognito-idp:AdminSetUserPassword" not in actions

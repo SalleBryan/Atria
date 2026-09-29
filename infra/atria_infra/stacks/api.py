@@ -16,6 +16,8 @@ from typing import Any
 
 from aws_cdk import Duration, RemovalPolicy, Stack
 from aws_cdk import aws_apigateway as apigateway
+from aws_cdk import aws_events as events
+from aws_cdk import aws_events_targets as targets
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_logs as logs
@@ -88,7 +90,16 @@ class ApiStack(Stack):
         # POST /me/email reads the address Cognito has verified, one account
         # at a time; it changes nothing in the pool.
         self.identity_service.add_to_role_policy(
-            iam.PolicyStatement(actions=["cognito-idp:AdminGetUser"], resources=[pool.user_pool_arn])
+            iam.PolicyStatement(
+                actions=[
+                    "cognito-idp:AdminGetUser",
+                    # DELETE /me and POST /me/restore (services/identity/deletion.py).
+                    "cognito-idp:ListUsers",
+                    "cognito-idp:AdminEnableUser",
+                    "cognito-idp:AdminUserGlobalSignOut",
+                ],
+                resources=[pool.user_pool_arn],
+            )
         )
 
         self.staff_service = self._service(
@@ -108,9 +119,34 @@ class ApiStack(Stack):
                     "cognito-idp:AdminCreateUser",
                     "cognito-idp:AdminDeleteUser",
                     "cognito-idp:AdminUserGlobalSignOut",
+                    # Deleting and restoring accounts, with 30 days' grace.
+                    "cognito-idp:ListUsers",
+                    "cognito-idp:AdminDisableUser",
+                    "cognito-idp:AdminEnableUser",
                 ],
                 resources=[pool.user_pool_arn],
             )
+        )
+
+        # The daily purge of accounts whose 30 days are over (identity/purge.py).
+        self.purge_service = self._service(
+            "PurgeService",
+            handler="atria.services.identity.purge.handler",
+            description="Erases accounts deleted more than 30 days ago",
+            environment={**common_environment, "USER_POOL_ID": pool.user_pool_id},
+        )
+        grant_table_write(data.main_table, self.purge_service)
+        self.purge_service.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["cognito-idp:ListUsers", "cognito-idp:AdminDeleteUser"],
+                resources=[pool.user_pool_arn],
+            )
+        )
+        events.Rule(
+            self,
+            "DailyPurge",
+            schedule=events.Schedule.cron(minute="0", hour="2"),
+            targets=[targets.LambdaFunction(self.purge_service)],
         )
 
         self.booking_service = self._service(
@@ -240,7 +276,13 @@ class ApiStack(Stack):
 
         me = self.api.root.add_resource("me")
         identity_integration = apigateway.LambdaIntegration(self.identity_service, proxy=True)
-        for resource, method in ((me, "GET"), (me, "PATCH"), (me.add_resource("email"), "POST")):
+        for resource, method in (
+            (me, "GET"),
+            (me, "PATCH"),
+            (me, "DELETE"),
+            (me.add_resource("email"), "POST"),
+            (me.add_resource("restore"), "POST"),
+        ):
             resource.add_method(
                 method,
                 identity_integration,
@@ -264,6 +306,20 @@ class ApiStack(Stack):
                 authorization_type=apigateway.AuthorizationType.CUSTOM,
             )
         staff_member = staff.add_resource("{id}")
+        patient_account = admin.add_resource("patients").add_resource("{id}")
+        # Deleting an account and restoring it within 30 days (deletion.py).
+        for resource, method in (
+            (staff_member, "DELETE"),
+            (staff_member.add_resource("restore"), "POST"),
+            (patient_account, "DELETE"),
+            (patient_account.add_resource("restore"), "POST"),
+        ):
+            resource.add_method(
+                method,
+                staff_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
         for path, method in (("roles", "PATCH"), ("suspend", "POST"), ("priority-allowance", "PUT")):
             staff_member.add_resource(path).add_method(
                 method,

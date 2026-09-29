@@ -1,5 +1,5 @@
 import { calendarEntry, googleCalendarLink, outlookCalendarLink } from "./calendar";
-import { type Appointment, clock, stateLabel, until, upcoming } from "./data";
+import { type Appointment, clock, past, stateLabel, until, upcoming } from "./data";
 
 const visit = (overrides: Partial<Appointment> = {}): Appointment => ({
   appointmentId: "a-1",
@@ -53,6 +53,14 @@ describe("visits", () => {
       visit({ appointmentId: "past", startAt: "2026-09-01T08:00:00Z" }),
     ];
     expect(upcoming(list, now).map((a) => a.appointmentId)).toEqual(["soon", "later"]);
+  });
+
+  it("keeps a queue place ahead until its arrival window closes", () => {
+    const now = new Date("2026-09-24T12:00:00Z");
+    const place = visit({ appointmentId: "place", sessionId: "se-1", startAt: "2026-09-24T11:50:00Z", endAt: "2026-09-24T12:20:00Z" });
+    const visitNow = visit({ appointmentId: "visit", startAt: "2026-09-24T11:50:00Z", endAt: "2026-09-24T12:20:00Z" });
+    expect(upcoming([place, visitNow], now).map((a) => a.appointmentId)).toEqual(["place"]);
+    expect(past([place, visitNow], now).map((a) => a.appointmentId)).toEqual(["visit"]);
   });
 
   it("names every state in the patient's words", () => {

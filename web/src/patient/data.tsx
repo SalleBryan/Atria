@@ -226,17 +226,22 @@ export function join(data: Loaded, appointment: Appointment) {
   };
 }
 
+/** Whether a visit is still ahead: a request holds no time yet, so it is
+ * ahead until placed or declined, and a queue place stays ahead until its
+ * arrival window closes, not only until it opens. */
+function ahead(a: Appointment, now: Date): boolean {
+  if (a.state === "REQUESTED") return true;
+  return new Date(a.sessionId ? a.endAt : a.startAt) > now;
+}
+
 /** Booked and still ahead, soonest first. */
 export function upcoming(appointments: readonly Appointment[], now = new Date()): Appointment[] {
-  return appointments
-    // A request holds no time yet, so it is ahead until it is placed or declined.
-    .filter((a) => a.state === "REQUESTED" || (ACTIVE_STATES.includes(a.state) && new Date(a.startAt) > now))
-    .sort((a, b) => a.startAt.localeCompare(b.startAt));
+  return appointments.filter((a) => ACTIVE_STATES.includes(a.state) || a.state === "REQUESTED").filter((a) => ahead(a, now)).sort((a, b) => a.startAt.localeCompare(b.startAt));
 }
 
 /** Everything already behind, most recent first. */
 export function past(appointments: readonly Appointment[], now = new Date()): Appointment[] {
-  return appointments.filter((a) => a.state !== "REQUESTED" && new Date(a.startAt) <= now).sort((a, b) => b.startAt.localeCompare(a.startAt));
+  return appointments.filter((a) => !ahead(a, now)).sort((a, b) => b.startAt.localeCompare(a.startAt));
 }
 
 /* --------------------------------------------------------------- the clock */

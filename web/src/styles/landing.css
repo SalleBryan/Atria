@@ -334,7 +334,7 @@
   .landing-big { font-size: 22px; }
   .landing-scroll { display: none; }
 }
-}
+
 /* On a short window the cue would meet the trust lines; the page still scrolls. */
 @media (max-height: 760px) {
   .landing-scroll { display: none; }

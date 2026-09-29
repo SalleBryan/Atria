@@ -20,8 +20,8 @@ import { MIN_LENGTH, passwordRules } from "../auth/passwordRules";
 import { type CountryCode, countryName, HOME_COUNTRY, isMobile, normalisePhone } from "../auth/phone";
 import { AuthLayout, PatientBrand } from "../components/AuthLayout";
 import { Button, Checkbox, Divider, Field, Notice } from "../components/controls";
-import { Calendar, Lock, Mail, User } from "../components/icons";
-import { birthDate } from "./CompleteProfile";
+import { BirthDateField, birthDate } from "../components/BirthDateField";
+import { Lock, Mail, User } from "../components/icons";
 import { PhoneField } from "../components/PhoneField";
 import { PatientModeSwitch } from "./PatientModeSwitch";
 import { PATIENT_FOOTER } from "./PatientSignIn";
@@ -154,14 +154,10 @@ export function CreateAccount() {
           onCountry={setCountry}
           error={errors.phone}
         />
-        <Field
+        <BirthDateField
           label="Date of birth"
-          icon={Calendar}
-          inputMode="numeric"
-          autoComplete="bday"
-          placeholder="DD/MM/YYYY"
           value={form.born}
-          onChange={set("born")}
+          onChange={(born) => setForm((current) => ({ ...current, born }))}
           error={errors.born}
         />
         <Field

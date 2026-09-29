@@ -256,6 +256,15 @@
 
 /* -------------------------------------------------- phone numbers */
 .phone-input { padding-left: 6px; }
+/* The country's code, fixed in front of the number (2026-09-29). */
+.phone-dial {
+  flex: none;
+  margin-right: -2px;
+  font-size: 14.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-700);
+}
 .phone-country {
   display: inline-flex;
   flex: none;
@@ -371,6 +380,26 @@
 .picker-field[aria-expanded="true"] .picker-chevron { transform: rotate(180deg); }
 .picker-list { max-height: 280px; }
 .picker-list .suggest-item { min-height: 38px; }
+
+/* A date of birth (BirthDateField): the calendar button, and the year and
+   month grids its heading opens. */
+.birth-pick { color: var(--blue-600); }
+.birth-heading { display: inline-flex; gap: 4px; }
+.birth-switch {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink-primary);
+  background: none;
+  cursor: pointer;
+  transition: background-color var(--fade-fast), border-radius var(--move-fast);
+}
+.birth-switch:hover { background: rgba(47, 107, 228, 0.08); }
+.birth-switch-on { border-radius: 14px; color: var(--blue-700); background: rgba(47, 107, 228, 0.12); }
+.birth-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.birth-grid .date-picker-day { height: 40px; animation: pop-in var(--move-fast) both; animation-delay: calc(var(--i, 0) * 12ms); }
 
 /* A month of Find care's day chips. */
 .date-picker { gap: 6px; padding: 12px; }

@@ -17,13 +17,15 @@ import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from 
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { api, apiAll, ApiError } from "../api/client";
+import { type CountryCode, HOME_COUNTRY, isMobile, normalisePhone } from "../auth/phone";
 import { useSession } from "../auth/session";
+import { BirthDateField, birthDate } from "../components/BirthDateField";
 import { Checkbox, Field, Notice } from "../components/controls";
-import { ArrowLeft, Calendar, ChevronRight, Close, Phone, Plus, Search, Shield, Trash, Undo, User } from "../components/icons";
+import { ArrowLeft, Calendar, ChevronRight, Close, Plus, Search, Shield, Trash, Undo, User } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { LoadingPane } from "../components/LoadingPane";
 import { LoadingRow } from "../components/LoadingPane";
-import { SelectMenu } from "../components/Pickers";
+import { PhoneField } from "../components/PhoneField";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { MATRIX } from "../generated/permissions";
 import { clock, initials, languageName, type Appointment } from "../patient/data";
@@ -265,20 +267,14 @@ export function NewPatient({
   const [given, setGiven] = useState(guess.name.split(" ")[0] ?? "");
   const [family, setFamily] = useState(guess.name.split(" ").slice(1).join(" "));
   const [phone, setPhone] = useState(guess.phone);
-  const [born, setBorn] = useState("");
+  const [country, setCountry] = useState<CountryCode>(HOME_COUNTRY);
+  const [bornText, setBornText] = useState("");
+  const born = birthDate(bornText);
   const [language, setLanguage] = useState<"en" | "fr">("en");
   const [shared, setShared] = useState<RegisterEntry[] | null>(null);
   const [sameNumber, setSameNumber] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-
-  function e164(raw: string) {
-    const digits = raw.replace(/[\s().-]/g, "");
-    if (digits.startsWith("+")) return digits;
-    if (/^6\d{8}$/.test(digits)) return `+237${digits}`;
-    if (/^237\d{9}$/.test(digits)) return `+${digits}`;
-    return digits;
-  }
 
   async function submit(event: FormEvent, book: boolean) {
     event.preventDefault();
@@ -290,7 +286,7 @@ export function NewPatient({
         json: {
           givenName: given.trim(),
           familyName: family.trim(),
-          phoneE164: e164(phone),
+          phoneE164: normalisePhone(phone, country),
           ...(born ? { dateOfBirth: born } : {}),
           preferredLanguage: language,
           ...(sameNumber ? { sameNumberConfirmed: true } : {}),
@@ -307,7 +303,8 @@ export function NewPatient({
     }
   }
 
-  const ready = given.trim() && family.trim() && e164(phone).length >= 10 && (!shared || sameNumber);
+  const bornWrong = Boolean(bornText.trim()) && !born;
+  const ready = given.trim() && family.trim() && isMobile(normalisePhone(phone, country)) && !bornWrong && (!shared || sameNumber);
 
   return (
     <div className="scrim" onClick={() => !busy && onClose()}>
@@ -335,22 +332,24 @@ export function NewPatient({
               <Field label="Given name" value={given} maxLength={60} onChange={(e) => setGiven(e.target.value)} />
               <Field label="Family name" value={family} maxLength={60} onChange={(e) => setFamily(e.target.value)} />
             </div>
-            <Field
+            <PhoneField
               label="Mobile number"
-              icon={Phone}
-              inputMode="tel"
-              placeholder="6 91 23 45 67"
               hint="Reminders go here by SMS."
               value={phone}
-              onChange={(e) => {
-                setPhone(e.target.value);
+              country={country}
+              onCountry={setCountry}
+              onChange={(next) => {
+                setPhone(next);
                 setShared(null);
                 setSameNumber(false);
               }}
             />
-            <div className="off-fields">
-              <BirthDate value={born} onChange={setBorn} />
-            </div>
+            <BirthDateField
+              label="Date of birth, if known"
+              value={bornText}
+              onChange={setBornText}
+              error={bornWrong ? "Enter a real date of birth, such as 02/04/1990, or leave it empty." : undefined}
+            />
             <div className="off-fields">
               <div className="off-field">
                 <span>Messages in</span>
@@ -403,52 +402,6 @@ export function NewPatient({
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-/** A date of birth from three menus: a month grid is no way to reach 1958. */
-function BirthDate({ value, onChange }: { value: string; onChange: (date: string) => void }) {
-  const [year, month, day] = value ? value.split("-") : ["", "", ""];
-  const [parts, setParts] = useState({ year: year ?? "", month: month ?? "", day: day ?? "" });
-  const thisYear = new Date().getUTCFullYear();
-  const set = (patch: Partial<typeof parts>) => {
-    const next = { ...parts, ...patch };
-    setParts(next);
-    if (next.year && next.month && next.day) {
-      const days = new Date(Date.UTC(Number(next.year), Number(next.month), 0)).getUTCDate();
-      const d = String(Math.min(Number(next.day), days)).padStart(2, "0");
-      onChange(`${next.year}-${next.month}-${d}`);
-    } else onChange("");
-  };
-  return (
-    <div className="off-field birth-date">
-      <span>Date of birth, if known</span>
-      <span className="settings-inline">
-        <SelectMenu
-          label="Day"
-          value={parts.day || null}
-          width={120}
-          options={Array.from({ length: 31 }, (_, n) => ({ id: String(n + 1).padStart(2, "0"), label: String(n + 1) }))}
-          onChange={(v) => set({ day: v })}
-        />
-        <SelectMenu
-          label="Month"
-          value={parts.month || null}
-          width={180}
-          options={MONTHS.map((name, n) => ({ id: String(n + 1).padStart(2, "0"), label: name }))}
-          onChange={(v) => set({ month: v })}
-        />
-        <SelectMenu
-          label="Year"
-          value={parts.year || null}
-          width={130}
-          options={Array.from({ length: 110 }, (_, n) => ({ id: String(thisYear - n), label: String(thisYear - n) }))}
-          onChange={(v) => set({ year: v })}
-        />
-      </span>
     </div>
   );
 }

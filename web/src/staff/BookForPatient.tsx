@@ -16,10 +16,12 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
+import { type CountryCode, HOME_COUNTRY, normalisePhone } from "../auth/phone";
 import { useSession } from "../auth/session";
 import { Field, Notice } from "../components/controls";
-import { Calendar, Close, Phone, Plus, Search, Stethoscope } from "../components/icons";
+import { Calendar, Close, Plus, Search, Stethoscope } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { PhoneField } from "../components/PhoneField";
 import { SelectMenu } from "../components/Pickers";
 import { type Slot, WeekSlots } from "../components/WeekSlots";
 import { type Appointment, clock, initials, offeredAt } from "../patient/data";
@@ -51,6 +53,7 @@ export function BookForPatient() {
 
   const [channel, setChannel] = useState<Channel>("PHONE");
   const [callback, setCallback] = useState("");
+  const [callbackCountry, setCallbackCountry] = useState<CountryCode>(HOME_COUNTRY);
   const [facility, setFacility] = useState("");
   const [referrer, setReferrer] = useState("");
   const [note, setNote] = useState("");
@@ -101,15 +104,9 @@ export function BookForPatient() {
 
   const channelReady =
     channel === "WALK_IN" ||
-    (channel === "PHONE" && /^\+?\d[\d\s]{7,}$/.test(callback.trim())) ||
+    (channel === "PHONE" && /^\+[1-9]\d{7,14}$/.test(normalisePhone(callback, callbackCountry))) ||
     (channel === "REFERRAL" && facility.trim().length > 1);
   const ready = Boolean(patient && clinician && type && slot && channelReady);
-
-  function e164(raw: string) {
-    const digits = raw.replace(/[\s().-]/g, "");
-    if (digits.startsWith("+")) return digits;
-    return /^6\d{8}$/.test(digits) ? `+237${digits}` : digits;
-  }
 
   async function book(event: FormEvent) {
     event.preventDefault();
@@ -126,7 +123,7 @@ export function BookForPatient() {
           appointmentTypeId: type.appointmentTypeId,
           startAt: slot.startAt,
           channel,
-          ...(channel === "PHONE" ? { callbackPhone: e164(callback) } : {}),
+          ...(channel === "PHONE" ? { callbackPhone: normalisePhone(callback, callbackCountry) } : {}),
           ...(channel === "REFERRAL"
             ? { referringFacility: facility.trim(), referringClinicianName: referrer.trim(), referralNote: note.trim() }
             : {}),
@@ -238,13 +235,12 @@ export function BookForPatient() {
           </div>
           <p className="availability-note">{CHANNELS.find((c) => c.id === channel)?.hint}</p>
           {channel === "PHONE" && (
-            <Field
+            <PhoneField
               label="Number to call back on"
-              icon={Phone}
-              inputMode="tel"
-              placeholder="6 91 23 45 67"
               value={callback}
-              onChange={(e) => setCallback(e.target.value)}
+              country={callbackCountry}
+              onCountry={setCallbackCountry}
+              onChange={setCallback}
             />
           )}
           {channel === "REFERRAL" && (

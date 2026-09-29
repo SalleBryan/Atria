@@ -1,18 +1,20 @@
 /**
- * A mobile number field with its country (feedback 2026-09-25).
+ * A mobile number field with its country (feedback 2026-09-25, 2026-09-29).
  *
- * The flag button opens a searchable list of countries; picking one puts its
- * code in front of the number, replacing any code already there. Typing a
- * number that starts with its code (+237, 00237) switches the flag to that
- * country as soon as the code can be told. A number typed without a code is
- * read as the chosen country's. The flags load only when a phone field is on
- * the screen, since the whole set is larger than the rest of the page.
+ * The flag and the country's dial code stand in front of the input, so the
+ * person types only their own number, 670000000 or 6 70 00 00 00, and it is
+ * grouped as they type. The flag button opens a searchable list of countries;
+ * picking one changes the code in front and keeps the number. A number typed
+ * or pasted with its code (+44..., 0044...) switches the flag to that country
+ * and the code comes off the input. The value handed out is the national
+ * number; normalisePhone(value, country) gives the stored E.164. The flags
+ * load only when a phone field is on the screen.
  */
 
 import { type ComponentType, type CSSProperties, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { type CountryCode, countries, countryName, countryOf, dialCode, withCountry } from "../auth/phone";
+import { type CountryCode, countries, countryName, dialCode, HOME_COUNTRY, nationalInput } from "../auth/phone";
 import { useMenu } from "./FilterMenu";
 import { Close, Search } from "./icons";
 
@@ -78,14 +80,16 @@ export function PhoneField({
     ? all.filter((c) => c.name.toLowerCase().includes(words) || c.dial.slice(1).startsWith(words) || c.code.toLowerCase() === words)
     : all;
 
+  // A stored number (+237...) opens as its national part.
+  const shownValue = nationalInput(value, country).text;
   const type = (raw: string) => {
-    onChange(raw);
-    const found = countryOf(raw, country);
-    if (found && found !== country) onCountry(found);
+    const read = nationalInput(raw, country);
+    if (read.country !== country) onCountry(read.country);
+    onChange(read.text);
   };
   const pick = (next: CountryCode) => {
     onCountry(next);
-    onChange(withCountry(value, next));
+    onChange(nationalInput(shownValue, next).text);
     close();
     window.setTimeout(() => input.current?.focus(), 0);
   };
@@ -111,16 +115,19 @@ export function PhoneField({
             <path d="m2 3.5 3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
+        <span className="phone-dial" id={`${id}-dial`}>
+          {dialCode(country)}
+        </span>
         <input
           ref={input}
           id={id}
           type="tel"
-          autoComplete="tel"
+          autoComplete="tel-national"
           inputMode="tel"
-          placeholder={`${dialCode(country)} ${placeholder}`}
-          value={value}
+          placeholder={country === HOME_COUNTRY ? placeholder : ""}
+          value={shownValue}
           aria-invalid={error ? true : undefined}
-          aria-describedby={described}
+          aria-describedby={[`${id}-dial`, described].filter(Boolean).join(" ")}
           onChange={(event) => type(event.target.value)}
         />
       </div>

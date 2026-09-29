@@ -104,3 +104,27 @@ export function withCountry(raw: string, country: CountryCode): string {
   }
   return `${dialCode(country)} ${rest}`;
 }
+
+/**
+ * What a phone field shows after its fixed dial code (feedback 2026-09-29):
+ * the national number, grouped as the country writes it. A code typed or
+ * pasted in front (+44, 0044) is taken off and its country handed back, so
+ * the flag follows, and at home a leading 0 is dropped, since Cameroon's
+ * numbers have none (670000000, not 0670000000).
+ */
+export function nationalInput(raw: string, country: CountryCode): { country: CountryCode; text: string } {
+  let compact = raw.replace(/[^\d+]/g, "").replace(/^00/, "+");
+  let at = country;
+  if (compact.startsWith("+")) {
+    const typing = new AsYouType();
+    typing.input(compact);
+    const code = typing.getCallingCode();
+    // Still typing the code: keep it as it is until the country can be told.
+    if (!code) return { country, text: compact };
+    at = countryOf(compact, country) ?? country;
+    compact = compact.slice(1 + code.length);
+  }
+  compact = compact.replace(/\+/g, "").slice(0, 15);
+  if (at === HOME_COUNTRY) compact = compact.replace(/^0+/, "");
+  return { country: at, text: compact ? new AsYouType(at).input(compact) : "" };
+}

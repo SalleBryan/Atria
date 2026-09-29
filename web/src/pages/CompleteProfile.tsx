@@ -16,24 +16,15 @@ import { messageFor } from "../auth/errors";
 import { type CountryCode, countryName, HOME_COUNTRY, isMobile, normalisePhone } from "../auth/phone";
 import { useSession } from "../auth/session";
 import { AuthLayout, PatientBrand } from "../components/AuthLayout";
-import { Button, Checkbox, Field, Notice } from "../components/controls";
-import { Calendar } from "../components/icons";
+import { Button, Checkbox, Notice } from "../components/controls";
+import { BirthDateField, birthDate } from "../components/BirthDateField";
 import { PhoneField } from "../components/PhoneField";
 import { SignOutMenu } from "../components/SignOutMenu";
 import { PATIENT_FOOTER } from "./PatientSignIn";
 
 type Errors = Partial<Record<"phone" | "born" | "terms", string>>;
 
-/** "02/04/1990" or "2/4/1990" as 1990-04-02; null when it is not a real past date. */
-export function birthDate(text: string): string | null {
-  const found = /^\s*(\d{1,2})[/.\- ](\d{1,2})[/.\- ](\d{4})\s*$/.exec(text);
-  if (!found) return null;
-  const [day, month, year] = [Number(found[1]), Number(found[2]), Number(found[3])];
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
-  if (year < 1900 || date.getTime() > Date.now()) return null;
-  return date.toISOString().slice(0, 10);
-}
+export { birthDate } from "../components/BirthDateField";
 
 export function CompleteProfile({ me }: { me: Me }) {
   const { refresh } = useSession();
@@ -97,16 +88,7 @@ export function CompleteProfile({ me }: { me: Me }) {
           <PhoneField label="Mobile number" value={phone} onChange={setPhone} country={country} onCountry={setCountry} error={errors.phone} />
         )}
         {missing.includes("dateOfBirth") && (
-          <Field
-            label="Date of birth"
-            icon={Calendar}
-            inputMode="numeric"
-            autoComplete="bday"
-            placeholder="DD/MM/YYYY"
-            value={born}
-            onChange={(event) => setBorn(event.target.value)}
-            error={errors.born}
-          />
+          <BirthDateField label="Date of birth" value={born} onChange={setBorn} error={errors.born} />
         )}
         {missing.includes("terms") && (
           <>

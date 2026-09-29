@@ -1,4 +1,4 @@
-import { countries, countryOf, isMobile, normalisePhone, withCountry } from "./phone";
+import { countries, countryOf, isMobile, nationalInput, normalisePhone, withCountry } from "./phone";
 
 describe("phone numbers on the Cameroon pack", () => {
   it.each([
@@ -63,5 +63,27 @@ describe("withCountry", () => {
 describe("countries", () => {
   it("lists the home country first", () => {
     expect(countries()[0]).toMatchObject({ code: "CM", dial: "+237" });
+  });
+});
+
+describe("the phone field after its dial code", () => {
+  it("takes a Cameroonian number without its code and groups it", () => {
+    expect(nationalInput("670000000", "CM")).toEqual({ country: "CM", text: "6 70 00 00 00" });
+    expect(normalisePhone(nationalInput("670000000", "CM").text, "CM")).toBe("+237670000000");
+  });
+
+  it("drops a leading 0 at home", () => {
+    expect(nationalInput("0670000000", "CM").text).toBe("6 70 00 00 00");
+  });
+
+  it("takes the code off a pasted international number and switches the country", () => {
+    const pasted = nationalInput("+44 7700 900123", "CM");
+    expect(pasted.country).toBe("GB");
+    expect(normalisePhone(pasted.text, pasted.country)).toBe("+447700900123");
+    expect(nationalInput("+237 670 000 000", "CM").text).toBe("6 70 00 00 00");
+  });
+
+  it("keeps a stored number's national part when a field opens on it", () => {
+    expect(nationalInput("+237691234567", "CM").text).toBe("6 91 23 45 67");
   });
 });

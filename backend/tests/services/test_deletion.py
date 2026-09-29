@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+from typing import Any
 
 import pytest
 from test_appointment_cancel import (
@@ -44,7 +45,7 @@ class FakePool:
         sub = kwargs["Filter"].split('"')[1]
         return {"Users": [{"Username": f"user-{sub}"}]}
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         def record(**kwargs):
             self.calls.append((name, kwargs.get("Username", "")))
             return {}
@@ -213,7 +214,8 @@ class TestThePurge:
         }
         person = repository.get(keys.person("p-patient"))
         assert person["givenName"] == "Deleted"
-        assert "email" not in person and "phoneE164" not in person and "cognitoSub" not in person
+        for erased in ("email", "phoneE164", "cognitoSub"):
+            assert erased not in person
         assert Register(repository).entries_of(TENANT, PATIENT) == []
         assert repository.get(keys.appointment(TENANT, visit["appointmentId"]))
         assert ("admin_delete_user", "user-sub-amina") in pool.calls

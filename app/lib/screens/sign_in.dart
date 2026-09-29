@@ -3,17 +3,13 @@ import 'package:go_router/go_router.dart';
 
 import '../auth/auth.dart';
 import '../auth/session.dart';
-import '../config.dart';
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
 import '../ui/widgets.dart';
 
-/// "Mobile · Sign in", the web's patient sign-in at phone width
-/// (web/src/pages/PatientSignIn.tsx). Staff sign in from the same app through
-/// the staff client, which offers no Google and no sign-up (FR-ACC-03).
-///
-/// Continue with Google and Create account arrive as their own screens; they
-/// are not shown until they work.
+/// "Mobile · Sign in" (Figma 32:2). The switch picks the Cognito client:
+/// patients through theirs, clinic staff through the staff client, which
+/// offers no Google and no sign-up (FR-ACC-03, ADR 0021).
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key, required this.session, this.audience = Audience.patient});
   final Session session;
@@ -27,6 +23,7 @@ class _SignInScreenState extends State<SignInScreen> {
   final email = TextEditingController();
   final password = TextEditingController();
   bool busy = false;
+  bool googleBusy = false;
   String? error;
 
   bool get staff => widget.audience == Audience.staff;
@@ -49,6 +46,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
   Future<void> submit() async {
     if (email.text.trim().isEmpty || password.text.isEmpty || busy) return;
+    FocusScope.of(context).unfocus();
     setState(() {
       busy = true;
       error = null;
@@ -58,14 +56,14 @@ class _SignInScreenState extends State<SignInScreen> {
       if (!mounted) return;
       switch (step) {
         case SignInStep.authenticatorCode:
-          // Only an administrator has an authenticator, and administration
-          // is the web console's alone.
+          // Only an administrator has an authenticator, and administration is
+          // the web console's alone.
           await widget.session.auth.signOut();
           setState(() => error = 'Administrators use the Atria console on the web.');
         case SignInStep.newPassword:
           setState(() => error = 'Set your own password in the Atria console on the web first, then sign in here.');
         case SignInStep.confirmEmail:
-          setState(() => error = 'Confirm your email first: use the code we sent you.');
+          context.push('/verify-email?email=${Uri.encodeQueryComponent(email.text.trim())}');
         case SignInStep.done:
           final state = await widget.session.refresh();
           if (!mounted) return;
@@ -78,90 +76,205 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
+  /// Continue with Google (FR-ACC-02): the hosted sign-in in the browser,
+  /// then GET /me as any sign-in; a new account then finishes its record.
+  Future<void> google() async {
+    if (busy || googleBusy) return;
+    setState(() {
+      googleBusy = true;
+      error = null;
+    });
+    try {
+      await widget.session.auth.signInWithGoogle();
+      final state = await widget.session.refresh();
+      if (!mounted) return;
+      if (state is Unresolved) setState(() => error = state.message);
+    } on AuthFailure catch (e) {
+      if (mounted) setState(() => error = e.message);
+    } finally {
+      if (mounted) setState(() => googleBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ready = email.text.trim().isNotEmpty && password.text.isNotEmpty;
     return Scaffold(
-      body: DecoratedBox(
-        decoration: BoxDecoration(gradient: AtriaGradients.page),
+      body: PageBackground(
         child: SafeArea(
           child: AutofillGroup(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(AtriaSpace.s5, AtriaSpace.s6, AtriaSpace.s5, AtriaSpace.s6),
-              children: [
-                const Rise(
-                  child: Align(alignment: Alignment.centerLeft, child: BrandMark()),
-                ),
-                const SizedBox(height: 22),
-                Rise(index: 1, child: Text(staff ? 'Sign in to work.' : 'Welcome back.', style: AtriaType.display())),
-                const SizedBox(height: 10),
-                Rise(
-                  index: 2,
-                  child: Text(
-                    staff ? 'Use the credentials your practice administrator issued you.' : 'Pick up where you left off. Your visits, reminders and records follow you across every device.',
-                    style: AtriaType.body(),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                Rise(
-                  index: 3,
-                  child: FormCard(
+            child: LayoutBuilder(
+              builder: (context, box) => SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(26, 42, 26, 26),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: box.maxHeight - 68),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      if (error != null) ...[Notice(error!, tone: NoticeTone.error), const SizedBox(height: 14)],
-                      AtriaField(
-                        label: staff ? 'Work email' : 'Email address',
-                        icon: Icons.mail_outline,
-                        controller: email,
-                        hint: staff ? 'you@hospital.cm' : 'you@example.com',
-                        keyboard: TextInputType.emailAddress,
-                        autofill: const [AutofillHints.username, AutofillHints.email],
-                        action: TextInputAction.next,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Rise(child: BrandMark()),
+                          const SizedBox(height: 18),
+                          Rise(
+                            index: 1,
+                            child: Text(
+                              'Welcome back.',
+                              style: AtriaType.display(size: 30).copyWith(height: 33 / 30, letterSpacing: -0.75),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Rise(
+                            index: 2,
+                            child: SizedBox(
+                              width: 280,
+                              child: Text(
+                                staff
+                                    ? 'Use the credentials your practice administrator issued you.'
+                                    : 'Pick up where you left off, or create an account in under a minute.',
+                                style: AtriaType.body(color: const Color(0xFF54658A), height: 20.3 / 14),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Rise(
+                            index: 3,
+                            child: Segmented(
+                              labels: const ['Patient', 'Clinic staff'],
+                              selected: staff ? 1 : 0,
+                              onChanged: (i) => context.go(i == 1 ? '/staff/sign-in' : '/sign-in'),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Rise(index: 4, child: _form(ready)),
+                        ],
                       ),
-                      const SizedBox(height: 14),
-                      AtriaField(
-                        label: 'Password',
-                        icon: Icons.lock_outline,
-                        controller: password,
-                        hint: 'Your password',
-                        obscure: true,
-                        autofill: const [AutofillHints.password],
-                        action: TextInputAction.done,
-                        onSubmitted: (_) => submit(),
-                      ),
-                      const SizedBox(height: 18),
-                      PrimaryButton(label: 'Sign in', busy: busy, onPressed: ready ? submit : null),
+                      const SizedBox(height: 24),
+                      Rise(index: 5, child: _foot()),
                     ],
                   ),
                 ),
-                const SizedBox(height: 18),
-                Rise(
-                  index: 4,
-                  child: Text(
-                    staff
-                        ? 'Staff accounts are issued by your practice administrator. Access is logged for audit.'
-                        : 'Trouble signing in? The front desk at ${AtriaConfig.hospital} can confirm the email on your record.',
-                    textAlign: TextAlign.center,
-                    style: AtriaType.body(size: 12, color: AtriaColors.inkMuted),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Rise(
-                  index: 5,
-                  child: Center(
-                    child: TextButton(
-                      onPressed: () => context.go(staff ? '/sign-in' : '/staff/sign-in'),
-                      child: Text(
-                        staff ? 'A patient? Sign in here' : 'Hospital staff? Sign in to work',
-                        style: AtriaType.body(size: 13, weight: FontWeight.w700, color: AtriaColors.blue600),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _form(bool ready) {
+    return FormCard(
+      children: [
+        if (error != null) ...[Notice(error!, tone: NoticeTone.error), const SizedBox(height: 14)],
+        AtriaField(
+          label: staff ? 'Work email' : 'Email address',
+          icon: 'mail',
+          controller: email,
+          hint: staff ? 'you@hospital.cm' : 'you@example.com',
+          keyboard: TextInputType.emailAddress,
+          autofill: const [AutofillHints.username, AutofillHints.email],
+          action: TextInputAction.next,
+        ),
+        const SizedBox(height: 13),
+        AtriaField(
+          label: 'Password',
+          icon: 'lock',
+          controller: password,
+          hint: 'Your password',
+          obscure: true,
+          autofill: const [AutofillHints.password],
+          action: TextInputAction.done,
+          onSubmitted: (_) => submit(),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: () => context.push(staff ? '/staff/forgot-password' : '/forgot-password'),
+            child: Text(
+              'Forgot password?',
+              style: AtriaType.body(size: 12.5, weight: FontWeight.w700, color: AtriaColors.blue600),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        PrimaryButton(label: 'Sign in', busy: busy, onPressed: ready && !googleBusy ? submit : null),
+        if (!staff) ...[
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              const Expanded(child: Divider(color: AtriaColors.lineHairline, height: 1)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'OR',
+                  style: AtriaType.body(
+                    size: 11.5,
+                    weight: FontWeight.w600,
+                    color: AtriaColors.inkSoft,
+                  ).copyWith(letterSpacing: 0.69),
+                ),
+              ),
+              const Expanded(child: Divider(color: AtriaColors.lineHairline, height: 1)),
+            ],
+          ),
+          const SizedBox(height: 18),
+          SecondaryButton(
+            label: googleBusy ? 'Opening Google' : 'Continue with Google',
+            onPressed: busy || googleBusy ? null : google,
+            leading: Container(
+              width: 26,
+              height: 26,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AtriaColors.surfaceField,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: AtriaColors.lineHairline),
+              ),
+              child: Text('G', style: AtriaType.display(size: 13, color: AtriaColors.inkMuted)),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _foot() {
+    final small = AtriaType.body(size: 11, color: AtriaColors.inkSoft, height: 16.5 / 11);
+    return Column(
+      children: [
+        if (staff)
+          Text(
+            'Staff accounts are issued by your practice administrator.',
+            textAlign: TextAlign.center,
+            style: AtriaType.body(size: 13.5, color: const Color(0xFF6B7C9C)),
+          )
+        else
+          GestureDetector(
+            onTap: () => context.push('/create-account'),
+            child: Text.rich(
+              TextSpan(
+                text: 'New to Atria? ',
+                children: [
+                  TextSpan(
+                    text: 'Create an account',
+                    style: AtriaType.body(size: 13.5, weight: FontWeight.w700, color: AtriaColors.blue600),
+                  ),
+                ],
+              ),
+              textAlign: TextAlign.center,
+              style: AtriaType.body(size: 13.5, color: const Color(0xFF6B7C9C)),
+            ),
+          ),
+        const SizedBox(height: 14),
+        Text(
+          staff
+              ? 'Access is logged for audit.'
+              : "By continuing you agree to the Atria terms of use\nand the clinic's privacy notice.",
+          textAlign: TextAlign.center,
+          style: small,
+        ),
+      ],
     );
   }
 }

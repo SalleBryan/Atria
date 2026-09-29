@@ -29,6 +29,9 @@ def main() -> int:
         "ATRIA_PATIENT_CLIENT_ID": devkit.app_client(idp, pool, "patient"),
         "ATRIA_STAFF_CLIENT_ID": devkit.app_client(idp, pool, "staff"),
         "ATRIA_API_BASE": devkit.api_base(),
+        # Cognito's hosted sign-in, for Google (app/lib/auth/google.dart).
+        "ATRIA_AUTH_DOMAIN": f"{idp.describe_user_pool(UserPoolId=pool)['UserPool']['Domain']}"
+        f".auth.{devkit.REGION}.amazoncognito.com",
     }
     TARGET.parent.mkdir(exist_ok=True)
     TARGET.write_text(json.dumps(values, indent=2) + "\n", encoding="utf-8")

@@ -2,6 +2,8 @@ import 'package:amazon_cognito_identity_dart_2/cognito.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../config.dart';
+import 'google.dart' as google;
+import 'google.dart' show GoogleTokens;
 
 /// Patients and staff sign in through different Cognito app clients
 /// (FR-ACC-03): only the patient client offers Google, and the staff client's
@@ -20,8 +22,39 @@ class AuthFailure implements Exception {
   String toString() => message;
 }
 
+/// What a new patient gives the sign-up; the post confirmation trigger
+/// writes the person from these attributes (FR-ACC-01).
+class NewAccount {
+  const NewAccount({
+    required this.email,
+    required this.password,
+    required this.givenName,
+    required this.familyName,
+    required this.phone,
+    required this.birthdate,
+  });
+  final String email;
+  final String password;
+  final String givenName;
+  final String familyName;
+  final String phone;
+  final String birthdate;
+}
+
 abstract class Auth {
   Future<SignInStep> signIn(Audience audience, String email, String password);
+
+  /// A patient's own account (FR-ACC-01): Cognito sends a code to the email.
+  Future<void> signUp(NewAccount account);
+  Future<void> confirmSignUp(String email, String code);
+  Future<void> resendSignUpCode(String email);
+
+  /// Forgotten password: a code to the email, then the new password with it.
+  Future<void> forgotPassword(Audience audience, String email);
+  Future<void> confirmNewPassword(Audience audience, String email, String code, String password);
+
+  /// Continue with Google, patients only (auth/google.dart).
+  Future<SignInStep> signInWithGoogle();
   Future<SignInStep> confirmAuthenticatorCode(String code);
   Future<SignInStep> setNewPassword(String password);
 
@@ -95,6 +128,98 @@ class CognitoAuth implements Auth {
   }
 
   @override
+  Future<void> signUp(NewAccount account) async {
+    try {
+      await _pool(Audience.patient).signUp(
+        account.email.trim(),
+        account.password,
+        userAttributes: [
+          AttributeArg(name: 'email', value: account.email.trim()),
+          AttributeArg(name: 'given_name', value: account.givenName),
+          AttributeArg(name: 'family_name', value: account.familyName),
+          AttributeArg(name: 'phone_number', value: account.phone),
+          AttributeArg(name: 'birthdate', value: account.birthdate),
+        ],
+      );
+    } on CognitoClientException catch (e) {
+      throw AuthFailure(messageFor(e.code, e.message));
+    }
+  }
+
+  CognitoUser _patient(String email) {
+    final pool = _pool(Audience.patient);
+    return CognitoUser(email.trim(), pool, storage: pool.storage);
+  }
+
+  @override
+  Future<void> confirmSignUp(String email, String code) async {
+    try {
+      await _patient(email).confirmRegistration(code.trim());
+    } on CognitoClientException catch (e) {
+      throw AuthFailure(messageFor(e.code, e.message));
+    }
+  }
+
+  @override
+  Future<void> resendSignUpCode(String email) async {
+    try {
+      await _patient(email).resendConfirmationCode();
+    } on CognitoClientException catch (e) {
+      throw AuthFailure(messageFor(e.code, e.message));
+    }
+  }
+
+  @override
+  Future<void> forgotPassword(Audience audience, String email) async {
+    final pool = _pool(audience);
+    try {
+      await CognitoUser(email.trim(), pool, storage: pool.storage).forgotPassword();
+    } on CognitoClientException catch (e) {
+      throw AuthFailure(messageFor(e.code, e.message));
+    }
+  }
+
+  @override
+  Future<void> confirmNewPassword(Audience audience, String email, String code, String password) async {
+    final pool = _pool(audience);
+    try {
+      await CognitoUser(email.trim(), pool, storage: pool.storage).confirmPassword(code.trim(), password);
+    } on CognitoClientException catch (e) {
+      throw AuthFailure(messageFor(e.code, e.message));
+    }
+  }
+
+  @override
+  Future<SignInStep> signInWithGoogle() async {
+    final GoogleTokens tokens;
+    try {
+      tokens = await google.signInWithGoogle();
+    } on google.GoogleSignInCancelled {
+      throw AuthFailure('Google sign-in was cancelled.');
+    } on StateError catch (e) {
+      throw AuthFailure(e.message);
+    }
+    // Kept as the patient pool keeps a password sign-in, so accessToken and
+    // refresh work the same way from here on.
+    final id = CognitoIdToken(tokens.idToken);
+    final username = id.payload['cognito:username'] as String? ?? id.payload['sub'] as String;
+    final pool = _pool(Audience.patient);
+    final user = CognitoUser(
+      username,
+      pool,
+      storage: pool.storage,
+      signInUserSession: CognitoUserSession(
+        id,
+        CognitoAccessToken(tokens.accessToken),
+        refreshToken: CognitoRefreshToken(tokens.refreshToken),
+      ),
+    );
+    await user.cacheTokens();
+    _audience = Audience.patient;
+    return SignInStep.done;
+  }
+
+  @override
   Future<SignInStep> confirmAuthenticatorCode(String code) async {
     final user = _pending;
     if (user == null) throw AuthFailure('Sign in again to continue.');
@@ -163,6 +288,10 @@ class CognitoAuth implements Auth {
 String messageFor(String? code, String? fallback) {
   switch (code) {
     case 'NotAuthorizedException':
+      // An account an administrator deleted (or suspended) is disabled.
+      if ((fallback ?? '').toLowerCase().contains('disabled')) {
+        return 'This account has been closed by the hospital. Contact the front desk: it can be restored within 30 days of closing.';
+      }
       return 'That email and password do not match.';
     case 'UserNotFoundException':
       return 'That email and password do not match.';
@@ -173,6 +302,12 @@ String messageFor(String? code, String? fallback) {
     case 'TooManyRequestsException':
     case 'LimitExceededException':
       return 'Too many attempts. Wait a minute, then try again.';
+    case 'UsernameExistsException':
+      return 'An account already uses that email. Sign in instead, or reset the password.';
+    case 'InvalidPasswordException':
+      return 'That password does not meet the rules listed.';
+    case 'UserNotConfirmedException':
+      return 'Confirm your email first: use the code we sent you.';
     case 'PasswordResetRequiredException':
       return 'Your password must be reset before you can sign in.';
     case 'NetworkError':

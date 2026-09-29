@@ -38,6 +38,10 @@ dependencies:
   go_router: ^18.0.1
   http: ^1.6.0
   flutter_secure_storage: ^11.2.0
+  flutter_svg: ^2.3.0
+  url_launcher: ^6.3.2
+  flutter_web_auth_2: ^5.1.0
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:
@@ -72,6 +76,8 @@ flutter:
       fonts:
         - asset: assets/fonts/PlusJakartaSans.ttf
 
+  assets:
+    - assets/onboarding/
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

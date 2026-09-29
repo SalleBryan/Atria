@@ -11,6 +11,10 @@ class AtriaConfig {
   static const patientClientId = String.fromEnvironment('ATRIA_PATIENT_CLIENT_ID');
   static const staffClientId = String.fromEnvironment('ATRIA_STAFF_CLIENT_ID');
 
+  /// Cognito's hosted sign-in, for Google (auth/google.dart), for example
+  /// atria-dev-cm.auth.us-east-1.amazoncognito.com.
+  static const authDomain = String.fromEnvironment('ATRIA_AUTH_DOMAIN');
+
   /// The API stage's base URL, for example https://abc.execute-api.us-east-1.amazonaws.com/dev.
   static const apiBase = String.fromEnvironment('ATRIA_API_BASE');
 

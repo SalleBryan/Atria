@@ -1,6 +1,6 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../ui/expressive.dart';
 import 'tokens.dart';
 
 /// Atria's type: Outfit for display, Plus Jakarta Sans for everything else,
@@ -52,11 +52,13 @@ ThemeData atriaTheme() {
     colorScheme: scheme,
     scaffoldBackgroundColor: AtriaColors.surfaceGround,
     fontFamily: 'PlusJakartaSans',
-    splashFactory: InkSparkle.splashFactory,
+    // The state layer and the press morph are Pressable's; no ink splash.
+    splashFactory: NoSplash.splashFactory,
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
-        TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
-        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        // Screens rise in on the default spatial spring (ui/expressive.dart).
+        TargetPlatform.android: ExpressivePageTransitions(),
+        TargetPlatform.iOS: ExpressivePageTransitions(),
       },
     ),
   );

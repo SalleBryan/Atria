@@ -135,8 +135,14 @@ DEV = Environment(
     oauth_callback_urls=(
         "https://main.dym1ejjx8bhtw.amplifyapp.com/auth/callback",
         "http://localhost:5173/auth/callback",
+        # The Flutter app's Google sign-in returns here (app/lib/auth/google.dart).
+        "atria://auth/callback",
     ),
-    oauth_logout_urls=("https://main.dym1ejjx8bhtw.amplifyapp.com/", "http://localhost:5173/"),
+    oauth_logout_urls=(
+        "https://main.dym1ejjx8bhtw.amplifyapp.com/",
+        "http://localhost:5173/",
+        "atria://auth/signout",
+    ),
     github_repository="SalleBryan/Atria",
     github_subject="repo:SalleBryan@111648793/Atria@1365951066",
     tags={

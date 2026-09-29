@@ -18,7 +18,7 @@ class ApiError implements Exception {
 /// Calls to the Atria API, with the signed-in person's access token.
 abstract class Api {
   Future<Map<String, dynamic>> get(String path);
-  Future<Map<String, dynamic>> send(String method, String path, [Object? body]);
+  Future<Map<String, dynamic>> send(String method, String path, [Object? body, Map<String, String>? headers]);
 }
 
 class HttpApi implements Api {
@@ -30,10 +30,11 @@ class HttpApi implements Api {
   Future<Map<String, dynamic>> get(String path) => send('GET', path);
 
   @override
-  Future<Map<String, dynamic>> send(String method, String path, [Object? body]) async {
+  Future<Map<String, dynamic>> send(String method, String path, [Object? body, Map<String, String>? headers]) async {
     final token = await _auth.accessToken();
     final request = http.Request(method, Uri.parse('${AtriaConfig.apiBase}$path'));
     if (token != null) request.headers['Authorization'] = 'Bearer $token';
+    if (headers != null) request.headers.addAll(headers);
     if (body != null) {
       request.headers['Content-Type'] = 'application/json';
       request.body = jsonEncode(body);
@@ -81,6 +82,16 @@ class Me {
   String? get clinicId => raw['clinicId'] as String?;
   bool get phoneVerified => raw['phoneVerified'] == true;
   bool get secondFactorRequired => raw['secondFactorRequired'] == true;
+  String? get phoneE164 => raw['phoneE164'] as String?;
+  String? get dateOfBirth => raw['dateOfBirth'] as String?;
+  String? get preferredLanguage => raw['preferredLanguage'] as String?;
+  List<String> get languages => (raw['languages'] as List? ?? const []).cast<String>();
+
+  /// What a patient's record still lacks: phone, dateOfBirth, terms (GET /me).
+  List<String> get missing => (raw['missing'] as List? ?? const []).cast<String>();
+
+  /// A deletion waiting out its 30 days: purgeAt, by (SELF or ADMIN).
+  Map<String, dynamic>? get deletion => raw['deletion'] as Map<String, dynamic>?;
 
   bool get isStaff => staffId != null;
   bool get isAdmin => roles.contains('TENANT_ADMIN');

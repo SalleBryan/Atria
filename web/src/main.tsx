@@ -7,6 +7,7 @@ import "./styles/visits.css";
 import "./styles/staff.css";
 import "./styles/filters.css";
 import "./styles/landing.css";
+import "./styles/landing-more.css";
 import "./styles/tiers.css";
 // Finishes a Google sign-in when Cognito returns the browser to the app.
 import "aws-amplify/auth/enable-oauth-listener";

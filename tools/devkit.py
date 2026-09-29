@@ -208,8 +208,10 @@ def sign_in(idp: Any, pool_id: str, client_id: str, username: str, secret: str) 
                         "SOFTWARE_TOKEN_MFA_CODE": totp(stored),
                     },
                 )
-            except idp.exceptions.CodeMismatchException:
-                next_step()  # this code was already used by an earlier sign-in
+            except (idp.exceptions.CodeMismatchException, idp.exceptions.ExpiredCodeException):
+                # This code was already used by an earlier sign-in (Cognito
+                # says "expired" for a reused code).
+                next_step()
                 continue
         if "AuthenticationResult" not in result:
             raise SystemExit(f"sign-in needs a challenge: {result.get('ChallengeName')}")

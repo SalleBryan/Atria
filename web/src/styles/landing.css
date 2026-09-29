@@ -275,20 +275,65 @@
   .landing-scroll { left: 40px; }
 }
 @media (max-width: 767px) {
-  .landing { height: auto; min-height: 100vh; overflow: hidden auto; }
-  .landing-bar { flex-wrap: wrap; height: auto; padding: 20px 20px 0; gap: 10px; }
-  .landing-links { order: 3; flex: 1; padding-left: 0; }
-  .landing-staff { order: 4; height: 40px; padding: 0 14px; border-radius: 13px; font-size: 12.5px; }
-  .landing-help { top: 124px; left: 20px; right: 20px; width: auto; }
-  .landing-main { align-items: flex-start; padding: 44px 20px 40px; }
+  /* The phone hero: a clean bar, one row of links that scrolls sideways, a
+     deeper gradient so every line reads, and the portrait with two of the
+     app's cards below the actions. */
+  .landing {
+    height: auto;
+    min-height: 100vh;
+    overflow: clip;
+    background: linear-gradient(170deg, #0f3485 0%, #2458d0 45%, #3f79ec 78%, #6f9ef4 100%);
+  }
+  .landing-bar { flex-wrap: wrap; height: auto; padding: 16px 16px 0; gap: 8px; }
+  .landing-logo .logo-mark { width: 40px; height: 40px; border-radius: 14px; }
+  .landing-wordmark { font-size: 18px; }
+  .landing-staff { height: 40px; padding: 0 14px; border-radius: 20px; font-size: 12.5px; }
+  .landing-sign-in { height: 40px; padding: 0 16px; border-radius: 20px; font-size: 12.5px; }
+  .landing-links {
+    order: 3;
+    flex: 1 0 100%;
+    gap: 4px;
+    margin: 6px -16px 0;
+    padding: 0 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .landing-links::-webkit-scrollbar { display: none; }
+  .landing-link { flex: none; height: 36px; padding: 0 14px; border-radius: 18px; white-space: nowrap; }
+  .landing-link-on { border-radius: 12px; }
+  .landing-help { top: 120px; left: 16px; right: 16px; width: auto; }
+  .landing-main { flex-direction: column; align-items: stretch; padding: 30px 16px 36px; }
   .landing-hero { width: 100%; margin: 0; }
-  .landing-hero h1 { font-size: 52px; }
-  .landing-lede { width: auto; font-size: 15px; line-height: 24px; }
-  .landing-cta { flex-direction: column; }
+  .landing-eyebrow { font-size: 11px; letter-spacing: 0.12em; }
+  .landing-eyebrow::before { width: 18px; }
+  .landing-hero h1 { max-width: none; margin-top: 14px; font-size: 50px; line-height: 0.98; }
+  .landing-lede { width: auto; margin-top: 16px; font-size: 15.5px; line-height: 24px; }
+  .landing-cta { flex-direction: column; gap: 10px; margin-top: 24px; }
   .landing-create,
-  .landing-have { width: 100%; }
-  .landing-stage { display: none; }
+  .landing-have { width: 100%; height: 56px; }
+  .landing-trust { flex-direction: column; gap: 10px; margin-top: 22px; }
+  .landing-trust li { font-size: 12.5px; }
+
+  .landing-stage { position: relative; inset: auto; width: 100%; height: 430px; margin-top: 28px; }
+  .landing-pulse,
+  .landing-card-week { display: none; }
+  .hero-portrait,
+  .hero-ring { top: 54%; left: 56%; }
+  .hero-portrait { width: 280px; height: 280px; }
+  .hero-ring { width: 340px; height: 340px; }
+  .landing-card { padding: 14px 16px; border-radius: 24px; }
+  .landing-card-visit { top: 0; left: 0; width: 180px; }
+  .landing-card-visit .landing-card-when,
+  .landing-card-visit .landing-card-sub { display: none; }
+  .landing-card-visit .landing-card-who { margin-bottom: 10px; }
+  .landing-card-visit .landing-avatar { width: 38px; height: 38px; border-radius: 13px; font-size: 13px; }
+  .landing-card-visit .landing-card-name { font-size: 14px; }
+  .landing-card-visit .landing-chips { display: none; }
+  .landing-time { font-size: 32px; }
+  .landing-card-reminder { top: auto; bottom: 0; right: 0; width: 186px; }
+  .landing-big { font-size: 22px; }
   .landing-scroll { display: none; }
+}
 }
 /* On a short window the cue would meet the trust lines; the page still scrolls. */
 @media (max-height: 760px) {

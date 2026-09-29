@@ -605,7 +605,7 @@
 /* ===================================================== phone */
 @media (max-width: 767px) {
   .landing-page { height: auto; min-height: 100vh; overflow: visible; }
-  .landing-more { padding: 0 16px; }
+  .landing-more { padding: 24px 16px 0; background: linear-gradient(180deg, #6f9ef4 0, #eef3fd 220px, #eef3fd 100%); }
   .more-section { padding-top: 80px; }
   .big-title,
   .faq-head .big-title { font-size: 38px; }

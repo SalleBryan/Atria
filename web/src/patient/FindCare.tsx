@@ -22,6 +22,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
 import { Notice } from "../components/controls";
+import { IntakeDialog } from "../components/IntakeDialog";
 import { LoadingPane } from "../components/LoadingPane";
 import {
   Alert,
@@ -46,6 +47,7 @@ import {
   specialistTypes,
   type Clinician,
   clinicianName,
+  type IntakeAnswers,
   clock,
   experience,
   initials,
@@ -241,8 +243,21 @@ export function FindCare() {
   }, [selected?.clinicianProfileId, type?.appointmentTypeId, day]);
   useEffect(() => setKey(newKey()), [slot?.startAt, selected?.clinicianProfileId, type?.appointmentTypeId]);
 
+  // A type with an intake form asks its questions before the time is held
+  // (FR-BKG-15); the patient can book without answering.
+  const [asking, setAsking] = useState(false);
+
   async function book(event?: FormEvent) {
     event?.preventDefault();
+    if (!slot || !selected || !type) return;
+    if (type.intakeForm && !asking) {
+      setAsking(true);
+      return;
+    }
+    await send();
+  }
+
+  async function send(answers?: IntakeAnswers) {
     if (!slot || !selected || !type) return;
     setBooking(true);
     setFailure(null);
@@ -254,11 +269,13 @@ export function FindCare() {
           appointmentTypeId: type.appointmentTypeId,
           clinicianProfileId: selected.clinicianProfileId,
           startAt: slot.startAt,
+          ...(answers ? { intake: { answers, consent: true, method: "WEB" } } : {}),
         },
       });
       await reload();
       navigate(`/booked/${made.appointmentId}`, { state: { appointment: made } });
     } catch (caught) {
+      setAsking(false);
       if (caught instanceof ApiError && caught.status === 409 && day) {
         setConflict({ slot, clinician: selected, date: day });
       } else {
@@ -554,6 +571,16 @@ export function FindCare() {
               </div>
             </div>
 
+            {asking && type.intakeForm && (
+              <IntakeDialog
+                form={type.intakeForm}
+                clinician={clinicianName(selected)}
+                mode="book"
+                onClose={() => setAsking(false)}
+                onSubmit={(answers) => send(answers)}
+                onSkip={() => send()}
+              />
+            )}
             <form className="dock" onSubmit={book}>
               {failure && <Notice tone="error">{failure}</Notice>}
               <div className="dock-row">

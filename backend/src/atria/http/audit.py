@@ -85,6 +85,14 @@ ROUTES: dict[tuple[str, str], Route] = {
         )
         for name in VISIT_ACTIONS
     },
+    # Care context (FR-PRV-10): a clinician reading a patient's answers is a
+    # read of patient data like any other, and recorded as one.
+    ("GET", "/appointments/{id}/care-context"): Route(
+        "care_context.read", READ, "APPOINTMENT", "id"
+    ),
+    ("PUT", "/appointments/{id}/care-context"): Route(
+        "care_context.write", WRITE, "APPOINTMENT", "id"
+    ),
     ("GET", "/sessions/{id}/queue"): Route("queue.read", READ, "SESSION", "id"),
     ("POST", "/sessions/{id}/tickets"): Route("queue.ticket", WRITE, "SESSION", "id"),
     ("POST", "/sessions/{id}/next"): Route("queue.call_next", WRITE, "SESSION", "id"),
@@ -133,6 +141,16 @@ ROUTES: dict[tuple[str, str], Route] = {
         "APPOINTMENT_TYPE",
         subject_field="appointmentTypeId",
         patient_data=False,
+    ),
+    ("POST", "/admin/intake-forms"): Route(
+        "settings.form_create",
+        WRITE,
+        "INTAKE_FORM",
+        subject_field="intakeFormId",
+        patient_data=False,
+    ),
+    ("PUT", "/admin/intake-forms/{id}"): Route(
+        "settings.form_change", WRITE, "INTAKE_FORM", "id", patient_data=False
     ),
     ("PATCH", "/admin/appointment-types/{id}"): Route(
         "settings.type_change", WRITE, "APPOINTMENT_TYPE", "id", patient_data=False

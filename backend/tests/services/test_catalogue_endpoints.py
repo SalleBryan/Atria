@@ -133,5 +133,6 @@ class TestAppointmentTypes:
 
     def test_no_fee_band_or_internal_field_leaks(self, wired):
         listed = call("/appointment-types")["appointmentTypes"][0]
-        assert set(listed) == set(service.TYPE_FIELDS)
+        # The listed fields, and the questions the type asks at booking (FR-BKG-15).
+        assert set(listed) == {*service.TYPE_FIELDS, "intakeForm"}
         assert "feeBandId" not in listed

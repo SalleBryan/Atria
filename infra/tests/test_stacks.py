@@ -410,12 +410,26 @@ class TestApiStack:
         assert settings["ThrottlingRateLimit"] == 100
         assert settings["ThrottlingBurstLimit"] == 200
 
-    def test_the_identity_service_cannot_reach_the_care_context_key(self, synthesised):
-        """The front desk and identity paths never decrypt care context."""
+    def test_only_the_booking_service_reaches_care_context(self, synthesised):
+        """The front desk, identity and every other path never read care context
+        (FR-PRV-10). The booking service stores and serves the intake answers, so
+        it alone holds the table and its key."""
         template = template_for(synthesised, "api")
-        policies = template.find_resources("AWS::IAM::Policy")
-        rendered = str(policies)
-        assert "care-context" not in rendered
+        holders = []
+        for policy in template.find_resources("AWS::IAM::Policy").values():
+            document = str(policy["Properties"]["PolicyDocument"])
+            if "CareContext" in document or "care-context" in document:
+                holders.append(str(policy["Properties"].get("Roles", "")))
+        assert holders
+        assert all("BookingService" in roles for roles in holders)
+
+    def test_the_care_context_routes_exist(self, synthesised):
+        served = routes(template_for(synthesised, "api"))
+        assert ("/appointments/{id}/care-context", "GET") in served
+        assert ("/appointments/{id}/care-context", "PUT") in served
+        assert ("/admin/intake-forms", "GET") in served
+        assert ("/admin/intake-forms", "POST") in served
+        assert ("/admin/intake-forms/{id}", "PUT") in served
 
     def test_the_authoriser_is_given_no_table_access(self, synthesised):
         """It reads the token only. Resolving records is the services' work."""

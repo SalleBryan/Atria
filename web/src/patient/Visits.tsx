@@ -26,6 +26,7 @@ import { LoadingPane } from "../components/LoadingPane";
 import { byPopularity, ChipRow, FilterMenu } from "../components/FilterMenu";
 import { FeeRecord } from "../components/FeeRecord";
 import { MoveVisit } from "../components/MoveVisit";
+import { BeforeVisit } from "./BeforeVisit";
 import { NewTimeOffer } from "./NewTimeOffer";
 import { RequestDetail, TicketDetail } from "./QueueVisit";
 import { Alert, Bell, Building, CheckMark, ChevronLeft, Close, Filter, Mail, Stethoscope, User } from "../components/icons";
@@ -510,6 +511,8 @@ function VisitDetail({
         </dl>
       </div>
 
+      {type?.intakeFormId && <BeforeVisit appointmentId={appointment.appointmentId} clinician={clinicianName(clinician)} />}
+
       <div className="visit-cols">
         <section className="panel inner-card" aria-labelledby="who-title">
           <h3 id="who-title">Clinician and unit</h3>
@@ -547,7 +550,7 @@ function VisitDetail({
                   {appointment.state === "DISRUPTED"
                     ? "Set again once you choose"
                     : reminderAt.getTime() > Date.now()
-                      ? "SMS, 24 hours before"
+                      ? "SMS and email, 24 hours before"
                       : "SMS sent at booking"}
                 </dd>
               </div>

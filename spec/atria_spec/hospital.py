@@ -266,6 +266,162 @@ APPOINTMENT_TYPES: list[dict[str, Any]] = [
     },
 ]
 
+# The questions asked at booking, one form per kind of visit (FR-BKG-15, AD-06).
+# The answers are care context: kept apart from the appointment, on their own
+# key, read only by the patient and the assigned clinician, and gone 90 days
+# after the visit. Every question is the patient's to skip, except where the
+# form says it is needed; nothing here is a diagnosis or asks for one.
+# Field kinds: text, longText, choice, yesNo, number.
+INTAKE_FORMS: list[dict[str, Any]] = [
+    {
+        "intakeFormId": "if-specialist-first",
+        "name": "First specialist visit",
+        "fields": [
+            {
+                "id": "reason",
+                "kind": "longText",
+                "label": "What would you like the clinician to look at?",
+                "hint": "In your own words. Only you and your clinician read this.",
+                "required": True,
+                "max": 600,
+            },
+            {
+                "id": "since",
+                "kind": "choice",
+                "label": "How long has this been going on?",
+                "required": False,
+                "options": [
+                    {"id": "days", "label": "A few days"},
+                    {"id": "weeks", "label": "A few weeks"},
+                    {"id": "months", "label": "A few months"},
+                    {"id": "years", "label": "A year or more"},
+                ],
+            },
+            {
+                "id": "medicines",
+                "kind": "longText",
+                "label": "Medicines you take now",
+                "hint": "Names and doses, if you know them.",
+                "required": False,
+                "max": 400,
+            },
+            {
+                "id": "allergies",
+                "kind": "yesNo",
+                "label": "Do you have any allergies?",
+                "required": False,
+            },
+            {
+                "id": "allergyDetail",
+                "kind": "text",
+                "label": "If so, to what?",
+                "required": False,
+                "max": 160,
+            },
+            {
+                "id": "referred",
+                "kind": "yesNo",
+                "label": "Were you referred by another health facility?",
+                "required": False,
+            },
+        ],
+    },
+    {
+        "intakeFormId": "if-follow-up",
+        "name": "Follow-up visit",
+        "fields": [
+            {
+                "id": "change",
+                "kind": "longText",
+                "label": "What has changed since your last visit?",
+                "hint": "Better, worse, anything new.",
+                "required": True,
+                "max": 600,
+            },
+            {
+                "id": "medicinesChanged",
+                "kind": "yesNo",
+                "label": "Have your medicines changed?",
+                "required": False,
+            },
+            {
+                "id": "questions",
+                "kind": "longText",
+                "label": "Questions you want to ask",
+                "required": False,
+                "max": 400,
+            },
+        ],
+    },
+    {
+        "intakeFormId": "if-antenatal",
+        "name": "Antenatal visit",
+        "fields": [
+            {
+                "id": "weeks",
+                "kind": "number",
+                "label": "How many weeks pregnant are you?",
+                "hint": "Your best guess is fine.",
+                "required": False,
+                "min": 1,
+                "max": 45,
+            },
+            {
+                "id": "firstPregnancy",
+                "kind": "yesNo",
+                "label": "Is this your first pregnancy?",
+                "required": False,
+            },
+            {
+                "id": "concerns",
+                "kind": "longText",
+                "label": "Anything worrying you?",
+                "required": False,
+                "max": 600,
+            },
+        ],
+    },
+    {
+        "intakeFormId": "if-dental",
+        "name": "Dental check-up",
+        "fields": [
+            {
+                "id": "pain",
+                "kind": "yesNo",
+                "label": "Are you in pain?",
+                "required": False,
+            },
+            {
+                "id": "where",
+                "kind": "text",
+                "label": "Where in your mouth?",
+                "required": False,
+                "max": 160,
+            },
+            {
+                "id": "lastVisit",
+                "kind": "choice",
+                "label": "When did you last see a dentist?",
+                "required": False,
+                "options": [
+                    {"id": "year", "label": "In the last year"},
+                    {"id": "longer", "label": "Longer ago"},
+                    {"id": "never", "label": "Never"},
+                ],
+            },
+        ],
+    },
+]
+INTAKE_FORM_FOR_TYPE = {
+    "at-spec-first": "if-specialist-first",
+    "at-spec-follow": "if-follow-up",
+    "at-antenatal": "if-antenatal",
+    "at-dental-check": "if-dental",
+}
+for _type in APPOINTMENT_TYPES:
+    if _type["appointmentTypeId"] in INTAKE_FORM_FOR_TYPE:
+        _type["intakeFormId"] = INTAKE_FORM_FOR_TYPE[_type["appointmentTypeId"]]
+
 # Invented clinicians: (given, family, specialty, year on the roll, unit, languages).
 # The first six have been in the development directory since Phase 1 and keep
 # their names, so bookings already made still name the right person.

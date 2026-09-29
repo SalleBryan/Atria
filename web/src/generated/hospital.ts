@@ -458,7 +458,8 @@ export const APPOINTMENT_TYPES = [
       "u-rhb-diabetes",
       "u-rhb-hiv",
       "u-rhb-tb"
-    ]
+    ],
+    "intakeFormId": "if-specialist-first"
   },
   {
     "appointmentTypeId": "at-spec-follow",
@@ -479,7 +480,8 @@ export const APPOINTMENT_TYPES = [
       "u-rhb-diabetes",
       "u-rhb-hiv",
       "u-rhb-tb"
-    ]
+    ],
+    "intakeFormId": "if-follow-up"
   },
   {
     "appointmentTypeId": "at-antenatal",
@@ -492,7 +494,8 @@ export const APPOINTMENT_TYPES = [
     "feeBandId": "fb-specialist-follow",
     "clinicIds": [
       "u-rhb-maternity"
-    ]
+    ],
+    "intakeFormId": "if-antenatal"
   },
   {
     "appointmentTypeId": "at-dental-check",
@@ -505,7 +508,8 @@ export const APPOINTMENT_TYPES = [
     "feeBandId": "fb-specialist-follow",
     "clinicIds": [
       "u-rhb-dental"
-    ]
+    ],
+    "intakeFormId": "if-dental"
   },
   {
     "appointmentTypeId": "at-minor-proc",
@@ -814,3 +818,165 @@ export const TENANT_SETTINGS = {
   "emailSenderName": "Regional Hospital Buea",
   "patientNumberPrefix": "RHB"
 } as const;
+
+export const INTAKE_FORMS = [
+  {
+    "intakeFormId": "if-specialist-first",
+    "name": "First specialist visit",
+    "fields": [
+      {
+        "id": "reason",
+        "kind": "longText",
+        "label": "What would you like the clinician to look at?",
+        "hint": "In your own words. Only you and your clinician read this.",
+        "required": true,
+        "max": 600
+      },
+      {
+        "id": "since",
+        "kind": "choice",
+        "label": "How long has this been going on?",
+        "required": false,
+        "options": [
+          {
+            "id": "days",
+            "label": "A few days"
+          },
+          {
+            "id": "weeks",
+            "label": "A few weeks"
+          },
+          {
+            "id": "months",
+            "label": "A few months"
+          },
+          {
+            "id": "years",
+            "label": "A year or more"
+          }
+        ]
+      },
+      {
+        "id": "medicines",
+        "kind": "longText",
+        "label": "Medicines you take now",
+        "hint": "Names and doses, if you know them.",
+        "required": false,
+        "max": 400
+      },
+      {
+        "id": "allergies",
+        "kind": "yesNo",
+        "label": "Do you have any allergies?",
+        "required": false
+      },
+      {
+        "id": "allergyDetail",
+        "kind": "text",
+        "label": "If so, to what?",
+        "required": false,
+        "max": 160
+      },
+      {
+        "id": "referred",
+        "kind": "yesNo",
+        "label": "Were you referred by another health facility?",
+        "required": false
+      }
+    ]
+  },
+  {
+    "intakeFormId": "if-follow-up",
+    "name": "Follow-up visit",
+    "fields": [
+      {
+        "id": "change",
+        "kind": "longText",
+        "label": "What has changed since your last visit?",
+        "hint": "Better, worse, anything new.",
+        "required": true,
+        "max": 600
+      },
+      {
+        "id": "medicinesChanged",
+        "kind": "yesNo",
+        "label": "Have your medicines changed?",
+        "required": false
+      },
+      {
+        "id": "questions",
+        "kind": "longText",
+        "label": "Questions you want to ask",
+        "required": false,
+        "max": 400
+      }
+    ]
+  },
+  {
+    "intakeFormId": "if-antenatal",
+    "name": "Antenatal visit",
+    "fields": [
+      {
+        "id": "weeks",
+        "kind": "number",
+        "label": "How many weeks pregnant are you?",
+        "hint": "Your best guess is fine.",
+        "required": false,
+        "min": 1,
+        "max": 45
+      },
+      {
+        "id": "firstPregnancy",
+        "kind": "yesNo",
+        "label": "Is this your first pregnancy?",
+        "required": false
+      },
+      {
+        "id": "concerns",
+        "kind": "longText",
+        "label": "Anything worrying you?",
+        "required": false,
+        "max": 600
+      }
+    ]
+  },
+  {
+    "intakeFormId": "if-dental",
+    "name": "Dental check-up",
+    "fields": [
+      {
+        "id": "pain",
+        "kind": "yesNo",
+        "label": "Are you in pain?",
+        "required": false
+      },
+      {
+        "id": "where",
+        "kind": "text",
+        "label": "Where in your mouth?",
+        "required": false,
+        "max": 160
+      },
+      {
+        "id": "lastVisit",
+        "kind": "choice",
+        "label": "When did you last see a dentist?",
+        "required": false,
+        "options": [
+          {
+            "id": "year",
+            "label": "In the last year"
+          },
+          {
+            "id": "longer",
+            "label": "Longer ago"
+          },
+          {
+            "id": "never",
+            "label": "Never"
+          }
+        ]
+      }
+    ]
+  }
+] as const;

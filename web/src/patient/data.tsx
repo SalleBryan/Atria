@@ -116,6 +116,39 @@ export interface AppointmentType {
   patientRequestable?: boolean | null;
   /** The units that offer it; absent, every unit on its line. */
   clinicIds?: string[] | null;
+  /** The questions asked when it is booked (FR-BKG-15), as they stand now. */
+  intakeFormId?: string | null;
+  intakeForm?: IntakeForm | null;
+}
+
+/** One question on an intake form. */
+export interface IntakeField {
+  id: string;
+  kind: "text" | "longText" | "choice" | "yesNo" | "number";
+  label: string;
+  hint?: string;
+  required: boolean;
+  options?: { id: string; label: string }[];
+  min?: number;
+  max?: number;
+}
+
+export interface IntakeForm {
+  intakeFormId: string;
+  name: string;
+  version: number;
+  fields: IntakeField[];
+}
+
+export type IntakeAnswers = Record<string, string | number | boolean>;
+
+/** GET /appointments/{id}/care-context: the questions and any answers. */
+export interface CareContext {
+  appointmentId: string;
+  form: IntakeForm | null;
+  answers: IntakeAnswers | null;
+  submittedAt: string | null;
+  editable: boolean;
 }
 
 /** Whether a type can be booked at a unit (atria.core.settings.offered_at). */

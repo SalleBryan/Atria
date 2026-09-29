@@ -49,6 +49,11 @@ def intake_form(tenant_id: str, form_id: str, version: int) -> Key:
     return Key(f"{TENANT}{tenant_id}#FORM#{form_id}", f"V#{version}")
 
 
+def intake_form_current(tenant_id: str, form_id: str) -> Key:
+    """The form's current version, again, listed in the directory."""
+    return Key(f"{TENANT}{tenant_id}#FORM#{form_id}", "CURRENT")
+
+
 def fee_band(tenant_id: str, band_id: str, effective_from: str) -> Key:
     return Key(f"{TENANT}{tenant_id}#FEE#{band_id}", f"FROM#{effective_from}")
 

@@ -1,8 +1,8 @@
 """Seed the development tenant as the Regional Hospital Buea (FR-TEN-08).
 
 Writes the region pack exactly as the specification defines it, the tenant
-with its agreed settings, the hospital's outpatient units, the fee bands and
-the appointment types, all from atria_spec.hospital. Every table write has a
+with its agreed settings, the hospital's outpatient units, the fee bands, the
+intake forms and the appointment types, all from atria_spec.hospital. Every table write has a
 fixed key, and what an administrator may since have changed (a fee band's
 amount, a setting, the region pack lock) is kept, so running this again
 restores the hospital rather than resetting it.
@@ -79,6 +79,36 @@ def put_fee_band(table: object, band: dict) -> None:
     )
 
 
+def put_intake_form(table: object, form: dict) -> None:
+    """The form's first version, unless it is already there (an administrator
+    may have published a newer one, which is kept), as atria.data.intake
+    writes it: the version, and the current one listed in the directory."""
+    pk = f"TENANT#{devkit.TENANT_ID}#FORM#{form['intakeFormId']}"
+    current = table.get_item(Key={"pk": pk, "sk": "CURRENT"}).get("Item")  # type: ignore[attr-defined]
+    if current:
+        return
+    item = {
+        "type": "INTAKE_FORM",
+        "intakeFormId": form["intakeFormId"],
+        "tenantId": devkit.TENANT_ID,
+        "name": form["name"],
+        "version": 1,
+        "fields": form["fields"],
+        "publishedAt": "2026-09-29T00:00:00Z",
+        "publishedBy": "seed",
+    }
+    table.put_item(Item={"pk": pk, "sk": "V#1", **item})  # type: ignore[attr-defined]
+    table.put_item(  # type: ignore[attr-defined]
+        Item={
+            "pk": pk,
+            "sk": "CURRENT",
+            **item,
+            "directoryKey": f"TENANT#{devkit.TENANT_ID}#FORM",
+            "directorySort": f"{form['name'].casefold()}#{form['intakeFormId']}",
+        }
+    )
+
+
 def lock_region_pack(table: object, tenant: dict) -> None:
     """Record the first appointment the development tenant already has (FR-TEN-07).
 
@@ -133,6 +163,9 @@ def seed_table(*, tidy: bool) -> None:
     for band in hospital.FEE_BANDS:
         put_fee_band(table, band)
         print(f"fee band {band['feeBandId']}: {band['baseAmountMinor']} XAF")
+    for form in hospital.INTAKE_FORMS:
+        put_intake_form(table, form)
+        print(f"intake form {form['intakeFormId']}: {form['name']}")
     for type_id, spec in APPOINTMENT_TYPES.items():
         fields = {k: v for k, v in spec.items() if k not in ("appointmentTypeId", "code")}
         devkit.put_appointment_type(table, type_id, code=spec["code"], **fields)

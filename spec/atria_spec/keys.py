@@ -15,6 +15,7 @@ KEYS = [
     ('Clinic', 'TENANT#t#CLINIC#c', 'PROFILE', 'Main'),
     ('Appointment type', 'TENANT#t#TYPE#id', 'TYPE', 'Main'),
     ('Intake form', 'TENANT#t#FORM#id', 'V#version', 'Main'),
+    ('Intake form, current', 'TENANT#t#FORM#id', 'CURRENT', 'Main'),
     ('Fee band', 'TENANT#t#FEE#id', 'FROM#effectiveFrom', 'Main'),
     ('Person', 'PERSON#p', 'PERSON', 'Main'),
     ('Patient profile', 'TENANT#t#PAT#pp', 'PROFILE', 'Main'),

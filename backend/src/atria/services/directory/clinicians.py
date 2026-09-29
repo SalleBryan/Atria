@@ -33,6 +33,7 @@ from atria.core.permissions import Subject
 from atria.core.principal import Principal
 from atria.data.booking import Booking
 from atria.data.catalogue import Catalogue, as_listed
+from atria.data.intake import IntakeForms, form_view
 from atria.data.people import People
 from atria.data.repository import Repository
 from atria.http import paging, requests, responses
@@ -87,6 +88,7 @@ TYPE_FIELDS = (
     "cancellationWindowMinutes",
     "patientRequestable",
     "clinicIds",
+    "intakeFormId",
 )
 
 _people: People | None = None
@@ -157,11 +159,24 @@ def list_appointment_types(principal: Principal, event: dict[str, Any]) -> dict[
         ]
     minutes = rules.grid_unit_minutes(booking().tenant(principal.tenant_id))
     shown, more = paging.page(found, event)
-    return {
-        "gridUnitMinutes": minutes,
-        "appointmentTypes": [as_listed(t, TYPE_FIELDS) for t in shown],
-        **more,
-    }
+    # Each type carries the questions it asks at booking, as they stand now
+    # (FR-BKG-15), so a booking screen needs no second call. The questions are
+    # not care context; only the answers are.
+    forms = IntakeForms(booking().repository)
+    asked: dict[str, dict[str, Any] | None] = {}
+    listed = []
+    for t in shown:
+        view = as_listed(t, TYPE_FIELDS)
+        form_id = t.get("intakeFormId")
+        if form_id:
+            if form_id not in asked:
+                current = forms.current(principal.tenant_id, str(form_id))
+                asked[form_id] = form_view(current) if current else None
+            view["intakeForm"] = asked[form_id]
+        else:
+            view["intakeForm"] = None
+        listed.append(view)
+    return {"gridUnitMinutes": minutes, "appointmentTypes": listed, **more}
 
 
 # The widest range one call answers: the week a booking screen shows. One call

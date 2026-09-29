@@ -6,6 +6,9 @@
     POST  /admin/appointment-types          a new appointment type
     PATCH /admin/appointment-types/{id}     change or retire one
     PUT   /admin/fee-bands/{id}             a fee band's amount, as a new dated version
+    GET   /admin/intake-forms               the questions each type can ask at booking
+    POST  /admin/intake-forms               a new intake form
+    PUT   /admin/intake-forms/{id}          a new version of one
 
 Each is its own permission in the matrix (clinic.manage, feature_flag.set,
 region_pack.choose, appointment_type.manage, fee_band.manage), all a tenant
@@ -20,12 +23,14 @@ from typing import Any
 
 from atria_spec.region_packs import REGION_PACKS
 
+from atria.core import intake as intake_rules
 from atria.core import permissions
 from atria.core import settings as rules
 from atria.core.errors import AtriaError, NotFound
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
 from atria.data.catalogue import Catalogue
+from atria.data.intake import IntakeForms, form_view
 from atria.data.repository import Repository
 from atria.data.settings import Settings
 from atria.http import requests, responses
@@ -96,6 +101,7 @@ TYPE_FIELDS = (
     "feeBandId",
     "clinicIds",
     "active",
+    "intakeFormId",
 )
 BAND_FIELDS = ("feeBandId", "practice", "baseAmountMinor", "scheduleReference", "effectiveFrom")
 
@@ -172,6 +178,13 @@ def overview(principal: Principal) -> dict[str, Any]:
             pick(t, TYPE_FIELDS) for t in store.appointment_types(principal.tenant_id)
         ],
         "feeBands": [pick(b, BAND_FIELDS) for b in store.fee_bands(principal.tenant_id)],
+        "intakeForms": [
+            form_view(f)
+            for f in sorted(
+                IntakeForms(store.repository).all(principal.tenant_id),
+                key=lambda f: str(f.get("name")),
+            )
+        ],
     }
 
 
@@ -200,20 +213,25 @@ def change_clinic(principal: Principal, event: dict[str, Any]) -> dict[str, Any]
     return {**pick(store.update_clinic(principal.tenant_id, clinic_id, changes), CLINIC_FIELDS)}
 
 
-def _type_context(principal: Principal) -> tuple[set[str], set[str]]:
+def _type_context(principal: Principal) -> tuple[set[str], set[str], set[str]]:
     store = settings()
     bands = {str(b["feeBandId"]) for b in store.fee_bands(principal.tenant_id)}
     clinics = {str(c["clinicId"]) for c in Catalogue(store.repository).clinics(principal.tenant_id)}
-    return bands, clinics
+    forms = {str(f["intakeFormId"]) for f in IntakeForms(store.repository).all(principal.tenant_id)}
+    return bands, clinics, forms
 
 
 def create_type(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     permissions.require(
         principal, "appointment_type.manage", Subject(tenant_id=principal.tenant_id)
     )
-    bands, clinics = _type_context(principal)
+    bands, clinics, forms = _type_context(principal)
     fields = rules.appointment_type_fields(
-        requests.json_body(event), current=None, fee_bands=bands, clinics=clinics
+        requests.json_body(event),
+        current=None,
+        fee_bands=bands,
+        clinics=clinics,
+        intake_forms=forms,
     )
     return pick(settings().create_appointment_type(principal.tenant_id, fields), TYPE_FIELDS)
 
@@ -225,14 +243,38 @@ def change_type(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     type_id = requests.path_parameter(event, "id")
     store = settings()
     current = store.appointment_type(principal.tenant_id, type_id)
-    bands, clinics = _type_context(principal)
+    bands, clinics, forms = _type_context(principal)
     fields = rules.appointment_type_fields(
         requests.json_body(event),
         current=pick(current, TYPE_FIELDS),
         fee_bands=bands,
         clinics=clinics,
+        intake_forms=forms,
     )
     return pick(store.update_appointment_type(principal.tenant_id, type_id, fields), TYPE_FIELDS)
+
+
+def list_forms(principal: Principal) -> dict[str, Any]:
+    permissions.require(
+        principal, "appointment_type.manage", Subject(tenant_id=principal.tenant_id)
+    )
+    found = IntakeForms(settings().repository).all(principal.tenant_id)
+    return {"intakeForms": [form_view(f) for f in sorted(found, key=lambda f: str(f.get("name")))]}
+
+
+def publish_form(
+    principal: Principal, event: dict[str, Any], *, form_id: str | None
+) -> dict[str, Any]:
+    """A new intake form, or a new version of one (FR-ADM-06). Answers already
+    given keep the version they answered; the next booking asks the new one."""
+    permissions.require(
+        principal, "appointment_type.manage", Subject(tenant_id=principal.tenant_id)
+    )
+    fields = intake_rules.form_fields(requests.json_body(event))
+    made = IntakeForms(settings().repository).publish(
+        principal.tenant_id, fields, form_id=form_id, by=principal.person_id
+    )
+    return form_view(made)
 
 
 def set_band(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
@@ -265,4 +307,12 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         return responses.ok(change_type(principal, event))
     if method == "PUT" and resource.endswith("/admin/fee-bands/{id}"):
         return responses.ok(set_band(principal, event))
+    if resource.endswith("/admin/intake-forms"):
+        if method == "GET":
+            return responses.ok(list_forms(principal))
+        if method == "POST":
+            return responses.created(publish_form(principal, event, form_id=None))
+    if method == "PUT" and resource.endswith("/admin/intake-forms/{id}"):
+        form_id = requests.path_parameter(event, "id")
+        return responses.ok(publish_form(principal, event, form_id=form_id))
     raise AtriaError(f"no handler for {method} {resource}")

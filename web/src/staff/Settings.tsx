@@ -25,7 +25,8 @@ import { api } from "../api/client";
 import { useSession } from "../auth/session";
 import { Checkbox, Field, Notice } from "../components/controls";
 import { Building, Clock, Close, Pencil, Pin, Plus, Shield, Sliders } from "../components/icons";
-import type { UnitLocation } from "../patient/data";
+import type { IntakeForm, UnitLocation } from "../patient/data";
+import { FormsTab } from "./IntakeForms";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { LoadingPane } from "../components/LoadingPane";
@@ -94,6 +95,8 @@ export interface VisitType {
   feeBandId: string | null;
   clinicIds: string[] | null;
   active: boolean | null;
+  /** The questions it asks at booking (FR-BKG-15). */
+  intakeFormId?: string | null;
 }
 
 export interface FeeBand {
@@ -110,14 +113,16 @@ export interface Overview {
   clinics: Unit[];
   appointmentTypes: VisitType[];
   feeBands: FeeBand[];
+  intakeForms?: IntakeForm[];
 }
 
-type Tab = "hospital" | "units" | "types" | "fees" | "roles";
+type Tab = "hospital" | "units" | "types" | "forms" | "fees" | "roles";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "hospital", label: "Hospital" },
   { id: "units", label: "Units" },
   { id: "types", label: "Visit types" },
+  { id: "forms", label: "Intake forms" },
   { id: "fees", label: "Fees" },
   { id: "roles", label: "Roles" },
 ];
@@ -208,6 +213,8 @@ export function Settings() {
         <UnitsTab found={found} onSaved={done} />
       ) : tab === "types" ? (
         <TypesTab found={found} onSaved={done} />
+      ) : tab === "forms" ? (
+        <FormsTab forms={found.intakeForms ?? []} types={found.appointmentTypes} dialog={Dialog} onSaved={done} />
       ) : tab === "fees" ? (
         <FeesTab found={found} onSaved={done} />
       ) : (
@@ -876,6 +883,7 @@ function TypeDialog({
   const [advance, setAdvance] = useState(type?.maxAdvanceDays ?? 60);
   const [cancelWindow, setCancelWindow] = useState(type?.cancellationWindowMinutes ?? 1440);
   const [active, setActive] = useState(type?.active !== false);
+  const [intakeForm, setIntakeForm] = useState(type?.intakeFormId ?? "");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -900,6 +908,7 @@ function TypeDialog({
       maxAdvanceDays: advance,
       cancellationWindowMinutes: cancelWindow,
       active,
+      intakeFormId: general ? null : intakeForm || null,
     };
     try {
       if (type) {
@@ -1041,6 +1050,21 @@ function TypeDialog({
               onChange={(v) => setAdvance(Number(v))}
             />
           </div>
+        </div>
+      )}
+      {!general && (
+        <div className="off-field">
+          <span>Questions at booking</span>
+          <SelectMenu
+            label="Questions at booking"
+            value={intakeForm}
+            width={280}
+            options={[
+              { id: "", label: "No questions" },
+              ...(found.intakeForms ?? []).map((f) => ({ id: f.intakeFormId, label: f.name, hint: `${f.fields.length} questions` })),
+            ]}
+            onChange={setIntakeForm}
+          />
         </div>
       )}
       <span className="settings-label">Offered at</span>

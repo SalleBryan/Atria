@@ -16,6 +16,7 @@ Outputs:
     web/src/generated/keys.ts
     web/src/generated/regionPacks.ts
     web/src/generated/hospital.ts
+    app/lib/generated/hospital.dart
 """
 
 from __future__ import annotations
@@ -346,8 +347,51 @@ def hospital_ts() -> str:
         const("CLINICIANS", clinicians),
         const("DESK_AND_MANAGERS", desk),
         const("TENANT_SETTINGS", HOSPITAL.TENANT_SETTINGS),
+        const("INTAKE_FORMS", HOSPITAL.INTAKE_FORMS),
     ]
     return NL.join(out)
+
+
+def hospital_dart() -> str:
+    """The same demonstration tenant for the app's demo build, as one JSON
+    document in a raw string: the Dart formatter leaves string contents alone,
+    so the file stays exactly as written here and --check keeps working."""
+    clinicians = [
+        {"givenName": g, "familyName": f, "specialty": sp, "registrationYear": y, "clinicId": u, "languages": langs}
+        for g, f, sp, y, u, langs in HOSPITAL.CLINICIANS
+    ]
+    desk = [{"givenName": g, "familyName": f, "clinicId": u, "role": r} for g, f, u, r in HOSPITAL.DESK_AND_MANAGERS]
+    document = {
+        "hospital": {
+            "name": HOSPITAL.NAME,
+            "place": HOSPITAL.PLACE,
+            "address": HOSPITAL.ADDRESS,
+            "profile": HOSPITAL.PROFILE,
+        },
+        "units": HOSPITAL.UNITS,
+        "feeBands": HOSPITAL.FEE_BANDS,
+        "appointmentTypes": HOSPITAL.APPOINTMENT_TYPES,
+        "clinicians": clinicians,
+        "deskAndManagers": desk,
+        "tenantSettings": HOSPITAL.TENANT_SETTINGS,
+        "intakeForms": HOSPITAL.INTAKE_FORMS,
+    }
+    body = json.dumps(document, indent=2, ensure_ascii=False)
+    assert "'''" not in body
+    return NL.join(
+        [
+            BANNER,
+            "import 'dart:convert';",
+            "",
+            "/// The demonstration tenant (spec/atria_spec/hospital.py), as the web preview has it.",
+            "final Map<String, dynamic> hospitalSpec = jsonDecode(_document) as Map<String, dynamic>;",
+            "",
+            "const _document = r'''",
+            body,
+            "''';",
+            "",
+        ]
+    )
 
 
 TARGETS = {
@@ -357,6 +401,7 @@ TARGETS = {
     "web/src/generated/keys.ts": keys_ts,
     "web/src/generated/regionPacks.ts": region_packs_ts,
     "web/src/generated/hospital.ts": hospital_ts,
+    "app/lib/generated/hospital.dart": hospital_dart,
 }
 
 

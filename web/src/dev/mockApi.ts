@@ -11,7 +11,7 @@
  * local times are built with a fixed offset.
  */
 
-import { APPOINTMENT_TYPES, CLINICIANS, FEE_BANDS, HOSPITAL, TENANT_SETTINGS, UNITS } from "../generated/hospital";
+import { APPOINTMENT_TYPES, CLINICIANS, FEE_BANDS, HOSPITAL, INTAKE_FORMS, TENANT_SETTINGS, UNITS } from "../generated/hospital";
 
 const OFFSET_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -73,7 +73,22 @@ interface MockType {
   maxAdvanceDays: number;
   cancellationWindowMinutes: number;
   active: boolean;
+  intakeFormId?: string | null;
 }
+
+// Intake forms (atria.data.intake), each at version 1, and the care context
+// patients have given (services/booking/care.py), kept in memory.
+const intakeForms: { intakeFormId: string; name: string; version: number; fields: unknown[] }[] = INTAKE_FORMS.map((f) => ({
+  intakeFormId: f.intakeFormId,
+  name: f.name,
+  version: 1,
+  fields: JSON.parse(JSON.stringify(f.fields)) as unknown[],
+}));
+const careContexts: Record<string, { answers: Record<string, unknown>; submittedAt: string; formVersion: number }> = {};
+const formOf = (typeId: unknown) => {
+  const id = types.find((t) => t.appointmentTypeId === typeId)?.intakeFormId;
+  return intakeForms.find((f) => f.intakeFormId === id) ?? null;
+};
 
 const types: MockType[] = APPOINTMENT_TYPES.map((t) => ({
   appointmentTypeId: t.appointmentTypeId,
@@ -90,6 +105,7 @@ const types: MockType[] = APPOINTMENT_TYPES.map((t) => ({
   maxAdvanceDays: 60,
   cancellationWindowMinutes: 1440,
   active: true,
+  intakeFormId: "intakeFormId" in t ? t.intakeFormId : null,
 }));
 
 // The tenant's settings and fee bands (atria.services.admin.settings).
@@ -129,6 +145,7 @@ function settingsOverview() {
     clinics,
     appointmentTypes: types,
     feeBands,
+    intakeForms,
   };
 }
 
@@ -409,7 +426,8 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   if (method === "GET" && path === "/clinicians") return json(200, { clinicians, count: clinicians.length });
   if (method === "GET" && path === "/clinics") return json(200, { clinics, count: clinics.length });
   if (method === "GET" && path === "/appointment-types") {
-    return json(200, { gridUnitMinutes: GRID, appointmentTypes: types, count: types.length });
+    const withForms = types.map((t) => ({ ...t, intakeForm: intakeForms.find((f) => f.intakeFormId === t.intakeFormId) ?? null }));
+    return json(200, { gridUnitMinutes: GRID, appointmentTypes: withForms, count: types.length });
   }
   if (method === "GET" && path === "/patients/me/appointments") {
     const mine = appointments.filter((a) => a.patientProfileId === "pp-preview");
@@ -485,6 +503,39 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       },
       260,
     );
+  }
+  // Care context (services/booking/care.py): the patient and the assigned
+  // clinician read it; the desk, managers and administrators are refused.
+  const careOf = path.match(/^\/appointments\/([^/]+)\/care-context$/);
+  if (careOf) {
+    const found = appointments.find((a) => a.appointmentId === careOf[1]);
+    if (!found) return json(404, { code: "not_found", message: "no such appointment" });
+    const as = new URLSearchParams(window.location.search).get("as") ?? "patient";
+    const staffSide = !as.startsWith("patient");
+    if (["receptionist", "manager", "admin", "admin-new", "opd"].includes(as)) {
+      return json(403, { code: "forbidden", message: "that action is not permitted for this account" });
+    }
+    const form = formOf(found.appointmentTypeId);
+    const open = ["BOOKED", "CONFIRMED", "RESCHEDULED", "DISRUPTED"].includes(String(found.state)) && Date.parse(String(found.startAt)) > Date.now();
+    if (method === "PUT") {
+      const given = body as { answers?: Record<string, unknown>; consent?: boolean };
+      if (!form) return json(400, { code: "invalid_request", message: "this visit asks no questions" });
+      if (given.consent !== true) return json(400, { code: "invalid_request", message: "sharing answers needs your consent" });
+      const missing = (form.fields as { id: string; label: string; required?: boolean }[]).find(
+        (f) => f.required && (given.answers?.[f.id] === undefined || given.answers?.[f.id] === ""),
+      );
+      if (missing) return json(400, { code: "invalid_request", message: `please answer: ${missing.label}` });
+      careContexts[careOf[1] as string] = { answers: given.answers ?? {}, submittedAt: new Date().toISOString(), formVersion: form.version };
+    }
+    const held = careContexts[careOf[1] as string];
+    return json(200, {
+      appointmentId: careOf[1],
+      patientProfileId: found.patientProfileId,
+      form,
+      answers: held?.answers ?? null,
+      submittedAt: held?.submittedAt ?? null,
+      editable: !staffSide && open && Boolean(form),
+    }, 350);
   }
   const one = path.match(/^\/appointments\/([^/]+)$/);
   if (one) {
@@ -1070,6 +1121,19 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     types.push(created);
     return json(201, created, 500);
   }
+  // Intake forms (services/admin/settings.py): each save publishes a new version.
+  if (method === "POST" && path === "/admin/intake-forms") {
+    const made = { ...(body as { name: string; fields: unknown[] }), intakeFormId: `if-${Math.random().toString(16).slice(2, 8)}`, version: 1 };
+    intakeForms.push(made);
+    return json(201, made, 500);
+  }
+  const intakeForm = path.match(/^\/admin\/intake-forms\/([^/]+)$/);
+  if (method === "PUT" && intakeForm) {
+    const found = intakeForms.find((f) => f.intakeFormId === intakeForm[1]);
+    if (!found) return json(404, { code: "not_found", message: "no such intake form" });
+    Object.assign(found, body as Record<string, unknown>, { version: found.version + 1 });
+    return json(200, found, 500);
+  }
   const visitType = path.match(/^\/admin\/appointment-types\/([^/]+)$/);
   if (method === "PATCH" && visitType) {
     const found = types.find((t) => t.appointmentTypeId === visitType[1]);
@@ -1291,6 +1355,11 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       request.patientProfileId ? { patient: request.patientProfileId, bookedByRole: "RECEPTIONIST", channel: request.channel } : {},
     );
     appointments.push(made);
+    const intake = (body as { intake?: { answers?: Record<string, unknown>; consent?: boolean } }).intake;
+    if (intake?.consent) {
+      careContexts[String(made.appointmentId)] = { answers: intake.answers ?? {}, submittedAt: new Date().toISOString(), formVersion: 1 };
+      return json(201, { ...made, careContext: "SAVED" }, 700);
+    }
     return json(201, made, 700);
   }
   return json(404, { code: "not_found", message: `the preview has no ${method} ${path}` });

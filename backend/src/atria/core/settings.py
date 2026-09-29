@@ -280,6 +280,7 @@ def appointment_type_fields(
     current: dict[str, Any] | None,
     fee_bands: set[str],
     clinics: set[str],
+    intake_forms: set[str] | None = None,
 ) -> dict[str, Any]:
     """A whole appointment type after a create or change, checked as one (FR-ADM-06).
 
@@ -301,6 +302,7 @@ def appointment_type_fields(
         "feeBandId",
         "clinicIds",
         "active",
+        "intakeFormId",
     }
     unknown = sorted(set(body) - known)
     if unknown:
@@ -366,6 +368,15 @@ def appointment_type_fields(
                 "clinicIds must name the tenant's units", detail={"units": sorted(clinics)}
             )
         out["clinicIds"] = list(dict.fromkeys(offered))
+
+    # The questions asked at booking (FR-BKG-15): one of the tenant's forms, or none.
+    form = merged.get("intakeFormId") or None
+    if form is not None and form not in (intake_forms or set()):
+        raise Invalid(
+            "intakeFormId must be one of the tenant's intake forms",
+            detail={"allowed": sorted(intake_forms or set())},
+        )
+    out["intakeFormId"] = form
 
     out["active"] = bool(merged.get("active", True))
     return out

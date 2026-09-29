@@ -24,6 +24,7 @@ BUILT = {
     "Clinic": keys.clinic("t1", "c1"),
     "Appointment type": keys.appointment_type("t1", "ty1"),
     "Intake form": keys.intake_form("t1", "f1", 3),
+    "Intake form, current": keys.intake_form_current("t1", "f1"),
     "Fee band": keys.fee_band("t1", "fb1", "2026-01-01"),
     "Person": keys.person("p1"),
     "Patient profile": keys.patient_profile("t1", "pp1"),

@@ -3,7 +3,9 @@
 Every route goes through the request authoriser, which verifies the Cognito
 token and resolves the caller. Functions are granted the narrowest data access
 that lets them do their work: the identity service reads the person record, and
-nothing here is given the care context key.
+only the booking service is given the care context table and its key, since it
+is the one that stores a patient's intake answers and hands them to the patient
+and the assigned clinician (FR-PRV-10).
 
 The functions share one dependency layer built by infra/build.py, and their
 code asset is the atria and atria_spec packages, so no Docker is needed.
@@ -153,12 +155,18 @@ class ApiStack(Stack):
             "BookingService",
             handler="atria.services.booking.appointments.handler",
             description="Books appointments on the specialist line and holds their grid units",
-            environment=common_environment,
+            environment={
+                **common_environment,
+                "CARE_CONTEXT_TABLE": data.care_context_table.table_name,
+            },
         )
         # Read and write on the one table: the booking transaction writes the
         # appointment, its first event and a lock per grid unit, and reads the
         # tenant, the appointment type, the patient and the clinician first.
         grant_table_write(data.main_table, self.booking_service)
+        # The intake answers (care.py), on their own table and key. The grant
+        # covers the key; no other function holds either.
+        data.care_context_table.grant_read_write_data(self.booking_service)
 
         self.directory_service = self._service(
             "DirectoryService",
@@ -218,7 +226,7 @@ class ApiStack(Stack):
         self.settings_service = self._service(
             "SettingsService",
             handler="atria.services.admin.settings.handler",
-            description="Tenant settings, units, appointment types and fee bands",
+            description="Tenant settings, units, appointment types, intake forms and fee bands",
             environment=common_environment,
         )
         grant_table_write(data.main_table, self.settings_service)
@@ -346,6 +354,15 @@ class ApiStack(Stack):
         one_appointment = appointments.add_resource("{id}")
         for method in ("GET", "DELETE"):
             one_appointment.add_method(
+                method,
+                booking_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
+        # Care context: the patient's intake answers for the visit (care.py).
+        care_context = one_appointment.add_resource("care-context")
+        for method in ("GET", "PUT"):
+            care_context.add_method(
                 method,
                 booking_integration,
                 authorizer=self.request_authoriser,
@@ -492,7 +509,11 @@ class ApiStack(Stack):
         admin_clinic = admin.add_resource("clinics").add_resource("{id}")
         admin_types = admin.add_resource("appointment-types")
         admin_band = admin.add_resource("fee-bands").add_resource("{id}")
+        admin_forms = admin.add_resource("intake-forms")
         for resource, method in (
+            (admin_forms, "GET"),
+            (admin_forms, "POST"),
+            (admin_forms.add_resource("{id}"), "PUT"),
             (admin_settings, "GET"),
             (admin_settings, "PATCH"),
             (admin_clinic, "PATCH"),

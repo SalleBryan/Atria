@@ -25,9 +25,10 @@ import { LoadingPane } from "../components/LoadingPane";
 import { MoveVisit } from "../components/MoveVisit";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
-import { ArrowLeft, Bell, CheckMark, ChevronLeft, Clock, Close } from "../components/icons";
+import { ArrowLeft, Bell, CheckMark, ChevronLeft, Clock, Close, Lock } from "../components/icons";
 import { useTier } from "../layout/fit";
-import { ACTIVE_STATES, type Appointment, clock, initials } from "../patient/data";
+import { AnswerList } from "../patient/BeforeVisit";
+import { ACTIVE_STATES, type Appointment, type CareContext, clock, initials } from "../patient/data";
 import { CancelVisit } from "./CancelVisit";
 import {
   CANCELLED_STATES,
@@ -315,6 +316,19 @@ export function VisitPage() {
                 </span>
               </div>
             </div>
+            {joined.type?.intakeFormId && (
+              <div className="visit-page-part">
+                <h2>Before the visit</h2>
+                {own ? (
+                  <PatientAnswers appointmentId={appointment.appointmentId} />
+                ) : (
+                  <p className="before-private">
+                    <Lock size={13} />
+                    The patient's answers are read only by them and their clinician.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </section>
 
@@ -414,5 +428,31 @@ function Crumbs({ back, text }: { back: string; text: string }) {
       </Link>
       <span>{text}</span>
     </nav>
+  );
+}
+
+/** The patient's intake answers, for the assigned clinician only (FR-PRV-10). */
+function PatientAnswers({ appointmentId }: { appointmentId: string }) {
+  const [care, setCare] = useState<CareContext | null | "failed">(null);
+  useEffect(() => {
+    let live = true;
+    api<CareContext>(`/appointments/${appointmentId}/care-context`)
+      .then((found) => live && setCare(found))
+      .catch(() => live && setCare("failed"));
+    return () => {
+      live = false;
+    };
+  }, [appointmentId]);
+  if (care === null) return <LoadingPane label="Loading the answers" />;
+  if (care === "failed") return <p className="empty">The answers could not be read. Try again later.</p>;
+  if (!care.form || !care.answers) return <p className="empty">The patient has not answered the questions.</p>;
+  return (
+    <>
+      <AnswerList form={care.form} answers={care.answers} />
+      <p className="before-private">
+        <Lock size={13} />
+        Only you and the patient read these. They are deleted 90 days after the visit.
+      </p>
+    </>
   );
 }

@@ -26,6 +26,7 @@ export const KEY_PATTERNS: readonly KeyPattern[] = [
   { entity: "Clinic", pk: "TENANT#t#CLINIC#c", sk: "PROFILE", table: "Main" },
   { entity: "Appointment type", pk: "TENANT#t#TYPE#id", sk: "TYPE", table: "Main" },
   { entity: "Intake form", pk: "TENANT#t#FORM#id", sk: "V#version", table: "Main" },
+  { entity: "Intake form, current", pk: "TENANT#t#FORM#id", sk: "CURRENT", table: "Main" },
   { entity: "Fee band", pk: "TENANT#t#FEE#id", sk: "FROM#effectiveFrom", table: "Main" },
   { entity: "Person", pk: "PERSON#p", sk: "PERSON", table: "Main" },
   { entity: "Patient profile", pk: "TENANT#t#PAT#pp", sk: "PROFILE", table: "Main" },

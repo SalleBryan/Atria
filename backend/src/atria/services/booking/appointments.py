@@ -22,7 +22,7 @@ from aws_lambda_powertools import Logger
 
 from atria.core import booking as rules
 from atria.core import lifecycle, permissions
-from atria.core.errors import AtriaError, Conflict, Invalid, NotFound
+from atria.core.errors import AtriaError, Conflict, Forbidden, Invalid, NotFound
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
 from atria.data import keys
@@ -377,6 +377,15 @@ def create(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
         start_at=request.start_at,
     )
     rules.require_offered(appointment_type, clinic_id)
+    # The intake answers (FR-BKG-15) are checked before any time is held.
+    given_intake = body.get("intake")
+    if given_intake is not None:
+        from atria.services.booking import care
+
+        if not by_patient:
+            # The desk never sees or gives care context (FR-PRV-10).
+            raise Forbidden("intake answers are the patient's to give")
+        care.check_at_booking(caller, appointment_type, given_intake)
     if (
         request.channel == "REFERRAL"
         and appointment_type.get("serviceLine") not in rules.REFERRAL_LINES
@@ -425,7 +434,20 @@ def create(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
             "units": len(occupancy.units),
         },
     )
-    return appointment_view(appointment)
+    view = appointment_view(appointment)
+    if given_intake is not None:
+        from atria.services.booking import care
+
+        try:
+            care.save(caller, appointment, dict(given_intake))
+            view["careContext"] = "SAVED"
+        except Exception:
+            # The booking stands; the answers can be sent again from the visit.
+            logger.exception(
+                "intake answers not saved", extra={"appointmentId": appointment["appointmentId"]}
+            )
+            view["careContext"] = "NOT_SAVED"
+    return view
 
 
 def book(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
@@ -469,15 +491,20 @@ def book(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
 @api
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     """POST /appointments, GET /patients/me/appointments, GET /appointments/{id},
-    DELETE /appointments/{id}, and POST /appointments/{id}/<action> (visits.py)."""
+    DELETE /appointments/{id}, POST /appointments/{id}/<action> (visits.py) and
+    GET and PUT /appointments/{id}/care-context (care.py)."""
     # Imported here: visits, the queue and requests build on this module's helpers.
     from atria.data.people import People
-    from atria.services.booking import queue, visits
+    from atria.services.booking import care, queue, visits
     from atria.services.booking import requests as procedure_requests
 
     principal = requests.principal_from(event)
     method = str(event.get("httpMethod", "")).upper()
     resource = str(event.get("resource", ""))
+
+    answered = care.route(principal, event)
+    if answered is not None:
+        return responses.ok(answered)
 
     staff_people = People(booking().repository)
     queued = queue.route(principal, event, people=staff_people)

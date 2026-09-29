@@ -28,6 +28,7 @@ account with no record.
 
 from __future__ import annotations
 
+import datetime as dt
 import os
 from typing import Any
 
@@ -54,6 +55,28 @@ def people() -> People:
     if _people is None:
         _people = People(Repository())
     return _people
+
+
+def birthdate(raw: object) -> str | None:
+    """Cognito's birthdate, YYYY-MM-DD, when it is a real past date."""
+    try:
+        born = dt.date.fromisoformat(str(raw or ""))
+    except ValueError:
+        return None
+    today = dt.datetime.now(tz=dt.UTC).date()
+    return born.isoformat() if born.year >= 1900 and born <= today else None
+
+
+def federated(event: dict[str, Any]) -> bool:
+    """A first sign-in through Google: its username is the provider's, google_..."""
+    return "_" in str(event.get("userName") or "") and str(event.get("userName")).split("_")[0] in (
+        "google",
+        "Google",
+    )
+
+
+def now_stamp() -> str:
+    return dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
@@ -94,6 +117,10 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         family_name=str(attributes.get("family_name") or ""),
         phone_e164=str(attributes.get("phone_number") or ""),
         email=str(attributes.get("email") or "") or None,
+        date_of_birth=birthdate(attributes.get("birthdate")),
+        # The email sign-up cannot be sent without ticking the terms; Google's
+        # first sign-in has no such box, so it agrees on the finish screen.
+        terms_accepted_at=None if federated(event) else now_stamp(),
     )
     logger.info(
         "patient registered",

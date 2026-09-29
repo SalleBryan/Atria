@@ -15,6 +15,7 @@ async function fill(overrides: Partial<Record<string, string>> = {}) {
     "Family name": "Ngo",
     "Email address": " amina@example.com ",
     "Mobile number": "6 70 00 00 00",
+    "Date of birth": "02/04/1990",
     Password: "Douala-Clinic-2026",
     ...overrides,
   };
@@ -27,6 +28,13 @@ async function fill(overrides: Partial<Record<string, string>> = {}) {
 
 describe("CreateAccount", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("asks for the date of birth the guardian rules need", async () => {
+    renderAt("/create-account", <CreateAccount />);
+    await fill({ "Date of birth": "31/02/1990" });
+    expect(auth.signUp).not.toHaveBeenCalled();
+    expect(screen.getByText(/Enter your date of birth/)).toBeInTheDocument();
+  });
 
   it("signs up with the attributes the post-confirmation trigger reads", async () => {
     auth.signUp.mockResolvedValue({ isSignUpComplete: false, nextStep: { signUpStep: "CONFIRM_SIGN_UP" } });
@@ -42,6 +50,7 @@ describe("CreateAccount", () => {
           phone_number: "+237670000000",
           given_name: "Amina",
           family_name: "Ngo",
+          birthdate: "1990-04-02",
         },
       },
     });

@@ -503,3 +503,29 @@ class TestIndexKeys:
         assert "clinicianProfileId" not in repository.get(
             keys.appointment(TENANT, asked["appointmentId"])
         )
+
+
+class TestDeletingTheAccount:
+    """Deleting an account gives up its queue places too (2026-09-29)."""
+
+    def test_the_ticket_is_cancelled_with_the_account(self, opd, repository, monkeypatch):
+        session_id = body_of(publish())["sessionId"]
+        made = body_of(ticket(session_id))
+        repository.put(
+            keys.patient_profile(TENANT, PATIENT),
+            {
+                **(repository.get(keys.patient_profile(TENANT, PATIENT)) or {}),
+                "personId": "p-patient",
+            },
+        )
+        repository.put(keys.person("p-patient"), {"type": "PERSON", "personId": "p-patient"})
+        from atria.data.people import People
+        from atria.http import requests
+        from atria.services.identity import deletion
+
+        monkeypatch.setattr(deletion, "sign_in", lambda *a, **k: None)  # no pool in a test
+        me = requests.principal_from({"requestContext": {"authorizer": patient_context()}})
+        found = deletion.delete_own(People(repository), me, now=CLOCK["now"])
+        assert found["cancelledVisits"] == 1
+        state = repository.get(keys.appointment(TENANT, made["appointmentId"]))["state"]
+        assert "CANCELLED" in state

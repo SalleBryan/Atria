@@ -431,6 +431,8 @@ class People:
         family_name: str = "",
         phone_e164: str = "",
         email: str | None = None,
+        date_of_birth: str | None = None,
+        terms_accepted_at: str | None = None,
     ) -> tuple[Item, Item]:
         """Write the person and their patient profile at once.
 
@@ -451,6 +453,10 @@ class People:
             phone_e164=phone_e164,
             email=email,
         )
+        if date_of_birth:
+            person["dateOfBirth"] = date_of_birth
+        if terms_accepted_at:
+            person["termsAcceptedAt"] = terms_accepted_at
         profile = patient_profile_item(
             patient_profile_id=profile_id, person_id=person_id, tenant_id=tenant_id
         )
@@ -470,6 +476,7 @@ class People:
                     family_name=family_name,
                     phone_e164=phone_e164 or None,
                     patient_number=number,
+                    date_of_birth=date_of_birth,
                 ),
             ]
         )

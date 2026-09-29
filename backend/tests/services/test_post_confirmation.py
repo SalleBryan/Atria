@@ -78,6 +78,26 @@ class TestSignUp:
         assert person["email"] == "patient@atria.invalid"
         assert person["phoneE164"] == "+237600000001"
 
+    def test_the_date_of_birth_and_the_terms_are_kept(self, wired):
+        trigger.handler(event(birthdate="1990-04-02"), None)
+        person = People(wired).by_cognito_sub(SUBJECT)
+        assert person is not None
+        assert person["dateOfBirth"] == "1990-04-02"
+        assert person["termsAcceptedAt"]
+
+    def test_an_impossible_date_of_birth_is_left_out(self, wired):
+        trigger.handler(event(birthdate="2999-01-01"), None)
+        person = People(wired).by_cognito_sub(SUBJECT)
+        assert person is not None
+        assert "dateOfBirth" not in person
+
+    def test_a_google_sign_up_agrees_to_the_terms_later(self, wired):
+        google = {**event(), "userName": "google_1234567890"}
+        trigger.handler(google, None)
+        person = People(wired).by_cognito_sub(SUBJECT)
+        assert person is not None
+        assert "termsAcceptedAt" not in person
+
     def test_the_phone_is_not_treated_as_verified(self, wired):
         """FR-ACC-09 and the reminder path rely on a one time code for that."""
         trigger.handler(event(), None)

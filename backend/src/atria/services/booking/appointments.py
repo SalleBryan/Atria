@@ -527,7 +527,7 @@ def cancel_ahead(
     actor_role: str | None,
     reason: str,
 ) -> int:
-    """Call off every visit a patient still has ahead, as one cancellation each.
+    """Call off every visit and queue place a patient still has ahead, one cancellation each.
 
     For an account being deleted (2026-09-29): each visit goes through the
     same closure a cancellation does, so its time is freed, the ledger
@@ -535,16 +535,23 @@ def cancel_ahead(
     """
     data = booking()
     now = data.now()
+    # From a day back: a queue ticket's arrival window may already have
+    # opened today while the patient is still waiting for their turn.
     ahead = data.appointments_for_patient(
         tenant_id,
         patient_profile_id,
-        since=rules.instant(now),
+        since=rules.instant(now - dt.timedelta(days=1)),
         until=rules.instant(now + dt.timedelta(days=400)),
     )
     minutes = rules.grid_unit_minutes(data.tenant(tenant_id))
     done = 0
     for appointment in ahead:
         if appointment.get("state") not in STILL_AHEAD:
+            continue
+        ticket = bool(appointment.get("sessionId"))
+        ends = rules.parse_instant(appointment["endAt"], name="endAt")
+        starts = rules.parse_instant(appointment["startAt"], name="startAt")
+        if (ticket and ends < now) or (not ticket and starts <= now):
             continue
         kind = data.appointment_type(tenant_id, str(appointment["appointmentTypeId"]))
         decided = rules.cancellation(

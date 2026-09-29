@@ -20,17 +20,18 @@ import { MIN_LENGTH, passwordRules } from "../auth/passwordRules";
 import { type CountryCode, countryName, HOME_COUNTRY, isMobile, normalisePhone } from "../auth/phone";
 import { AuthLayout, PatientBrand } from "../components/AuthLayout";
 import { Button, Checkbox, Divider, Field, Notice } from "../components/controls";
-import { Lock, Mail, User } from "../components/icons";
+import { Calendar, Lock, Mail, User } from "../components/icons";
+import { birthDate } from "./CompleteProfile";
 import { PhoneField } from "../components/PhoneField";
 import { PatientModeSwitch } from "./PatientModeSwitch";
 import { PATIENT_FOOTER } from "./PatientSignIn";
 import { TENANT } from "../tenant";
 
-type Errors = Partial<Record<"givenName" | "familyName" | "email" | "phone" | "password" | "terms", string>>;
+type Errors = Partial<Record<"givenName" | "familyName" | "email" | "phone" | "born" | "password" | "terms", string>>;
 
 export function CreateAccount() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ givenName: "", familyName: "", email: "", phone: "", password: "" });
+  const [form, setForm] = useState({ givenName: "", familyName: "", email: "", phone: "", born: "", password: "" });
   const [country, setCountry] = useState<CountryCode>(HOME_COUNTRY);
   const [terms, setTerms] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
@@ -53,6 +54,8 @@ export function CreateAccount() {
           ? "Enter a Cameroonian mobile number, such as 6 70 00 00 00."
           : `Enter a mobile number that works in ${countryName(country)}.`;
     }
+    // The guardian rules need the date of birth (2026-09-29).
+    if (!birthDate(form.born)) found.born = "Enter your date of birth as day, month and year, such as 02/04/1990.";
     const unmet = passwordRules(form.password).filter((rule) => !rule.met);
     if (!form.password) found.password = "Choose a password.";
     else if (unmet.length) found.password = `The password needs: ${unmet.map((rule) => rule.label.toLowerCase()).join(", ")}.`;
@@ -84,6 +87,7 @@ export function CreateAccount() {
             phone_number: normalisePhone(form.phone, country),
             given_name: form.givenName.trim(),
             family_name: form.familyName.trim(),
+            birthdate: birthDate(form.born) ?? "",
           },
         },
       });
@@ -149,6 +153,16 @@ export function CreateAccount() {
           country={country}
           onCountry={setCountry}
           error={errors.phone}
+        />
+        <Field
+          label="Date of birth"
+          icon={Calendar}
+          inputMode="numeric"
+          autoComplete="bday"
+          placeholder="DD/MM/YYYY"
+          value={form.born}
+          onChange={set("born")}
+          error={errors.born}
         />
         <Field
           label="Password"

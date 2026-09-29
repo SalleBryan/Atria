@@ -42,6 +42,33 @@ class Clinic {
   String get id => raw['clinicId'] as String;
   String get name => raw['name'] as String? ?? '';
   String? get address => raw['address'] as String?;
+  Map<String, dynamic>? get openingHours => raw['openingHours'] as Map<String, dynamic>?;
+
+  /// Where the unit is inside its hospital (2026-09-28): building, floor,
+  /// walking directions, and the entrance as decimal degrees in text.
+  Map<String, dynamic>? get location => raw['location'] as Map<String, dynamic>?;
+  String? get building => location?['building'] as String?;
+  String? get floor => location?['floor'] as String?;
+  String? get walkingDirections => location?['directions'] as String?;
+  String get whereInside => [building, floor].whereType<String>().where((s) => s.isNotEmpty).join(' · ');
+
+  /// The entrance on the map, when the hospital has placed it.
+  ({double lat, double lng})? get entrance {
+    final lat = double.tryParse('${location?['lat'] ?? ''}');
+    final lng = double.tryParse('${location?['lng'] ?? ''}');
+    return lat == null || lng == null ? null : (lat: lat, lng: lng);
+  }
+
+  /// Walking directions to the unit's own door when it is placed, so a patient
+  /// is not left at the gate; otherwise a search for the unit at the hospital.
+  Uri get directions {
+    final door = entrance;
+    if (door != null) {
+      return Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${door.lat},${door.lng}&travelmode=walking');
+    }
+    final place = [name, address].whereType<String>().join(', ');
+    return Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeQueryComponent(place)}');
+  }
 }
 
 class AppointmentType {
@@ -146,18 +173,23 @@ class PatientStore extends ChangeNotifier {
 
 const activeStates = ['BOOKED', 'CONFIRMED', 'RESCHEDULED', 'DISRUPTED'];
 
-/// Booked and still ahead, soonest first; a request is ahead until placed.
+/// Whether a visit is still ahead: a request holds no time yet, so it is
+/// ahead until placed or declined, and a queue place stays ahead until its
+/// arrival window closes, not only until it opens.
+bool isAhead(Appointment a, DateTime at) =>
+    a.state == 'REQUESTED' || (a.sessionId != null ? a.endAt : a.startAt).isAfter(at);
+
+/// Booked and still ahead, soonest first.
 List<Appointment> upcoming(List<Appointment> all, [DateTime? now]) {
   final at = now ?? DateTime.now();
-  return all.where((a) => a.state == 'REQUESTED' || (activeStates.contains(a.state) && a.startAt.isAfter(at))).toList()
+  return all.where((a) => (a.state == 'REQUESTED' || activeStates.contains(a.state)) && isAhead(a, at)).toList()
     ..sort((a, b) => a.startAt.compareTo(b.startAt));
 }
 
 /// Everything already behind, most recent first.
 List<Appointment> past(List<Appointment> all, [DateTime? now]) {
   final at = now ?? DateTime.now();
-  return all.where((a) => a.state != 'REQUESTED' && !a.startAt.isAfter(at)).toList()
-    ..sort((a, b) => b.startAt.compareTo(a.startAt));
+  return all.where((a) => !isAhead(a, at)).toList()..sort((a, b) => b.startAt.compareTo(a.startAt));
 }
 
 /// The clinic's clock: the region pack's timezone, Africa/Douala, which is

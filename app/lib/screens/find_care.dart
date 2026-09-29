@@ -205,6 +205,7 @@ class _FindCareScreenState extends State<FindCareScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: TextField(
+                              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                               controller: search,
                               textInputAction: TextInputAction.search,
                               style: AtriaType.body(size: 15, weight: FontWeight.w600, color: AtriaColors.inkPrimary),

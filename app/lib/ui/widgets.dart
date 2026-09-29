@@ -182,6 +182,7 @@ class _AtriaFieldState extends State<AtriaField> {
         SizedBox(
           height: 54,
           child: TextField(
+            onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
             controller: widget.controller,
             obscureText: hidden,
             keyboardType: widget.keyboard,
@@ -246,10 +247,19 @@ class _AtriaFieldState extends State<AtriaField> {
 /// The primary action (32:45): 56 high, radius 19, the blue gradient; greyed
 /// while it cannot act. Pressing moves it one step up the corner scale.
 class PrimaryButton extends StatefulWidget {
-  const PrimaryButton({super.key, required this.label, required this.onPressed, this.busy = false});
+  const PrimaryButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.busy = false,
+    this.danger = false,
+  });
   final String label;
   final VoidCallback? onPressed;
   final bool busy;
+
+  /// Red, for an action that takes something away (delete, give up a place).
+  final bool danger;
 
   @override
   State<PrimaryButton> createState() => _PrimaryButtonState();
@@ -270,16 +280,18 @@ class _PrimaryButtonState extends State<PrimaryButton> {
         height: 56,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          gradient: enabled || widget.busy
-              ? cssGradient(171, const [AtriaColors.blue500, AtriaColors.blue700], [.145, .855])
-              : AtriaGradients.disabled,
+          gradient: !(enabled || widget.busy)
+              ? AtriaGradients.disabled
+              : widget.danger
+              ? cssGradient(160, const [Color(0xFFE8606F), Color(0xFFC33C4E)])
+              : cssGradient(171, const [AtriaColors.blue500, AtriaColors.blue700], [.145, .855]),
           borderRadius: BorderRadius.circular(pressed ? 12 : 19),
           boxShadow: enabled
               ? [
                   BoxShadow(
                     offset: Offset(0, pressed ? 5 : 10),
                     blurRadius: pressed ? 14 : 22,
-                    color: const Color(0x572461DB),
+                    color: widget.danger ? const Color(0x4DC8384A) : const Color(0x572461DB),
                   ),
                 ]
               : null,

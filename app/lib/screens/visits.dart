@@ -29,12 +29,11 @@ const _longMonths = [
 ];
 const _page = 10;
 
-Future<void> openDirections(Clinic? clinic) => launchUrl(
-  Uri.parse(
-    'https://www.google.com/maps/search/?api=1&query=${Uri.encodeQueryComponent([clinic?.name, clinic?.address].whereType<String>().join(', '))}',
-  ),
-  mode: LaunchMode.externalApplication,
-);
+/// To the unit's own door when the hospital has placed it (Clinic.directions).
+Future<void> openDirections(Clinic? clinic) async {
+  if (clinic == null) return;
+  await launchUrl(clinic.directions, mode: LaunchMode.externalApplication);
+}
 
 /// "Mobile · My visits" (Figma 36:4): upcoming and past visits, a card each,
 /// paged rather than scrolled on for ever (FR-VIS-01).
@@ -54,6 +53,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
 
   Future<void> filter(PatientData data) async {
     final picked = await showModalBottomSheet<String>(
+      useRootNavigator: true,
       context: context,
       showDragHandle: true,
       backgroundColor: AtriaColors.surfacePanel,
@@ -254,9 +254,12 @@ class VisitCard extends StatelessWidget {
     final clinic = data.clinicOf(a);
     final type = data.typeOf(a);
     final (label, tone) = stateLabel(a.state);
-    final active = activeStates.contains(a.state) && a.startAt.isAfter(DateTime.now());
+    final active = activeStates.contains(a.state) && isAhead(a, DateTime.now());
     final title = clinician?.name ?? type?.name ?? 'Your visit';
-    final sub = [clinician?.specialty ?? type?.name, clinic?.name].whereType<String>().toSet().join(' · ');
+    // A queue place is titled by its consultation, so the line under it names only the unit.
+    final sub = a.sessionId != null
+        ? clinic?.name ?? ''
+        : [clinician?.specialty ?? type?.name, clinic?.name].whereType<String>().toSet().join(' · ');
     final request = a.state == 'REQUESTED';
 
     return Glass(
@@ -582,7 +585,7 @@ class _DetailState extends State<_Detail> {
     final clinic = data.clinicOf(a);
     final type = data.typeOf(a);
     final (label, _) = stateLabel(a.state);
-    final active = activeStates.contains(a.state) && a.startAt.isAfter(DateTime.now());
+    final active = activeStates.contains(a.state) && isAhead(a, DateTime.now());
     final local = ClinicClock.local(a.startAt);
     final minutes = a.endAt.difference(a.startAt).inMinutes;
     final reminderAt = a.startAt.subtract(const Duration(hours: 24));
@@ -761,6 +764,7 @@ class _DetailState extends State<_Detail> {
                           label: 'Reschedule',
                           height: 50,
                           onTap: () => showModalBottomSheet<void>(
+                            useRootNavigator: true,
                             context: context,
                             isScrollControlled: true,
                             showDragHandle: true,
@@ -1196,6 +1200,7 @@ const _reasons = ['Feeling better', 'Schedule clash', 'Cost', 'Booked elsewhere'
 /// records against the fee (FR-VIS-03, FR-MSR-06).
 Future<void> cancelVisit(BuildContext context, Appointment a, PatientData data, PatientStore store) async {
   final said = await showModalBottomSheet<String>(
+    useRootNavigator: true,
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
@@ -1205,7 +1210,7 @@ Future<void> cancelVisit(BuildContext context, Appointment a, PatientData data, 
     builder: (_) => _CancelSheet(appointment: a, data: data, store: store),
   );
   if (said != null && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(said), behavior: SnackBarBehavior.floating));
+    say(context, said);
     if (GoRouterState.of(context).matchedLocation != '/visits') context.go('/visits');
   }
 }
@@ -1222,6 +1227,16 @@ class _CancelSheet extends StatefulWidget {
 
 class _CancelSheetState extends State<_CancelSheet> {
   String? reason;
+
+  /// "Other" asks in words, as every cancellation form on the web does.
+  final other = TextEditingController();
+
+  @override
+  void dispose() {
+    other.dispose();
+    super.dispose();
+  }
+
   bool busy = false;
   String? failure;
   Map<String, dynamic>? preview;
@@ -1244,7 +1259,8 @@ class _CancelSheetState extends State<_CancelSheet> {
     });
     final a = widget.appointment;
     try {
-      final result = await widget.store.api.send('DELETE', '/appointments/${a.id}', {'reason': ?reason});
+      final said = reason == 'Other' && other.text.trim().isNotEmpty ? 'Other: ${other.text.trim()}' : reason;
+      final result = await widget.store.api.send('DELETE', '/appointments/${a.id}', {'reason': ?said});
       await widget.store.reload();
       if (!mounted) return;
       Navigator.of(context).pop(
@@ -1314,10 +1330,13 @@ class _CancelSheetState extends State<_CancelSheet> {
                     height: 42,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(gradient: accentGradient(), borderRadius: BorderRadius.circular(14)),
-                    child: Text(
-                      initials(clinician?.givenName, clinician?.familyName),
-                      style: AtriaType.display(size: 14, weight: FontWeight.w600, color: Colors.white),
-                    ),
+                    // A queue place has no clinician until the patient is called.
+                    child: clinician == null
+                        ? const AtriaIcon('stethoscope', size: 19, color: Colors.white)
+                        : Text(
+                            initials(clinician.givenName, clinician.familyName),
+                            style: AtriaType.display(size: 14, weight: FontWeight.w600, color: Colors.white),
+                          ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1325,7 +1344,7 @@ class _CancelSheetState extends State<_CancelSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${clinician?.name ?? 'Your visit'} · ${ClinicClock.time(a.startAt)}',
+                          '${clinician?.name ?? (a.sessionId != null ? 'General consultation' : 'Your visit')} · ${ClinicClock.time(a.startAt)}',
                           style: AtriaType.body(
                             size: 14,
                             weight: FontWeight.w700,
@@ -1390,6 +1409,42 @@ class _CancelSheetState extends State<_CancelSheet> {
                     ),
                   ),
               ],
+            ),
+            // Choosing Other opens a line to say why (2026-09-28).
+            AnimatedSize(
+              duration: AtriaMotion.spatialDefaultDuration,
+              curve: AtriaMotion.spatialDefault,
+              child: reason == 'Other'
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: TextField(
+                        onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                        controller: other,
+                        autofocus: true,
+                        minLines: 2,
+                        maxLines: 3,
+                        maxLength: 200,
+                        textCapitalization: TextCapitalization.sentences,
+                        style: AtriaType.body(size: 14, color: AtriaColors.inkPrimary),
+                        decoration: InputDecoration(
+                          hintText: 'Tell the clinic why, in a few words',
+                          hintStyle: AtriaType.body(size: 14, color: const Color(0xFF9AA9C4)),
+                          filled: true,
+                          fillColor: Colors.white,
+                          counterText: '',
+                          contentPadding: const EdgeInsets.all(14),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(color: AtriaColors.lineHairline, width: 1.5),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(color: AtriaColors.blue500, width: 1.5),
+                          ),
+                        ),
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity),
             ),
             const SizedBox(height: 18),
             Container(

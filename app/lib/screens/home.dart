@@ -10,6 +10,8 @@ import '../ui/glass.dart';
 import '../ui/icons.dart';
 import '../ui/widgets.dart';
 import '../ui/expressive.dart';
+import 'queue.dart';
+import '../ui/loading.dart';
 
 /// "Mobile · Home" (Figma 28:2): the greeting, search, the next appointment,
 /// and who has an opening left today (FR-VIS-01, FR-DIR-02).
@@ -36,6 +38,8 @@ class HomeScreen extends StatelessWidget {
               Rise(child: _TopBar(me: me)),
               const SizedBox(height: 22),
               Rise(index: 1, child: _SearchBar(onTap: () => context.go('/find-care'))),
+              const SizedBox(height: 12),
+              const Rise(index: 1, child: QueueEntry()),
               const SizedBox(height: 22),
               if (state is DataFailed)
                 Notice(state.message, tone: NoticeTone.error)
@@ -52,7 +56,8 @@ class HomeScreen extends StatelessWidget {
                   child: AvailableToday(data: state.data, api: store.api),
                 ),
               ] else
-                const _Skeleton(),
+                // Loading: the M3 indicator centred where the content will be.
+                const LoadingPane(label: 'Loading your visits'),
             ],
           ),
         );
@@ -197,11 +202,8 @@ class _NextAppointment extends StatelessWidget {
   static const _longDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   Future<void> directions(Clinic? clinic) async {
-    final place = [clinic?.name, clinic?.address].whereType<String>().join(', ');
-    await launchUrl(
-      Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeQueryComponent(place)}'),
-      mode: LaunchMode.externalApplication,
-    );
+    if (clinic == null) return;
+    await launchUrl(clinic.directions, mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -463,6 +465,7 @@ class _AvailableTodayState extends State<AvailableToday> {
 
   Future<void> more() async {
     final picked = await showModalBottomSheet<String>(
+      useRootNavigator: true,
       context: context,
       showDragHandle: true,
       backgroundColor: AtriaColors.surfacePanel,
@@ -723,19 +726,5 @@ class _Doctor extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _Skeleton extends StatelessWidget {
-  const _Skeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    Widget block(double h, double r) => Container(
-      height: h,
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(r)),
-    );
-    return Column(children: [block(22, 8), block(270, 30), block(44, 22), block(80, 24), block(80, 24)]);
   }
 }

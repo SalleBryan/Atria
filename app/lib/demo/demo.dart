@@ -66,6 +66,21 @@ class DemoAuth implements Auth {
     if (code.trim() != demoCode) throw AuthFailure('That code is not right. Check the latest email and try again.');
   }
 
+  String? _newEmail;
+
+  @override
+  Future<void> changeEmail(String email) async {
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    _newEmail = email.trim();
+  }
+
+  @override
+  Future<void> confirmEmailChange(String code) async {
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    if (code.trim() != demoCode) throw AuthFailure('That code is not right. Check the latest email and try again.');
+    if (_newEmail != null) profile.email = _newEmail!;
+  }
+
   @override
   Future<SignInStep> signInWithGoogle() async {
     await Future<void>.delayed(const Duration(milliseconds: 700));
@@ -144,6 +159,16 @@ class DemoApi implements Api {
         return {'clinics': fixtures.clinics, 'nextCursor': null};
       case '/appointment-types':
         return {'appointmentTypes': fixtures.types, 'gridUnitMinutes': 10, 'nextCursor': null};
+    }
+    if (RegExp(r'^/clinics/[^/]+/sessions$').hasMatch(uri.path)) {
+      return {'sessions': fixtures.sessions()};
+    }
+    final ticket = RegExp(r'^/sessions/([^/]+)/tickets$').firstMatch(uri.path);
+    if (ticket != null && method == 'POST') return fixtures.takePlace(ticket.group(1)!);
+    final oneSession = RegExp(r'^/sessions/([^/]+)$').firstMatch(uri.path);
+    if (oneSession != null) {
+      fixtures.sessions();
+      return fixtures.sessionById(oneSession.group(1)!);
     }
     final slots = RegExp(r'^/clinicians/([^/]+)/slots$').firstMatch(uri.path);
     if (slots != null) {
@@ -251,6 +276,6 @@ class DemoProfile {
       'by': 'SELF',
       'graceDays': 30,
     };
-    return {...deletion!, 'cancelledVisits': 2};
+    return {...deletion!, 'cancelledVisits': fixtures.cancelAhead()};
   }
 }

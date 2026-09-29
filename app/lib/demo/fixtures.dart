@@ -4,6 +4,8 @@
 /// show. Nothing here is a real person.
 library;
 
+import 'dart:math' as math;
+
 DateTime _at(int days, int hour, [int minute = 0]) {
   final now = DateTime.now().toUtc();
   // Hours are the clinic's (UTC+1).
@@ -12,11 +14,29 @@ DateTime _at(int days, int hour, [int minute = 0]) {
 
 String _iso(DateTime d) => d.toIso8601String().replaceFirst('.000', '');
 
+// An invented site plan, as the web's development mock has: blocks around
+// the main gate, so the hospital map has something to draw.
+Map<String, dynamic> _unit(String id, String name, String block, String floor, String line, double lat, double lng) => {
+  'clinicId': id,
+  'name': name,
+  'address': 'Regional Hospital Buea, Buea',
+  'openingHours': {
+    for (var d = 0; d < 5; d++) '$d': {'start': '07:30', 'end': '15:30'},
+  },
+  'location': {
+    'building': block,
+    'floor': floor,
+    'directions': 'From the main gate, follow the $line line to $block.',
+    'lat': lat.toStringAsFixed(6),
+    'lng': lng.toStringAsFixed(6),
+  },
+};
+
 final clinics = [
-  {'clinicId': 'u-paed', 'name': 'Paediatrics Unit', 'address': 'Regional Hospital Buea, Buea'},
-  {'clinicId': 'u-med', 'name': 'Medical Unit', 'address': 'Regional Hospital Buea, Buea'},
-  {'clinicId': 'u-mat', 'name': 'Maternity Unit', 'address': 'Regional Hospital Buea, Buea'},
-  {'clinicId': 'u-opd', 'name': 'General Outpatient Department', 'address': 'Regional Hospital Buea, Buea'},
+  _unit('u-paed', 'Paediatrics Unit', 'Block B', 'Ground floor', 'green', 4.15386, 9.2413),
+  _unit('u-med', 'Medical Unit', 'Block A', 'First floor', 'blue', 4.15298, 9.24095),
+  _unit('u-mat', 'Maternity Unit', 'Block C', 'Ground floor', 'yellow', 4.15342, 9.24235),
+  _unit('u-opd', 'General Outpatient Department', 'Block A', 'Ground floor', 'blue', 4.1532, 9.2406),
 ];
 
 Map<String, dynamic> _doctor(String id, String given, String family, String specialty, String clinic, String band) => {
@@ -107,4 +127,94 @@ Map<String, List<Map<String, String>>> weekFor(String clinician) {
     ];
   }
   return days;
+}
+
+/// The outpatient department's queue sessions for the coming week, as the
+/// API lists them: none that have closed or whose hours are over today.
+List<Map<String, dynamic>>? _sessions;
+List<Map<String, dynamic>> sessions() {
+  if (_sessions == null) {
+    _sessions = [];
+    for (var d = 0; d < 7; d++) {
+      final day = _at(d, 12);
+      if (day.weekday == DateTime.sunday) continue;
+      final date = day.toIso8601String().substring(0, 10);
+      for (final (start, end, part, cap, taken) in [
+        ('07:30', '12:00', 'MORNING', 60, 14 + d * 3),
+        ('13:00', '16:30', 'AFTERNOON', 31, 7 + d),
+      ]) {
+        _sessions!.add({
+          'sessionId': 'se-$date-${start.replaceAll(':', '')}',
+          'clinicId': 'u-opd',
+          'sessionDate': date,
+          'startTime': start,
+          'endTime': end,
+          'rosteredClinicianCount': part == 'MORNING' ? 3 : 2,
+          'capacity': cap,
+          'issuedTickets': taken,
+          'remaining': cap - taken,
+          'partOfDay': part,
+          'status': 'OPEN',
+        });
+      }
+    }
+  }
+  final now = DateTime.now().toUtc().add(const Duration(hours: 1)).toIso8601String().substring(0, 16);
+  return _sessions!.where((s) => '${s['sessionDate']}T${s['endTime']}'.compareTo(now) > 0).toList();
+}
+
+/// A place in a session: the ticket, as POST /sessions/{id}/tickets returns it.
+Map<String, dynamic> takePlace(String sessionId) {
+  final session = _sessions!.firstWhere((s) => s['sessionId'] == sessionId);
+  final position = (session['issuedTickets'] as int) + 1;
+  session['issuedTickets'] = position;
+  session['remaining'] = (session['capacity'] as int) - position;
+  final open = DateTime.parse('${session['sessionDate']}T${session['startTime']}:00Z')
+      .subtract(const Duration(hours: 1));
+  // As core/queue.py works it out: the turn comes after those still waiting,
+  // counted from now once the session has begun, and the window opens ten
+  // minutes early on a round five minutes.
+  final rate = 4.5 * (session['rosteredClinicianCount'] as int);
+  final now = DateTime.now().toUtc();
+  final begin = now.isAfter(open) ? now : open;
+  final seen = now.isAfter(open) ? (now.difference(open).inMinutes / 60 * rate).floor() : 0;
+  final ahead = math.max(0, position - 1 - seen);
+  final turn = begin.add(Duration(minutes: (ahead * 60 / rate).round())).subtract(const Duration(minutes: 10));
+  final arrive = DateTime.utc(turn.year, turn.month, turn.day, turn.hour, turn.minute - turn.minute % 5);
+  final made = {
+    'appointmentId': 'a-q$position-${sessionId.hashCode.abs() % 1000}',
+    'reference': 'APT-${7000 + position}',
+    'clinicId': 'u-opd',
+    'patientProfileId': 'pp-preview',
+    'appointmentTypeId': 'at-general',
+    'sessionId': sessionId,
+    'position': position,
+    'startAt': _iso(arrive),
+    'endAt': _iso(arrive.add(const Duration(minutes: 30))),
+    'state': 'BOOKED',
+    'channel': 'ONLINE',
+    'createdAt': DateTime.now().toUtc().toIso8601String(),
+    'version': 1,
+  };
+  appointments().add(made);
+  return made;
+}
+
+Map<String, dynamic> sessionById(String id) => _sessions!.firstWhere((s) => s['sessionId'] == id);
+
+/// What deleting the account does to the visits (services/booking/
+/// appointments.py cancel_ahead): every visit still ahead is called off, and a
+/// queue place until its window closes. Returns how many.
+int cancelAhead() {
+  final now = DateTime.now().toUtc();
+  var done = 0;
+  for (final v in appointments()) {
+    if (!const ['BOOKED', 'CONFIRMED', 'RESCHEDULED', 'DISRUPTED', 'REQUESTED'].contains(v['state'])) continue;
+    final ticket = v['sessionId'] != null;
+    final ends = DateTime.parse(v['endAt'] as String), starts = DateTime.parse(v['startAt'] as String);
+    if ((ticket && ends.isBefore(now)) || (!ticket && !starts.isAfter(now))) continue;
+    v['state'] = 'PATIENT_CANCELLED';
+    done++;
+  }
+  return done;
 }

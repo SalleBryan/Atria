@@ -149,6 +149,7 @@ class _CodeBoxesState extends State<CodeBoxes> {
           child: SizedBox(
             height: 58,
             child: TextField(
+              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
               controller: widget.controller,
               focusNode: focus,
               autofocus: true,

@@ -55,6 +55,11 @@ abstract class Auth {
 
   /// Continue with Google, patients only (auth/google.dart).
   Future<SignInStep> signInWithGoogle();
+
+  /// A new email for the signed-in account: Cognito sends a code to it, and
+  /// the address changes only once the code is confirmed (FR-ACC-01).
+  Future<void> changeEmail(String email);
+  Future<void> confirmEmailChange(String code);
   Future<SignInStep> confirmAuthenticatorCode(String code);
   Future<SignInStep> setNewPassword(String password);
 
@@ -217,6 +222,34 @@ class CognitoAuth implements Auth {
     await user.cacheTokens();
     _audience = Audience.patient;
     return SignInStep.done;
+  }
+
+  Future<CognitoUser> _signedIn() async {
+    final a = _audience ?? Audience.patient;
+    final user = await _pool(a).getCurrentUser();
+    if (user == null) throw AuthFailure('Sign in again to continue.');
+    await user.getSession();
+    return user;
+  }
+
+  @override
+  Future<void> changeEmail(String email) async {
+    try {
+      final user = await _signedIn();
+      await user.updateAttributes([CognitoUserAttribute(name: 'email', value: email.trim())]);
+    } on CognitoClientException catch (e) {
+      throw AuthFailure(messageFor(e.code, e.message));
+    }
+  }
+
+  @override
+  Future<void> confirmEmailChange(String code) async {
+    try {
+      final user = await _signedIn();
+      await user.verifyAttribute('email', code.trim());
+    } on CognitoClientException catch (e) {
+      throw AuthFailure(messageFor(e.code, e.message));
+    }
   }
 
   @override

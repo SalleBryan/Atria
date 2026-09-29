@@ -60,6 +60,9 @@ class _PressableState extends State<Pressable> {
     final still = reduceMotion(context);
     final radius = pressed ? widget.radius * .66 : widget.radius;
     return Semantics(
+      // Its own node, sized to itself: a label never merges into the row it
+      // sits in, so a screen reader activates the control, not empty space.
+      container: true,
       button: enabled,
       enabled: enabled,
       label: widget.semanticLabel,
@@ -354,5 +357,22 @@ class _FloatState extends State<Float> with SingleTickerProviderStateMixin {
       child: child,
     ),
     child: widget.child,
+  );
+}
+
+/// A short confirmation, floating above the bottom bar on the fast spring,
+/// as the web's snackbar: dark, rounded, dismissed on its own.
+void say(BuildContext context, String text) {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(text),
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 108),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      backgroundColor: const Color(0xF20D1B34),
+      duration: const Duration(seconds: 4),
+    ),
   );
 }

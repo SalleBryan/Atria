@@ -9,9 +9,11 @@ import 'demo/demo.dart';
 import 'patient/data.dart';
 import 'patient/shell.dart';
 import 'prefs.dart';
+import 'screens/account.dart';
 import 'screens/account_flows.dart';
 import 'screens/find_care.dart';
 import 'screens/onboarding.dart';
+import 'screens/queue.dart';
 import 'screens/home.dart';
 import 'screens/sign_in.dart';
 import 'screens/visits.dart';
@@ -33,6 +35,29 @@ Future<void> main() async {
   session.refresh();
 }
 
+/// Notifies when the session's place changes: loading, signed out, which
+/// audience, or the gate (finish the record, restore the account).
+class _Where extends ChangeNotifier {
+  _Where(this.session) {
+    session.addListener(_check);
+  }
+  final Session session;
+  String _last = '';
+
+  String get _now => switch (session.state) {
+    SignedIn(:final me, :final audience) => 'in:${audience.name}:${_gate(me, audience) ?? ''}',
+    final other => other.runtimeType.toString(),
+  };
+
+  void _check() {
+    final now = _now;
+    if (now != _last) {
+      _last = now;
+      notifyListeners();
+    }
+  }
+}
+
 /// Where a signed-in person must go before anything else, if anywhere.
 String? _gate(Me me, Audience audience) {
   if (audience != Audience.patient) return null;
@@ -49,7 +74,10 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
   });
 
   return GoRouter(
-    refreshListenable: session,
+    // Only where a person belongs moves the router, not every change to who
+    // they are: re-reading GET /me after a name or email change must not
+    // rebuild the screens they are on.
+    refreshListenable: _Where(session),
     initialLocation: '/',
     redirect: (context, state) {
       final at = state.matchedLocation;
@@ -149,12 +177,42 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
         ),
       ),
       GoRoute(
+        path: '/account/details',
+        builder: (_, _) => EditDetailsScreen(session: session),
+      ),
+      GoRoute(
+        path: '/account/email',
+        builder: (_, _) => ChangeEmailScreen(session: session),
+      ),
+      GoRoute(
+        path: '/account/units',
+        builder: (_, _) => UnitsScreen(store: storeFor()),
+      ),
+      GoRoute(
         path: '/visits/:id',
-        builder: (_, state) => VisitDetailScreen(
-          id: state.pathParameters['id']!,
-          store: storeFor(),
-          cancel: state.uri.queryParameters['cancel'] == '1',
-        ),
+        // A queue place opens as its ticket (Figma 310:2), a visit as its details.
+        builder: (_, state) {
+          final id = state.pathParameters['id']!;
+          final store = storeFor();
+          return ListenableBuilder(
+            listenable: store,
+            builder: (_, _) {
+              final data = store.state;
+              final ticket = data is DataReady && data.data.appointments.any((a) => a.id == id && a.sessionId != null);
+              return ticket
+                  ? QueueTicketScreen(id: id, store: store)
+                  : VisitDetailScreen(id: id, store: store, cancel: state.uri.queryParameters['cancel'] == '1');
+            },
+          );
+        },
+      ),
+      GoRoute(
+        path: '/queue',
+        builder: (_, _) => JoinQueueScreen(store: storeFor()),
+      ),
+      GoRoute(
+        path: '/queue/:id',
+        builder: (_, state) => QueueTicketScreen(id: state.pathParameters['id']!, store: storeFor()),
       ),
       ShellRoute(
         builder: (context, state, child) =>
@@ -162,10 +220,13 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
         routes: [
           GoRoute(
             path: '/home',
-            builder: (_, _) => switch (session.state) {
-              SignedIn(:final me) => HomeScreen(me: me, store: storeFor()),
-              _ => const SizedBox.shrink(),
-            },
+            builder: (_, _) => ListenableBuilder(
+              listenable: session,
+              builder: (_, _) => switch (session.state) {
+                SignedIn(:final me) => HomeScreen(me: me, store: storeFor()),
+                _ => const SizedBox.shrink(),
+              },
+            ),
           ),
           GoRoute(
             path: '/find-care',
@@ -174,6 +235,10 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
               query: state.uri.queryParameters['q'] ?? '',
               clinician: state.uri.queryParameters['clinician'],
             ),
+          ),
+          GoRoute(
+            path: '/account',
+            builder: (_, _) => AccountScreen(session: session, store: storeFor()),
           ),
           GoRoute(
             path: '/visits',

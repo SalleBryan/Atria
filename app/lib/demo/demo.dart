@@ -1,13 +1,104 @@
 import '../api/api.dart';
 import '../auth/auth.dart';
-import 'fixtures.dart' as fixtures;
+import 'mock_api.dart';
 
-/// The demo: an invented patient against a stand-in API, for looking at
-/// screens without anyone signing in with a real password. Built only with
-/// `--dart-define=ATRIA_DEMO=true`; the names and numbers are fictional.
+/// The people the demo signs in as, the web preview's personas
+/// (web/src/dev/Preview.tsx). The email picks who; any password but "wrong"
+/// works. Every name and number is invented.
+///
+///     amina@example.com         patient (and any other patient email)
+///     n.fotso@example.com       front desk, Medical Unit
+///     j.nkoulou@example.com     clinician, Medical Unit
+///     r.owona@example.com       unit manager, Medical Unit
+///     k.ngassa@example.com      front desk, outpatient department (runs the queue)
+///     w.mbua@example.com        outpatient doctor (calls the queue)
+///     e.ekane@example.com       surgeon (places procedure requests)
+///     s.eyenga@example.com      administrator (sent to the web console)
+///     new.*@example.com         staff first sign-in (sets a password)
+///     totp.*@example.com        staff with an authenticator code
+const staffPeople = <String, Map<String, dynamic>>{
+  'n.fotso@example.com': {
+    'personId': 'p-desk',
+    'givenName': 'Nadine',
+    'familyName': 'Fotso',
+    'email': 'n.fotso@example.com',
+    'roles': ['RECEPTIONIST'],
+    'staffId': 's-desk',
+    'clinicId': 'u-rhb-medicine',
+    'languages': ['fr', 'en'],
+  },
+  'j.nkoulou@example.com': {
+    'personId': 'p-nkoulou',
+    'givenName': 'Jean-Paul',
+    'familyName': 'Nkoulou',
+    'email': 'j.nkoulou@example.com',
+    'roles': ['CLINICIAN'],
+    'staffId': 's-nkoulou',
+    'clinicId': 'u-rhb-medicine',
+    'languages': ['fr', 'en'],
+  },
+  'r.owona@example.com': {
+    'personId': 'p-manager',
+    'givenName': 'Rodrigue',
+    'familyName': 'Owona',
+    'email': 'r.owona@example.com',
+    'roles': ['CLINIC_MANAGER'],
+    'staffId': 's-manager',
+    'clinicId': 'u-rhb-medicine',
+    'languages': ['fr'],
+  },
+  'k.ngassa@example.com': {
+    'personId': 'p-ngassa',
+    'givenName': 'Kofi',
+    'familyName': 'Ngassa',
+    'email': null,
+    'roles': ['RECEPTIONIST'],
+    'staffId': 's-ngassa',
+    'clinicId': 'u-rhb-opd',
+    'languages': ['en'],
+  },
+  'w.mbua@example.com': {
+    'personId': 'p-mbua',
+    'givenName': 'Walters',
+    'familyName': 'Mbua',
+    'email': null,
+    'roles': ['CLINICIAN'],
+    'staffId': 's-mbua',
+    'clinicId': 'u-rhb-opd',
+    'languages': ['en'],
+  },
+  'e.ekane@example.com': {
+    'personId': 'p-ekane',
+    'givenName': 'Emmanuel',
+    'familyName': 'Ekane',
+    'email': null,
+    'roles': ['CLINICIAN'],
+    'staffId': 's-ekane',
+    'clinicId': 'u-rhb-surgery',
+    'languages': ['en'],
+  },
+  's.eyenga@example.com': {
+    'personId': 'p-admin',
+    'givenName': 'Sandrine',
+    'familyName': 'Eyenga',
+    'email': 's.eyenga@example.com',
+    'roles': ['TENANT_ADMIN'],
+    'staffId': 's-admin',
+    'clinicId': null,
+    'languages': ['fr', 'en'],
+  },
+};
+
+/// The demo: invented people against a stand-in API, for looking at screens
+/// and running workflows without anyone signing in with a real password.
+/// Built only with `--dart-define=ATRIA_DEMO=true`.
 class DemoAuth implements Auth {
   bool _in = false;
   Audience? _audience;
+  String? _pendingStaff;
+
+  /// Which staff persona is signed in, when staff are.
+  Map<String, dynamic>? staff;
 
   /// The demo patient's record as GET /me tells it; Google and a new
   /// sign-up start without a mobile or a date of birth, as the real ones do.
@@ -17,18 +108,37 @@ class DemoAuth implements Auth {
   @override
   Audience? get audience => _audience;
 
+  Map<String, dynamic> _staffFor(String email) {
+    final known = staffPeople[email];
+    if (known != null) return known;
+    // new.* and totp.* sign in as the front desk once past their step.
+    return staffPeople['n.fotso@example.com']!;
+  }
+
   @override
   Future<SignInStep> signIn(Audience audience, String email, String password) async {
     await Future<void>.delayed(const Duration(milliseconds: 600));
     if (password == 'wrong') throw AuthFailure('That email and password do not match.');
+    final address = email.trim().toLowerCase();
     _audience = audience;
-    if (email.startsWith('totp')) return SignInStep.authenticatorCode;
+    if (audience == Audience.staff) {
+      if (address.startsWith('new.') || address.startsWith('totp.')) {
+        _pendingStaff = address;
+        return address.startsWith('new.') ? SignInStep.newPassword : SignInStep.authenticatorCode;
+      }
+      staff = _staffFor(address);
+    } else {
+      staff = null;
+    }
     _in = true;
     return SignInStep.done;
   }
 
   @override
   Future<SignInStep> confirmAuthenticatorCode(String code) async {
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    if (code.trim() != demoCode) throw AuthFailure('That code is not right. Check your authenticator and try again.');
+    staff = _staffFor(_pendingStaff ?? '');
     _in = true;
     return SignInStep.done;
   }
@@ -86,12 +196,15 @@ class DemoAuth implements Auth {
     await Future<void>.delayed(const Duration(milliseconds: 700));
     profile.fromGoogle();
     _audience = Audience.patient;
+    staff = null;
     _in = true;
     return SignInStep.done;
   }
 
   @override
   Future<SignInStep> setNewPassword(String password) async {
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    staff = _staffFor(_pendingStaff ?? '');
     _in = true;
     return SignInStep.done;
   }
@@ -103,127 +216,74 @@ class DemoAuth implements Auth {
   Future<void> signOut({bool everywhere = false}) async {
     _in = false;
     _audience = null;
+    staff = null;
   }
 }
 
 class DemoApi implements Api {
   DemoApi(this._auth);
   final DemoAuth _auth;
+  final hospital = MockHospital();
 
   @override
   Future<Map<String, dynamic>> get(String path) => send('GET', path);
 
   @override
+  Future<String> text(String path) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    return hospital.auditCsv(path);
+  }
+
+  @override
   Future<Map<String, dynamic>> send(String method, String path, [Object? body, Map<String, String>? headers]) async {
-    await Future<void>.delayed(const Duration(milliseconds: 250));
+    await Future<void>.delayed(Duration(milliseconds: method == 'GET' ? 300 : 500));
     final me = _auth.profile;
+    final staff = _auth.staff;
     if (path == '/me' && method == 'PATCH') {
       me.patch(body as Map);
     } else if (path == '/me' && method == 'DELETE') {
-      return me.delete();
+      return me.delete(hospital);
     } else if (path == '/me/restore') {
       me.deletion = null;
     } else if (path == '/me/email') {
       return {};
     }
-    if (path.startsWith('/me')) {
-      final staff = _auth.audience == Audience.staff;
+    if (path == '/me' || path.startsWith('/me/')) {
+      if (staff != null) {
+        return {
+          ...staff,
+          'tenantId': 't-cm-001',
+          'phoneE164': '+12025550142',
+          'phoneVerified': true,
+          'patientProfileId': null,
+          'missing': <String>[],
+          'deletion': null,
+          'permissions': <String, String>{},
+          'landing': <String>[],
+        };
+      }
       return {
-        'personId': staff ? 'p-desk' : 'p-preview',
-        'givenName': staff ? 'Nadine' : me.givenName,
-        'familyName': staff ? 'Fotso' : me.familyName,
-        'email': staff ? 'n.fotso@example.com' : me.email,
-        'phoneE164': staff ? '+12025550161' : me.phone,
-        'dateOfBirth': staff ? null : me.dateOfBirth,
+        'personId': 'p-preview',
+        'givenName': me.givenName,
+        'familyName': me.familyName,
+        'email': me.email,
+        'phoneE164': me.phone,
+        'dateOfBirth': me.dateOfBirth,
         'preferredLanguage': me.language,
-        'missing': staff ? <String>[] : me.missing,
-        'deletion': staff ? null : me.deletion,
-        'tenantId': 't-rhb',
-        'roles': [staff ? 'RECEPTIONIST' : 'PATIENT'],
-        'patientProfileId': staff ? null : 'pp-preview',
-        'staffId': staff ? 's-desk' : null,
-        'clinicId': staff ? 'u-med' : null,
-        'phoneVerified': true,
+        'missing': me.missing,
+        'deletion': me.deletion,
+        'tenantId': 't-cm-001',
+        'roles': ['PATIENT'],
+        'patientProfileId': 'pp-preview',
+        'staffId': null,
+        'clinicId': null,
+        'phoneVerified': me.phone != null,
         'languages': [me.language],
         'permissions': <String, String>{},
-        'landing': <String>[],
+        'landing': ['Upcoming visits'],
       };
     }
-    final uri = Uri.parse(path);
-    switch (uri.path) {
-      case '/patients/me/appointments':
-        return {'appointments': fixtures.appointments(), 'nextCursor': null};
-      case '/clinicians':
-        return {'clinicians': fixtures.clinicians, 'nextCursor': null};
-      case '/clinics':
-        return {'clinics': fixtures.clinics, 'nextCursor': null};
-      case '/appointment-types':
-        return {'appointmentTypes': fixtures.types, 'gridUnitMinutes': 10, 'nextCursor': null};
-    }
-    if (RegExp(r'^/clinics/[^/]+/sessions$').hasMatch(uri.path)) {
-      return {'sessions': fixtures.sessions()};
-    }
-    final ticket = RegExp(r'^/sessions/([^/]+)/tickets$').firstMatch(uri.path);
-    if (ticket != null && method == 'POST') return fixtures.takePlace(ticket.group(1)!);
-    final oneSession = RegExp(r'^/sessions/([^/]+)$').firstMatch(uri.path);
-    if (oneSession != null) {
-      fixtures.sessions();
-      return fixtures.sessionById(oneSession.group(1)!);
-    }
-    final slots = RegExp(r'^/clinicians/([^/]+)/slots$').firstMatch(uri.path);
-    if (slots != null) {
-      return uri.queryParameters.containsKey('from')
-          ? {'days': fixtures.weekFor(slots.group(1)!)}
-          : {'slots': fixtures.slotsFor(slots.group(1)!)};
-    }
-    if (method == 'POST' && uri.path == '/appointments') {
-      final b = body as Map;
-      final start = DateTime.parse(b['startAt'] as String);
-      final made = {
-        'appointmentId': 'a-${fixtures.appointments().length + 1}',
-        'reference': 'APT-${6000 + fixtures.appointments().length}',
-        'clinicId': fixtures.clinicians.firstWhere(
-          (c) => c['clinicianProfileId'] == b['clinicianProfileId'],
-        )['clinicId'],
-        'patientProfileId': 'pp-preview',
-        'appointmentTypeId': b['appointmentTypeId'],
-        'clinicianProfileId': b['clinicianProfileId'],
-        'startAt': b['startAt'],
-        'endAt': start.add(const Duration(minutes: 30)).toIso8601String().replaceFirst('.000', ''),
-        'state': 'BOOKED',
-        'channel': 'ONLINE',
-        'createdAt': DateTime.now().toUtc().toIso8601String(),
-        'version': 1,
-      };
-      fixtures.appointments().add(made);
-      return made;
-    }
-    final one = RegExp(r'^/appointments/([^/]+)(/(confirm|reschedule))?$').firstMatch(uri.path);
-    if (one != null) {
-      final visit = fixtures.appointments().firstWhere((a) => a['appointmentId'] == one.group(1));
-      final action = one.group(3);
-      if (method == 'DELETE') {
-        visit['state'] = 'PATIENT_CANCELLED';
-        return {...visit, 'outcome': 'CANCELLED_IN_WINDOW'};
-      }
-      if (action == 'confirm') visit['state'] = 'CONFIRMED';
-      if (action == 'reschedule') {
-        final start = DateTime.parse((body as Map)['startAt'] as String);
-        visit['startAt'] = body['startAt'];
-        visit['endAt'] = start.add(const Duration(minutes: 30)).toIso8601String().replaceFirst('.000', '');
-        visit['state'] = 'RESCHEDULED';
-      }
-      return {
-        ...visit,
-        'cancellationPreview': {
-          'outcome': 'CANCELLED_IN_WINDOW',
-          'entitlement': 'FULL',
-          'amountMinor': 5000,
-          'currency': 'XAF',
-        },
-      };
-    }
-    throw ApiError(404, 'The demo has nothing at $path yet.');
+    return hospital.answer(method, path, body, patientSide: staff == null);
   }
 }
 
@@ -268,14 +328,14 @@ class DemoProfile {
     if (body['acceptTerms'] == true) termsAccepted = true;
   }
 
-  Map<String, dynamic> delete() {
+  Map<String, dynamic> delete(MockHospital hospital) {
     final now = DateTime.now().toUtc();
     deletion = {
-      'requestedAt': now.toIso8601String(),
-      'purgeAt': now.add(const Duration(days: 30)).toIso8601String(),
+      'requestedAt': iso(now),
+      'purgeAt': iso(now.add(const Duration(days: 30))),
       'by': 'SELF',
       'graceDays': 30,
     };
-    return {...deletion!, 'cancelledVisits': fixtures.cancelAhead()};
+    return {...deletion!, 'cancelledVisits': hospital.cancelAhead('pp-preview')};
   }
 }

@@ -7,10 +7,13 @@ import '../config.dart';
 
 /// A refusal from the API, with the sentence it gave.
 class ApiError implements Exception {
-  ApiError(this.status, this.message, [this.code]);
+  ApiError(this.status, this.message, [this.code, this.detail]);
   final int status;
   final String message;
   final String? code;
+
+  /// What the API adds to a refusal, such as the patients already on a number.
+  final Map<String, dynamic>? detail;
   @override
   String toString() => message;
 }
@@ -18,6 +21,9 @@ class ApiError implements Exception {
 /// Calls to the Atria API, with the signed-in person's access token.
 abstract class Api {
   Future<Map<String, dynamic>> get(String path);
+
+  /// A plain text answer, such as the audit log's CSV export.
+  Future<String> text(String path);
   Future<Map<String, dynamic>> send(String method, String path, [Object? body, Map<String, String>? headers]);
 }
 
@@ -28,6 +34,22 @@ class HttpApi implements Api {
 
   @override
   Future<Map<String, dynamic>> get(String path) => send('GET', path);
+
+  @override
+  Future<String> text(String path) async {
+    final token = await _auth.accessToken();
+    final http.Response response;
+    try {
+      response = await _client.get(
+        Uri.parse('${AtriaConfig.apiBase}$path'),
+        headers: {if (token != null) 'Authorization': 'Bearer $token'},
+      );
+    } on Exception {
+      throw ApiError(0, 'No connection. Check your network and try again.');
+    }
+    if (response.statusCode >= 400) throw ApiError(response.statusCode, 'That could not be fetched.');
+    return response.body;
+  }
 
   @override
   Future<Map<String, dynamic>> send(String method, String path, [Object? body, Map<String, String>? headers]) async {
@@ -53,6 +75,7 @@ class HttpApi implements Api {
         response.statusCode,
         sentence(map['message'] as String? ?? 'Something went wrong.'),
         map['code'] as String?,
+        map['detail'] as Map<String, dynamic>?,
       );
     }
     return decoded is Map<String, dynamic> ? decoded : {'items': decoded};

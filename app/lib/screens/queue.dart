@@ -6,7 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api.dart';
 import '../patient/data.dart';
-import 'account.dart' show showGlassSheet;
+import '../ui/sheets.dart';
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
 import '../ui/expressive.dart';

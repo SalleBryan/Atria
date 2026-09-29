@@ -42,6 +42,7 @@ dependencies:
   url_launcher: ^6.3.2
   flutter_web_auth_2: ^5.1.0
   crypto: ^3.0.7
+  add_2_calendar: ^3.1.1
 
 dev_dependencies:
   flutter_test:
@@ -78,6 +79,7 @@ flutter:
 
   assets:
     - assets/onboarding/
+    - assets/calendar/
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

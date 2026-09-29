@@ -22,6 +22,18 @@ class Appointment {
   String get state => raw['state'] as String? ?? '';
   String? get sessionId => raw['sessionId'] as String?;
   int? get position => raw['position'] as int?;
+  String? get patientId => raw['patientProfileId'] as String?;
+  String? get channel => raw['channel'] as String?;
+  String? get bookedByRole => raw['bookedByRole'] as String?;
+  int get version => raw['version'] as int? ?? 1;
+
+  /// A queue ticket's arrival window (FR-BKG-11).
+  DateTime? get arrivalWindowStart => DateTime.tryParse(raw['arrivalWindowStart'] as String? ?? '');
+  DateTime? get arrivalWindowEnd => DateTime.tryParse(raw['arrivalWindowEnd'] as String? ?? '');
+
+  /// A procedure request: what was asked, and why it was declined (FR-BKG-14).
+  String? get requestNote => raw['requestNote'] as String?;
+  String? get declineReason => raw['declineReason'] as String?;
 }
 
 class Clinician {
@@ -33,8 +45,26 @@ class Clinician {
   String? get familyName => raw['familyName'] as String?;
   String? get specialty => raw['specialty'] as String?;
   String get seniority => raw['seniorityBand'] as String? ?? 'ESTABLISHED';
+  int? get registrationYear => raw['registrationYear'] as int?;
+  List<String> get languages => (raw['languages'] as List? ?? const []).cast<String>();
   String get name => 'Dr ${[givenName, familyName].whereType<String>().join(' ')}';
+
+  /// Years on the Order's roll, as the directory frame shows it: "10y+".
+  String? get experience {
+    final year = registrationYear;
+    if (year == null) return null;
+    final years = DateTime.now().year - year;
+    if (years < 1) return 'New';
+    final fives = (years ~/ 5) * 5;
+    return '${fives == 0 ? years : fives}y+';
+  }
 }
+
+/// "Dr Esther Mbarga", or "Your clinician" when there is none yet.
+String clinicianName(Clinician? c) => c?.name ?? 'Your clinician';
+
+/// A language code, as a person reads it.
+String languageName(String code) => const {'en': 'English', 'fr': 'French'}[code] ?? code.toUpperCase();
 
 class Clinic {
   Clinic(this.raw);
@@ -42,7 +72,17 @@ class Clinic {
   String get id => raw['clinicId'] as String;
   String get name => raw['name'] as String? ?? '';
   String? get address => raw['address'] as String?;
+  String? get phone => raw['phone'] as String?;
+  String? get description => raw['description'] as String?;
+  List<String> get services => (raw['services'] as List? ?? const []).cast<String>();
   Map<String, dynamic>? get openingHours => raw['openingHours'] as Map<String, dynamic>?;
+
+  /// The unit's hours on the weekday of an instant, in its own time, or null when closed.
+  ({String start, String end})? hoursOn([DateTime? instant]) {
+    final day = ClinicClock.local(instant ?? DateTime.now()).weekday - 1;
+    final span = openingHours?['$day'] as Map?;
+    return span == null ? null : (start: span['start'] as String, end: span['end'] as String);
+  }
 
   /// Where the unit is inside its hospital (2026-09-28): building, floor,
   /// walking directions, and the entrance as decimal degrees in text.
@@ -79,6 +119,13 @@ class AppointmentType {
   String get name => raw['name'] as String? ?? '';
   String get serviceLine => raw['serviceLine'] as String? ?? '';
   int? get durationUnits => raw['durationUnits'] as int?;
+  int get bufferUnits => raw['bufferUnits'] as int? ?? 0;
+  String get bookableBy => raw['bookableBy'] as String? ?? 'BOTH';
+  int? get minNoticeMinutes => raw['minNoticeMinutes'] as int?;
+  int? get maxAdvanceDays => raw['maxAdvanceDays'] as int?;
+  int? get cancellationWindowMinutes => raw['cancellationWindowMinutes'] as int?;
+  bool get patientRequestable => raw['patientRequestable'] == true;
+  String? get feeBandId => raw['feeBandId'] as String?;
   List<String> get clinicIds => (raw['clinicIds'] as List? ?? const []).cast<String>();
 
   /// Whether it can be booked at a unit (atria.core.settings.offered_at).
@@ -95,8 +142,16 @@ List<AppointmentType> specialistTypes(List<AppointmentType> types, String? clini
 }
 
 class PatientData {
-  PatientData({required this.appointments, required this.clinicians, required this.clinics, required this.types})
-    : bookable = clinicians.where((c) => specialistTypes(types, c.clinicId).isNotEmpty).toList();
+  PatientData({
+    required this.appointments,
+    required this.clinicians,
+    required this.clinics,
+    required this.types,
+    this.gridUnitMinutes = 10,
+  }) : bookable = clinicians.where((c) => specialistTypes(types, c.clinicId).isNotEmpty).toList();
+
+  /// The tenant's booking grid; a type's length is its units times this.
+  final int gridUnitMinutes;
 
   final List<Appointment> appointments;
   final List<Clinician> clinicians;
@@ -155,6 +210,7 @@ class PatientStore extends ChangeNotifier {
         all(api, '/clinicians', 'clinicians'),
         all(api, '/clinics', 'clinics'),
         all(api, '/appointment-types', 'appointmentTypes'),
+        api.get('/appointment-types').then((r) => [r]),
       ]);
       state = DataReady(
         PatientData(
@@ -162,6 +218,7 @@ class PatientStore extends ChangeNotifier {
           clinicians: results[1].map(Clinician.new).toList(),
           clinics: results[2].map(Clinic.new).toList(),
           types: results[3].map(AppointmentType.new).toList(),
+          gridUnitMinutes: results[4].first['gridUnitMinutes'] as int? ?? 10,
         ),
       );
     } on ApiError catch (e) {
@@ -220,10 +277,55 @@ abstract final class ClinicClock {
     return '${l.year}-${two(l.month)}-${two(l.day)}';
   }
 
+  /// "Thursday 1 October 2026".
+  static String long(DateTime i) {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    final l = local(i);
+    return '${days[l.weekday - 1]} ${l.day} ${months[l.month - 1]} ${l.year}';
+  }
+
+  static String weekday(DateTime i) => _weekdays[local(i).weekday - 1];
+
+  /// "September 2026".
+  static String monthYear(DateTime i) {
+    final l = local(i);
+    return '${long(i).split(' ')[2]} ${l.year}';
+  }
+
+  /// A clinic date (yyyy-mm-dd) as the instant of its local noon, for formatting.
+  static DateTime onDate(String date) => DateTime.parse('${date}T11:00:00Z');
+
+  static String shiftDate(String date, int days) => isoDate(onDate(date).add(Duration(days: days)));
+
   static String greeting([DateTime? now]) {
     final hour = local(now ?? DateTime.now()).hour;
     return hour < 12 ? 'Good morning' : (hour < 18 ? 'Good afternoon' : 'Good evening');
   }
+}
+
+/// "2 days", "Tomorrow", "3 h", "20 min", "Now": how long until an instant.
+String until(DateTime instant, [DateTime? now]) {
+  final at = now ?? DateTime.now();
+  final minutes = (instant.difference(at).inSeconds / 60).round();
+  final days = DateTime.parse(ClinicClock.isoDate(instant)).difference(DateTime.parse(ClinicClock.isoDate(at))).inDays;
+  if (days >= 2) return '$days days';
+  if (days == 1) return 'Tomorrow';
+  if (minutes >= 60) return '${(minutes / 60).round()} h';
+  return minutes > 0 ? '$minutes min' : 'Now';
 }
 
 String initials(String? a, String? b) =>

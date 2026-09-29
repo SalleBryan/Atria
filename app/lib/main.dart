@@ -215,8 +215,15 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
         builder: (_, state) => QueueTicketScreen(id: state.pathParameters['id']!, store: storeFor()),
       ),
       ShellRoute(
-        builder: (context, state, child) =>
-            PatientShell(store: storeFor(), location: state.matchedLocation, child: child),
+        builder: (context, state, child) => PatientShell(
+          store: storeFor(),
+          location: state.matchedLocation,
+          initials: switch (session.state) {
+            SignedIn(:final me) => initials(me.givenName, me.familyName),
+            _ => '',
+          },
+          child: child,
+        ),
         routes: [
           GoRoute(
             path: '/home',

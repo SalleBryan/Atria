@@ -56,6 +56,18 @@ class FakeSns:
         return {"MessageId": f"sns-{len(self.published):04d}"}
 
 
+class FakeSes:
+    def __init__(self, *, fail: Exception | None = None) -> None:
+        self.sent: list[dict] = []
+        self.fail = fail
+
+    def send_email(self, **kwargs):
+        if self.fail is not None:
+            raise self.fail
+        self.sent.append(kwargs)
+        return {"MessageId": f"ses-{len(self.sent):04d}"}
+
+
 class FakeScheduler:
     def __init__(self) -> None:
         self.schedules: dict[str, dict] = {}
@@ -123,8 +135,10 @@ def world(monkeypatch, repository):
             languages=("fr",),
         ),
     )
-    fakes = {"sns": FakeSns(), "scheduler": FakeScheduler()}
+    fakes = {"sns": FakeSns(), "scheduler": FakeScheduler(), "ses": FakeSes()}
     monkeypatch.setattr(sender, "_sns", fakes["sns"])
+    monkeypatch.setattr(sender, "_ses", fakes["ses"])
+    monkeypatch.setattr(sender, "SENDER", "atria@atria.invalid")
     monkeypatch.setattr(sender, "_scheduler", fakes["scheduler"])
     monkeypatch.setattr(sender, "_booking", Booking(repository, clock=lambda: NOW))
     monkeypatch.setattr(sender, "_people", People(repository))
@@ -198,8 +212,10 @@ def cancel_directly(repository):
     )
 
 
-def rows(repository):
-    return Messages(repository).for_day(TENANT, "2026-03-01")
+def rows(repository, channel: str | None = "SMS"):
+    """The day's log rows, the SMS ones unless another channel is asked for."""
+    found = Messages(repository).for_day(TENANT, "2026-03-01")
+    return [r for r in found if channel is None or r.get("channel") == channel]
 
 
 class TestScheduling:
@@ -359,6 +375,95 @@ class TestFiring:
         assert "no sms address" in row["failureReason"]
 
 
+class TestTheReminderByEmail:
+    """2026-09-29: a patient with an email address is reminded there too."""
+
+    def test_the_reminder_also_goes_by_email_when_it_fires(self, world):
+        repository, clinician, fakes = world
+        put_appointment(repository, clinician)
+        run(reminders.SCHEDULE)
+        assert fire(fakes)["batchItemFailures"] == []
+        (email,) = fakes["ses"].sent
+        assert email["Destination"]["ToAddresses"] == ["patient@atria.invalid"]
+        assert "APT-0123456789" in email["Content"]["Simple"]["Subject"]["Data"]
+        assert email["Content"]["Simple"]["Subject"]["Data"].startswith("Reminder")
+        assert len(fakes["sns"].published) == 1
+
+    def test_the_email_has_a_log_row_of_its_own(self, world):
+        repository, clinician, fakes = world
+        put_appointment(repository, clinician)
+        run(reminders.SCHEDULE)
+        fire(fakes)
+        (sms,) = rows(repository)
+        (email,) = rows(repository, "EMAIL")
+        assert sms["deliveryState"] == SENT
+        assert email["deliveryState"] == SENT
+        assert email["kind"] == notices.APPOINTMENT_REMINDER
+        assert email["messageLogId"] == f"{sms['messageLogId']}-email"
+
+    def test_scheduling_and_booking_send_no_email_reminder_early(self, world):
+        repository, clinician, fakes = world
+        put_appointment(repository, clinician)
+        run(reminders.SCHEDULE)
+        assert fakes["ses"].sent == []
+
+    def test_a_failed_email_does_not_fail_the_job_or_resend_the_sms(self, world, monkeypatch):
+        repository, clinician, fakes = world
+        monkeypatch.setattr(sender, "_ses", FakeSes(fail=client_error("Throttling", "SendEmail")))
+        put_appointment(repository, clinician)
+        run(reminders.SCHEDULE)
+        assert fire(fakes)["batchItemFailures"] == []
+        assert len(fakes["sns"].published) == 1
+        (email,) = rows(repository, "EMAIL")
+        assert email["deliveryState"] == FAILED
+
+    def test_no_email_address_means_the_sms_alone(self, world):
+        repository, clinician, fakes = world
+        repository.update_existing(keys.person(PERSON), set_values={"email": ""}, what="person")
+        put_appointment(repository, clinician)
+        run(reminders.SCHEDULE)
+        assert fire(fakes)["batchItemFailures"] == []
+        assert fakes["ses"].sent == []
+        assert len(fakes["sns"].published) == 1
+
+    def test_a_cancelled_appointment_gets_no_email_either(self, world):
+        repository, clinician, fakes = world
+        put_appointment(repository, clinician)
+        run(reminders.SCHEDULE)
+        cancel_directly(repository)
+        fire(fakes)
+        assert fakes["ses"].sent == []
+
+    def test_a_queue_place_is_reminded_with_its_window_and_no_doctor(self, world):
+        repository, clinician, fakes = world
+        # A ticket names no doctor, so it has no clinician to index.
+        repository.put(
+            keys.appointment(TENANT, "a-1"),
+            {
+                "type": "APPOINTMENT",
+                "appointmentId": "a-1",
+                "reference": "APT-0123456789",
+                "tenantId": TENANT,
+                "clinicId": DOUALA,
+                "patientProfileId": PATIENT,
+                "appointmentTypeId": "at-gen-consult",
+                "sessionId": "se-1",
+                "position": 7,
+                "startAt": LATER,
+                "endAt": "2026-03-04T08:30:00Z",
+                "arrivalWindowEnd": "2026-03-04T08:30:00Z",
+                "state": "BOOKED",
+            },
+        )
+        run(reminders.SCHEDULE)
+        fire(fakes)
+        (email,) = fakes["ses"].sent
+        text = email["Content"]["Simple"]["Body"]["Text"]["Data"]
+        assert "7" in text
+        assert "09:30" in text
+        assert "Clinician" not in text
+
+
 class TestCancelling:
     def test_fr_vis_04_cancelling_removes_the_schedule(self, world):
         repository, clinician, fakes = world
@@ -443,7 +548,7 @@ class TestRefusals:
             None,
         )
         assert result["batchItemFailures"] == []
-        assert rows(repository)[0]["deliveryState"] == FAILED
+        assert rows(repository, "EMAIL")[0]["deliveryState"] == FAILED
 
 
 class TestDispatch:

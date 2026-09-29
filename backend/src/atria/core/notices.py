@@ -341,6 +341,77 @@ GREETING = {"fr": "Bonjour,", "en": "Hello,"}
 REFERENCE = {"fr": "Référence", "en": "Reference"}
 COLON = {"fr": " : ", "en": ": "}
 
+# The reminder by email (2026-09-29): the same visit the SMS names, sent at the
+# same time to a patient who has an email address. Like the SMS it names no
+# reason for the visit and no intake answer (FR-REM-04). A queue place has its
+# own wording, since it has an arrival window and a place, and no doctor yet.
+TEXT[APPOINTMENT_REMINDER] = {
+    "fr": {
+        "subject": "Rappel : rendez-vous le {date} à {time}, référence {reference}",
+        "preheader": "Le {date} à {time}, {clinic}.",
+        "tag": "Rappel de rendez-vous",
+        "heading": "Votre rendez-vous approche",
+        "rows": (
+            ("Date", "{date}"),
+            ("Heure", "{time}"),
+            ("Lieu", "{clinic}"),
+            ("Praticien", "{clinician}"),
+        ),
+        "closing": "Merci d'arriver quelques minutes en avance. Si vous ne pouvez pas "
+        "venir, annulez dans l'application Atria pour libérer ce créneau.",
+        "action": "Voir mon rendez-vous",
+    },
+    "en": {
+        "subject": "Reminder: appointment {date} at {time}, reference {reference}",
+        "preheader": "{date} at {time}, {clinic}.",
+        "tag": "Appointment reminder",
+        "heading": "Your appointment is coming up",
+        "rows": (
+            ("Date", "{date}"),
+            ("Time", "{time}"),
+            ("Place", "{clinic}"),
+            ("Clinician", "{clinician}"),
+        ),
+        "closing": "Please arrive a few minutes early. If you cannot come, cancel in the "
+        "Atria app so the time goes to someone else.",
+        "action": "View my appointment",
+    },
+}
+TICKET_REMINDER_TEXT = "APPOINTMENT_REMINDER_TICKET"
+TEXT[TICKET_REMINDER_TEXT] = {
+    "fr": {
+        "subject": "Rappel : votre place le {date}, référence {reference}",
+        "preheader": "Arrivez entre {time} et {until}, {clinic}.",
+        "tag": "Rappel de file d'attente",
+        "heading": "Votre place dans la file approche",
+        "rows": (
+            ("Date", "{date}"),
+            ("Arrivée", "entre {time} et {until}"),
+            ("Lieu", "{clinic}"),
+            ("Place", "{position}"),
+        ),
+        "closing": "Arrivez pendant cette plage horaire. Si la file avance ou prend du "
+        "retard, nous vous prévenons par SMS. Si vous ne pouvez pas venir, libérez "
+        "votre place dans l'application Atria.",
+        "action": "Voir ma place",
+    },
+    "en": {
+        "subject": "Reminder: your place on {date}, reference {reference}",
+        "preheader": "Arrive between {time} and {until}, {clinic}.",
+        "tag": "Queue reminder",
+        "heading": "Your place in the queue is coming up",
+        "rows": (
+            ("Date", "{date}"),
+            ("Arrive", "between {time} and {until}"),
+            ("Place", "{clinic}"),
+            ("Queue place", "{position}"),
+        ),
+        "closing": "Arrive inside that window. If the queue moves or runs late, we text "
+        "you. If you cannot come, give up your place in the Atria app.",
+        "action": "View my place",
+    },
+}
+
 # How each email looks, and where its button leads in the web client.
 EMAIL_TONE = {
     BOOKING_CONFIRMATION: "brand",
@@ -349,6 +420,8 @@ EMAIL_TONE = {
     BOOKING_DISRUPTED: "cancelled",
     TICKET_CONFIRMATION: "brand",
     BOOKING_DECLINED: "cancelled",
+    APPOINTMENT_REMINDER: "brand",
+    TICKET_REMINDER_TEXT: "brand",
 }
 EMAIL_LINK = {
     BOOKING_CONFIRMATION: "/visits/{appointmentId}",
@@ -357,6 +430,8 @@ EMAIL_LINK = {
     BOOKING_DISRUPTED: "/visits/{appointmentId}",
     TICKET_CONFIRMATION: "/visits/{appointmentId}",
     BOOKING_DECLINED: "/visits/{appointmentId}",
+    APPOINTMENT_REMINDER: "/visits/{appointmentId}",
+    TICKET_REMINDER_TEXT: "/visits/{appointmentId}",
 }
 
 
@@ -391,12 +466,12 @@ SMS_DATE = "%d/%m/%Y"
 def available(kind: str, channel: str) -> bool:
     """Whether this notice exists on this channel.
 
-    A cancellation goes by email and a reminder by SMS; the only notice sent
-    both ways is the confirmation, by SMS when the booking is too close for a
-    reminder (FR-REM-06).
+    A cancellation goes by email. A reminder goes by SMS and, to a patient with
+    an email address, by email as well (2026-09-29). The confirmation goes by
+    email, and by SMS when the booking is too close for a reminder (FR-REM-06).
     """
     if channel == "EMAIL":
-        return kind in TEXT and kind != TICKET_CONFIRMATION
+        return kind in TEXT and kind not in (TICKET_CONFIRMATION, TICKET_REMINDER_TEXT)
     if channel == "SMS":
         return kind in SMS_TEXT
     return False
@@ -437,6 +512,9 @@ def compose(
     ticket = bool(appointment.get("sessionId"))
     if ticket and kind == BOOKING_CONFIRMATION and channel == "EMAIL":
         kind = TICKET_CONFIRMATION
+    # The words an email is written from: a queue place's reminder has its own,
+    # while the notice keeps its kind, so the message log reads as a reminder.
+    wording = TICKET_REMINDER_TEXT if ticket and kind == APPOINTMENT_REMINDER else kind
 
     values = {
         "reference": str(appointment.get("reference", "")),
@@ -458,17 +536,17 @@ def compose(
             body=SMS_TEXT[kind][chosen].format(**values),
         )
 
-    parts = TEXT[kind][chosen]
+    parts = TEXT[wording][chosen]
     subject = str(parts["subject"]).format(**values)
     return Notice(
         kind=kind,
         channel=channel,
         language=chosen,
-        template=f"{kind.lower()}.{chosen}",
+        template=f"{wording.lower()}.{chosen}",
         subject=subject,
-        body=plain(kind, chosen, values),
+        body=plain(wording, chosen, values),
         html=rendered(
-            kind, chosen, values, subject=subject, appointment=appointment, app_url=app_url
+            wording, chosen, values, subject=subject, appointment=appointment, app_url=app_url
         ),
     )
 

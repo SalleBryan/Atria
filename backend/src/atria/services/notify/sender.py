@@ -327,6 +327,7 @@ def send_notice(
         raise
 
     messages().sent(log, provider_message_id=provider_id)
+    email_the_reminder(job, message_id=message_id, queued_at=queued_at)
     logger.info(
         "notice sent",
         extra={
@@ -337,6 +338,30 @@ def send_notice(
         },
     )
     return "sent"
+
+
+def email_the_reminder(
+    job: dict[str, Any], *, message_id: str | None, queued_at: dt.datetime | None
+) -> None:
+    """Send a fired reminder's email copy, once its SMS has gone (2026-09-29).
+
+    Only a reminder that fired from its schedule has one, and the copy has a
+    log row of its own, beside the SMS's. It never fails the job: a retry
+    would send the SMS a second time, so a failed email is left as its FAILED
+    row, and a patient with no email address simply gets the SMS alone.
+    """
+    if job.get("kind") != notices.APPOINTMENT_REMINDER or job.get("channel") != "SMS":
+        return
+    if not job.get("reminderId") or not job.get("messageLogId"):
+        return
+    copy = {**job, "channel": "EMAIL", "messageLogId": f"{job['messageLogId']}-email"}
+    try:
+        send_notice(copy, message_id=message_id, queued_at=queued_at)
+    except Exception:
+        logger.exception(
+            "the reminder email could not be sent",
+            extra={"appointmentId": job.get("appointmentId")},
+        )
 
 
 # ---------------------------------------------------------------- reminders

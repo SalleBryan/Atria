@@ -30,6 +30,7 @@ SENT_PAIRS = [
     (notices.BOOKING_CONFIRMATION, "EMAIL"),
     (notices.BOOKING_CANCELLATION, "EMAIL"),
     (notices.APPOINTMENT_REMINDER, "SMS"),
+    (notices.APPOINTMENT_REMINDER, "EMAIL"),
     (notices.BOOKING_CONFIRMATION, "SMS"),
     (notices.BOOKING_RESCHEDULED, "EMAIL"),
     (notices.BOOKING_DISRUPTED, "EMAIL"),
@@ -282,9 +283,11 @@ class TestSms:
         assert "APT-0123456789" in text
         assert "confirme" in text
 
-    def test_a_reminder_is_not_sent_by_email(self):
-        with pytest.raises(Invalid):
-            compose(notices.APPOINTMENT_REMINDER, channel="EMAIL")
+    def test_a_reminder_is_also_sent_by_email(self):
+        """2026-09-29: the reminder goes by email as well as by SMS."""
+        notice = compose(notices.APPOINTMENT_REMINDER, channel="EMAIL")
+        assert notice.subject.startswith(("Reminder", "Rappel"))
+        assert notice.html
 
     def test_a_cancellation_is_not_sent_by_sms(self):
         with pytest.raises(Invalid):

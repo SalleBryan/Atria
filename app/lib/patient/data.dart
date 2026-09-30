@@ -122,6 +122,9 @@ class AppointmentType {
   String? get feeBandId => raw['feeBandId'] as String?;
   List<String> get clinicIds => (raw['clinicIds'] as List? ?? const []).cast<String>();
 
+  /// The questions this type asks before the visit (care context), if any.
+  Map<String, dynamic>? get intakeForm => raw['intakeForm'] as Map<String, dynamic>?;
+
   /// Whether it can be booked at a unit (atria.core.settings.offered_at).
   bool offeredAt(String? clinicId) => clinicIds.isEmpty || (clinicId != null && clinicIds.contains(clinicId));
 }

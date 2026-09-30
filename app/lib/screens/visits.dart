@@ -3,7 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api.dart';
+import '../patient/calendar.dart';
 import '../patient/data.dart';
+import '../patient/intake.dart';
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
 import '../ui/glass.dart';
@@ -735,8 +737,27 @@ class _DetailState extends State<_Detail> {
                   ),
                 ),
               ],
-              if (active && a.state == 'BOOKED') ...[
+              if (type?.intakeForm != null) ...[
                 const SizedBox(height: 16),
+                Rise(
+                  index: 4,
+                  child: BeforeVisitCard(
+                    api: widget.store.api,
+                    appointmentId: a.id,
+                    clinician: clinician?.name ?? 'your clinician',
+                  ),
+                ),
+              ],
+              if (active) ...[
+                const SizedBox(height: 16),
+                SecondaryButton(
+                  label: 'Add to calendar',
+                  leading: const AtriaIcon('calendar', size: 18, color: AtriaColors.blue600),
+                  onPressed: () => addToCalendar(context, a, data),
+                ),
+              ],
+              if (active && a.state == 'BOOKED') ...[
+                const SizedBox(height: 12),
                 SmallPrimary(label: "I'll be there", busy: confirming, onTap: confirm, height: 50),
               ],
               const SizedBox(height: 16),

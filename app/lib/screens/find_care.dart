@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../api/api.dart';
+import '../patient/calendar.dart';
 import '../patient/data.dart';
+import '../patient/intake.dart';
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
 import '../ui/glass.dart';
@@ -575,6 +577,8 @@ class _ClinicianScreenState extends State<ClinicianScreen> {
   Future<void> book(Clinician c, AppointmentType type) async {
     final chosen = slot;
     if (chosen == null) return;
+    final intake = await _askIntake(context, type, c);
+    if (intake == null || !mounted) return;
     setState(() {
       booking = true;
       failure = null;
@@ -587,6 +591,7 @@ class _ClinicianScreenState extends State<ClinicianScreen> {
           'appointmentTypeId': type.id,
           'clinicianProfileId': c.id,
           'startAt': chosen.toUtc().toIso8601String().replaceFirst('.000', ''),
+          if (intake.given) 'intake': intake.body,
         },
         {'Idempotency-Key': key},
       );
@@ -1044,6 +1049,8 @@ class _TakenScreenState extends State<TakenScreen> {
     final chosen = picked;
     if (chosen == null) return;
     final type = specialistTypes(data.types, chosen.$1.clinicId).first;
+    final intake = await _askIntake(context, type, chosen.$1);
+    if (intake == null || !mounted) return;
     setState(() {
       booking = true;
       failure = null;
@@ -1056,6 +1063,7 @@ class _TakenScreenState extends State<TakenScreen> {
           'appointmentTypeId': type.id,
           'clinicianProfileId': chosen.$1.id,
           'startAt': chosen.$2.toUtc().toIso8601String().replaceFirst('.000', ''),
+          if (intake.given) 'intake': intake.body,
         },
         {'Idempotency-Key': key},
       );
@@ -1535,6 +1543,12 @@ class BookedScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
+              SecondaryButton(
+                label: 'Add to calendar',
+                leading: const AtriaIcon('calendar', size: 18, color: AtriaColors.blue600),
+                onPressed: () => addToCalendar(context, a, data),
+              ),
+              const SizedBox(height: 10),
               PrimaryButton(label: 'See my visits', onPressed: () => context.go('/visits')),
             ],
           ),
@@ -1542,4 +1556,12 @@ class BookedScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The questions a visit type asks, before its time is held; a type that
+/// asks none books straight away. Null when the patient closes the sheet.
+Future<IntakeResult?> _askIntake(BuildContext context, AppointmentType type, Clinician c) async {
+  final form = IntakeForm.of(type.intakeForm);
+  if (form == null || form.fields.isEmpty) return const IntakeResult(null);
+  return askBeforeBooking(context, form, c.name);
 }

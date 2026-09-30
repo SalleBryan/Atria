@@ -314,6 +314,17 @@ abstract final class ClinicClock {
   }
 }
 
+/// A wait, short enough for a stat: "~45m", then "~1h 20m" from an hour,
+/// then "~2d" from a day. Minutes stop at 59, so nobody reads "~240m".
+String shortWait(int minutes) {
+  if (minutes < 60) return '~${minutes}m';
+  if (minutes < 24 * 60) {
+    final rest = minutes % 60;
+    return rest == 0 ? '~${minutes ~/ 60}h' : '~${minutes ~/ 60}h ${rest}m';
+  }
+  return '~${(minutes / (24 * 60)).round()}d';
+}
+
 /// "2 days", "Tomorrow", "3 h", "20 min", "Now": how long until an instant.
 String until(DateTime instant, [DateTime? now]) {
   final at = now ?? DateTime.now();

@@ -2,11 +2,11 @@ import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api.dart';
-import '../auth/auth.dart';
 import '../auth/forms.dart';
 import '../auth/session.dart';
 import '../config.dart';
@@ -20,6 +20,7 @@ import '../ui/icons.dart';
 import '../ui/loading.dart';
 import '../ui/sheets.dart';
 import '../ui/widgets.dart';
+import 'account_flows.dart' show BirthCalendarButton;
 
 const _months = [
   'January',
@@ -61,7 +62,7 @@ String bornLine(String? iso) {
 // ------------------------------------------------------------------ account
 
 /// "Mobile · Account" (Figma 41:2), with what the web's Account does
-/// (2026-09-28/29): the name, email and language changed here, the units on
+/// (2026-09-28/30): the name, mobile, date of birth and language changed here, the units on
 /// the hospital's map, the account deleted with 30 days to take it back.
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key, required this.session, required this.store});
@@ -71,7 +72,7 @@ class AccountScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      // The session too: a changed name or email shows at once.
+      // The session too: a changed name or number shows at once.
       listenable: Listenable.merge([session, store]),
       builder: (context, _) {
         final state = session.state;
@@ -121,20 +122,23 @@ class AccountScreen extends StatelessWidget {
                     '${me.name} · ${languageName(me.preferredLanguage ?? (me.languages.isEmpty ? null : me.languages.first))}',
                     onTap: () => context.go('/account/details'),
                   ),
-                  _RowData(
-                    'mail',
-                    AtriaColors.blue600,
-                    'Email',
-                    me.email ?? 'Not given',
-                    onTap: () => context.go('/account/email'),
-                  ),
+                  // The email is what the account signs in with: shown here,
+                  // not changed.
+                  _RowData('mail', AtriaColors.blue600, 'Email', me.email ?? 'Not given'),
                   _RowData(
                     'phone',
                     AtriaColors.confirmed,
-                    'Contact',
+                    'Mobile',
                     '${maskedPhone(me.phoneE164)} · ${me.phoneVerified ? 'verified' : 'not verified yet'}',
+                    onTap: () => context.go('/account/details'),
                   ),
-                  _RowData('calendar', AtriaColors.confirmed, 'Date of birth', bornLine(me.dateOfBirth)),
+                  _RowData(
+                    'calendar',
+                    AtriaColors.confirmed,
+                    'Date of birth',
+                    bornLine(me.dateOfBirth),
+                    onTap: () => context.go('/account/details'),
+                  ),
                 ],
               ),
             ),
@@ -653,7 +657,10 @@ class _SubPage extends StatelessWidget {
   );
 }
 
-/// The name and the language, through PATCH /me (as the web's EditDetails).
+/// The name, the mobile, the date of birth and the language, through
+/// PATCH /me (as the web's EditDetails). The email is the sign-in name and is
+/// not changed here. A verified mobile changes only with a code, which the
+/// API does not send yet, so it is shown but held.
 class EditDetailsScreen extends StatefulWidget {
   const EditDetailsScreen({super.key, required this.session});
   final Session session;
@@ -662,42 +669,67 @@ class EditDetailsScreen extends StatefulWidget {
   State<EditDetailsScreen> createState() => _EditDetailsScreenState();
 }
 
+/// "+237670000142" as "6 70 00 01 42", for the field after its +237 prefix.
+String localMobile(String? e164) {
+  if (e164 == null) return '';
+  final cm = RegExp(r'^\+237(\d)(\d{2})(\d{2})(\d{2})(\d{2})$').firstMatch(e164);
+  if (cm == null) return e164;
+  return [cm[1], cm[2], cm[3], cm[4], cm[5]].join(' ');
+}
+
 class _EditDetailsScreenState extends State<EditDetailsScreen> {
   late final Me me = (widget.session.state as SignedIn).me;
   late final given = TextEditingController(text: me.givenName ?? '');
   late final family = TextEditingController(text: me.familyName ?? '');
+  late final phone = TextEditingController(text: localMobile(me.phoneE164));
+  late final born = TextEditingController(
+    text: DateTime.tryParse(me.dateOfBirth ?? '') == null ? '' : maskedDate(DateTime.parse(me.dateOfBirth!)),
+  );
   late String language = me.preferredLanguage ?? (me.languages.isEmpty ? 'en' : me.languages.first);
   bool busy = false;
   String? failure;
   String? said;
+  Map<String, String> errors = const {};
+
+  bool get phoneHeld => me.phoneVerified && (me.phoneE164 ?? '').isNotEmpty;
 
   @override
   void dispose() {
     given.dispose();
     family.dispose();
+    phone.dispose();
+    born.dispose();
     super.dispose();
   }
 
   Future<void> save() async {
-    if (given.text.trim().isEmpty || family.text.trim().isEmpty) {
-      setState(() => failure = 'Enter your given and family names.');
-      return;
-    }
+    final number = normalisePhone(phone.text);
+    final date = birthDate(born.text);
+    final wrong = <String, String>{
+      if (given.text.trim().isEmpty) 'given': 'Enter your given name.',
+      if (family.text.trim().isEmpty) 'family': 'Enter your family name.',
+      if (!phoneHeld && !isMobile(number)) 'phone': 'Enter a Cameroonian mobile, such as 6 70 00 01 42.',
+      if (date == null) 'born': 'Enter your date of birth as DD/MM/YYYY.',
+    };
     setState(() {
-      busy = true;
+      errors = wrong;
       failure = null;
       said = null;
     });
+    if (wrong.isNotEmpty) return;
+    setState(() => busy = true);
     try {
       await widget.session.api.send('PATCH', '/me', {
         'givenName': given.text.trim(),
         'familyName': family.text.trim(),
         'preferredLanguage': language,
+        if (date != me.dateOfBirth) 'dateOfBirth': date,
+        if (!phoneHeld && number != me.phoneE164) 'phoneE164': number,
       });
       await widget.session.refresh();
-      if (mounted) setState(() => said = 'Saved. The front desk sees your name as you have it now.');
+      if (mounted) setState(() => said = 'Saved. The front desk sees your details as you have them now.');
     } on ApiError catch (e) {
-      if (mounted) setState(() => failure = e.message);
+      if (mounted) setState(() => failure = sentence(e.message));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -706,15 +738,55 @@ class _EditDetailsScreenState extends State<EditDetailsScreen> {
   @override
   Widget build(BuildContext context) => _SubPage(
     title: 'Personal details',
-    lede: 'Change your name and the language messages come in. The front desk can correct the rest.',
+    lede: 'Your name, mobile, date of birth and the language messages come in.',
     children: [
       FormCard(
         children: [
           if (failure != null) ...[Notice(failure!, tone: NoticeTone.error), const SizedBox(height: 14)],
           if (said != null) ...[Notice(said!, tone: NoticeTone.success), const SizedBox(height: 14)],
-          AtriaField(label: 'Given name', icon: 'user', controller: given, capitalization: TextCapitalization.words),
+          AtriaField(
+            label: 'Given name',
+            icon: 'user',
+            controller: given,
+            capitalization: TextCapitalization.words,
+            error: errors['given'],
+          ),
           const SizedBox(height: 12),
-          AtriaField(label: 'Family name', icon: 'user', controller: family, capitalization: TextCapitalization.words),
+          AtriaField(
+            label: 'Family name',
+            icon: 'user',
+            controller: family,
+            capitalization: TextCapitalization.words,
+            error: errors['family'],
+          ),
+          const SizedBox(height: 12),
+          AtriaField(
+            label: 'Mobile number',
+            icon: 'phone',
+            controller: phone,
+            hint: '6 70 00 00 00',
+            keyboard: TextInputType.phone,
+            prefixText: '$homeDialCode ',
+            formatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9 ]'))],
+            autofill: const [AutofillHints.telephoneNumber],
+            readOnly: phoneHeld,
+            error: errors['phone'],
+            help: phoneHeld
+                ? 'Verified. To change a verified number, ask the front desk.'
+                : 'Reminders are texted here.',
+          ),
+          const SizedBox(height: 12),
+          AtriaField(
+            label: 'Date of birth',
+            icon: 'pencil',
+            controller: born,
+            hint: 'DD/MM/YYYY',
+            keyboard: TextInputType.number,
+            formatters: [DateMask()],
+            trailing: BirthCalendarButton(controller: born),
+            autofill: const [AutofillHints.birthday],
+            error: errors['born'],
+          ),
           const SizedBox(height: 16),
           Text(
             'Language',
@@ -732,109 +804,6 @@ class _EditDetailsScreenState extends State<EditDetailsScreen> {
       ),
     ],
   );
-}
-
-/// A new email: Cognito's code to the new address, then POST /me/email takes
-/// the address Cognito has verified (as the web's EditDetails does).
-class ChangeEmailScreen extends StatefulWidget {
-  const ChangeEmailScreen({super.key, required this.session});
-  final Session session;
-
-  @override
-  State<ChangeEmailScreen> createState() => _ChangeEmailScreenState();
-}
-
-class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
-  final email = TextEditingController();
-  final code = TextEditingController();
-  bool sent = false;
-  bool busy = false;
-  String? failure;
-
-  @override
-  void initState() {
-    super.initState();
-    email.addListener(() => setState(() {}));
-    code.addListener(() => setState(() {}));
-  }
-
-  @override
-  void dispose() {
-    email.dispose();
-    code.dispose();
-    super.dispose();
-  }
-
-  Future<void> send() async {
-    setState(() {
-      busy = true;
-      failure = null;
-    });
-    try {
-      await widget.session.auth.changeEmail(email.text);
-      if (mounted) setState(() => sent = true);
-    } on AuthFailure catch (e) {
-      if (mounted) setState(() => failure = e.message);
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  Future<void> confirm() async {
-    setState(() {
-      busy = true;
-      failure = null;
-    });
-    try {
-      await widget.session.auth.confirmEmailChange(code.text);
-      await widget.session.api.send('POST', '/me/email');
-      await widget.session.refresh();
-      if (mounted) {
-        say(context, 'Your new email is verified. Confirmations go there from now on.');
-        context.pop();
-      }
-    } on AuthFailure catch (e) {
-      if (mounted) setState(() => failure = e.message);
-    } on ApiError catch (e) {
-      if (mounted) setState(() => failure = e.message);
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final current = (widget.session.state as SignedIn).me.email;
-    return _SubPage(
-      title: 'Email',
-      lede: sent
-          ? 'We sent a six-digit code to ${email.text.trim()}. Enter it to confirm the change.'
-          : 'Confirmations and receipts go here. ${current == null ? '' : 'Now: $current.'}',
-      children: [
-        FormCard(
-          children: [
-            if (failure != null) ...[Notice(failure!, tone: NoticeTone.error), const SizedBox(height: 14)],
-            if (!sent) ...[
-              AtriaField(
-                label: 'New email address',
-                icon: 'mail',
-                controller: email,
-                hint: current ?? 'you@example.com',
-                keyboard: TextInputType.emailAddress,
-                autofill: const [AutofillHints.email],
-              ),
-              const SizedBox(height: 16),
-              PrimaryButton(label: 'Send the code', busy: busy, onPressed: isEmail(email.text) ? send : null),
-            ] else ...[
-              CodeBoxes(controller: code, invalid: failure != null),
-              const SizedBox(height: 16),
-              PrimaryButton(label: 'Confirm', busy: busy, onPressed: code.text.length == 6 ? confirm : null),
-            ],
-          ],
-        ),
-      ],
-    );
-  }
 }
 
 // ------------------------------------------------------------------ units

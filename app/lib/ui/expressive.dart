@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -107,15 +106,46 @@ class _PressableState extends State<Pressable> {
   }
 }
 
-/// The light that drifts behind the glass (motion.css, "light that drifts
-/// behind glass"): soft blurred orbs, each on its own slow loop, so the glass
-/// above always has something moving to blur. Still under reduced motion.
-class DriftingLight extends StatefulWidget {
+/// The soft light behind the glass (motion.css, "light that drifts behind
+/// glass"): blurred orbs, drawn as radial gradients so no blur runs per frame.
+/// On the web they drift; in the app they hold still, because anything moving
+/// behind glass makes every glass card above it blur again on every frame,
+/// which is what made screens stutter on phones.
+class DriftingLight extends StatelessWidget {
   const DriftingLight({super.key, required this.orbs});
   final List<Orb> orbs;
 
   @override
-  State<DriftingLight> createState() => _DriftingLightState();
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: Stack(
+      clipBehavior: Clip.none,
+      children: [
+        for (final orb in orbs)
+          Positioned(
+            // A blur of 26 spreads the disc by about twice that on each side.
+            left: orb.left - 52,
+            top: orb.top - 52,
+            child: SizedBox.square(
+              dimension: orb.size + 104,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      orb.color,
+                      orb.color,
+                      orb.color.withValues(alpha: orb.color.a * .45),
+                      orb.color.withValues(alpha: 0),
+                    ],
+                    stops: const [0, .38, .62, 1],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
 }
 
 class Orb {
@@ -125,60 +155,19 @@ class Orb {
   final double size;
   final Color color;
 
-  /// How far the orb wanders from where it rests.
+  /// How far the orb wanders on the web; kept so both describe the same orbs.
   final double drift;
 }
 
-class _DriftingLightState extends State<DriftingLight> with SingleTickerProviderStateMixin {
-  late final AnimationController loop = AnimationController(vsync: this, duration: const Duration(seconds: 22));
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (reduceMotion(context)) {
-      loop.stop();
-    } else if (!loop.isAnimating) {
-      loop.repeat();
-    }
-  }
-
-  @override
-  void dispose() {
-    loop.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: loop,
-    builder: (context, _) {
-      final t = loop.value * 2 * math.pi;
-      return Stack(
-        clipBehavior: Clip.none,
-        children: [
-          for (var i = 0; i < widget.orbs.length; i++)
-            Positioned(
-              left: widget.orbs[i].left + widget.orbs[i].drift * math.sin(t + i * 2.1),
-              top: widget.orbs[i].top + widget.orbs[i].drift * .7 * math.cos(t * (i.isEven ? 1 : -1) + i),
-              child: ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: 26, sigmaY: 26, tileMode: TileMode.decal),
-                child: Container(
-                  width: widget.orbs[i].size,
-                  height: widget.orbs[i].size,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: widget.orbs[i].color),
-                ),
-              ),
-            ),
-        ],
-      );
-    },
-  );
-}
-
-/// A screen arriving: it rises 22 and fades in on the default spatial
-/// spring, as the web's screens do; leaving, it fades on the effects spring.
+/// Moving between screens: Material's shared axis along x. The new screen
+/// slides in 30 from the right as it fades in, and the one beneath slides 30
+/// the other way and dims a little; back reverses both. Movement is on the
+/// default spatial spring, opacity on the effects spring, so the change reads
+/// as quick and settled rather than drawn out.
 class ExpressivePageTransitions extends PageTransitionsBuilder {
   const ExpressivePageTransitions();
+
+  static const _travel = 30.0;
 
   @override
   Widget buildTransitions<T>(
@@ -189,31 +178,38 @@ class ExpressivePageTransitions extends PageTransitionsBuilder {
     Widget child,
   ) {
     if (reduceMotion(context)) return FadeTransition(opacity: animation, child: child);
-    final rise = CurvedAnimation(
-      parent: animation,
+    // Played back, a spring would start slowly; the flipped spring leaves as
+    // briskly as it arrived.
+    CurvedAnimation spring(Animation<double> parent) => CurvedAnimation(
+      parent: parent,
       curve: AtriaMotion.spatialDefault,
-      reverseCurve: AtriaMotion.effects,
+      reverseCurve: AtriaMotion.spatialDefault.flipped,
     );
-    final fade = CurvedAnimation(parent: animation, curve: AtriaMotion.effects);
-    final under = CurvedAnimation(parent: secondaryAnimation, curve: AtriaMotion.effects);
-    return FadeTransition(
-      opacity: Tween(begin: 1.0, end: .6).animate(under),
-      child: ScaleTransition(
-        scale: Tween(begin: 1.0, end: .97).animate(under),
-        child: FadeTransition(
-          opacity: fade,
-          child: AnimatedBuilder(
-            animation: rise,
-            builder: (context, child) => Transform.translate(offset: Offset(0, 22 * (1 - rise.value)), child: child),
-            child: child,
-          ),
-        ),
+    CurvedAnimation quick(Animation<double> parent) => CurvedAnimation(
+      parent: parent,
+      curve: const Interval(0, .45, curve: AtriaMotion.effects),
+      reverseCurve: const Interval(.55, 1, curve: FlippedCurve(AtriaMotion.effects)),
+    );
+    final move = spring(animation);
+    final fade = quick(animation);
+    final under = spring(secondaryAnimation);
+    final dim = quick(secondaryAnimation);
+    return AnimatedBuilder(
+      animation: Listenable.merge([move, under]),
+      builder: (context, child) =>
+          Transform.translate(offset: Offset(_travel * (1 - move.value) - _travel * under.value, 0), child: child),
+      child: FadeTransition(
+        opacity: Tween(begin: 1.0, end: .7).animate(dim),
+        child: FadeTransition(opacity: fade, child: child),
       ),
     );
   }
 
   @override
   Duration get transitionDuration => AtriaMotion.spatialDefaultDuration;
+
+  @override
+  Duration get reverseTransitionDuration => AtriaMotion.spatialFastDuration;
 }
 
 /// Swapping one tab's screen for another inside the shell: Material's fade

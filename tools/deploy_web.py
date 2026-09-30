@@ -7,7 +7,8 @@ The Amplify app is the atria-<env>-web stack's (infra/atria_infra/stacks/
 hosting.py). It is not connected to the repository, so each deployment is a
 zip of web/dist uploaded here: what goes live is exactly what was built and
 tested. The build reads web/.env.local for the Cognito settings, as the
-development server does.
+development server does. The Deploy workflow runs this after every successful
+deployment of main (tools/web_env.py first, to write web/.env.local).
 """
 
 from __future__ import annotations
@@ -44,6 +45,23 @@ def zipped() -> bytes:
     return buffer.getvalue()
 
 
+def upload(url: str, body: bytes, attempts: int = 3) -> None:
+    """PUT the zip to the URL Amplify issued, trying again if the link drops."""
+    for attempt in range(1, attempts + 1):
+        request = urllib.request.Request(  # noqa: S310  the URL Amplify just issued
+            url, data=body, method="PUT", headers={"Content-Type": "application/zip"}
+        )
+        try:
+            with urllib.request.urlopen(request) as response:  # noqa: S310
+                response.read()
+            return
+        except OSError:
+            if attempt == attempts:
+                raise
+            print(f"upload dropped, trying again ({attempt}/{attempts})")
+            time.sleep(5 * attempt)
+
+
 def main() -> int:
     if "--no-build" not in sys.argv:
         subprocess.run("npm run build", cwd=WEB, shell=True, check=True)  # noqa: S602, S607  a fixed command
@@ -54,13 +72,15 @@ def main() -> int:
     found = outputs()
     app_id = found["AppId"]
     amplify = boto3.client("amplify", region_name=REGION)
+    # An upload that dropped leaves its job pending, and Amplify then refuses
+    # every new deployment until it is stopped (seen 2026-09-30).
+    for stale in amplify.list_jobs(appId=app_id, branchName=BRANCH, maxResults=10)["jobSummaries"]:
+        if stale["status"] == "PENDING":
+            amplify.stop_job(appId=app_id, branchName=BRANCH, jobId=stale["jobId"])
+            print(f"stopped job {stale['jobId']}, left pending by an earlier upload")
     job = amplify.create_deployment(appId=app_id, branchName=BRANCH)
     body = zipped()
-    request = urllib.request.Request(  # noqa: S310  the URL Amplify just issued
-        job["zipUploadUrl"], data=body, method="PUT", headers={"Content-Type": "application/zip"}
-    )
-    with urllib.request.urlopen(request) as response:  # noqa: S310
-        response.read()
+    upload(job["zipUploadUrl"], body)
     amplify.start_deployment(appId=app_id, branchName=BRANCH, jobId=job["jobId"])
     print(f"deploying job {job['jobId']} ({len(body) // 1024} KB)")
 

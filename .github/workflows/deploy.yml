@@ -58,3 +58,12 @@ jobs:
       - name: Deploy
         working-directory: infra
         run: npx --yes aws-cdk@2 deploy --all --require-approval never
+
+      # Amplify is not connected to the repository: the web client is built
+      # here, from the commit CI passed, and uploaded (tools/deploy_web.py).
+      - name: Publish the web client
+        run: |
+          pip install boto3
+          (cd web && npm ci)
+          python tools/web_env.py
+          python tools/deploy_web.py

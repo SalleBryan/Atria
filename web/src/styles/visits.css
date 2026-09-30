@@ -94,6 +94,8 @@
   line-height: 32px;
   letter-spacing: -0.022em;
 }
+/* "of 23" after a queue number: the size of the line, quieter. */
+.visit-hero-of { font-size: 0.55em; font-weight: 500; opacity: 0.78; }
 .visit-hero p { margin: 5px 0 0; font-size: 12.5px; }
 .visit-cells {
   display: grid;

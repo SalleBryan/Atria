@@ -65,7 +65,11 @@ describe("Account", () => {
     expect(await screen.findByRole("heading", { name: "Personal details" })).toBeInTheDocument();
     expect(screen.getAllByText("amina@example.com").length).toBeGreaterThan(0);
     expect(screen.queryByText("+12025550142")).not.toBeInTheDocument();
-    expect(screen.getByText("Not verified yet")).toBeInTheDocument();
+    expect(screen.getByText(/not verified yet/)).toBeInTheDocument();
+    // The email is how the account signs in: shown, never changed here.
+    expect(screen.queryByRole("button", { name: "Change your email" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change your mobile" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change your date of birth" })).toBeInTheDocument();
   });
 
   it("previews the reminder in the words the SMS really uses", async () => {

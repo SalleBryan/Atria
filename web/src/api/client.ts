@@ -90,6 +90,8 @@ export interface Me {
   familyName: string | null;
   email: string | null;
   phoneE164: string | null;
+  /** YYYY-MM-DD, when given. */
+  dateOfBirth?: string | null;
   tenantId: string;
   roles: string[];
   patientProfileId: string | null;

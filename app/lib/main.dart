@@ -116,6 +116,10 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
     }
   });
 
+  // A link opened from outside (an email's "See my place") while the session
+  // is still loading or signed out: kept, and followed once the patient is in.
+  String? linked;
+
   return GoRouter(
     navigatorKey: rootKey,
     // Only where a person belongs moves the router, not every change to who
@@ -135,11 +139,19 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
         '/staff/forgot-password',
         '/staff/new-password',
       };
+      if (session.state is! SignedIn && at != '/' && !open.contains(at) && _linkable(at)) {
+        linked = state.uri.toString();
+      }
       return switch (session.state) {
         Loading() => at == '/' ? null : '/',
         SignedIn(:final me, :final audience) => switch (_gate(me, audience)) {
           final String gate => at == gate ? null : gate,
           null when audience == Audience.staff => at.startsWith('/console') ? null : '/console',
+          null when linked != null && (at == '/' || open.contains(at)) => () {
+            final to = linked;
+            linked = null;
+            return to;
+          }(),
           null =>
             open.contains(at) ||
                     at == '/' ||
@@ -355,11 +367,6 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
             builder: (_, _) => EditDetailsScreen(session: session),
           ),
           GoRoute(
-            path: 'email',
-            parentNavigatorKey: rootKey,
-            builder: (_, _) => ChangeEmailScreen(session: session),
-          ),
-          GoRoute(
             path: 'units',
             parentNavigatorKey: rootKey,
             builder: (_, _) => UnitsScreen(store: storeFor()),
@@ -425,3 +432,6 @@ class _AtriaAppState extends State<AtriaApp> {
   Widget build(BuildContext context) =>
       MaterialApp.router(title: 'Atria', theme: atriaTheme(), routerConfig: router, debugShowCheckedModeBanner: false);
 }
+
+/// Where a link from outside may lead: a patient's own screens.
+bool _linkable(String at) => const ['/visits', '/queue', '/home', '/find-care', '/account'].any(at.startsWith);

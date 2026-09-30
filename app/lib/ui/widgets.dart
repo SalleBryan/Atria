@@ -7,31 +7,36 @@ import 'expressive.dart';
 import 'icons.dart';
 import '../ui/loading.dart';
 
-/// Rises into place on a Material spring, 60 ms apart per row, the way the
-/// design system's motion card specifies (ADR 0019). Reduced motion skips it.
+/// Rises into place on a Material spring, 30 ms apart per row (ADR 0019).
+/// Reduced motion skips it.
 class Rise extends StatelessWidget {
   const Rise({super.key, required this.child, this.index = 0});
   final Widget child;
   final int index;
 
+  // Each part of a screen rises 12 on the default spatial spring and fades
+  // on the effects spring, 30ms after the one above it; past the sixth, all
+  // arrive together, so a long screen is never still waiting to appear.
+  static const _step = 30;
+  static const _travel = 12.0;
+
   @override
   Widget build(BuildContext context) {
     if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) return child;
-    final delay = 60 * index;
-    final total = AtriaMotion.spatialSlowDuration + Duration(milliseconds: delay);
+    final delay = _step * index.clamp(0, 6);
+    final run = AtriaMotion.spatialDefaultDuration.inMilliseconds;
+    final total = Duration(milliseconds: run + delay);
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: total,
       builder: (context, t, child) {
-        final local = ((t * total.inMilliseconds - delay) / AtriaMotion.spatialSlowDuration.inMilliseconds).clamp(
-          0.0,
-          1.0,
-        );
+        final local = ((t * total.inMilliseconds - delay) / run).clamp(0.0, 1.0);
         final move = AtriaMotion.spatialDefault.transform(local);
-        final fade = AtriaMotion.effects.transform(local);
+        // The fade is done in the first half, while the spring does its travel.
+        final fade = AtriaMotion.effects.transform((local * 2).clamp(0.0, 1.0));
         return Opacity(
           opacity: fade,
-          child: Transform.translate(offset: Offset(0, 22 * (1 - move)), child: child),
+          child: Transform.translate(offset: Offset(0, _travel * (1 - move)), child: child),
         );
       },
       child: child,
@@ -65,7 +70,7 @@ class PageBackground extends StatelessWidget {
               ),
             ),
           ),
-          Positioned.fill(child: child),
+          Positioned.fill(child: BackdropGroup(child: child)),
         ],
       ),
     );
@@ -144,6 +149,7 @@ class AtriaField extends StatefulWidget {
     this.prefixText,
     this.formatters,
     this.trailing,
+    this.readOnly = false,
   });
   final String label;
   final String icon;
@@ -154,6 +160,9 @@ class AtriaField extends StatefulWidget {
 
   /// A button at the end of the field, such as a calendar.
   final Widget? trailing;
+
+  /// Shown but not changed here; the field greys to say so.
+  final bool readOnly;
 
   /// Says what is wrong under the field, which turns red.
   final String? error;
@@ -195,6 +204,7 @@ class _AtriaFieldState extends State<AtriaField> {
           child: TextField(
             onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
             controller: widget.controller,
+            readOnly: widget.readOnly,
             obscureText: hidden,
             keyboardType: widget.keyboard,
             autofillHints: widget.autofill,
@@ -209,7 +219,7 @@ class _AtriaFieldState extends State<AtriaField> {
               hintText: widget.hint,
               hintStyle: AtriaType.body(size: 14.5, color: const Color(0xFF9AA9C4), height: 1.2),
               filled: true,
-              fillColor: AtriaColors.surfaceWhite,
+              fillColor: widget.readOnly ? AtriaColors.surfaceField : AtriaColors.surfaceWhite,
               contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 17),
               prefixIconConstraints: const BoxConstraints(minWidth: 42),
               prefixIcon: Padding(

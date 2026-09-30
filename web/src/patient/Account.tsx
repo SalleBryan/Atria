@@ -15,7 +15,7 @@ import { useSession } from "../auth/session";
 import { SignOutMenu } from "../components/SignOutMenu";
 import { Notice } from "../components/controls";
 import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Close, Globe, Mail, Phone, Pin, Shield, User } from "../components/icons";
-import { EditDetails } from "./EditDetails";
+import { EditDetails, type Editing, shownDate } from "./EditDetails";
 import { DeleteAccountDialog } from "../components/DeleteAccountDialog";
 import { api } from "../api/client";
 import { type PushState, pushState, turnPushOff, turnPushOn } from "../api/push";
@@ -64,10 +64,10 @@ export function Account() {
   const phone = useTier() === "mobile";
   const [opened, setOpened] = useState(false);
   const me = session.status === "signed-in" ? session.me : undefined;
-  const [editing, setEditing] = useState<null | "name" | "language" | "email">(null);
+  const [editing, setEditing] = useState<Editing>(null);
   const [said, setSaid] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const start = (what: "name" | "language" | "email") => {
+  const start = (what: Exclude<Editing, null>) => {
     setSaid(null);
     setEditing(what);
   };
@@ -145,7 +145,7 @@ export function Account() {
           <>
             <header className="section-head">
               <h1 id="section-title">Personal details</h1>
-              <p>What Atria holds about you. Change your name, language and email here; the front desk at {TENANT.name} can correct the rest.</p>
+              <p>What Atria holds about you. Change your name, mobile, date of birth and language here; your email is how you sign in, and the front desk at {TENANT.name} can help with it.</p>
             </header>
             {said && <Notice tone="success">{said}</Notice>}
             {editing ? (
@@ -159,13 +159,7 @@ export function Account() {
             ) : null}
             <div className="inner-card settings-card">
               <Row icon={User} tone="tone-blue" title="Name" sub={name} end={<EditLink label="Change your name" onClick={() => start("name")} />} />
-              <Row
-                icon={Mail}
-                tone="tone-green"
-                title="Email"
-                sub={me?.email ?? "Not given"}
-                end={<EditLink label="Change your email" onClick={() => start("email")} />}
-              />
+              <Row icon={Mail} tone="tone-green" title="Email" sub={me?.email ?? "Not given"} />
               <Row
                 icon={Globe}
                 tone="tone-blue"
@@ -177,12 +171,22 @@ export function Account() {
                 icon={Phone}
                 tone="tone-amber"
                 title="Mobile"
-                sub={masked(me?.phoneE164)}
+                sub={me?.phoneVerified ? masked(me?.phoneE164) : `${masked(me?.phoneE164)} · not verified yet`}
                 end={
-                  <span className={`chip ${me?.phoneVerified ? "chip-confirmed" : "chip-awaiting"}`}>
-                    {me?.phoneVerified ? "Verified" : "Not verified yet"}
-                  </span>
+                  // A verified number changes by a code sent to it, which comes with SMS.
+                  me?.phoneVerified ? (
+                    <span className="chip chip-confirmed">Verified</span>
+                  ) : (
+                    <EditLink label="Change your mobile" onClick={() => start("phone")} />
+                  )
                 }
+              />
+              <Row
+                icon={Calendar}
+                tone="tone-blue"
+                title="Date of birth"
+                sub={shownDate(me?.dateOfBirth) || "Not given"}
+                end={<EditLink label="Change your date of birth" onClick={() => start("born")} />}
               />
               <Row icon={Shield} tone="tone-violet" title="Who can see your record" sub="Only your healthcare institution, and you" />
             </div>

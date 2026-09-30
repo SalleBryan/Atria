@@ -26,6 +26,17 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Links in Atria's emails ("See my place") open here, not in the
+                 browser. Android checks the claim against
+                 https://<host>/.well-known/assetlinks.json (web/public). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="main.dym1ejjx8bhtw.amplifyapp.com"/>
+                <data android:pathPrefix="/visits"/>
+                <data android:pathPrefix="/queue"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

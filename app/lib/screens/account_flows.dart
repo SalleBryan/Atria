@@ -282,7 +282,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               hint: 'DD/MM/YYYY',
               keyboard: TextInputType.number,
               formatters: [DateMask()],
-              trailing: _CalendarButton(controller: born),
+              trailing: BirthCalendarButton(controller: born),
               autofill: const [AutofillHints.birthday],
               action: TextInputAction.next,
               error: errors['born'],
@@ -728,7 +728,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 hint: 'DD/MM/YYYY',
                 keyboard: TextInputType.number,
                 formatters: [DateMask()],
-                trailing: _CalendarButton(controller: born),
+                trailing: BirthCalendarButton(controller: born),
                 autofill: const [AutofillHints.birthday],
                 error: errors['born'],
               ),
@@ -917,8 +917,8 @@ class _NewStaffPasswordScreenState extends State<NewStaffPasswordScreen> {
 }
 
 /// Opens a calendar for a date of birth, and writes the date into the field.
-class _CalendarButton extends StatelessWidget {
-  const _CalendarButton({required this.controller});
+class BirthCalendarButton extends StatelessWidget {
+  const BirthCalendarButton({super.key, required this.controller});
   final TextEditingController controller;
 
   @override

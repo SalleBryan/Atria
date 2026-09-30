@@ -89,15 +89,46 @@ abstract final class AtriaGradients {
   static final glassSwitch = cssGradient(140, const [Color(0xEBFFFFFF), Color(0xA8FFFFFF)]);
 }
 
-/// Material 3 Expressive springs (ADR 0019), the same curves and durations as
-/// web/src/styles/motion.css.
+/// Material 3 Expressive motion (ADR 0019), as real springs: each token is
+/// the spec's damping ratio and stiffness (the "expressive" scheme for
+/// movement, the effects springs for colour and opacity), run for as long as
+/// the spring takes to settle. Springs are front-loaded, so movement reads as
+/// finished well before its duration; nothing crawls in.
 abstract final class AtriaMotion {
-  static const spatialFast = Cubic(0.34, 1.36, 0.64, 1);
-  static const spatialFastDuration = Duration(milliseconds: 360);
-  static const spatialDefault = Cubic(0.34, 1.2, 0.64, 1);
-  static const spatialDefaultDuration = Duration(milliseconds: 435);
-  static const spatialSlowDuration = Duration(milliseconds: 600);
-  static const effects = Cubic(0.2, 0, 0, 1);
-  static const effectsDefaultDuration = Duration(milliseconds: 231);
-  static const effectsSlowDuration = Duration(milliseconds: 327);
+  /// Presses, pops and small things: lively, a 9.5% overshoot.
+  static const spatialFast = SpringCurve(.6, 800, .348);
+  static const spatialFastDuration = Duration(milliseconds: 350);
+
+  /// Screens, sheets and anything that travels: a 1.5% overshoot.
+  static const spatialDefault = SpringCurve(.8, 380, .412);
+  static const spatialDefaultDuration = Duration(milliseconds: 410);
+
+  static const spatialSlow = SpringCurve(.8, 200, .567);
+  static const spatialSlowDuration = Duration(milliseconds: 570);
+
+  /// Opacity and colour: critically damped, never past the target.
+  static const effects = SpringCurve(1, 1600, .212);
+  static const effectsFastDuration = Duration(milliseconds: 140);
+  static const effectsDefaultDuration = Duration(milliseconds: 210);
+  static const effectsSlowDuration = Duration(milliseconds: 300);
+}
+
+/// A damped spring from rest at 0 to 1 (unit mass), as a curve over
+/// [settle] seconds. [damping] is the ratio (1 is critical, below it
+/// overshoots) and [stiffness] the spring constant, the two numbers Material 3
+/// Expressive gives for each motion token.
+class SpringCurve extends Curve {
+  const SpringCurve(this.damping, this.stiffness, this.settle);
+  final double damping;
+  final double stiffness;
+  final double settle;
+
+  @override
+  double transformInternal(double t) {
+    final w = math.sqrt(stiffness);
+    final time = t * settle;
+    if (damping >= 1) return 1 - math.exp(-w * time) * (1 + w * time);
+    final wd = w * math.sqrt(1 - damping * damping);
+    return 1 - math.exp(-damping * w * time) * (math.cos(wd * time) + damping * w / wd * math.sin(wd * time));
+  }
 }

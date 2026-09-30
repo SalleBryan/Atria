@@ -8,10 +8,12 @@ The role trusts one repository, and only a job running in its "dev"
 environment, which is where required reviewers are set in GitHub. A fork, a
 pull request or another repository cannot assume it.
 
-The role itself can do one thing: assume the roles `cdk bootstrap` created in
-this account. Those already carry what a deployment needs, so this stack
-grants no service permissions of its own, and what CI can do is exactly what
-`cdk deploy` from a developer's machine can do.
+The role can assume the roles `cdk bootstrap` created in this account, which
+carry what an infrastructure deployment needs, so what CI deploys is exactly
+what `cdk deploy` from a developer's machine deploys. Beyond that it may
+publish the web client (tools/deploy_web.py, 2026-09-30): read the user pool's
+settings the build needs (tools/web_env.py), read the hosting stack's
+outputs, and run a manual deployment on Amplify. Nothing else.
 """
 
 from __future__ import annotations
@@ -63,6 +65,40 @@ class DeployAccessStack(Stack):
                 resources=[
                     f"arn:aws:iam::{settings.account}:role/cdk-*-{settings.account}-{settings.region}"
                 ],
+            )
+        )
+
+        # Publishing the web client after the stacks deploy (Deploy workflow).
+        region, account = settings.region, settings.account
+        self.role.add_to_policy(
+            iam.PolicyStatement(
+                # Listing pools and APIs cannot be narrowed to one resource.
+                actions=["cognito-idp:ListUserPools", "apigateway:GET"],
+                resources=["*"],
+            )
+        )
+        self.role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["cognito-idp:DescribeUserPool", "cognito-idp:ListUserPoolClients"],
+                resources=[f"arn:aws:cognito-idp:{region}:{account}:userpool/*"],
+            )
+        )
+        self.role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["cloudformation:DescribeStacks"],
+                resources=[f"arn:aws:cloudformation:{region}:{account}:stack/{settings.prefix}-web/*"],
+            )
+        )
+        self.role.add_to_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "amplify:CreateDeployment",
+                    "amplify:StartDeployment",
+                    "amplify:GetJob",
+                    "amplify:ListJobs",
+                    "amplify:StopJob",
+                ],
+                resources=[f"arn:aws:amplify:{region}:{account}:apps/*/branches/main*"],
             )
         )
 

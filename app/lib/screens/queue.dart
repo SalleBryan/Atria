@@ -524,7 +524,7 @@ class _QueueTicketScreenState extends State<QueueTicketScreen> {
                           stats: [
                             ('${t.position ?? '–'}', 'Your place'),
                             ('${session?.issued ?? '–'}', 'Issued'),
-                            (wait == null ? '–' : '~${wait}m', 'Est. wait'),
+                            (wait == null ? '–' : shortWait(wait), 'Est. wait'),
                             ('${session?.clinicians ?? '–'}', 'Clinicians'),
                           ],
                         ),

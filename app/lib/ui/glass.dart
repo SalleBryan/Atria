@@ -41,7 +41,9 @@ class Glass extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: shape,
-        child: BackdropFilter(
+        // Grouped: every card on a screen shares one backdrop pass
+        // (PageBackground's BackdropGroup) instead of blurring on its own.
+        child: BackdropFilter.grouped(
           filter: ImageFilter.blur(sigmaX: blur / 2, sigmaY: blur / 2),
           child: Container(
             height: height,

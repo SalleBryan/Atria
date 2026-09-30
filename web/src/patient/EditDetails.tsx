@@ -1,27 +1,41 @@
 /**
- * Changing one's own details (2026-09-28): the name and language through
- * PATCH /me, the email through Cognito's own code and then POST /me/email,
- * which takes the address only once Cognito has verified it. The mobile
- * changes by one-time code, which comes with SMS verification.
+ * Changing one's own details (2026-09-28, 2026-09-30): the name, the mobile,
+ * the date of birth and the language, each through PATCH /me. The email is
+ * what the account signs in with, so it is shown and not changed here. A
+ * verified mobile changes by one-time code, which comes with SMS
+ * verification; until then only an unverified number can be corrected.
  *
- * Built from the platform's parts: the sign-in fields, the picker, the six
- * code boxes and the M3 loading indicator.
+ * Built from the platform's parts: the sign-in fields, the phone and birth
+ * date fields of account completion, the picker and the M3 loading indicator.
  */
 
-import { confirmUserAttribute, updateUserAttribute } from "aws-amplify/auth";
 import { type FormEvent, useState } from "react";
 
 import { api } from "../api/client";
 import { messageFor } from "../auth/errors";
+import { type CountryCode, countryName, HOME_COUNTRY, isMobile, normalisePhone } from "../auth/phone";
 import { useSession } from "../auth/session";
-import { CodeInput, isComplete } from "../components/CodeInput";
+import { BirthDateField, birthDate } from "../components/BirthDateField";
 import { Field, Notice } from "../components/controls";
-import { Mail, User } from "../components/icons";
+import { User } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
+import { PhoneField } from "../components/PhoneField";
 import { SelectMenu } from "../components/Pickers";
 import { languageName } from "./data";
 
-type Editing = null | "name" | "language" | "email";
+export type Editing = null | "name" | "language" | "phone" | "born";
+
+/** "+237670000142" as "6 70 00 01 42", for the field beside its flag. */
+export function localMobile(e164: string | null | undefined): string {
+  const cm = /^\+237(\d)(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(e164 ?? "");
+  return cm ? cm.slice(1).join(" ") : (e164 ?? "");
+}
+
+/** "1990-04-02" as "02/04/1990", as the birth date field shows it. */
+export function shownDate(iso: string | null | undefined): string {
+  const found = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? "");
+  return found ? `${found[3]}/${found[2]}/${found[1]}` : "";
+}
 
 export function EditDetails({ editing, onDone }: { editing: Editing; onDone: (said: string | null) => void }) {
   const { state, refresh } = useSession();
@@ -29,18 +43,19 @@ export function EditDetails({ editing, onDone }: { editing: Editing; onDone: (sa
   const [given, setGiven] = useState(me?.givenName ?? "");
   const [family, setFamily] = useState(me?.familyName ?? "");
   const [language, setLanguage] = useState(me?.languages?.[0] ?? "en");
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [codeSent, setCodeSent] = useState(false);
+  const [phone, setPhone] = useState(localMobile(me?.phoneE164));
+  const [country, setCountry] = useState<CountryCode>(HOME_COUNTRY);
+  const [born, setBorn] = useState(shownDate(me?.dateOfBirth));
+  const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   if (!me || !editing) return null;
 
-  async function run(work: () => Promise<string>) {
+  async function run(body: Record<string, unknown>, said: string) {
     setBusy(true);
     setFailure(null);
     try {
-      const said = await work();
+      await api("/me", { method: "PATCH", json: body });
       await refresh("patient");
       onDone(said);
     } catch (caught) {
@@ -51,33 +66,29 @@ export function EditDetails({ editing, onDone }: { editing: Editing; onDone: (sa
 
   async function save(event: FormEvent) {
     event.preventDefault();
+    setError(undefined);
     if (editing === "name") {
-      await run(async () => {
-        await api("/me", { method: "PATCH", json: { givenName: given.trim(), familyName: family.trim() } });
-        return "Your name is saved. The front desk sees it too.";
-      });
+      await run({ givenName: given.trim(), familyName: family.trim() }, "Your name is saved. The front desk sees it too.");
     } else if (editing === "language") {
-      await run(async () => {
-        await api("/me", { method: "PATCH", json: { preferredLanguage: language } });
-        return `Messages will come in ${languageName(language)}.`;
-      });
-    } else if (!codeSent) {
-      setBusy(true);
-      setFailure(null);
-      try {
-        await updateUserAttribute({ userAttribute: { attributeKey: "email", value: email.trim() } });
-        setCodeSent(true);
-      } catch (caught) {
-        setFailure(messageFor(caught));
-      } finally {
-        setBusy(false);
+      await run({ preferredLanguage: language }, `Messages will come in ${languageName(language)}.`);
+    } else if (editing === "phone") {
+      const number = normalisePhone(phone, country);
+      if (!isMobile(number)) {
+        setError(
+          country === HOME_COUNTRY
+            ? "Enter a Cameroonian mobile number, such as 6 70 00 00 00."
+            : `Enter a mobile number that works in ${countryName(country)}.`,
+        );
+        return;
       }
+      await run({ phoneE164: number }, "Your mobile is saved. Reminders are texted there from now on.");
     } else {
-      await run(async () => {
-        await confirmUserAttribute({ userAttributeKey: "email", confirmationCode: code });
-        await api("/me/email", { method: "POST" });
-        return "Your new email is verified. Confirmations and receipts go there from now on.";
-      });
+      const date = birthDate(born);
+      if (!date) {
+        setError("Enter your date of birth as day, month and year, such as 02/04/1990.");
+        return;
+      }
+      await run({ dateOfBirth: date }, "Your date of birth is saved.");
     }
   }
 
@@ -86,9 +97,9 @@ export function EditDetails({ editing, onDone }: { editing: Editing; onDone: (sa
       ? given.trim().length > 0 && family.trim().length > 0
       : editing === "language"
         ? true
-        : codeSent
-          ? isComplete(code)
-          : /^\S+@\S+\.\S+$/.test(email.trim());
+        : editing === "phone"
+          ? phone.trim().length > 0
+          : born.trim().length > 0;
 
   return (
     <form className="inner-card settings-card edit-details" onSubmit={save} noValidate>
@@ -103,40 +114,25 @@ export function EditDetails({ editing, onDone }: { editing: Editing; onDone: (sa
         <div className="field">
           <span className="field-label">Language</span>
           <SelectMenu
-          label="Language"
-          value={language}
-          width={260}
-          options={["en", "fr"].map((code) => ({ id: code, label: languageName(code) }))}
-          onChange={setLanguage}
+            label="Language"
+            value={language}
+            width={260}
+            options={["en", "fr"].map((code) => ({ id: code, label: languageName(code) }))}
+            onChange={setLanguage}
           />
         </div>
       )}
-      {editing === "email" &&
-        (codeSent ? (
-          <>
-            <p className="edit-details-note">
-              We sent a six-digit code to <strong>{email.trim()}</strong>. Enter it to confirm the change.
-            </p>
-            <CodeInput value={code} onChange={setCode} label="Confirmation code" invalid={Boolean(failure)} />
-          </>
-        ) : (
-          <Field
-            label="New email address"
-            icon={Mail}
-            type="email"
-            autoComplete="email"
-            placeholder={me.email ?? "you@example.com"}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        ))}
+      {editing === "phone" && (
+        <PhoneField label="Mobile number" value={phone} onChange={setPhone} country={country} onCountry={setCountry} error={error} />
+      )}
+      {editing === "born" && <BirthDateField label="Date of birth" value={born} onChange={setBorn} error={error} />}
       <div className="edit-details-actions">
         <button type="button" className="outline-button" disabled={busy} onClick={() => onDone(null)}>
           Keep as it was
         </button>
         <button type="submit" className="dock-button" disabled={!ready || busy} aria-busy={busy || undefined}>
           {busy && <LoadingIndicator size={20} label="Saving" />}
-          {editing === "email" && !codeSent ? "Send the code" : busy ? "Saving" : "Save"}
+          {busy ? "Saving" : "Save"}
         </button>
       </div>
     </form>

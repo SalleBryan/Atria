@@ -39,5 +39,7 @@ abstract final class P {
   static final deep = cssGradient(170, const [navy, blue900, blue700, blue500], [0, .3, .72, 1]);
 
   static const cardShadow = [BoxShadow(offset: Offset(0, 8), blurRadius: 28, color: Color(0x14133A8C))];
-  static const liftShadow = [BoxShadow(offset: Offset(0, 14), blurRadius: 30, spreadRadius: -8, color: Color(0x40123A8C))];
+  static const liftShadow = [
+    BoxShadow(offset: Offset(0, 14), blurRadius: 30, spreadRadius: -8, color: Color(0x40123A8C)),
+  ];
 }

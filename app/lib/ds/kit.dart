@@ -47,7 +47,9 @@ class Eyebrow extends StatelessWidget {
           decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
         ),
         const SizedBox(width: 10),
-        Flexible(child: Text(text.toUpperCase(), style: T.eyebrow(color: color))),
+        Flexible(
+          child: Text(text.toUpperCase(), style: T.eyebrow(color: color)),
+        ),
       ],
     );
   }
@@ -120,24 +122,31 @@ class Btn extends StatelessWidget {
               ),
             ],
           ),
-          child: Row(
-            mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (busy)
-                SizedBox.square(dimension: 22, child: LoadingIndicator(size: 22, color: ink))
-              else ...[
-                if (leading != null) ...[leading!, const SizedBox(width: 10)],
-                if (icon != null) ...[AtriaIcon(icon!, size: 17, color: ink), const SizedBox(width: 9)],
-                Flexible(
-                  child: Text(
-                    label,
-                    overflow: TextOverflow.ellipsis,
-                    style: AtriaType.body(size: compact ? 13.5 : 15, weight: FontWeight.w700, color: ink, height: 1.2),
+          child: ExcludeSemantics(
+            child: Row(
+              mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (busy)
+                  SizedBox.square(dimension: 22, child: LoadingIndicator(size: 22, color: ink))
+                else ...[
+                  if (leading != null) ...[leading!, const SizedBox(width: 10)],
+                  if (icon != null) ...[AtriaIcon(icon!, size: 17, color: ink), const SizedBox(width: 9)],
+                  Flexible(
+                    child: Text(
+                      label,
+                      overflow: TextOverflow.ellipsis,
+                      style: AtriaType.body(
+                        size: compact ? 13.5 : 15,
+                        weight: FontWeight.w700,
+                        color: ink,
+                        height: 1.2,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -352,7 +361,10 @@ class Pill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[AtriaIcon(icon!, size: 12, color: ink), const SizedBox(width: 5)],
-          Text(text, style: AtriaType.body(size: 11.5, weight: FontWeight.w700, color: ink, height: 1.2)),
+          Text(
+            text,
+            style: AtriaType.body(size: 11.5, weight: FontWeight.w700, color: ink, height: 1.2),
+          ),
         ],
       ),
     );
@@ -379,7 +391,10 @@ class SectionHead extends StatelessWidget {
             semanticLabel: action,
             builder: (_, _) => Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              child: Text(action!, style: T.small(color: P.blue700, weight: FontWeight.w700, size: 13)),
+              child: Text(
+                action!,
+                style: T.small(color: P.blue700, weight: FontWeight.w700, size: 13),
+              ),
             ),
           ),
       ],
@@ -429,16 +444,15 @@ class Note extends StatelessWidget {
     liveRegion: true,
     child: Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: error ? P.dangerSoft : P.blue50,
-        borderRadius: BorderRadius.circular(18),
-      ),
+      decoration: BoxDecoration(color: error ? P.dangerSoft : P.blue50, borderRadius: BorderRadius.circular(18)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AtriaIcon(icon ?? (error ? 'alert' : 'info'), size: 17, color: error ? P.danger : P.blue700),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: T.small(size: 13, color: error ? P.danger : P.ink2))),
+          Expanded(
+            child: Text(text, style: T.small(size: 13, color: error ? P.danger : P.ink2)),
+          ),
         ],
       ),
     ),
@@ -529,7 +543,10 @@ class _FieldState extends State<Field> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(widget.label, style: T.small(color: P.ink2, weight: FontWeight.w700, size: 13)),
+        Text(
+          widget.label,
+          style: T.small(color: P.ink2, weight: FontWeight.w700, size: 13),
+        ),
         const SizedBox(height: 8),
         AnimatedContainer(
           duration: AtriaMotion.spatialFastDuration,
@@ -549,7 +566,10 @@ class _FieldState extends State<Field> {
           ),
           child: Row(
             children: [
-              if (widget.prefix != null) ...[Text(widget.prefix!, style: T.strong(color: P.ink2)), const SizedBox(width: 8)],
+              if (widget.prefix != null) ...[
+                Text(widget.prefix!, style: T.strong(color: P.ink2)),
+                const SizedBox(width: 8),
+              ],
               Expanded(
                 child: TextField(
                   controller: widget.controller,
@@ -632,14 +652,10 @@ class Choices<V> extends StatelessWidget {
                     curve: AtriaMotion.spatialFast,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
-                      color: on
-                          ? (onDark ? P.white : P.blue700)
-                          : (onDark ? const Color(0x1FFFFFFF) : P.white),
+                      color: on ? (onDark ? P.white : P.blue700) : (onDark ? const Color(0x1FFFFFFF) : P.white),
                       borderRadius: BorderRadius.circular(on || pressed ? 14 : 99),
                       border: Border.all(
-                        color: on
-                            ? (onDark ? P.white : P.blue700)
-                            : (onDark ? const Color(0x55FFFFFF) : P.line),
+                        color: on ? (onDark ? P.white : P.blue700) : (onDark ? const Color(0x55FFFFFF) : P.line),
                       ),
                     ),
                     child: Text(
@@ -648,9 +664,7 @@ class Choices<V> extends StatelessWidget {
                         size: 13.5,
                         weight: FontWeight.w700,
                         height: 1.2,
-                        color: on
-                            ? (onDark ? P.blue800 : P.white)
-                            : (onDark ? P.white : P.ink2),
+                        color: on ? (onDark ? P.blue800 : P.white) : (onDark ? P.white : P.ink2),
                       ),
                     ),
                   );
@@ -778,10 +792,7 @@ class Toggle extends StatelessWidget {
         width: 52,
         height: 32,
         padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: value ? P.blue700 : P.blue100,
-          borderRadius: BorderRadius.circular(16),
-        ),
+        decoration: BoxDecoration(color: value ? P.blue700 : P.blue100, borderRadius: BorderRadius.circular(16)),
         child: AnimatedAlign(
           duration: AtriaMotion.spatialFastDuration,
           curve: AtriaMotion.spatialFast,
@@ -844,10 +855,7 @@ Future<R?> showSheet<R>(
               ),
             ),
             Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(22, 14, 22, 18),
-                child: builder(context),
-              ),
+              child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(22, 14, 22, 18), child: builder(context)),
             ),
           ],
         ),

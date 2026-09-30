@@ -77,9 +77,7 @@ class HeroPage extends StatelessWidget {
                     Row(
                       children: [
                         if (leading != null) ...[leading!, const SizedBox(width: 12)],
-                        Expanded(
-                          child: eyebrow == null ? const SizedBox(height: 44) : Eyebrow(eyebrow!, onDark: true),
-                        ),
+                        Expanded(child: eyebrow == null ? const SizedBox(height: 44) : Eyebrow(eyebrow!, onDark: true)),
                         ?trailing,
                       ],
                     ),

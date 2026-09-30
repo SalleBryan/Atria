@@ -263,7 +263,11 @@ class _Stage extends StatelessWidget {
                   const ColoredBox(color: Color(0x1FFFFFFF)),
                   Opacity(
                     opacity: (1 - at).clamp(0.0, 1.0),
-                    child: Image.asset('assets/photos/doctor-coat.webp', fit: BoxFit.cover, alignment: Alignment.topCenter),
+                    child: Image.asset(
+                      'assets/photos/doctor-coat.webp',
+                      fit: BoxFit.cover,
+                      alignment: Alignment.topCenter,
+                    ),
                   ),
                 ],
               ),
@@ -650,7 +654,10 @@ class _Remind extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(app, style: T.small(size: 10.5, weight: FontWeight.w700, color: P.blue700)),
+                    Text(
+                      app,
+                      style: T.small(size: 10.5, weight: FontWeight.w700, color: P.blue700),
+                    ),
                     Text(text, style: T.strong(size: 12)),
                   ],
                 ),
@@ -713,7 +720,10 @@ class _Privacy extends StatelessWidget {
                   children: [
                     const AtriaIcon('checkMark', size: 13, color: P.blue700),
                     const SizedBox(width: 6),
-                    Text(text, style: AtriaType.body(size: 12, weight: FontWeight.w700, color: P.ink)),
+                    Text(
+                      text,
+                      style: AtriaType.body(size: 12, weight: FontWeight.w700, color: P.ink),
+                    ),
                   ],
                 ),
               ),

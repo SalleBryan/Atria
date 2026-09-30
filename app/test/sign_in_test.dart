@@ -95,10 +95,10 @@ void main() {
   testWidgets('the first launch opens on the onboarding, and Sign in leaves it', (tester) async {
     await open(tester, onboarded: false);
     expect(find.text('Care that keeps time with you.'), findsOneWidget);
-    await tester.tap(find.bySemanticsLabel('Next'));
+    await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
     expect(find.text('Three ways to be seen.'), findsOneWidget);
-    await tester.tap(find.textContaining('Sign in', findRichText: true).last);
+    await tester.tap(find.text('I already have an account'));
     await tester.pumpAndSettle();
     expect(find.text('Welcome back.'), findsOneWidget);
   });

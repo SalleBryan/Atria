@@ -12,10 +12,6 @@ import '../theme/theme.dart';
 import '../theme/tokens.dart';
 import '../ui/form_parts.dart';
 import '../ui/widgets.dart';
-import '../ds/kit.dart';
-import '../ds/page.dart';
-import '../ds/palette.dart';
-import '../ui/icons.dart';
 
 /// The frame every account screen shares: the blue field, a scrolling column
 /// with 24 at the sides, the back button, a heading and its line.
@@ -36,17 +32,62 @@ class _AuthPage extends StatelessWidget {
   final Widget? foot;
 
   @override
-  Widget build(BuildContext context) => AuthFrame(
-    title: title,
-    ledeWidget: lede,
-    icon: icon,
-    back: back,
-    foot: foot,
-    children: children,
+  Widget build(BuildContext context) => Scaffold(
+    body: PageBackground(
+      child: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, box) => SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: box.maxHeight - 44),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (back)
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Rise(child: BackSquare()),
+                        ),
+                      if (icon != null) ...[
+                        const SizedBox(height: 22),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Rise(index: 1, child: IconTile(icon!)),
+                        ),
+                      ],
+                      const SizedBox(height: 20),
+                      Rise(
+                        index: 1,
+                        child: Text(
+                          title,
+                          style: AtriaType.display(size: 29).copyWith(height: 32.5 / 29, letterSpacing: -.725),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Rise(index: 2, child: lede),
+                      const SizedBox(height: 18),
+                      Rise(
+                        index: 3,
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+                      ),
+                    ],
+                  ),
+                  if (foot != null) ...[const SizedBox(height: 20), foot!],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
   );
 }
 
-TextStyle get _lede => T.body(color: const Color(0xDDFFFFFF), size: 14.5);
+TextStyle get _lede => AtriaType.body(size: 13.5, color: const Color(0xFF54658A), height: 19.6 / 13.5);
 
 Widget _or() => Padding(
   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -412,7 +453,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           const TextSpan(text: 'We sent a six-digit code to '),
           TextSpan(
             text: widget.email,
-            style: _lede.copyWith(fontWeight: FontWeight.w700, color: P.white),
+            style: _lede.copyWith(fontWeight: FontWeight.w700, color: AtriaColors.inkPrimary),
           ),
           const TextSpan(text: '. It expires in 24 hours.'),
         ],
@@ -820,48 +861,39 @@ class _NewStaffPasswordScreenState extends State<NewStaffPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final rules = passwordRules(password.text);
+    final unmet = passwordRules(password.text).where((r) => !r.met).map((r) => r.label.toLowerCase()).toList();
     final matches = again.text.isNotEmpty && again.text == password.text;
-    final ready = rules.every((r) => r.met) && matches;
-    return AuthFrame(
+    final ready = unmet.isEmpty && matches;
+    return _AuthPage(
       icon: 'key',
       title: 'Choose your password.',
-      lede: 'Your administrator gave you a temporary one. Set your own to open the console.',
-      onBack: () async {
-        await widget.session.auth.signOut();
-        if (context.mounted) context.go('/staff/sign-in');
-      },
+      lede: Text('Your administrator gave you a temporary one. Set your own to open the console.', style: _lede),
       children: [
-        if (failure != null) ...[Note(failure!, error: true), const SizedBox(height: 16)],
-        Field(
-          label: 'New password',
-          controller: password,
-          obscure: true,
-          autofill: const [AutofillHints.newPassword],
-          hint: 'At least $minPasswordLength characters',
-        ),
-        const SizedBox(height: 12),
-        for (final r in rules)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(
-              children: [
-                AtriaIcon(r.met ? 'checkMark' : 'close', size: 14, color: r.met ? P.blue700 : P.ink4),
-                const SizedBox(width: 8),
-                Text(r.label, style: T.small(color: r.met ? P.ink : P.ink3)),
-              ],
+        FormCard(
+          children: [
+            if (failure != null) ...[Notice(failure!, tone: NoticeTone.error), const SizedBox(height: 14)],
+            AtriaField(
+              label: 'New password',
+              icon: 'lock',
+              controller: password,
+              hint: 'At least $minPasswordLength characters',
+              obscure: true,
+              autofill: const [AutofillHints.newPassword],
+              help: password.text.isEmpty || unmet.isEmpty ? null : 'Still needs: ${unmet.join(', ')}.',
             ),
-          ),
-        const SizedBox(height: 10),
-        Field(
-          label: 'The same again',
-          controller: again,
-          obscure: true,
-          error: again.text.isNotEmpty && !matches ? 'The two passwords differ.' : null,
-          onSubmitted: (_) => ready ? save() : null,
+            const SizedBox(height: 13),
+            AtriaField(
+              label: 'The same again',
+              icon: 'lock',
+              controller: again,
+              obscure: true,
+              error: again.text.isNotEmpty && !matches ? 'The two passwords differ.' : null,
+              onSubmitted: (_) => ready ? save() : null,
+            ),
+            const SizedBox(height: 16),
+            PrimaryButton(label: 'Save and continue', busy: busy, onPressed: ready ? save : null),
+          ],
         ),
-        const SizedBox(height: 20),
-        Btn('Save and continue', busy: busy, onPressed: ready ? save : null),
       ],
     );
   }

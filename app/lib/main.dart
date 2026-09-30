@@ -90,6 +90,7 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
         '/verify-email',
         '/forgot-password',
         '/staff/forgot-password',
+        '/staff/new-password',
       };
       return switch (session.state) {
         Loading() => at == '/' ? null : '/',
@@ -149,6 +150,10 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
           SignedIn(:final me) => RestoreAccountScreen(session: session, me: me),
           _ => const SizedBox.shrink(),
         },
+      ),
+      GoRoute(
+        path: '/staff/new-password',
+        builder: (_, _) => NewStaffPasswordScreen(session: session),
       ),
       GoRoute(
         path: '/staff/sign-in',

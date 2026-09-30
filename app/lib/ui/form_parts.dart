@@ -5,7 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
 import 'icons.dart';
-import 'expressive.dart';
+import '../ds/kit.dart';
+import '../ds/palette.dart';
 
 /// The 42 square glass back button at the top of an auth frame (32:65).
 class BackSquare extends StatelessWidget {
@@ -13,36 +14,20 @@ class BackSquare extends StatelessWidget {
   final VoidCallback? onPressed;
 
   @override
-  Widget build(BuildContext context) => PressableSurface(
-    semanticLabel: 'Back',
-    radius: 14,
-    width: 42,
-    height: 42,
-    border: Border.all(color: Colors.white),
-    gradient: cssGradient(140, const [Color(0xF0FFFFFF), Color(0xA8FFFFFF)], [.145, .855]),
-    shadow: const BoxShadow(offset: Offset(0, 2), blurRadius: 8, color: Color(0x140F295E)),
-    ink: AtriaColors.blue700,
-    onTap: onPressed ?? () => context.canPop() ? context.pop() : context.go('/sign-in'),
-    child: const AtriaIcon('chevronLeft', size: 18, color: AtriaColors.ink900),
+  Widget build(BuildContext context) => RoundBtn(
+    'arrowLeft',
+    label: 'Back',
+    onPressed: onPressed ?? () => context.canPop() ? context.pop() : context.go('/sign-in'),
   );
 }
 
-/// The blue icon tile that heads a verify or reset frame (33:2, 33:44).
+/// The icon that heads a verify or reset screen.
 class IconTile extends StatelessWidget {
   const IconTile(this.icon, {super.key});
   final String icon;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: 62,
-    height: 62,
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(21),
-      gradient: cssGradient(145, const [AtriaColors.blue500, Color(0xFF2159D2)], [.141, .859]),
-      boxShadow: const [BoxShadow(offset: Offset(0, 10), blurRadius: 24, color: Color(0x572159D2))],
-    ),
-    child: Center(child: AtriaIcon(icon, size: 26, color: Colors.white)),
-  );
+  Widget build(BuildContext context) => IconBubble(icon, size: 60, solid: true);
 }
 
 /// A square check with its words (32:124), the whole row tappable.
@@ -72,8 +57,7 @@ class AtriaCheckbox extends StatelessWidget {
                 width: 22,
                 height: 22,
                 decoration: BoxDecoration(
-                  color: checked ? null : Colors.white,
-                  gradient: checked ? AtriaGradients.primary : null,
+                  color: checked ? P.blue700 : Colors.white,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: checked
@@ -89,7 +73,7 @@ class AtriaCheckbox extends StatelessWidget {
                 child: ExcludeSemantics(
                   child: Text(
                     label,
-                    style: AtriaType.body(size: 11.5, color: AtriaColors.inkMuted, height: 17.25 / 11.5),
+                    style: AtriaType.body(size: 12.5, color: P.ink2, height: 1.45),
                   ),
                 ),
               ),
@@ -175,7 +159,7 @@ class _CodeBoxesState extends State<CodeBoxes> {
                       height: 58,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: i < code.length ? P.white : P.blue50,
                         borderRadius: BorderRadius.circular(17),
                         border: Border.all(
                           color: widget.invalid

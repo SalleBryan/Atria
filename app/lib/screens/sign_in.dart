@@ -3,9 +3,10 @@ import 'package:go_router/go_router.dart';
 
 import '../auth/auth.dart';
 import '../auth/session.dart';
-import '../theme/theme.dart';
-import '../theme/tokens.dart';
-import '../ui/widgets.dart';
+import '../ui/form_parts.dart';
+import '../ds/kit.dart';
+import '../ds/page.dart';
+import '../ds/palette.dart';
 
 /// "Mobile · Sign in" (Figma 32:2). The switch picks the Cognito client:
 /// patients through theirs, clinic staff through the staff client, which
@@ -61,7 +62,8 @@ class _SignInScreenState extends State<SignInScreen> {
           await widget.session.auth.signOut();
           setState(() => error = 'Administrators use the Atria console on the web.');
         case SignInStep.newPassword:
-          setState(() => error = 'Set your own password in the Atria console on the web first, then sign in here.');
+          // First sign-in with the temporary password: choose your own.
+          context.push('/staff/new-password');
         case SignInStep.confirmEmail:
           context.push('/verify-email?email=${Uri.encodeQueryComponent(email.text.trim())}');
         case SignInStep.done:
@@ -99,182 +101,99 @@ class _SignInScreenState extends State<SignInScreen> {
   @override
   Widget build(BuildContext context) {
     final ready = email.text.trim().isNotEmpty && password.text.isNotEmpty;
-    return Scaffold(
-      body: PageBackground(
-        child: SafeArea(
-          child: AutofillGroup(
-            child: LayoutBuilder(
-              builder: (context, box) => SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(26, 42, 26, 26),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: box.maxHeight - 68),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Rise(child: BrandMark()),
-                          const SizedBox(height: 18),
-                          Rise(
-                            index: 1,
-                            child: Text(
-                              'Welcome back.',
-                              style: AtriaType.display(size: 30).copyWith(height: 33 / 30, letterSpacing: -0.75),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Rise(
-                            index: 2,
-                            child: SizedBox(
-                              width: 280,
-                              child: Text(
-                                staff
-                                    ? 'Use the credentials your practice administrator issued you.'
-                                    : 'Pick up where you left off, or create an account in under a minute.',
-                                style: AtriaType.body(color: const Color(0xFF54658A), height: 20.3 / 14),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Rise(
-                            index: 3,
-                            child: Segmented(
-                              labels: const ['Patient', 'Clinic staff'],
-                              selected: staff ? 1 : 0,
-                              onChanged: (i) => context.go(i == 1 ? '/staff/sign-in' : '/sign-in'),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Rise(index: 4, child: _form(ready)),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      Rise(index: 5, child: _foot()),
-                    ],
-                  ),
-                ),
-              ),
+    return AutofillGroup(
+      child: AuthFrame(
+        title: staff ? 'Staff sign in.' : 'Welcome back.',
+        lede: staff
+            ? 'Use the work email and password your hospital administrator gave you.'
+            : 'Pick up where you left off, or create an account in under a minute.',
+        back: false,
+        top: _Audience(staff: staff),
+        foot: _foot(),
+        children: [
+          if (error != null) ...[Note(error!, error: true), const SizedBox(height: 16)],
+          Field(
+            label: staff ? 'Work email or mobile' : 'Email address',
+            controller: email,
+            hint: staff ? 'you@hospital.cm' : 'you@example.com',
+            keyboard: TextInputType.emailAddress,
+            autofill: const [AutofillHints.username, AutofillHints.email],
+            action: TextInputAction.next,
+          ),
+          const SizedBox(height: 16),
+          Field(
+            label: 'Password',
+            controller: password,
+            hint: 'Your password',
+            obscure: true,
+            autofill: const [AutofillHints.password],
+            action: TextInputAction.done,
+            onSubmitted: (_) => submit(),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Btn(
+              'Forgot password?',
+              kind: BtnKind.ghost,
+              compact: true,
+              expand: false,
+              onPressed: () => context.push(staff ? '/staff/forgot-password' : '/forgot-password'),
             ),
           ),
-        ),
+          const SizedBox(height: 4),
+          Btn('Sign in', busy: busy, onPressed: ready && !googleBusy ? submit : null),
+          if (!staff) ...[
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                const Expanded(child: Divider(color: P.line, height: 1)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text('OR', style: T.eyebrow(color: P.ink4)),
+                ),
+                const Expanded(child: Divider(color: P.line, height: 1)),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Btn(
+              googleBusy ? 'Opening Google' : 'Continue with Google',
+              kind: BtnKind.outline,
+              onPressed: busy || googleBusy ? null : google,
+              leading: Text('G', style: T.heading(color: P.blue700, size: 17)),
+            ),
+          ],
+        ],
       ),
     );
   }
 
-  Widget _form(bool ready) {
-    return FormCard(
-      children: [
-        if (error != null) ...[Notice(error!, tone: NoticeTone.error), const SizedBox(height: 14)],
-        AtriaField(
-          label: staff ? 'Work email' : 'Email address',
-          icon: 'mail',
-          controller: email,
-          hint: staff ? 'you@hospital.cm' : 'you@example.com',
-          keyboard: TextInputType.emailAddress,
-          autofill: const [AutofillHints.username, AutofillHints.email],
-          action: TextInputAction.next,
-        ),
-        const SizedBox(height: 13),
-        AtriaField(
-          label: 'Password',
-          icon: 'lock',
-          controller: password,
-          hint: 'Your password',
-          obscure: true,
-          autofill: const [AutofillHints.password],
-          action: TextInputAction.done,
-          onSubmitted: (_) => submit(),
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: () => context.push(staff ? '/staff/forgot-password' : '/forgot-password'),
-            child: Text(
-              'Forgot password?',
-              style: AtriaType.body(size: 12.5, weight: FontWeight.w700, color: AtriaColors.blue600),
-            ),
-          ),
-        ),
-        const SizedBox(height: 6),
-        PrimaryButton(label: 'Sign in', busy: busy, onPressed: ready && !googleBusy ? submit : null),
-        if (!staff) ...[
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              const Expanded(child: Divider(color: AtriaColors.lineHairline, height: 1)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text(
-                  'OR',
-                  style: AtriaType.body(
-                    size: 11.5,
-                    weight: FontWeight.w600,
-                    color: AtriaColors.inkSoft,
-                  ).copyWith(letterSpacing: 0.69),
-                ),
-              ),
-              const Expanded(child: Divider(color: AtriaColors.lineHairline, height: 1)),
-            ],
-          ),
-          const SizedBox(height: 18),
-          SecondaryButton(
-            label: googleBusy ? 'Opening Google' : 'Continue with Google',
-            onPressed: busy || googleBusy ? null : google,
-            leading: Container(
-              width: 26,
-              height: 26,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: AtriaColors.surfaceField,
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(color: AtriaColors.lineHairline),
-              ),
-              child: Text('G', style: AtriaType.display(size: 13, color: AtriaColors.inkMuted)),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _foot() {
-    final small = AtriaType.body(size: 11, color: AtriaColors.inkSoft, height: 16.5 / 11);
-    return Column(
-      children: [
-        if (staff)
-          Text(
-            'Staff accounts are issued by your practice administrator.',
-            textAlign: TextAlign.center,
-            style: AtriaType.body(size: 13.5, color: const Color(0xFF6B7C9C)),
-          )
-        else
-          GestureDetector(
-            onTap: () => context.push('/create-account'),
-            child: Text.rich(
-              TextSpan(
-                text: 'New to Atria? ',
-                children: [
-                  TextSpan(
-                    text: 'Create an account',
-                    style: AtriaType.body(size: 13.5, weight: FontWeight.w700, color: AtriaColors.blue600),
-                  ),
-                ],
-              ),
-              textAlign: TextAlign.center,
-              style: AtriaType.body(size: 13.5, color: const Color(0xFF6B7C9C)),
-            ),
-          ),
-        const SizedBox(height: 14),
+  Widget _foot() => Column(
+    children: [
+      if (staff)
         Text(
-          staff
-              ? 'Access is logged for audit.'
-              : "By continuing you agree to the Atria terms of use\nand the clinic's privacy notice.",
+          'Staff accounts are made by your hospital administrator. Access is logged for audit.',
           textAlign: TextAlign.center,
-          style: small,
-        ),
-      ],
-    );
-  }
+          style: T.small(),
+        )
+      else
+        FootLink(lead: 'New to Atria?', action: 'Create an account', onTap: () => context.push('/create-account')),
+    ],
+  );
+}
+
+/// Patient or staff: two pills on the blue field.
+class _Audience extends StatelessWidget {
+  const _Audience({required this.staff});
+  final bool staff;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 178,
+    child: Choices<bool>(
+    onDark: true,
+    options: const [(false, 'Patient'), (true, 'Staff')],
+    value: staff,
+    onChanged: (v) => context.go(v ? '/staff/sign-in' : '/sign-in'),
+  ),
+  );
 }

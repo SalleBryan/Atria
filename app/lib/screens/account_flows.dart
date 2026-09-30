@@ -12,6 +12,10 @@ import '../theme/theme.dart';
 import '../theme/tokens.dart';
 import '../ui/form_parts.dart';
 import '../ui/widgets.dart';
+import '../ds/kit.dart';
+import '../ds/page.dart';
+import '../ds/palette.dart';
+import '../ui/icons.dart';
 
 /// The frame every account screen shares: the blue field, a scrolling column
 /// with 24 at the sides, the back button, a heading and its line.
@@ -32,62 +36,17 @@ class _AuthPage extends StatelessWidget {
   final Widget? foot;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: PageBackground(
-      child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, box) => SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: box.maxHeight - 44),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (back)
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Rise(child: BackSquare()),
-                        ),
-                      if (icon != null) ...[
-                        const SizedBox(height: 22),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Rise(index: 1, child: IconTile(icon!)),
-                        ),
-                      ],
-                      const SizedBox(height: 20),
-                      Rise(
-                        index: 1,
-                        child: Text(
-                          title,
-                          style: AtriaType.display(size: 29).copyWith(height: 32.5 / 29, letterSpacing: -.725),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Rise(index: 2, child: lede),
-                      const SizedBox(height: 18),
-                      Rise(
-                        index: 3,
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
-                      ),
-                    ],
-                  ),
-                  if (foot != null) ...[const SizedBox(height: 20), foot!],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    ),
+  Widget build(BuildContext context) => AuthFrame(
+    title: title,
+    ledeWidget: lede,
+    icon: icon,
+    back: back,
+    foot: foot,
+    children: children,
   );
 }
 
-TextStyle get _lede => AtriaType.body(size: 13.5, color: const Color(0xFF54658A), height: 19.6 / 13.5);
+TextStyle get _lede => T.body(color: const Color(0xDDFFFFFF), size: 14.5);
 
 Widget _or() => Padding(
   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -453,7 +412,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           const TextSpan(text: 'We sent a six-digit code to '),
           TextSpan(
             text: widget.email,
-            style: _lede.copyWith(fontWeight: FontWeight.w700, color: AtriaColors.inkPrimary),
+            style: _lede.copyWith(fontWeight: FontWeight.w700, color: P.white),
           ),
           const TextSpan(text: '. It expires in 24 hours.'),
         ],
@@ -800,6 +759,109 @@ class _RestoreAccountScreenState extends State<RestoreAccountScreen> {
           textAlign: TextAlign.center,
           style: AtriaType.body(size: 11.5, color: AtriaColors.inkSoft),
         ),
+      ],
+    );
+  }
+}
+
+// ------------------------------------------------------ staff first sign-in
+
+/// A staff member's first sign-in (FR-ACC-05, the web's FirstSignIn): the
+/// temporary password the administrator issued is replaced by one of their
+/// own before anything else opens.
+class NewStaffPasswordScreen extends StatefulWidget {
+  const NewStaffPasswordScreen({super.key, required this.session});
+  final Session session;
+
+  @override
+  State<NewStaffPasswordScreen> createState() => _NewStaffPasswordScreenState();
+}
+
+class _NewStaffPasswordScreenState extends State<NewStaffPasswordScreen> {
+  final password = TextEditingController();
+  final again = TextEditingController();
+  bool busy = false;
+  String? failure;
+
+  @override
+  void initState() {
+    super.initState();
+    password.addListener(() => setState(() {}));
+    again.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    password.dispose();
+    again.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    setState(() {
+      busy = true;
+      failure = null;
+    });
+    try {
+      final step = await widget.session.auth.setNewPassword(password.text);
+      if (step == SignInStep.authenticatorCode) {
+        await widget.session.auth.signOut();
+        if (mounted) setState(() => failure = 'Administrators use the Atria console on the web.');
+        return;
+      }
+      final state = await widget.session.refresh();
+      if (mounted && state is Unresolved) setState(() => failure = state.message);
+    } on AuthFailure catch (e) {
+      if (mounted) setState(() => failure = e.message);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rules = passwordRules(password.text);
+    final matches = again.text.isNotEmpty && again.text == password.text;
+    final ready = rules.every((r) => r.met) && matches;
+    return AuthFrame(
+      icon: 'key',
+      title: 'Choose your password.',
+      lede: 'Your administrator gave you a temporary one. Set your own to open the console.',
+      onBack: () async {
+        await widget.session.auth.signOut();
+        if (context.mounted) context.go('/staff/sign-in');
+      },
+      children: [
+        if (failure != null) ...[Note(failure!, error: true), const SizedBox(height: 16)],
+        Field(
+          label: 'New password',
+          controller: password,
+          obscure: true,
+          autofill: const [AutofillHints.newPassword],
+          hint: 'At least $minPasswordLength characters',
+        ),
+        const SizedBox(height: 12),
+        for (final r in rules)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                AtriaIcon(r.met ? 'checkMark' : 'close', size: 14, color: r.met ? P.blue700 : P.ink4),
+                const SizedBox(width: 8),
+                Text(r.label, style: T.small(color: r.met ? P.ink : P.ink3)),
+              ],
+            ),
+          ),
+        const SizedBox(height: 10),
+        Field(
+          label: 'The same again',
+          controller: again,
+          obscure: true,
+          error: again.text.isNotEmpty && !matches ? 'The two passwords differ.' : null,
+          onSubmitted: (_) => ready ? save() : null,
+        ),
+        const SizedBox(height: 20),
+        Btn('Save and continue', busy: busy, onPressed: ready ? save : null),
       ],
     );
   }

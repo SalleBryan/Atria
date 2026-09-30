@@ -53,7 +53,7 @@ class Tour {
   }
 
   /// Lets animations and loads finish; entrance motion runs about a second.
-  Future<void> settle([Duration most = const Duration(seconds: 8)]) async {
+  Future<void> settle([Duration most = const Duration(milliseconds: 2500)]) async {
     try {
       await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, most);
     } on FlutterError {

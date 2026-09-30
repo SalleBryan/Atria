@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
 import 'expressive.dart';
-import 'icons.dart';
-import '../ui/loading.dart';
+import '../ds/kit.dart';
+import '../ds/palette.dart';
 
 /// Rises into place on a Material spring, 60 ms apart per row, the way the
 /// design system's motion card specifies (ADR 0019). Reduced motion skips it.
@@ -45,30 +45,7 @@ class PageBackground extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: cssGradient(163, const [Color(0xFFDDE9FE), Color(0xFFF2F6FE), Color(0xFFE4EDFD)], [.057, .465, .943]),
-      ),
-      child: Stack(
-        children: [
-          // The three orbs of 32:3 to 32:5, drifting slowly behind the glass.
-          Positioned.fill(
-            child: LayoutBuilder(
-              builder: (context, box) => DriftingLight(
-                orbs: [
-                  const Orb(left: -100, top: -110, size: 300, color: Color(0x996098FF)),
-                  Orb(left: box.maxWidth - 160, top: 230, size: 260, color: const Color(0x998CB6FF), drift: 34),
-                  Orb(left: -40, top: box.maxHeight - 160, size: 320, color: const Color(0x426EA0FA)),
-                ],
-              ),
-            ),
-          ),
-          Positioned.fill(child: child),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ColoredBox(color: P.ground, child: child);
 }
 
 /// The Atria mark (32:8): the pulse on the blue gradient, 56 square.
@@ -81,7 +58,7 @@ class BrandMark extends StatelessWidget {
     width: size,
     height: size,
     decoration: BoxDecoration(
-      gradient: cssGradient(145, const [AtriaColors.blue500, Color(0xFF2159D2)], [.141, .859]),
+      color: P.blue700,
       borderRadius: BorderRadius.circular(size * 19 / 56),
       boxShadow: const [BoxShadow(offset: Offset(0, 10), blurRadius: 24, color: Color(0x572159D2))],
     ),
@@ -163,85 +140,19 @@ class AtriaField extends StatefulWidget {
 }
 
 class _AtriaFieldState extends State<AtriaField> {
-  late bool hidden = widget.obscure;
-
   @override
-  Widget build(BuildContext context) {
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(17),
-      borderSide: const BorderSide(color: AtriaColors.lineHairline, width: 1.5),
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          widget.label,
-          style: AtriaType.body(size: 12, weight: FontWeight.w600, color: AtriaColors.inkSoft),
-        ),
-        const SizedBox(height: 7),
-        SizedBox(
-          height: 54,
-          child: TextField(
-            onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-            controller: widget.controller,
-            obscureText: hidden,
-            keyboardType: widget.keyboard,
-            autofillHints: widget.autofill,
-            textInputAction: widget.action,
-            onSubmitted: widget.onSubmitted,
-            textCapitalization: widget.capitalization,
-            textAlignVertical: TextAlignVertical.center,
-            style: AtriaType.body(size: 14.5, color: AtriaColors.inkPrimary, height: 1.2),
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: widget.hint,
-              hintStyle: AtriaType.body(size: 14.5, color: const Color(0xFF9AA9C4), height: 1.2),
-              filled: true,
-              fillColor: AtriaColors.surfaceWhite,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 17),
-              prefixIconConstraints: const BoxConstraints(minWidth: 42),
-              prefixIcon: Padding(
-                padding: const EdgeInsets.only(left: 15, right: 10),
-                child: AtriaIcon(widget.icon, color: AtriaColors.blue600),
-              ),
-              suffixIcon: widget.obscure
-                  ? IconButton(
-                      tooltip: hidden ? 'Show password' : 'Hide password',
-                      icon: AtriaIcon(hidden ? 'eye' : 'eyeOff', color: AtriaColors.blue600),
-                      onPressed: () => setState(() => hidden = !hidden),
-                    )
-                  : null,
-              enabledBorder: widget.error == null
-                  ? border
-                  : border.copyWith(borderSide: const BorderSide(color: AtriaColors.cancelled, width: 1.5)),
-              focusedBorder: border.copyWith(
-                borderSide: BorderSide(
-                  color: widget.error == null ? AtriaColors.blue500 : AtriaColors.cancelled,
-                  width: 1.5,
-                ),
-              ),
-            ),
-          ),
-        ),
-        if (widget.error != null) ...[
-          const SizedBox(height: 6),
-          Semantics(
-            liveRegion: true,
-            child: Text(
-              widget.error!,
-              style: AtriaType.body(size: 11.5, color: AtriaColors.cancelledInk, height: 1.35),
-            ),
-          ),
-        ] else if (widget.help != null) ...[
-          const SizedBox(height: 6),
-          Text(
-            widget.help!,
-            style: AtriaType.body(size: 10.5, color: const Color(0xFF8497B8), height: 15 / 10.5),
-          ),
-        ],
-      ],
-    );
-  }
+  Widget build(BuildContext context) => Field(
+    label: widget.label,
+    controller: widget.controller,
+    hint: widget.hint,
+    obscure: widget.obscure,
+    keyboard: widget.keyboard,
+    autofill: widget.autofill,
+    onSubmitted: widget.onSubmitted,
+    action: widget.action,
+    error: widget.error,
+    help: widget.help,
+  );
 }
 
 /// The primary action (32:45): 56 high, radius 19, the blue gradient; greyed
@@ -267,58 +178,15 @@ class PrimaryButton extends StatefulWidget {
 
 class _PrimaryButtonState extends State<PrimaryButton> {
   @override
-  Widget build(BuildContext context) {
-    final enabled = widget.onPressed != null && !widget.busy;
-    return Pressable(
-      onTap: enabled ? widget.onPressed : null,
-      radius: 19,
-      ink: Colors.white,
-      semanticLabel: widget.label,
-      builder: (context, pressed) => AnimatedContainer(
-        duration: AtriaMotion.spatialFastDuration,
-        curve: AtriaMotion.spatialFast,
-        height: 56,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          gradient: !(enabled || widget.busy)
-              ? AtriaGradients.disabled
-              : widget.danger
-              ? cssGradient(160, const [Color(0xFFE8606F), Color(0xFFC33C4E)])
-              : cssGradient(171, const [AtriaColors.blue500, AtriaColors.blue700], [.145, .855]),
-          borderRadius: BorderRadius.circular(pressed ? 12 : 19),
-          // Always one shadow, faded out rather than removed: removing it
-          // lerps the blur towards nothing, and the spring's overshoot then
-          // asks for a negative blur, which Flutter refuses.
-          boxShadow: [
-            BoxShadow(
-              offset: Offset(0, pressed ? 5 : 10),
-              blurRadius: pressed ? 14 : 22,
-              color: !enabled
-                  ? const Color(0x002461DB)
-                  : widget.danger
-                  ? const Color(0x4DC8384A)
-                  : const Color(0x572461DB),
-            ),
-          ],
-        ),
-        child: AnimatedSwitcher(
-          duration: AtriaMotion.effectsDefaultDuration,
-          child: widget.busy
-              ? LoadingIndicator(key: const ValueKey('busy'), size: 24, color: Colors.white, label: widget.label)
-              : ExcludeSemantics(
-                  key: const ValueKey('label'),
-                  child: Text(
-                    widget.label,
-                    style: AtriaType.body(size: 15, weight: FontWeight.w600, color: Colors.white),
-                  ),
-                ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Btn(
+    widget.label,
+    onPressed: widget.onPressed,
+    busy: widget.busy,
+    kind: widget.danger ? BtnKind.danger : BtnKind.primary,
+  );
 }
 
-/// A white outlined action (32:53), 56 high, radius 19.
+/// A white outlined action.
 class SecondaryButton extends StatelessWidget {
   const SecondaryButton({super.key, required this.label, required this.onPressed, this.leading});
   final String label;
@@ -326,44 +194,7 @@ class SecondaryButton extends StatelessWidget {
   final Widget? leading;
 
   @override
-  Widget build(BuildContext context) => Pressable(
-    onTap: onPressed,
-    radius: 19,
-    ink: AtriaColors.blue700,
-    semanticLabel: label,
-    builder: (context, pressed) => AnimatedContainer(
-      duration: AtriaMotion.spatialFastDuration,
-      curve: AtriaMotion.spatialFast,
-      height: 56,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(pressed ? 12 : 19),
-        border: Border.all(color: AtriaColors.lineHairline, width: 1.5),
-      ),
-      child: ExcludeSemantics(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const SizedBox(width: 12),
-            if (leading != null) ...[leading!, const SizedBox(width: 11)],
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AtriaType.body(
-                  size: 14.5,
-                  weight: FontWeight.w600,
-                  color: onPressed == null ? AtriaColors.inkSoft : const Color(0xFF22304D),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-          ],
-        ),
-      ),
-    ),
-  );
+  Widget build(BuildContext context) => Btn(label, onPressed: onPressed, kind: BtnKind.outline, leading: leading);
 }
 
 /// Two choices on the glass switch (32:16): radius 19 around, the selected
@@ -379,10 +210,8 @@ class Segmented extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        gradient: cssGradient(172, const [Color(0xE6FFFFFF), Color(0x9EFFFFFF)], [.145, .855]),
-        borderRadius: BorderRadius.circular(19),
-        border: Border.all(color: Colors.white),
-        boxShadow: const [BoxShadow(offset: Offset(0, 2), blurRadius: 10, color: Color(0x120F295E))],
+        color: P.blue50,
+        borderRadius: BorderRadius.circular(24),
       ),
       child: SizedBox(
         height: 46,
@@ -400,9 +229,8 @@ class Segmented extends StatelessWidget {
                   bottom: 0,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      gradient: cssGradient(167, const [AtriaColors.blue500, AtriaColors.blue700], [.145, .855]),
+                      color: P.blue700,
                       borderRadius: BorderRadius.circular(22),
-                      boxShadow: const [BoxShadow(offset: Offset(0, 6), blurRadius: 16, color: Color(0x522461DB))],
                     ),
                   ),
                 ),
@@ -424,7 +252,7 @@ class Segmented extends StatelessWidget {
                                 style: AtriaType.body(
                                   size: 14,
                                   weight: FontWeight.w600,
-                                  color: i == selected ? Colors.white : const Color(0xFF4B5D80),
+                                  color: i == selected ? Colors.white : P.ink2,
                                 ),
                                 child: Text(labels[i]),
                               ),
@@ -452,34 +280,8 @@ class Notice extends StatelessWidget {
   final NoticeTone tone;
 
   @override
-  Widget build(BuildContext context) {
-    final (colour, ink, icon) = switch (tone) {
-      NoticeTone.error => (AtriaColors.cancelled, AtriaColors.cancelledInk, 'alert'),
-      NoticeTone.success => (AtriaColors.confirmed, AtriaColors.confirmedInk, 'check'),
-      NoticeTone.info => (AtriaColors.blue600, AtriaColors.bookedInk, 'info'),
-    };
-    return Semantics(
-      liveRegion: true,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colour.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(AtriaRadius.s),
-          border: Border.all(color: colour.withValues(alpha: 0.25)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AtriaIcon(icon, size: 18, color: ink),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(text, style: AtriaType.body(size: 13, color: ink, height: 1.45)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      Note(text, error: tone == NoticeTone.error, icon: tone == NoticeTone.success ? 'check' : null);
 }
 
 /// The white glass card that holds a form (32:22): radius 30, padding 20.
@@ -488,14 +290,5 @@ class FormCard extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      gradient: cssGradient(147, const [Color(0xF2FFFFFF), Color(0xBDFFFFFF)], [.134, .866]),
-      borderRadius: BorderRadius.circular(30),
-      border: Border.all(color: Colors.white),
-      boxShadow: const [BoxShadow(offset: Offset(0, 8), blurRadius: 28, color: Color(0x1F102A5E))],
-    ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
-  );
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
 }

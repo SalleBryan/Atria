@@ -4,6 +4,8 @@
 /// they sign up.
 library;
 
+import 'package:flutter/services.dart';
+
 /// The region pack's home country (spec/atria_spec/region_packs.py, CM).
 const homeDialCode = '+237';
 final _homeMobile = RegExp(r'^\+2376\d{8}$');
@@ -62,3 +64,25 @@ String? birthDate(String text, {DateTime? today}) {
 }
 
 bool isEmail(String text) => RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(text.trim());
+
+/// Types a date as DD/MM/YYYY, putting the slashes in as the digits arrive.
+class DateMask extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue old, TextEditingValue next) {
+    final digits = next.text.replaceAll(RegExp(r'\D'), '');
+    final kept = digits.substring(0, digits.length.clamp(0, 8));
+    final out = StringBuffer();
+    for (var i = 0; i < kept.length; i++) {
+      if (i == 2 || i == 4) out.write('/');
+      out.write(kept[i]);
+    }
+    final text = out.toString();
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
+/// A date as the mask shows it.
+String maskedDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';

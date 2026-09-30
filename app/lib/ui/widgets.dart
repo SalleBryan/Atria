@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
@@ -140,9 +141,19 @@ class AtriaField extends StatefulWidget {
     this.error,
     this.help,
     this.capitalization = TextCapitalization.none,
+    this.prefixText,
+    this.formatters,
+    this.trailing,
   });
   final String label;
   final String icon;
+
+  /// Fixed text before what is typed, such as the country's dial code.
+  final String? prefixText;
+  final List<TextInputFormatter>? formatters;
+
+  /// A button at the end of the field, such as a calendar.
+  final Widget? trailing;
 
   /// Says what is wrong under the field, which turns red.
   final String? error;
@@ -190,6 +201,7 @@ class _AtriaFieldState extends State<AtriaField> {
             textInputAction: widget.action,
             onSubmitted: widget.onSubmitted,
             textCapitalization: widget.capitalization,
+            inputFormatters: widget.formatters,
             textAlignVertical: TextAlignVertical.center,
             style: AtriaType.body(size: 14.5, color: AtriaColors.inkPrimary, height: 1.2),
             decoration: InputDecoration(
@@ -204,13 +216,17 @@ class _AtriaFieldState extends State<AtriaField> {
                 padding: const EdgeInsets.only(left: 15, right: 10),
                 child: AtriaIcon(widget.icon, color: AtriaColors.blue600),
               ),
-              suffixIcon: widget.obscure
-                  ? IconButton(
-                      tooltip: hidden ? 'Show password' : 'Hide password',
-                      icon: AtriaIcon(hidden ? 'eye' : 'eyeOff', color: AtriaColors.blue600),
-                      onPressed: () => setState(() => hidden = !hidden),
-                    )
-                  : null,
+              prefixText: widget.prefixText,
+              prefixStyle: AtriaType.body(size: 14.5, weight: FontWeight.w700, color: AtriaColors.ink800, height: 1.2),
+              suffixIcon:
+                  widget.trailing ??
+                  (widget.obscure
+                      ? IconButton(
+                          tooltip: hidden ? 'Show password' : 'Hide password',
+                          icon: AtriaIcon(hidden ? 'eye' : 'eyeOff', color: AtriaColors.blue600),
+                          onPressed: () => setState(() => hidden = !hidden),
+                        )
+                      : null),
               enabledBorder: widget.error == null
                   ? border
                   : border.copyWith(borderSide: const BorderSide(color: AtriaColors.cancelled, width: 1.5)),

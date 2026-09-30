@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../api/api.dart';
@@ -11,6 +12,7 @@ import '../config.dart';
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
 import '../ui/form_parts.dart';
+import '../ui/icons.dart';
 import '../ui/widgets.dart';
 
 /// The frame every account screen shares: the blue field, a scrolling column
@@ -268,10 +270,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
             const SizedBox(height: 12),
             AtriaField(
               label: 'Date of birth',
-              icon: 'calendar',
+              icon: 'pencil',
               controller: born,
               hint: 'DD/MM/YYYY',
-              keyboard: TextInputType.datetime,
+              keyboard: TextInputType.number,
+              formatters: [DateMask()],
+              trailing: _CalendarButton(controller: born),
               autofill: const [AutofillHints.birthday],
               action: TextInputAction.next,
               error: errors['born'],
@@ -294,6 +298,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
               controller: phone,
               hint: '6 70 00 00 00',
               keyboard: TextInputType.phone,
+              prefixText: '$homeDialCode ',
+              formatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9 ]'))],
               autofill: const [AutofillHints.telephoneNumber],
               action: TextInputAction.next,
               error: errors['phone'],
@@ -699,6 +705,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 controller: phone,
                 hint: '6 70 00 00 00',
                 keyboard: TextInputType.phone,
+                prefixText: '$homeDialCode ',
+                formatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9 ]'))],
                 autofill: const [AutofillHints.telephoneNumber],
                 error: errors['phone'],
                 help: 'Used only for appointment reminders.',
@@ -708,10 +716,12 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             if (missing.contains('dateOfBirth')) ...[
               AtriaField(
                 label: 'Date of birth',
-                icon: 'calendar',
+                icon: 'pencil',
                 controller: born,
                 hint: 'DD/MM/YYYY',
-                keyboard: TextInputType.datetime,
+                keyboard: TextInputType.number,
+                formatters: [DateMask()],
+                trailing: _CalendarButton(controller: born),
                 autofill: const [AutofillHints.birthday],
                 error: errors['born'],
               ),
@@ -897,4 +907,29 @@ class _NewStaffPasswordScreenState extends State<NewStaffPasswordScreen> {
       ],
     );
   }
+}
+
+/// Opens a calendar for a date of birth, and writes the date into the field.
+class _CalendarButton extends StatelessWidget {
+  const _CalendarButton({required this.controller});
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: 'Choose from a calendar',
+    icon: const AtriaIcon('calendar', color: AtriaColors.blue600),
+    onPressed: () async {
+      final now = DateTime.now();
+      final typed = birthDate(controller.text);
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: typed == null ? DateTime(now.year - 30) : DateTime.parse(typed),
+        firstDate: DateTime(1900),
+        lastDate: now,
+        initialDatePickerMode: DatePickerMode.year,
+        helpText: 'Date of birth',
+      );
+      if (picked != null) controller.text = maskedDate(picked);
+    },
+  );
 }

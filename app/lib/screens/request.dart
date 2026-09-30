@@ -53,7 +53,7 @@ class _RequestProcedureScreenState extends State<RequestProcedureScreen> {
       // One navigation: the request page gives way to the new request's page.
       // (A go and a push in the same frame made go_router build the tab shell
       // twice.)
-      context.pushReplacement('/visits/${made['appointmentId']}');
+      context.go('/visits/${made['appointmentId']}');
     } on ApiError catch (e) {
       if (mounted) {
         setState(() {

@@ -292,7 +292,7 @@ class _StaffQueueScreenState extends State<StaffQueueScreen> {
         for (final t in pages.shown) ...[
           Glass(
             radius: 20,
-            onTap: () => context.push('/console/visits/${t.id}'),
+            onTap: () => context.go('/console/visits/${t.id}'),
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [

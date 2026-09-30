@@ -14,6 +14,7 @@ void main() {
     await tour.go('/console/patients');
     await tour.shot('pat-1-list');
     await tour.tap('', finder: find.textContaining('RHB-').first);
+    await tour.until(find.text('Contact'));
     await tour.shot('pat-2-record');
     await tour.tap('Book a visit');
     await tour.tap('', finder: find.byType(FilterChipButton).first);
@@ -23,6 +24,7 @@ void main() {
     await tour.tap('', finder: find.textContaining(RegExp(r'^\d\d:\d\d$')).first);
     await tour.shot('pat-4-picked');
     await tour.tap('', finder: find.textContaining(RegExp(r'^Book ')).last);
+    await tour.until(find.text('Appointment'));
     await tour.shot('pat-5-booked');
     await tour.go('/console/patients');
     await tour.tap('New patient');

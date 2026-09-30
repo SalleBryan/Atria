@@ -76,6 +76,10 @@ String? _gate(Me me, Audience audience) {
   return null;
 }
 
+/// The app's own navigator, above the tab frames: a detail page opens here,
+/// over its tab, so the frame underneath is never built twice.
+final rootKey = GlobalKey<NavigatorState>();
+
 GoRouter routerFor(Session session, AppPrefs prefs) {
   PatientStore? store;
   PatientStore storeFor() => store ??= (PatientStore(session.api)..reload());
@@ -85,6 +89,26 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
     return staff ??= (StaffStore(session.api, me)..load());
   }
 
+  // The tabs draw their frame themselves, all on one page: moving between
+  // them updates that page in place, and a detail page stacks above it.
+  // (A ShellRoute's own navigator was built twice during some transitions.)
+  Page<void> staffTab(GoRouterState state, Widget child) => NoTransitionPage(
+    key: const ValueKey('staff-tabs'),
+    child: StaffShell(store: staffFor(), session: session, location: state.uri.toString(), child: child),
+  );
+  Page<void> patientTab(GoRouterState state, Widget child) => NoTransitionPage(
+    key: const ValueKey('patient-tabs'),
+    child: PatientShell(
+      store: storeFor(),
+      location: state.matchedLocation,
+      initials: switch (session.state) {
+        SignedIn(:final me) => initials(me.givenName, me.familyName),
+        _ => '',
+      },
+      child: child,
+    ),
+  );
+
   session.addListener(() {
     if (session.state is! SignedIn) {
       store = null;
@@ -93,6 +117,7 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
   });
 
   return GoRouter(
+    navigatorKey: rootKey,
     // Only where a person belongs moves the router, not every change to who
     // they are: re-reading GET /me after a name or email change must not
     // rebuild the screens they are on.
@@ -185,59 +210,6 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
         builder: (_, _) => SignInScreen(session: session, audience: Audience.staff),
       ),
       GoRoute(
-        path: '/find-care/:id',
-        builder: (_, state) => ClinicianScreen(id: state.pathParameters['id']!, store: storeFor()),
-      ),
-      GoRoute(
-        path: '/find-care/:id/taken',
-        builder: (_, state) => TakenScreen(
-          clinicianId: state.pathParameters['id']!,
-          at: DateTime.parse(state.uri.queryParameters['at']!),
-          store: storeFor(),
-        ),
-      ),
-      GoRoute(
-        path: '/booked/:id',
-        builder: (_, state) => BookedScreen(
-          id: state.pathParameters['id']!,
-          store: storeFor(),
-          email: switch (session.state) {
-            SignedIn(:final me) => me.email,
-            _ => null,
-          },
-        ),
-      ),
-      GoRoute(
-        path: '/account/details',
-        builder: (_, _) => EditDetailsScreen(session: session),
-      ),
-      GoRoute(
-        path: '/account/email',
-        builder: (_, _) => ChangeEmailScreen(session: session),
-      ),
-      GoRoute(
-        path: '/account/units',
-        builder: (_, _) => UnitsScreen(store: storeFor()),
-      ),
-      GoRoute(
-        path: '/visits/:id',
-        // A queue place opens as its ticket (Figma 310:2), a visit as its details.
-        builder: (_, state) {
-          final id = state.pathParameters['id']!;
-          final store = storeFor();
-          return ListenableBuilder(
-            listenable: store,
-            builder: (_, _) {
-              final data = store.state;
-              final ticket = data is DataReady && data.data.appointments.any((a) => a.id == id && a.sessionId != null);
-              return ticket
-                  ? QueueTicketScreen(id: id, store: store)
-                  : VisitDetailScreen(id: id, store: store, cancel: state.uri.queryParameters['cancel'] == '1');
-            },
-          );
-        },
-      ),
-      GoRoute(
         path: '/queue',
         builder: (_, _) => JoinQueueScreen(store: storeFor()),
       ),
@@ -250,120 +222,186 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
         builder: (_, state) => QueueTicketScreen(id: state.pathParameters['id']!, store: storeFor()),
       ),
       GoRoute(
-        path: '/console/patients/:id',
-        builder: (_, state) => PatientRecordScreen(store: staffFor(), id: state.pathParameters['id']!),
-      ),
-      GoRoute(
-        path: '/console/book',
-        builder: (_, state) => ListenableBuilder(
-          listenable: staffFor(),
-          builder: (_, _) => BookForPatientScreen(
-            store: staffFor(),
-            patientId: state.uri.queryParameters['patient'],
-            clinicianId: state.uri.queryParameters['clinician'],
-          ),
-        ),
-      ),
-      GoRoute(
-        path: '/console/visits/:id',
-        builder: (_, state) => StaffVisitScreen(store: staffFor(), id: state.pathParameters['id']!),
-      ),
-      ShellRoute(
-        builder: (context, state, child) =>
-            StaffShell(store: staffFor(), session: session, location: state.uri.toString(), child: child),
-        routes: [
-          GoRoute(
-            path: '/console',
-            builder: (_, state) => ListenableBuilder(
-              listenable: staffFor(),
-              builder: (_, _) => DayScheduleScreen(
-                key: ValueKey(state.uri.toString()),
-                store: staffFor(),
-                date: state.uri.queryParameters['date'],
-              ),
-            ),
-          ),
-          GoRoute(
-            path: '/console/patients',
-            builder: (_, _) => PatientsScreen(store: staffFor()),
-          ),
-          GoRoute(
-            path: '/console/queue',
-            builder: (_, _) => StaffQueueScreen(store: staffFor()),
-          ),
-          GoRoute(
-            path: '/console/requests',
-            builder: (_, _) => RequestsScreen(store: staffFor()),
-          ),
-          GoRoute(
-            path: '/console/roster',
-            builder: (_, _) => RosterScreen(store: staffFor()),
-          ),
-          GoRoute(
-            path: '/console/availability',
-            builder: (_, _) => AvailabilityScreen(store: staffFor()),
-          ),
-          GoRoute(
-            path: '/console/messages',
-            builder: (_, _) => MessagesScreen(store: staffFor()),
-          ),
-          GoRoute(
-            path: '/console/reports',
-            builder: (_, _) => ReportsScreen(store: staffFor()),
-          ),
-          GoRoute(
-            path: '/console/audit',
-            builder: (_, _) => AuditScreen(store: staffFor()),
-          ),
-          GoRoute(
-            path: '/console/week',
-            builder: (_, state) => WeekScreen(
-              key: ValueKey(state.uri.toString()),
+        path: '/console',
+        pageBuilder: (context, state) => staffTab(
+          state,
+          ListenableBuilder(
+            listenable: staffFor(),
+            builder: (_, _) => DayScheduleScreen(
+              key: ValueKey(state.uri.queryParameters['date']),
               store: staffFor(),
               date: state.uri.queryParameters['date'],
             ),
           ),
-        ],
-      ),
-      ShellRoute(
-        builder: (context, state, child) => PatientShell(
-          store: storeFor(),
-          location: state.matchedLocation,
-          initials: switch (session.state) {
-            SignedIn(:final me) => initials(me.givenName, me.familyName),
-            _ => '',
-          },
-          child: child,
         ),
         routes: [
           GoRoute(
-            path: '/home',
-            builder: (_, _) => ListenableBuilder(
-              listenable: session,
-              builder: (_, _) => switch (session.state) {
-                SignedIn(:final me) => HomeScreen(me: me, store: storeFor()),
-                _ => const SizedBox.shrink(),
+            path: 'visits/:id',
+            parentNavigatorKey: rootKey,
+            builder: (_, state) => StaffVisitScreen(store: staffFor(), id: state.pathParameters['id']!),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/console/patients',
+        pageBuilder: (context, state) => staffTab(state, PatientsScreen(store: staffFor())),
+        routes: [
+          GoRoute(
+            path: ':id',
+            parentNavigatorKey: rootKey,
+            builder: (_, state) => PatientRecordScreen(store: staffFor(), id: state.pathParameters['id']!),
+            routes: [
+              GoRoute(
+                path: 'book',
+                parentNavigatorKey: rootKey,
+                builder: (_, state) => ListenableBuilder(
+                  listenable: staffFor(),
+                  builder: (_, _) => BookForPatientScreen(
+                    store: staffFor(),
+                    patientId: state.pathParameters['id'],
+                    clinicianId: state.uri.queryParameters['clinician'],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/console/queue',
+        pageBuilder: (context, state) => staffTab(state, StaffQueueScreen(store: staffFor())),
+      ),
+      GoRoute(
+        path: '/console/requests',
+        pageBuilder: (context, state) => staffTab(state, RequestsScreen(store: staffFor())),
+      ),
+      GoRoute(
+        path: '/console/roster',
+        pageBuilder: (context, state) => staffTab(state, RosterScreen(store: staffFor())),
+      ),
+      GoRoute(
+        path: '/console/availability',
+        pageBuilder: (context, state) => staffTab(state, AvailabilityScreen(store: staffFor())),
+      ),
+      GoRoute(
+        path: '/console/messages',
+        pageBuilder: (context, state) => staffTab(state, MessagesScreen(store: staffFor())),
+      ),
+      GoRoute(
+        path: '/console/reports',
+        pageBuilder: (context, state) => staffTab(state, ReportsScreen(store: staffFor())),
+      ),
+      GoRoute(
+        path: '/console/audit',
+        pageBuilder: (context, state) => staffTab(state, AuditScreen(store: staffFor())),
+      ),
+      GoRoute(
+        path: '/console/week',
+        pageBuilder: (context, state) => staffTab(
+          state,
+          WeekScreen(key: ValueKey(state.uri.toString()), store: staffFor(), date: state.uri.queryParameters['date']),
+        ),
+      ),
+      GoRoute(
+        path: '/home',
+        pageBuilder: (context, state) => patientTab(
+          state,
+          ListenableBuilder(
+            listenable: session,
+            builder: (_, _) => switch (session.state) {
+              SignedIn(:final me) => HomeScreen(me: me, store: storeFor()),
+              _ => const SizedBox.shrink(),
+            },
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/find-care',
+        pageBuilder: (context, state) => patientTab(
+          state,
+          FindCareScreen(
+            store: storeFor(),
+            query: state.uri.queryParameters['q'] ?? '',
+            clinician: state.uri.queryParameters['clinician'],
+            specialty: state.uri.queryParameters['specialty'],
+            clinic: state.uri.queryParameters['clinic'],
+            language: state.uri.queryParameters['language'],
+          ),
+        ),
+        routes: [
+          GoRoute(
+            path: ':id/taken',
+            parentNavigatorKey: rootKey,
+            builder: (_, state) => TakenScreen(
+              clinicianId: state.pathParameters['id']!,
+              at: DateTime.parse(state.uri.queryParameters['at']!),
+              store: storeFor(),
+            ),
+          ),
+          GoRoute(
+            path: ':id',
+            parentNavigatorKey: rootKey,
+            builder: (_, state) => ClinicianScreen(id: state.pathParameters['id']!, store: storeFor()),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/account',
+        pageBuilder: (context, state) => patientTab(state, AccountScreen(session: session, store: storeFor())),
+        routes: [
+          GoRoute(
+            path: 'details',
+            parentNavigatorKey: rootKey,
+            builder: (_, _) => EditDetailsScreen(session: session),
+          ),
+          GoRoute(
+            path: 'email',
+            parentNavigatorKey: rootKey,
+            builder: (_, _) => ChangeEmailScreen(session: session),
+          ),
+          GoRoute(
+            path: 'units',
+            parentNavigatorKey: rootKey,
+            builder: (_, _) => UnitsScreen(store: storeFor()),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/visits',
+        pageBuilder: (context, state) =>
+            patientTab(state, VisitsScreen(store: storeFor(), past: state.uri.queryParameters['show'] == 'past')),
+        routes: [
+          GoRoute(
+            path: 'booked/:id',
+            parentNavigatorKey: rootKey,
+            builder: (_, state) => BookedScreen(
+              id: state.pathParameters['id']!,
+              store: storeFor(),
+              email: switch (session.state) {
+                SignedIn(:final me) => me.email,
+                _ => null,
               },
             ),
           ),
           GoRoute(
-            path: '/find-care',
-            builder: (_, state) => FindCareScreen(
-              store: storeFor(),
-              query: state.uri.queryParameters['q'] ?? '',
-              clinician: state.uri.queryParameters['clinician'],
-              specialty: state.uri.queryParameters['specialty'],
-              clinic: state.uri.queryParameters['clinic'],
-              language: state.uri.queryParameters['language'],
-            ),
-          ),
-          GoRoute(
-            path: '/account',
-            builder: (_, _) => AccountScreen(session: session, store: storeFor()),
-          ),
-          GoRoute(
-            path: '/visits',
-            builder: (_, state) => VisitsScreen(store: storeFor(), past: state.uri.queryParameters['show'] == 'past'),
+            path: ':id',
+            parentNavigatorKey: rootKey,
+            // A queue place opens as its ticket (Figma 310:2), a visit as its details.
+            builder: (_, state) {
+              final id = state.pathParameters['id']!;
+              final store = storeFor();
+              return ListenableBuilder(
+                listenable: store,
+                builder: (_, _) {
+                  final data = store.state;
+                  final ticket =
+                      data is DataReady && data.data.appointments.any((a) => a.id == id && a.sessionId != null);
+                  return ticket
+                      ? QueueTicketScreen(id: id, store: store)
+                      : VisitDetailScreen(id: id, store: store, cancel: state.uri.queryParameters['cancel'] == '1');
+                },
+              );
+            },
           ),
         ],
       ),

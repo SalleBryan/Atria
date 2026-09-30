@@ -64,6 +64,15 @@ class Tour {
   // A widget inside the current page: the router is published below Router.
   BuildContext get _context => tester.element(find.byType(Scaffold).last);
 
+  /// Waits, a frame at a time, until [finder] shows something (at most [most]).
+  Future<void> until(Finder finder, {Duration most = const Duration(seconds: 15)}) async {
+    final end = DateTime.now().add(most);
+    while (DateTime.now().isBefore(end) && finder.evaluate().isEmpty) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    await settle();
+  }
+
   /// Goes to a route as a link would.
   Future<void> go(String path) async {
     debugPrint('TOUR go $path');

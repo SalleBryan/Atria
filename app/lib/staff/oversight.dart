@@ -147,7 +147,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
             for (final m in pages.shown) ...[
               Glass(
                 radius: 20,
-                onTap: m['appointmentId'] == null ? null : () => context.push('/console/visits/${m['appointmentId']}'),
+                onTap: m['appointmentId'] == null ? null : () => context.go('/console/visits/${m['appointmentId']}'),
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,

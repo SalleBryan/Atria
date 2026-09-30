@@ -24,6 +24,13 @@ class StaffStore extends ChangeNotifier {
   StaffDirectory? directory;
   String? failure;
 
+  /// Bumped whenever a visit changes, so a list on screen loads again.
+  int revision = 0;
+  void changed() {
+    revision++;
+    notifyListeners();
+  }
+
   Future<void> load() async {
     try {
       final r = await Future.wait([

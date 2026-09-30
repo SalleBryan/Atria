@@ -43,6 +43,17 @@ class _DayScheduleScreenState extends State<DayScheduleScreen> {
     load();
   }
 
+  late int seen = widget.store.revision;
+
+  @override
+  void didUpdateWidget(DayScheduleScreen old) {
+    super.didUpdateWidget(old);
+    if (widget.store.revision != seen) {
+      seen = widget.store.revision;
+      load();
+    }
+  }
+
   @override
   void dispose() {
     search.dispose();
@@ -239,10 +250,7 @@ class _DayScheduleScreenState extends State<DayScheduleScreen> {
                     if (!store.ownCalendar) dir?.clinician(a.clinicianId)?.name,
                     a.reference,
                   ].whereType<String>().join(' · '),
-                  onTap: () async {
-                    await context.push('/console/visits/${a.id}');
-                    load();
-                  },
+                  onTap: () => context.go('/console/visits/${a.id}'),
                 ),
               ),
             ],
@@ -393,10 +401,7 @@ class _WeekScreenState extends State<WeekScreen> {
                                   dir?.type(a.typeId)?.name,
                                   if (!store.ownCalendar) dir?.clinician(a.clinicianId)?.name,
                                 ].whereType<String>().join(' · '),
-                                onTap: () async {
-                                  await context.push('/console/visits/${a.id}');
-                                  load();
-                                },
+                                onTap: () => context.go('/console/visits/${a.id}'),
                               ),
                             ],
                         ],

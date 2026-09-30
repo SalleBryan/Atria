@@ -102,7 +102,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
   Future<void> register() async {
     final made = await newPatient(context, widget.store.api, start: query.text);
     if (made == null || !mounted) return;
-    context.push(made.$2 ? '/console/book?patient=${made.$1.id}' : '/console/patients/${made.$1.id}');
+    context.go(made.$2 ? '/console/patients/${made.$1.id}/book' : '/console/patients/${made.$1.id}');
   }
 
   @override
@@ -163,7 +163,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
               index: 2 + i,
               child: Glass(
                 radius: 20,
-                onTap: () => context.push('/console/patients/${p.id}'),
+                onTap: () => context.go('/console/patients/${p.id}'),
                 semanticLabel: p.name,
                 padding: const EdgeInsets.all(12),
                 child: Row(
@@ -408,7 +408,7 @@ class _NewPatientState extends State<_NewPatient> {
                   TextButton(
                     onPressed: () {
                       Navigator.pop(context);
-                      context.push('/console/patients/${p.id}');
+                      context.go('/console/patients/${p.id}');
                     },
                     child: Text('${p.name} · ${p.number ?? ''}'),
                   ),
@@ -520,7 +520,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
                   index: 1,
                   child: PrimaryButton(
                     label: 'Book a visit',
-                    onPressed: () => context.push('/console/book?patient=${widget.id}'),
+                    onPressed: () => context.go('/console/patients/${widget.id}/book'),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -583,7 +583,7 @@ class _PatientRecordScreenState extends State<PatientRecordScreen> {
                     if (i > 0) const SizedBox(height: 8),
                     Glass(
                       radius: 20,
-                      onTap: () => context.push('/console/visits/${a.id}'),
+                      onTap: () => context.go('/console/visits/${a.id}'),
                       padding: const EdgeInsets.all(12),
                       child: Row(
                         children: [
@@ -760,8 +760,9 @@ class _BookForPatientScreenState extends State<BookForPatientScreen> {
         {'Idempotency-Key': 'desk-${p.id}-$start-${c.id}'},
       );
       if (!mounted) return;
+      widget.store.changed();
       say(context, 'Booked ${booked['reference']} for ${p.name}.');
-      context.pushReplacement('/console/visits/${booked['appointmentId']}');
+      context.go('/console/visits/${booked['appointmentId']}');
     } on ApiError catch (e) {
       if (mounted) {
         setState(() {

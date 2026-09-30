@@ -596,7 +596,7 @@ class _ClinicianScreenState extends State<ClinicianScreen> {
         {'Idempotency-Key': key},
       );
       await widget.store.reload();
-      if (mounted) context.go('/booked/${made['appointmentId']}');
+      if (mounted) context.go('/visits/booked/${made['appointmentId']}');
     } on ApiError catch (e) {
       if (!mounted) return;
       if (e.status == 409) {
@@ -1068,7 +1068,7 @@ class _TakenScreenState extends State<TakenScreen> {
         {'Idempotency-Key': key},
       );
       await widget.store.reload();
-      if (mounted) context.go('/booked/${made['appointmentId']}');
+      if (mounted) context.go('/visits/booked/${made['appointmentId']}');
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() {

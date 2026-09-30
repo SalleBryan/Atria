@@ -68,6 +68,7 @@ class _StaffVisitScreenState extends State<StaffVisitScreen> {
     });
     try {
       await api.send('POST', '/appointments/${widget.id}/$action');
+      widget.store.changed();
       await load();
       if (mounted) say(context, done);
     } on ApiError catch (e) {
@@ -332,7 +333,7 @@ class _StaffVisitScreenState extends State<StaffVisitScreen> {
                             ),
                             if (v.patientId != null && !store.ownCalendar)
                               TextButton(
-                                onPressed: () => context.push('/console/patients/${v.patientId}'),
+                                onPressed: () => context.go('/console/patients/${v.patientId}'),
                                 child: Text(
                                   'Record',
                                   style: AtriaType.body(size: 13, weight: FontWeight.w700, color: AtriaColors.blue600),
@@ -388,6 +389,7 @@ class _StaffVisitScreenState extends State<StaffVisitScreen> {
                             onPressed: () async {
                               final moved = await moveVisit(context, api, v);
                               if (moved) {
+                                widget.store.changed();
                                 await load();
                                 if (context.mounted) say(context, '${v.reference} moved. $who has been told.');
                               }
@@ -403,6 +405,7 @@ class _StaffVisitScreenState extends State<StaffVisitScreen> {
                             onTap: () async {
                               final done = await cancelAtDesk(context, api, v, who, type);
                               if (done != null) {
+                                widget.store.changed();
                                 await load();
                                 if (context.mounted) say(context, done);
                               }

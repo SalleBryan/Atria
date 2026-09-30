@@ -431,8 +431,9 @@ class _AvailabilityScreenState extends State<AvailabilityScreen> {
                               onPressed: writes
                                   ? () async {
                                       final t = await pickTime(week['$d']!.start);
-                                      if (t != null)
+                                      if (t != null) {
                                         setState(() => week['$d'] = (on: true, start: t, end: week['$d']!.end));
+                                      }
                                     }
                                   : null,
                               child: Text(week['$d']!.start),
@@ -442,8 +443,9 @@ class _AvailabilityScreenState extends State<AvailabilityScreen> {
                               onPressed: writes
                                   ? () async {
                                       final t = await pickTime(week['$d']!.end);
-                                      if (t != null)
+                                      if (t != null) {
                                         setState(() => week['$d'] = (on: true, start: week['$d']!.start, end: t));
+                                      }
                                     }
                                   : null,
                               child: Text(week['$d']!.end),

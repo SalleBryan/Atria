@@ -1,6 +1,5 @@
 import 'package:atria/auth/auth.dart';
 import 'package:atria/ui/filters.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'tour.dart';

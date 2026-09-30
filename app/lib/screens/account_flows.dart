@@ -14,6 +14,7 @@ import '../theme/tokens.dart';
 import '../ui/form_parts.dart';
 import '../ui/icons.dart';
 import '../ui/widgets.dart';
+import 'google_return.dart';
 
 /// The frame every account screen shares: the blue field, a scrolling column
 /// with 24 at the sides, the back button, a heading and its line.
@@ -146,6 +147,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool terms = false;
   bool busy = false;
   bool googleBusy = false;
+  bool finishing = false;
   String? failure;
   Map<String, String> errors = {};
 
@@ -232,18 +234,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
       googleBusy = true;
       failure = null;
     });
-    try {
-      await widget.session.auth.signInWithGoogle();
-      await widget.session.refresh();
-    } on AuthFailure catch (e) {
-      if (mounted) setState(() => failure = e.message);
-    } finally {
-      if (mounted) setState(() => googleBusy = false);
-    }
+    final failed = await continueWithGoogle(
+      widget.session,
+      returned: () {
+        if (mounted) setState(() => finishing = true);
+      },
+    );
+    if (!mounted) return;
+    setState(() {
+      googleBusy = false;
+      finishing = finishing && failed == null;
+      failure = failed;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    if (finishing) return const SigningIn();
     final rules = passwordRules(password.text);
     final met = rules.where((r) => r.met).length;
     return _AuthPage(

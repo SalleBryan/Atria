@@ -53,8 +53,9 @@ abstract class Auth {
   Future<void> forgotPassword(Audience audience, String email);
   Future<void> confirmNewPassword(Audience audience, String email, String code, String password);
 
-  /// Continue with Google, patients only (auth/google.dart).
-  Future<SignInStep> signInWithGoogle();
+  /// Continue with Google, patients only (auth/google.dart). [returned] is
+  /// called once the browser hands back, while the tokens are still fetched.
+  Future<SignInStep> signInWithGoogle({void Function()? returned});
 
   /// A new email for the signed-in account: Cognito sends a code to it, and
   /// the address changes only once the code is confirmed (FR-ACC-01).
@@ -195,10 +196,10 @@ class CognitoAuth implements Auth {
   }
 
   @override
-  Future<SignInStep> signInWithGoogle() async {
+  Future<SignInStep> signInWithGoogle({void Function()? returned}) async {
     final GoogleTokens tokens;
     try {
-      tokens = await google.signInWithGoogle();
+      tokens = await google.signInWithGoogle(returned: returned);
     } on google.GoogleSignInCancelled {
       throw AuthFailure('Google sign-in was cancelled.');
     } on StateError catch (e) {

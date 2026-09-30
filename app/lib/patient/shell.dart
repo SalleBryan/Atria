@@ -224,68 +224,76 @@ class _Rail extends StatelessWidget {
         children: [
           const BrandMark(size: 50),
           const SizedBox(height: 34),
-          SizedBox(
-            height: _step * PatientShell.destinations.length,
-            child: Stack(
-              children: [
-                if (selected >= 0)
-                  AnimatedPositioned(
-                    duration: AtriaMotion.spatialDefaultDuration,
-                    curve: AtriaMotion.spatialDefault,
-                    top: _step * selected + 4,
-                    left: 4,
-                    child: Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        gradient: accentGradient(149),
-                        borderRadius: BorderRadius.circular(17),
-                        boxShadow: const [BoxShadow(offset: Offset(0, 6), blurRadius: 14, color: Color(0x5C2F6BE4))],
-                      ),
-                    ),
-                  ),
-                Column(
+          // The places scroll on their own if the rail runs short; the
+          // mark and the account stay put, as the web sidebar has them.
+          Expanded(
+            child: SingleChildScrollView(
+              child: SizedBox(
+                height: _step * PatientShell.destinations.length,
+                child: Stack(
                   children: [
-                    for (var i = 0; i < PatientShell.destinations.length; i++)
-                      SizedBox(
-                        height: _step,
-                        child: Center(
-                          child: Semantics(
-                            selected: i == selected,
-                            child: Pressable(
-                              onTap: () => context.go(PatientShell.destinations[i].$1),
-                              radius: 17,
-                              scale: .92,
-                              ink: AtriaColors.blue700,
-                              semanticLabel: PatientShell.destinations[i].$1 == '/visits' && ahead > 0
-                                  ? '${PatientShell.destinations[i].$2}, $ahead upcoming'
-                                  : PatientShell.destinations[i].$2,
-                              builder: (context, _) => SizedBox(
-                                width: 52,
-                                height: 52,
-                                child: Center(
-                                  child: Badge(
-                                    isLabelVisible: PatientShell.destinations[i].$1 == '/visits' && ahead > 0,
-                                    label: Pop(value: ahead, child: Text('$ahead')),
-                                    offset: const Offset(8, -8),
-                                    child: AtriaIcon(
-                                      PatientShell.destinations[i].$3,
-                                      size: 20,
-                                      color: i == selected ? Colors.white : const Color(0xFF6B7FA6),
+                    if (selected >= 0)
+                      AnimatedPositioned(
+                        duration: AtriaMotion.spatialDefaultDuration,
+                        curve: AtriaMotion.spatialDefault,
+                        top: _step * selected + 4,
+                        left: 4,
+                        child: Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            gradient: accentGradient(149),
+                            borderRadius: BorderRadius.circular(17),
+                            boxShadow: const [
+                              BoxShadow(offset: Offset(0, 6), blurRadius: 14, color: Color(0x5C2F6BE4)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    Column(
+                      children: [
+                        for (var i = 0; i < PatientShell.destinations.length; i++)
+                          SizedBox(
+                            height: _step,
+                            child: Center(
+                              child: Semantics(
+                                selected: i == selected,
+                                child: Pressable(
+                                  onTap: () => context.go(PatientShell.destinations[i].$1),
+                                  radius: 17,
+                                  scale: .92,
+                                  ink: AtriaColors.blue700,
+                                  semanticLabel: PatientShell.destinations[i].$1 == '/visits' && ahead > 0
+                                      ? '${PatientShell.destinations[i].$2}, $ahead upcoming'
+                                      : PatientShell.destinations[i].$2,
+                                  builder: (context, _) => SizedBox(
+                                    width: 52,
+                                    height: 52,
+                                    child: Center(
+                                      child: Badge(
+                                        isLabelVisible: PatientShell.destinations[i].$1 == '/visits' && ahead > 0,
+                                        label: Pop(value: ahead, child: Text('$ahead')),
+                                        offset: const Offset(8, -8),
+                                        child: AtriaIcon(
+                                          PatientShell.destinations[i].$3,
+                                          size: 20,
+                                          color: i == selected ? Colors.white : const Color(0xFF6B7FA6),
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
+                      ],
+                    ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 12),
           Pressable(
             onTap: () => context.go('/account'),
             radius: 17,

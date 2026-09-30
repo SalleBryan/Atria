@@ -37,7 +37,7 @@ String _verifier() {
 String _challenge(String verifier) =>
     base64Url.encode(sha256.convert(ascii.encode(verifier)).bytes).replaceAll('=', '');
 
-Future<GoogleTokens> signInWithGoogle({http.Client? client}) async {
+Future<GoogleTokens> signInWithGoogle({http.Client? client, void Function()? returned}) async {
   if (AtriaConfig.authDomain.isEmpty) {
     throw StateError('ATRIA_AUTH_DOMAIN is not set; run python tools/app_env.py');
   }
@@ -59,8 +59,9 @@ Future<GoogleTokens> signInWithGoogle({http.Client? client}) async {
     result = await FlutterWebAuth2.authenticate(url: authorize.toString(), callbackUrlScheme: callbackScheme);
   } on PlatformException catch (e) {
     if (e.code == 'CANCELED') throw GoogleSignInCancelled();
-    rethrow;
+    throw StateError('Google sign-in could not open. Try again.');
   }
+  returned?.call();
   final back = Uri.parse(result);
   final error = back.queryParameters['error_description'] ?? back.queryParameters['error'];
   if (error != null) throw StateError(error);
@@ -68,17 +69,22 @@ Future<GoogleTokens> signInWithGoogle({http.Client? client}) async {
   final code = back.queryParameters['code'];
   if (code == null) throw StateError('Google sign-in did not complete.');
 
-  final response = await (client ?? http.Client()).post(
-    Uri.https(AtriaConfig.authDomain, '/oauth2/token'),
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: {
-      'grant_type': 'authorization_code',
-      'client_id': AtriaConfig.patientClientId,
-      'code': code,
-      'redirect_uri': callbackUri,
-      'code_verifier': verifier,
-    },
-  );
+  final http.Response response;
+  try {
+    response = await (client ?? http.Client()).post(
+      Uri.https(AtriaConfig.authDomain, '/oauth2/token'),
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: {
+        'grant_type': 'authorization_code',
+        'client_id': AtriaConfig.patientClientId,
+        'code': code,
+        'redirect_uri': callbackUri,
+        'code_verifier': verifier,
+      },
+    );
+  } on Exception {
+    throw StateError('No connection. Check your network and try again.');
+  }
   if (response.statusCode != 200) throw StateError('Google sign-in could not be finished. Try again.');
   final tokens = jsonDecode(response.body) as Map<String, dynamic>;
   return GoogleTokens(

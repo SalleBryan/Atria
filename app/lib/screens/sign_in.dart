@@ -6,6 +6,7 @@ import '../auth/session.dart';
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
 import '../ui/widgets.dart';
+import 'google_return.dart';
 
 /// "Mobile · Sign in" (Figma 32:2). The switch picks the Cognito client:
 /// patients through theirs, clinic staff through the staff client, which
@@ -24,6 +25,7 @@ class _SignInScreenState extends State<SignInScreen> {
   final password = TextEditingController();
   bool busy = false;
   bool googleBusy = false;
+  bool finishing = false;
   String? error;
 
   bool get staff => widget.audience == Audience.staff;
@@ -69,9 +71,14 @@ class _SignInScreenState extends State<SignInScreen> {
           final state = await widget.session.refresh();
           if (!mounted) return;
           if (state is Unresolved) setState(() => error = state.message);
+          if (state is SignedOut) setState(() => error = 'Sign-in did not complete. Try again.');
       }
     } on AuthFailure catch (e) {
       setState(() => error = e.message);
+    } on Object catch (e) {
+      // Anything else (a network or storage failure) still says so.
+      debugPrint('Sign-in failed: $e');
+      if (mounted) setState(() => error = 'Sign-in did not complete. Check your connection and try again.');
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -85,21 +92,26 @@ class _SignInScreenState extends State<SignInScreen> {
       googleBusy = true;
       error = null;
     });
-    try {
-      await widget.session.auth.signInWithGoogle();
-      final state = await widget.session.refresh();
-      if (!mounted) return;
-      if (state is Unresolved) setState(() => error = state.message);
-    } on AuthFailure catch (e) {
-      if (mounted) setState(() => error = e.message);
-    } finally {
-      if (mounted) setState(() => googleBusy = false);
-    }
+    final failed = await continueWithGoogle(
+      widget.session,
+      returned: () {
+        if (mounted) setState(() => finishing = true);
+      },
+    );
+    if (!mounted) return;
+    // Signed in, the router takes over from the loader; otherwise back to
+    // the form, with the reason.
+    setState(() {
+      googleBusy = false;
+      finishing = finishing && failed == null;
+      error = failed;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final ready = email.text.trim().isNotEmpty && password.text.isNotEmpty;
+    if (finishing) return const SigningIn();
     return Scaffold(
       body: PageBackground(
         child: SafeArea(

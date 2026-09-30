@@ -153,7 +153,7 @@ void main() {
 
   testWidgets('Google for patients: a new account finishes its record first', (tester) async {
     await open(tester);
-    when(() => auth.signInWithGoogle()).thenAnswer((_) async {
+    when(() => auth.signInWithGoogle(returned: any(named: 'returned'))).thenAnswer((_) async {
       signedInAs(me(missing: ['phone', 'dateOfBirth', 'terms']));
       return SignInStep.done;
     });

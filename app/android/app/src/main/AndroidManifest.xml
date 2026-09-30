@@ -30,10 +30,14 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        <!-- Google sign-in comes back here: atria://auth/callback (lib/auth/google.dart). -->
+        <!-- Google sign-in comes back here: atria://auth/callback (lib/auth/google.dart).
+             Its task affinity must match MainActivity's (""), or Android opens
+             the callback in a task of its own and the waiting sign-in never
+             hears it (flutter_web_auth_2 README, Troubleshooting Android). -->
         <activity
             android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
-            android:exported="true">
+            android:exported="true"
+            android:taskAffinity="">
             <intent-filter android:label="flutter_web_auth_2">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

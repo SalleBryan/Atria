@@ -192,8 +192,10 @@ class DemoAuth implements Auth {
   }
 
   @override
-  Future<SignInStep> signInWithGoogle() async {
+  Future<SignInStep> signInWithGoogle({void Function()? returned}) async {
     await Future<void>.delayed(const Duration(milliseconds: 700));
+    returned?.call();
+    await Future<void>.delayed(const Duration(milliseconds: 900));
     profile.fromGoogle();
     _audience = Audience.patient;
     staff = null;

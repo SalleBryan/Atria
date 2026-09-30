@@ -61,19 +61,29 @@ class Tour {
     }
   }
 
-  BuildContext get _context => tester.element(find.byType(Router<Object>).first);
+  // A widget inside the current page: the router is published below Router.
+  BuildContext get _context => tester.element(find.byType(Scaffold).last);
 
   /// Goes to a route as a link would.
   Future<void> go(String path) async {
+    debugPrint('TOUR go $path');
     GoRouter.of(_context).go(path);
     await settle();
   }
 
   /// Taps the first widget showing [text] (or matching [finder]).
   Future<void> tap(String text, {Finder? finder}) async {
+    debugPrint('TOUR tap ${finder ?? text}');
     final target = finder ?? find.text(text, findRichText: true);
     await tester.ensureVisible(target.first);
     await tester.tap(target.first);
+    await settle();
+  }
+
+  /// The system Back button: closes a sheet or menu, or leaves the page.
+  Future<void> back() async {
+    debugPrint('TOUR back');
+    await tester.binding.handlePopRoute();
     await settle();
   }
 
@@ -98,6 +108,7 @@ class Tour {
 
   /// A screenshot, saved on the computer as `name.png`.
   Future<void> shot(String name) async {
+    debugPrint('TOUR shot $name');
     if (!_surface) {
       await binding.convertFlutterSurfaceToImage();
       _surface = true;

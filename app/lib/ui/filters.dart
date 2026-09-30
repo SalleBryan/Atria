@@ -137,7 +137,9 @@ class FilterChipButton extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: dot,
                     shape: BoxShape.circle,
-                    boxShadow: on ? const [BoxShadow(color: Color(0xD9FFFFFF), spreadRadius: 2)] : null,
+                    boxShadow: [
+                      BoxShadow(color: on ? const Color(0xD9FFFFFF) : const Color(0x00FFFFFF), spreadRadius: 2),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 7),
@@ -553,7 +555,14 @@ class _Option extends StatelessWidget {
           gradient: on ? AtriaGradients.primary : null,
           borderRadius: BorderRadius.circular(on ? 18 : (sheet ? 14 : 12)),
           border: Border.all(color: on ? Colors.transparent : AtriaColors.lineHairline, width: 1.5),
-          boxShadow: on ? const [BoxShadow(offset: Offset(0, 6), blurRadius: 14, color: Color(0x4D2461DB))] : null,
+          // Faded, never removed: see PrimaryButton.
+          boxShadow: [
+            BoxShadow(
+              offset: const Offset(0, 6),
+              blurRadius: 14,
+              color: on ? const Color(0x4D2461DB) : const Color(0x002461DB),
+            ),
+          ],
         ),
         child: ExcludeSemantics(
           child: Row(

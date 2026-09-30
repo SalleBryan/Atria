@@ -607,6 +607,8 @@ class _DetailState extends State<_Detail> {
                   tag: label,
                   title: a.state == 'REQUESTED'
                       ? 'Request sent'
+                      : a.state == 'DECLINED'
+                      ? 'Not scheduled'
                       : '${_longDays[local.weekday - 1].substring(0, 3)} ${local.day} ${_longMonths[local.month - 1]} ${local.year}',
                   sub: [
                     type?.name,
@@ -614,6 +616,8 @@ class _DetailState extends State<_Detail> {
                   ].whereType<String>().join(' · '),
                   cells: a.state == 'REQUESTED'
                       ? [('STATUS', 'Awaiting a time'), ('REF', a.reference)]
+                      : a.state == 'DECLINED'
+                      ? [('STATUS', 'Declined'), ('TIME', 'None'), ('REF', a.reference)]
                       : a.sessionId != null
                       ? [
                           ('ARRIVE', ClinicClock.time(a.startAt)),
@@ -628,6 +632,13 @@ class _DetailState extends State<_Detail> {
                 ),
               ),
               if (said != null) ...[const SizedBox(height: 16), Notice(said!, tone: NoticeTone.error)],
+              if (a.state == 'REQUESTED' || a.state == 'DECLINED') ...[
+                const SizedBox(height: 16),
+                Rise(
+                  index: 2,
+                  child: _RequestCard(appointment: a, unit: clinic?.name),
+                ),
+              ],
               if (a.state == 'DISRUPTED') ...[
                 const SizedBox(height: 16),
                 Rise(
@@ -1509,6 +1520,74 @@ class _CancelSheetState extends State<_CancelSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A procedure request (FR-BKG-12): what the patient wrote, and either that
+/// the unit is sizing it or why it could not be scheduled, with a way to talk
+/// it through at a consultation instead.
+class _RequestCard extends StatelessWidget {
+  const _RequestCard({required this.appointment, this.unit});
+  final Appointment appointment;
+  final String? unit;
+
+  @override
+  Widget build(BuildContext context) {
+    final declined = appointment.state == 'DECLINED';
+    final tone = declined ? AtriaColors.cancelledInk : AtriaColors.awaitingInk;
+    return Glass(
+      radius: 26,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Your request', style: AtriaType.display(size: 16, weight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: tone.withValues(alpha: .08), borderRadius: BorderRadius.circular(16)),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AtriaIcon(declined ? 'alert' : 'clock', size: 16, color: tone),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    declined
+                        ? '${appointment.declineReason ?? 'The unit could not schedule this.'} '
+                              'You can book a consultation to talk it through.'
+                        : 'No time is held yet. The unit sizes the procedure and places it with a clinician; '
+                              'you then confirm the time.',
+                    style: AtriaType.body(size: 13, color: AtriaColors.ink800, height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'UNIT',
+            style: AtriaType.body(size: 10.5, weight: FontWeight.w700, color: AtriaColors.inkMuted),
+          ),
+          const SizedBox(height: 2),
+          Text(unit ?? 'Not listed', style: AtriaType.body(size: 14, weight: FontWeight.w600)),
+          const SizedBox(height: 10),
+          Text(
+            'WHAT YOU WROTE',
+            style: AtriaType.body(size: 10.5, weight: FontWeight.w700, color: AtriaColors.inkMuted),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            (appointment.requestNote ?? '').trim().isEmpty ? 'Nothing added' : appointment.requestNote!,
+            style: AtriaType.body(size: 14, color: AtriaColors.ink800),
+          ),
+          if (declined) ...[
+            const SizedBox(height: 16),
+            PrimaryButton(label: 'Book a consultation', onPressed: () => context.push('/queue')),
+          ],
+        ],
       ),
     );
   }

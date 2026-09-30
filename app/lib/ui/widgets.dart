@@ -286,15 +286,20 @@ class _PrimaryButtonState extends State<PrimaryButton> {
               ? cssGradient(160, const [Color(0xFFE8606F), Color(0xFFC33C4E)])
               : cssGradient(171, const [AtriaColors.blue500, AtriaColors.blue700], [.145, .855]),
           borderRadius: BorderRadius.circular(pressed ? 12 : 19),
-          boxShadow: enabled
-              ? [
-                  BoxShadow(
-                    offset: Offset(0, pressed ? 5 : 10),
-                    blurRadius: pressed ? 14 : 22,
-                    color: widget.danger ? const Color(0x4DC8384A) : const Color(0x572461DB),
-                  ),
-                ]
-              : null,
+          // Always one shadow, faded out rather than removed: removing it
+          // lerps the blur towards nothing, and the spring's overshoot then
+          // asks for a negative blur, which Flutter refuses.
+          boxShadow: [
+            BoxShadow(
+              offset: Offset(0, pressed ? 5 : 10),
+              blurRadius: pressed ? 14 : 22,
+              color: !enabled
+                  ? const Color(0x002461DB)
+                  : widget.danger
+                  ? const Color(0x4DC8384A)
+                  : const Color(0x572461DB),
+            ),
+          ],
         ),
         child: AnimatedSwitcher(
           duration: AtriaMotion.effectsDefaultDuration,

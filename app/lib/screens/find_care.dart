@@ -8,7 +8,11 @@ import '../patient/data.dart';
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
 import '../ui/glass.dart';
+import '../ui/filters.dart';
 import '../ui/icons.dart';
+import 'queue.dart';
+import 'request.dart';
+import '../ui/layout.dart';
 import '../ui/widgets.dart';
 import '../ui/loading.dart';
 import '../ui/expressive.dart';
@@ -60,7 +64,13 @@ class _Avatar extends StatelessWidget {
           ? cssGradient(145, [Colors.white.withValues(alpha: .96), Colors.white.withValues(alpha: .74)])
           : cssGradient(145, _avatars[index % _avatars.length], [.141, .859]),
       borderRadius: BorderRadius.circular(size / 3),
-      boxShadow: light ? const [BoxShadow(offset: Offset(0, 8), blurRadius: 20, color: Color(0x33102A5E))] : null,
+      boxShadow: [
+        BoxShadow(
+          offset: const Offset(0, 8),
+          blurRadius: 20,
+          color: light ? const Color(0x33102A5E) : const Color(0x00102A5E),
+        ),
+      ],
     ),
     child: Text(
       initials(clinician.givenName, clinician.familyName),
@@ -96,10 +106,23 @@ class _Back extends StatelessWidget {
 /// The frame's distance and fee chips give way to what Atria knows: the
 /// specialty and the languages spoken (FR-DIR-01).
 class FindCareScreen extends StatefulWidget {
-  const FindCareScreen({super.key, required this.store, this.query = '', this.clinician});
+  const FindCareScreen({
+    super.key,
+    required this.store,
+    this.query = '',
+    this.clinician,
+    this.specialty,
+    this.clinic,
+    this.language,
+  });
   final PatientStore store;
   final String query;
   final String? clinician;
+
+  /// Narrowed on arrival, as a search suggestion or a link from Home asks.
+  final String? specialty;
+  final String? clinic;
+  final String? language;
 
   @override
   State<FindCareScreen> createState() => _FindCareScreenState();
@@ -111,6 +134,71 @@ class _FindCareScreenState extends State<FindCareScreen> {
   bool today = false;
   bool french = false;
   bool asked = false;
+  late String? specialty = widget.specialty;
+  late String? clinicId = widget.clinic;
+  late String? language = widget.language;
+  final _filterButton = GlobalKey();
+
+  /// The clinicians the search and every filter leave, read afresh each time
+  /// (the filter menu counts with it while it is open).
+  List<Clinician> matching(PatientData data) {
+    final words = search.text.trim().toLowerCase();
+    final todayKey = _date(DateTime.now());
+    return data.bookable.where((c) {
+      final clinic = data.clinics.where((u) => u.id == c.clinicId).firstOrNull;
+      final text = [c.name, c.specialty, clinic?.name].whereType<String>().join(' ').toLowerCase();
+      if (words.isNotEmpty && !words.split(' ').every(text.contains)) return false;
+      if (today && (next[c.id] == null || _date(next[c.id]!) != todayKey)) return false;
+      if (french && !c.languages.contains('fr')) return false;
+      if (specialty != null && c.specialty != specialty) return false;
+      if (clinicId != null && c.clinicId != clinicId) return false;
+      if (language != null && !c.languages.contains(language)) return false;
+      return true;
+    }).toList();
+  }
+
+  int get filtersOn => [specialty, clinicId, language].whereType<String>().length;
+
+  /// Specialty, unit and language, in the platform's filter menu.
+  Future<void> filters(PatientData data, int Function() count) => showFilterMenu(
+    context,
+    title: 'Filter clinicians',
+    anchor: _filterButton,
+    results: () => count() == 1 ? '1 clinician' : '${count()} clinicians',
+    onClear: () => setState(() => specialty = clinicId = language = null),
+    sections: () => [
+      FilterSection(
+        id: 'specialty',
+        label: 'Specialty',
+        allLabel: 'All specialties',
+        options: byPopularity(data.bookable, (c) => c.specialty),
+        value: specialty,
+        onChange: (v) => setState(() => specialty = v),
+      ),
+      FilterSection(
+        id: 'unit',
+        label: 'Unit',
+        allLabel: 'All units',
+        options: [
+          for (final o in byPopularity(data.bookable, (c) => c.clinicId))
+            o.relabel(data.clinics.where((u) => u.id == o.id).firstOrNull?.name ?? o.label),
+        ],
+        value: clinicId,
+        onChange: (v) => setState(() => clinicId = v),
+      ),
+      FilterSection(
+        id: 'language',
+        label: 'Consults in',
+        allLabel: 'Any language',
+        options: [
+          for (final o in byPopularity(data.bookable.expand((c) => c.languages), (l) => l))
+            o.relabel(languageName(o.id)),
+        ],
+        value: language,
+        onChange: (v) => setState(() => language = v),
+      ),
+    ],
+  );
 
   @override
   void initState() {
@@ -142,6 +230,24 @@ class _FindCareScreenState extends State<FindCareScreen> {
     }
   }
 
+  // Find care stays alive in its tab, so a new link (a suggestion on Home,
+  // "Book again") narrows the page that is already there.
+  @override
+  void didUpdateWidget(FindCareScreen old) {
+    super.didUpdateWidget(old);
+    if (old.specialty != widget.specialty || old.clinic != widget.clinic || old.language != widget.language) {
+      specialty = widget.specialty;
+      clinicId = widget.clinic;
+      language = widget.language;
+    }
+    if (old.query != widget.query) search.text = widget.query;
+    if (widget.clinician != null && old.clinician != widget.clinician) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/find-care/${widget.clinician}');
+      });
+    }
+  }
+
   @override
   void dispose() {
     search.dispose();
@@ -164,22 +270,14 @@ class _FindCareScreenState extends State<FindCareScreen> {
         final data = state.data;
         ask(data);
         final words = search.text.trim().toLowerCase();
-        final todayKey = _date(DateTime.now());
-        final found =
-            data.bookable.where((c) {
-              final clinic = data.clinics.where((u) => u.id == c.clinicId).firstOrNull;
-              final text = [c.name, c.specialty, clinic?.name].whereType<String>().join(' ').toLowerCase();
-              if (words.isNotEmpty && !words.split(' ').every(text.contains)) return false;
-              if (today && (next[c.id] == null || _date(next[c.id]!) != todayKey)) return false;
-              if (french && !((c.raw['languages'] as List?)?.contains('fr') ?? false)) return false;
-              return true;
-            }).toList()..sort((a, b) {
-              final x = next[a.id], y = next[b.id];
-              if (x == null && y == null) return a.name.compareTo(b.name);
-              if (x == null) return 1;
-              if (y == null) return -1;
-              return x.compareTo(y);
-            });
+        final found = matching(data)
+          ..sort((a, b) {
+            final x = next[a.id], y = next[b.id];
+            if (x == null && y == null) return a.name.compareTo(b.name);
+            if (x == null) return 1;
+            if (y == null) return -1;
+            return x.compareTo(y);
+          });
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(20, 26, 20, 132),
@@ -236,6 +334,35 @@ class _FindCareScreenState extends State<FindCareScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(width: 10),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      SquareIconButton(
+                        key: _filterButton,
+                        icon: 'sliders',
+                        label: filtersOn == 0 ? 'Filter' : 'Filter, $filtersOn on',
+                        size: 50,
+                        on: filtersOn > 0,
+                        onTap: () => filters(data, () => matching(data).length),
+                      ),
+                      if (filtersOn > 0)
+                        Positioned(
+                          right: -4,
+                          top: -4,
+                          child: Container(
+                            width: 20,
+                            height: 20,
+                            alignment: Alignment.center,
+                            decoration: const BoxDecoration(color: AtriaColors.blue600, shape: BoxShape.circle),
+                            child: Text(
+                              '$filtersOn',
+                              style: AtriaType.body(size: 11, weight: FontWeight.w700, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -250,6 +377,10 @@ class _FindCareScreenState extends State<FindCareScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            const Rise(index: 1, child: QueueEntry()),
+            const SizedBox(height: 10),
+            const Rise(index: 2, child: RequestEntry()),
             const SizedBox(height: 22),
             Rise(
               index: 2,
@@ -258,7 +389,7 @@ class _FindCareScreenState extends State<FindCareScreen> {
                   Expanded(
                     child: Text(
                       words.isEmpty
-                          ? '${found.length} clinicians'
+                          ? (found.length == 1 ? '1 clinician' : '${found.length} clinicians')
                           : '${found.length} ${found.length == 1 ? 'clinician' : 'clinicians'} for "${search.text.trim()}"',
                       style: AtriaType.body(size: 13, color: AtriaColors.inkMuted),
                     ),

@@ -14,6 +14,7 @@ import 'screens/account_flows.dart';
 import 'screens/find_care.dart';
 import 'screens/onboarding.dart';
 import 'screens/queue.dart';
+import 'screens/request.dart';
 import 'screens/home.dart';
 import 'screens/sign_in.dart';
 import 'screens/visits.dart';
@@ -211,6 +212,10 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
         builder: (_, _) => JoinQueueScreen(store: storeFor()),
       ),
       GoRoute(
+        path: '/request',
+        builder: (_, _) => RequestProcedureScreen(store: storeFor()),
+      ),
+      GoRoute(
         path: '/queue/:id',
         builder: (_, state) => QueueTicketScreen(id: state.pathParameters['id']!, store: storeFor()),
       ),
@@ -241,6 +246,9 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
               store: storeFor(),
               query: state.uri.queryParameters['q'] ?? '',
               clinician: state.uri.queryParameters['clinician'],
+              specialty: state.uri.queryParameters['specialty'],
+              clinic: state.uri.queryParameters['clinic'],
+              language: state.uri.queryParameters['language'],
             ),
           ),
           GoRoute(

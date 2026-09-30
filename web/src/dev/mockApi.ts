@@ -795,13 +795,15 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   }
   // The unit's message log, failures first (FR-MSG-05). Fictional numbers only.
   const unitMessages = path.match(/^\/clinics\/([^/]+)\/messages$/);
-  if (method === "GET" && unitMessages) {
+  const everyUnit = method === "GET" && path === "/messages";
+  if ((method === "GET" && unitMessages) || everyUnit) {
+    const only = unitMessages?.[1];
     const day = url.searchParams.get("day") ?? clinicDate(new Date());
     const kinds = ["APPOINTMENT_REMINDER", "BOOKING_CONFIRMATION", "APPOINTMENT_REMINDER", "BOOKING_RESCHEDULED", "BOOKING_CANCELLATION"];
     const seed = Number(day.slice(-2));
     const rows = appointments
-      .filter((a) => a.clinicId === unitMessages[1])
-      .slice(0, 14)
+      .filter((a) => !only || a.clinicId === only)
+      .slice(0, only ? 14 : 30)
       .map((a, i) => {
         const channel = i % 3 === 1 ? "EMAIL" : "SMS";
         const failed = (i + seed) % 5 === 0;
@@ -811,6 +813,8 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         return {
           messageLogId: `ml-${day}-${i}`,
           appointmentId: a.appointmentId,
+          clinicId: a.clinicId,
+          clinicName: clinics.find((c) => c.clinicId === a.clinicId)?.name ?? null,
           kind: kinds[i % kinds.length],
           channel,
           recipient: channel === "SMS" ? `+2376000001${String(i).padStart(2, "0")}` : "patient@atria.invalid",
@@ -829,8 +833,8 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       .sort((x, y) => Number(y.deliveryState === "FAILED") - Number(x.deliveryState === "FAILED") || y.settledAt.localeCompare(x.settledAt));
     const counts: Record<string, number> = {};
     for (const r of rows) counts[r.deliveryState] = (counts[r.deliveryState] ?? 0) + 1;
-    const unit = clinics.find((c) => c.clinicId === unitMessages[1]);
-    return json(200, { clinicId: unitMessages[1], clinicName: unit?.name ?? null, day, counts, messages: rows }, 380);
+    const unit = clinics.find((c) => c.clinicId === only);
+    return json(200, { clinicId: only ?? null, clinicName: unit?.name ?? null, day, counts, messages: rows }, 380);
   }
   // The administrator's delivery figures (FR-MSG-06).
   if (method === "GET" && path === "/capacity") {

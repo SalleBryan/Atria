@@ -30,6 +30,9 @@ import { sentence } from "./labels";
 export interface LoggedMessage {
   messageLogId: string;
   appointmentId: string;
+  /** The unit it went out for; named when every unit is listed. */
+  clinicId?: string | null;
+  clinicName?: string | null;
   kind: string;
   channel: "EMAIL" | "SMS";
   recipient: string | null;
@@ -42,7 +45,7 @@ export interface LoggedMessage {
 }
 
 interface UnitLog {
-  clinicId: string;
+  clinicId: string | null;
   clinicName: string | null;
   day: string;
   counts: Record<string, number>;
@@ -103,6 +106,9 @@ export function dollars(amount: string): string {
   if (!value) return "$0.00";
   return value < 0.01 ? "Under $0.01" : `$${value.toFixed(2)}`;
 }
+
+/** The unit picker's first choice for an administrator: every unit at once. */
+const ALL_UNITS = "all";
 
 function localToday(): string {
   const now = new Date();
@@ -177,7 +183,9 @@ function UnitMessages({ admin, clinicId, tabs }: { admin: boolean; clinicId: str
   const { state: directory } = useStaffData();
   const clinics = directory.status === "ready" ? directory.data.clinics : [];
   const today = localToday();
-  const [unit, setUnit] = useState(clinicId);
+  // An administrator opens on every unit and can pick one; the desk and a
+  // unit manager read their own.
+  const [unit, setUnit] = useState(admin ? ALL_UNITS : clinicId);
   const [day, setDay] = useState(today);
   const [found, setFound] = useState<UnitLog | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -185,16 +193,11 @@ function UnitMessages({ admin, clinicId, tabs }: { admin: boolean; clinicId: str
   const size = useRowsThatFit(rowsBox, { row: ".message-row", pitch: ROW_PITCH });
   const pages = usePages(found?.messages ?? [], size, `${unit}/${day}`);
 
-  // An administrator holds no unit of their own: start on the first.
-  useEffect(() => {
-    if (!unit && clinics.length) setUnit(clinics[0]!.clinicId);
-  }, [unit, clinics]);
-
   useEffect(() => {
     if (!unit) return;
     let live = true;
     setFound(null);
-    api<UnitLog>(`/clinics/${encodeURIComponent(unit)}/messages?day=${day}`)
+    api<UnitLog>(unit === ALL_UNITS ? `/messages?day=${day}` : `/clinics/${encodeURIComponent(unit)}/messages?day=${day}`)
       .then((data) => {
         if (!live) return;
         setFound(data);
@@ -207,7 +210,8 @@ function UnitMessages({ admin, clinicId, tabs }: { admin: boolean; clinicId: str
   }, [unit, day]);
 
   const failed = found?.counts.FAILED ?? 0;
-  const name = clinics.find((c) => c.clinicId === unit)?.name ?? found?.clinicName ?? "Your unit";
+  const every = unit === ALL_UNITS;
+  const name = every ? "All units" : (clinics.find((c) => c.clinicId === unit)?.name ?? found?.clinicName ?? "Your unit");
 
   return (
     <div className="accounts-page messages-page">
@@ -222,7 +226,7 @@ function UnitMessages({ admin, clinicId, tabs }: { admin: boolean; clinicId: str
               label="Unit"
               value={unit}
               width={300}
-              options={clinics.map((c) => ({ id: c.clinicId, label: c.name }))}
+              options={[{ id: ALL_UNITS, label: "All units" }, ...clinics.map((c) => ({ id: c.clinicId, label: c.name }))]}
               onChange={setUnit}
             />
           )}
@@ -230,7 +234,8 @@ function UnitMessages({ admin, clinicId, tabs }: { admin: boolean; clinicId: str
             <button type="button" className="square-button" aria-label="Previous day" onClick={() => setDay(shift(day, -1))}>
               <ChevronLeft size={16} />
             </button>
-            <span>{day === today ? "Today" : dayName.format(new Date(`${day}T12:00:00Z`))}</span>
+            {/* One width for every day, so stepping back never moves the controls. */}
+            <span className="day-step-label">{day === today ? "Today" : dayName.format(new Date(`${day}T12:00:00Z`))}</span>
             <button type="button" className="square-button" aria-label="Next day" disabled={day >= today} onClick={() => setDay(shift(day, 1))}>
               <ChevronRight size={16} />
             </button>
@@ -257,8 +262,10 @@ function UnitMessages({ admin, clinicId, tabs }: { admin: boolean; clinicId: str
         <ul ref={rowsBox} className="accounts-rows">
           {!found
             ? [<LoadingRow key="loading" />]
-            : pages.shown.map((m, index) => <MessageRow key={m.messageLogId} message={m} index={index} />)}
-          {found && !found.messages.length && <li className="today-empty">Nothing went out for this unit on this day.</li>}
+            : pages.shown.map((m, index) => <MessageRow key={m.messageLogId} message={m} index={index} unit={every} />)}
+          {found && !found.messages.length && (
+            <li className="today-empty">{every ? "Nothing went out from any unit on this day." : "Nothing went out for this unit on this day."}</li>
+          )}
         </ul>
         <Pager
           noun="messages"
@@ -276,7 +283,7 @@ function UnitMessages({ admin, clinicId, tabs }: { admin: boolean; clinicId: str
   );
 }
 
-function MessageRow({ message: m, index }: { message: LoggedMessage; index: number }) {
+function MessageRow({ message: m, index, unit = false }: { message: LoggedMessage; index: number; unit?: boolean }) {
   const shown = STATE[m.deliveryState] ?? STATE.SENT;
   const why = m.feedback === "BOUNCE" ? "Bounced" : m.feedback === "COMPLAINT" ? "Marked as spam" : m.failureReason;
   const Channel = m.channel === "SMS" ? Phone : Mail;
@@ -298,7 +305,7 @@ function MessageRow({ message: m, index }: { message: LoggedMessage; index: numb
           {KIND_LABEL[m.kind] ?? m.kind}
         </span>
         <span className="account-sub">
-          {m.channel === "SMS" ? "SMS" : "Email"} · {time.format(new Date(m.settledAt))}
+          {[m.channel === "SMS" ? "SMS" : "Email", time.format(new Date(m.settledAt)), unit ? m.clinicName : null].filter(Boolean).join(" · ")}
         </span>
       </span>
       <span className="account-role">

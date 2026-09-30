@@ -33,6 +33,7 @@ import { doctor, roleOf, useStaffData } from "./data";
 import { DeleteAccountDialog, daysLeft, RestoreDialog } from "../components/DeleteAccountDialog";
 import { CHANNEL, sentence, staffState } from "./labels";
 import { Snackbar } from "./Snackbar";
+import { forEach, SelectBox, SelectionBar, useSelection } from "../components/Selection";
 
 export interface RegisterEntry {
   patientProfileId: string;
@@ -86,7 +87,7 @@ const can = (role: string, permission: keyof typeof MATRIX) => (MATRIX[permissio
  * Searched as the desk types, a beat after they pause. With `everyone`, no
  * search lists the whole register, newest first (2026-09-28).
  */
-export function useRegisterSearch(query: string, { everyone = false }: { everyone?: boolean } = {}) {
+export function useRegisterSearch(query: string, { everyone = false, fresh = 0 }: { everyone?: boolean; fresh?: number } = {}) {
   const [results, setResults] = useState<RegisterEntry[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -119,7 +120,7 @@ export function useRegisterSearch(query: string, { everyone = false }: { everyon
       live = false;
       window.clearTimeout(later);
     };
-  }, [query, everyone]);
+  }, [query, everyone, fresh]);
   return { results, busy, failure };
 }
 
@@ -128,13 +129,20 @@ export function Patients() {
   const role = state.status === "signed-in" ? roleOf(state.me) : "RECEPTIONIST";
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const { results, busy, failure } = useRegisterSearch(query, { everyone: true });
+  const [fresh, setFresh] = useState(0);
+  const { results, busy, failure } = useRegisterSearch(query, { everyone: true, fresh });
   const [adding, setAdding] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
   const rowsBox = useRef<HTMLUListElement>(null);
   const size = useRowsThatFit(rowsBox, { row: ".patient-row", pitch: 76 });
   const pages = usePages(results ?? [], size, query);
   const creates = can(role, "patient.create");
+  // An administrator may delete patients' accounts, several at once from the
+  // page shown; deleted ones wait out their 30 days and are not chosen again.
+  const deletes = role === "TENANT_ADMIN";
+  const [batch, setBatch] = useState(false);
+  const selectable = deletes ? pages.shown.filter((p) => !p.deletionPurgeAt).map((p) => p.patientProfileId) : [];
+  const selection = useSelection(selectable, `${pages.page}|${query}`);
 
   return (
     <div className="accounts-page patients-page">
@@ -151,26 +159,43 @@ export function Patients() {
         )}
       </header>
 
-      <label className="find-search patients-search">
-        <Search size={17} />
-        <input
-          type="text"
-          enterKeyHint="search"
-          aria-label="Search patients"
-          placeholder="Amina Ngo, 691 23 45 67 or RHB-000123"
-          value={query}
-          autoFocus
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        {busy && <LoadingIndicator size={18} label="Searching" />}
-      </label>
+      <div className="patients-tools">
+        <label className="find-search patients-search">
+          <Search size={17} />
+          <input
+            type="text"
+            enterKeyHint="search"
+            aria-label="Search patients"
+            placeholder="Amina Ngo, 691 23 45 67 or RHB-000123"
+            value={query}
+            autoFocus
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          {busy && <LoadingIndicator size={18} label="Searching" />}
+        </label>
+        {/* Beside the search, so the list keeps its height and its page. */}
+        <SelectionBar count={selection.count} noun={["patient", "patients"]} onDelete={() => setBatch(true)} onClear={selection.clear} />
+      </div>
 
       <section className="glass accounts-card" aria-label="Patients found">
         {failure && <Notice tone="error">{failure}</Notice>}
-        <div className="accounts-head patients-head" aria-hidden="true">
-          <span>PATIENT</span>
-          <span>MOBILE</span>
-          <span>AGE</span>
+        <div className={`accounts-head patients-head${deletes ? " patients-head-select" : ""}`}>
+          {deletes ? (
+            <span className="accounts-head-first">
+              <SelectBox
+                checked={selection.all}
+                mixed={selection.some}
+                label="Select every patient on this page"
+                disabled={!selectable.length}
+                onChange={selection.toggleAll}
+              />
+              <span aria-hidden="true">PATIENT</span>
+            </span>
+          ) : (
+            <span aria-hidden="true">PATIENT</span>
+          )}
+          <span aria-hidden="true">MOBILE</span>
+          <span aria-hidden="true">AGE</span>
         </div>
         <ul ref={rowsBox} className="accounts-rows">
           {results === null && busy ? (
@@ -182,7 +207,17 @@ export function Patients() {
             </li>
           ) : results.length ? (
             pages.shown.map((p, index) => (
-              <li key={p.patientProfileId} className="account-row patient-row" style={{ "--i": index } as CSSProperties}>
+              <li
+                key={p.patientProfileId}
+                className={`account-row patient-row${deletes ? " patient-row-select" : ""}${selection.has(p.patientProfileId) ? " account-row-chosen" : ""}`}
+                style={{ "--i": index } as CSSProperties}
+              >
+                {deletes &&
+                  (selectable.includes(p.patientProfileId) ? (
+                    <SelectBox checked={selection.has(p.patientProfileId)} label={`Select ${fullName(p)}`} onChange={() => selection.toggle(p.patientProfileId)} />
+                  ) : (
+                    <span className="select-box-space" aria-hidden="true" />
+                  ))}
                 <Link to={`/console/patients/${p.patientProfileId}`} className="patient-link">
                   <span className="account-who">
                     <span className="account-avatar" aria-hidden="true">
@@ -245,6 +280,32 @@ export function Patients() {
               setSaid(`${fullName(made)} added as ${made.patientNumber}.`);
               navigate(`/console/patients/${made.patientProfileId}`);
             }
+          }}
+        />
+      )}
+      {batch && (
+        <DeleteAccountDialog
+          title={`Delete ${selection.count} ${selection.count === 1 ? "patient's account" : "patients' accounts"}?`}
+          lede="Each is signed out and cannot sign in, and the front desk no longer finds them."
+          points={[
+            "Their upcoming visits are cancelled by the institution, so they keep their full entitlement.",
+            "Each can be restored from their record for 30 days.",
+            "After 30 days their details and sign-ins are erased; past visits stay without their names.",
+          ]}
+          confirmLabel={`Delete ${selection.count} ${selection.count === 1 ? "account" : "accounts"}`}
+          onClose={() => setBatch(false)}
+          onConfirm={async () => {
+            const result = await forEach([...selection.chosen], (id) =>
+              api(`/admin/patients/${encodeURIComponent(id)}`, { method: "DELETE" }),
+            );
+            setBatch(false);
+            selection.clear();
+            setFresh((n) => n + 1);
+            setSaid(
+              result.failed
+                ? `${result.done} deleted; ${result.failed} could not be. Upcoming visits were cancelled.`
+                : `${result.done} ${result.done === 1 ? "account" : "accounts"} deleted. Upcoming visits were cancelled.`,
+            );
           }}
         />
       )}

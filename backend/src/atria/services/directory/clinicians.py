@@ -307,6 +307,8 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         return responses.ok(report_views.every_unit(principal, event, data=booking()))
     if method == "GET" and resource.endswith("/clinics/{id}/messages"):
         return responses.ok(message_views.unit_log(principal, event, data=booking()))
+    if method == "GET" and resource == "/messages":
+        return responses.ok(message_views.every_unit_log(principal, event, data=booking()))
     if method == "GET" and resource.endswith("/messages/delivery"):
         return responses.ok(message_views.delivery(principal, event, data=booking()))
     if method == "GET" and resource == "/capacity":

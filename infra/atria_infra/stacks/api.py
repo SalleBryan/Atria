@@ -501,8 +501,16 @@ class ApiStack(Stack):
             authorizer=self.request_authoriser,
             authorization_type=apigateway.AuthorizationType.CUSTOM,
         )
-        # The administrator's delivery figures, FR-MSG-06.
-        self.api.root.add_resource("messages").add_resource("delivery").add_method(
+        # Every unit's message log (FR-MSG-05) and the administrator's
+        # delivery figures (FR-MSG-06).
+        messages = self.api.root.add_resource("messages")
+        messages.add_method(
+            "GET",
+            directory_integration,
+            authorizer=self.request_authoriser,
+            authorization_type=apigateway.AuthorizationType.CUSTOM,
+        )
+        messages.add_resource("delivery").add_method(
             "GET",
             directory_integration,
             authorizer=self.request_authoriser,

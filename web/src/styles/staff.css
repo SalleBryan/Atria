@@ -914,6 +914,43 @@
 .account-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px 200px 190px 132px; align-items: center; column-gap: 14px; }
 .accounts-head { padding: 4px 14px 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--ink-muted); }
 .accounts-head > :first-child { padding-left: 54px; }
+/* A list whose rows can be chosen (components/Selection): the header's box
+   sits where the rows' boxes do, before the avatars. */
+.accounts-head > .accounts-head-first { display: flex; align-items: center; gap: 12px; padding-left: 0; }
+.accounts-head-first > span:last-child { padding-left: 54px; }
+.select-box { flex: none; }
+.select-box .checkbox-box { width: 22px; height: 22px; }
+.select-box-space { flex: none; width: 22px; }
+.select-box-dash { width: 10px; height: 2px; border-radius: 1px; background: #ffffff; }
+.select-box-mixed .checkbox-box { border-color: transparent; background: var(--gradient-primary); }
+.account-row-chosen { border-color: var(--blue-300, #a9c6fb); background: #f5f9ff; }
+.selection-bar { display: flex; flex: none; align-items: center; gap: 10px; animation: pop-in var(--move-fast) both; }
+.selection-count { font-size: 13px; font-weight: 600; color: var(--ink-primary); }
+.selection-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  /* Red glass: the danger colour as a tint over the blurred page, with the
+     glass's white edge and bright top, the words in the danger ink. */
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  color: var(--status-cancelled-ink, #c0392b);
+  background: linear-gradient(150deg, rgba(255, 228, 228, 0.9), rgba(255, 205, 205, 0.62));
+  backdrop-filter: blur(18px);
+  box-shadow:
+    0 4px 14px rgba(214, 58, 58, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  cursor: pointer;
+  transition: border-radius var(--move-fast), transform var(--move-fast), background var(--fade-fast);
+}
+.selection-delete:hover { background: linear-gradient(150deg, rgba(255, 218, 218, 0.95), rgba(255, 190, 190, 0.7)); }
+.selection-delete:active { border-radius: 10px; transform: scale(0.96); }
 /* The rows take what the card has left; a page holds as many as fit (StaffAccounts). */
 .accounts-rows { display: flex; flex: 1; flex-direction: column; gap: 8px; min-height: 0; margin: 0; padding: 0; overflow-y: auto; list-style: none; transition: opacity var(--fade); }
 .accounts-rows > .skeleton { flex: none; height: 68px; border-radius: 18px; }
@@ -1452,6 +1489,12 @@
 .accounts-head.patients-head,
 .patient-link { display: grid; grid-template-columns: minmax(0, 1fr) 200px 140px 28px; align-items: center; column-gap: 14px; }
 .accounts-head.patients-head { padding-right: 56px; }
+/* An administrator's register: a box beside each row's link (Selection). */
+.account-row.patient-row.patient-row-select { display: flex; align-items: center; padding-left: 14px; }
+.patient-row-select > .patient-link { flex: 1; min-width: 0; }
+.accounts-head.patients-head-select > .accounts-head-first > span:last-child { padding-left: 68px; }
+.patients-tools { display: flex; align-items: center; gap: 16px; }
+.patients-tools > .patients-search { flex: 1; }
 .account-row.patient-row,
 .account-row.patient-visit { display: block; padding: 0; }
 .patient-link { min-height: 66px; padding: 10px 14px; color: inherit; text-decoration: none; border-radius: 18px; }
@@ -1510,6 +1553,8 @@
 
 /* The week's changes (AuditLog.tsx, WeeklyChanges). */
 .changes-week { display: flex; align-items: center; gap: 12px; font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--ink-primary); }
+/* Wide enough for the longest day ("Wednesday 30 September"), centred. */
+.day-step-label { width: 13em; text-align: center; white-space: nowrap; }
 .changes-list { gap: 12px; }
 .changes-group {
   display: flex;

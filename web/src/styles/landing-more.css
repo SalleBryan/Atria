@@ -375,20 +375,22 @@
 
 .map-art { position: absolute; top: 0; left: 0; width: 100%; height: calc(100% - 150px); }
 .tile-map::after { content: ""; position: absolute; left: 0; right: 0; bottom: 150px; height: 80px; background: linear-gradient(transparent, #ffffff); pointer-events: none; }
-.map-block { fill: #dfe8fa; transition: fill var(--fade); }
-.tile-map:hover .map-block { fill: #d3e0fa; }
-.map-route { fill: none; stroke: var(--blue-600); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 10 12; stroke-dashoffset: 700; }
-.reveal-in .map-route { animation: route 2.4s var(--spring-effects-slow) 300ms both, march 1.2s linear 2.7s infinite; }
+.map-art .map-block { fill: #dfe8fa; transition: fill var(--fade); }
+.tile-map:hover .map-art .map-block { fill: #d3e0fa; }
+/* Scoped to the landing's map: the hospital map (HospitalUnits) has its own
+   .map-route and .map-pin, which these dashes and scale(0) used to hide. */
+.map-art .map-route { fill: none; stroke: var(--blue-600); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 10 12; stroke-dashoffset: 700; }
+.reveal-in .map-art .map-route { animation: route 2.4s var(--spring-effects-slow) 300ms both, march 1.2s linear 2.7s infinite; }
 @keyframes route { from { stroke-dashoffset: 700; } to { stroke-dashoffset: 0; } }
 @keyframes march { to { stroke-dashoffset: -22; } }
-.map-start { fill: #ffffff; stroke: var(--blue-600); stroke-width: 4; }
-.map-gate rect { fill: #ffffff; filter: drop-shadow(0 4px 8px rgba(16, 42, 94, 0.12)); }
-.map-gate text { font: 700 12px var(--font-body, inherit); fill: var(--blue-700); }
-.map-pin { fill: var(--blue-600); transform: scale(0); transform-box: fill-box; transform-origin: 50% 100%; filter: drop-shadow(0 10px 12px rgba(36, 97, 219, 0.45)); }
-.map-pin circle { fill: #ffffff; }
-.reveal-in .map-pin { animation: pin-drop var(--ex-move-slow) 2.1s both; }
+.map-art .map-start { fill: #ffffff; stroke: var(--blue-600); stroke-width: 4; }
+.map-art .map-gate rect { fill: #ffffff; filter: drop-shadow(0 4px 8px rgba(16, 42, 94, 0.12)); }
+.map-art .map-gate text { font: 700 12px var(--font-body, inherit); fill: var(--blue-700); }
+.map-art .map-pin { fill: var(--blue-600); transform: scale(0); transform-box: fill-box; transform-origin: 50% 100%; filter: drop-shadow(0 10px 12px rgba(36, 97, 219, 0.45)); }
+.map-art .map-pin circle { fill: #ffffff; }
+.reveal-in .map-art .map-pin { animation: pin-drop var(--ex-move-slow) 2.1s both; }
 @keyframes pin-drop { from { transform: translateY(-40px) scale(0); } to { transform: none; } }
-.tile-map:hover .map-pin { animation: pin-hop var(--ex-move-fast); }
+.tile-map:hover .map-art .map-pin { animation: pin-hop var(--ex-move-fast); }
 @keyframes pin-hop { 40% { transform: translateY(-12px) scale(1.08); } }
 
 .cal-fan { position: absolute; top: 44px; left: 50%; display: flex; transform: translateX(-50%); }

@@ -1,6 +1,7 @@
 """The message log and the delivery figures (FR-MSG-05, FR-MSG-06).
 
     GET /clinics/{id}/messages?day=     what went out for one unit on one day
+    GET /messages?day=                  the same for every unit, the administrator's
     GET /messages/delivery?days=        the administrator's delivery figures
 
 A unit's log lists what went out on a day, on the tenant's clock, with the
@@ -102,25 +103,44 @@ def unit_log(principal: Principal, event: dict[str, Any], *, data: Booking) -> d
     rows = rows_between(data, principal.tenant_id, day, day, clinic_id=clinic_id).get(
         day.isoformat(), []
     )
+    return {
+        "clinicId": clinic_id,
+        "clinicName": clinic.get("name"),
+        "day": day.isoformat(),
+    } | _listed(data, principal.tenant_id, rows)
 
+
+def every_unit_log(principal: Principal, event: dict[str, Any], *, data: Booking) -> dict[str, Any]:
+    """Every unit's log for a day, one list (2026-09-30): the administrator's
+    starting view, each row naming the unit it went out for."""
+    scope = permissions.require(principal, "message.read", Subject(tenant_id=principal.tenant_id))
+    if scope != "tenant":
+        raise Invalid("every unit's log is the administrator's; read your own unit's")
+    raw = requests.query_parameter(event, "day")
+    day = schedule.parse_date(raw, name="day") if raw else today(data, principal.tenant_id)
+    rows = rows_between(data, principal.tenant_id, day, day).get(day.isoformat(), [])
+    found = _listed(data, principal.tenant_id, rows)
+    names = {
+        clinic_id: data.clinic(principal.tenant_id, clinic_id).get("name")
+        for clinic_id in {str(m["clinicId"]) for m in found["messages"] if m.get("clinicId")}
+    }
+    for message in found["messages"]:
+        message["clinicName"] = names.get(str(message.get("clinicId")))
+    return {"clinicId": None, "clinicName": None, "day": day.isoformat()} | found
+
+
+def _listed(data: Booking, tenant_id: str, rows: list[Item]) -> dict[str, Any]:
+    """The rows with who and which visit, failures first, and their counts."""
     people = _by_key(data, [keys.person(str(r["recipientPersonId"])) for r in rows])
-    visits = _by_key(
-        data, [keys.appointment(principal.tenant_id, str(r["appointmentId"])) for r in rows]
-    )
-    listed = [_row(r, people, visits, principal.tenant_id) for r in rows]
+    visits = _by_key(data, [keys.appointment(tenant_id, str(r["appointmentId"])) for r in rows])
+    listed = [_row(r, people, visits, tenant_id) for r in rows]
     # Failures first, then the rest; the latest first within each.
     listed.sort(key=lambda r: str(r["settledAt"]), reverse=True)
     listed.sort(key=lambda r: r["deliveryState"] != FAILED)
     counts: dict[str, int] = {}
     for r in listed:
         counts[str(r["deliveryState"])] = counts.get(str(r["deliveryState"]), 0) + 1
-    return {
-        "clinicId": clinic_id,
-        "clinicName": clinic.get("name"),
-        "day": day.isoformat(),
-        "counts": counts,
-        "messages": listed,
-    }
+    return {"counts": counts, "messages": listed}
 
 
 def _by_key(data: Booking, wanted: Iterable[keys.Key]) -> dict[str, Item]:
@@ -136,6 +156,7 @@ def _row(row: Item, people: dict[str, Item], visits: dict[str, Item], tenant_id:
     return {
         "messageLogId": row["messageLogId"],
         "appointmentId": row["appointmentId"],
+        "clinicId": row.get("clinicId"),
         "kind": row.get("kind"),
         "channel": row.get("channel"),
         "recipient": row.get("recipient") or None,

@@ -44,6 +44,7 @@ import { phoneShown } from "./Patients";
 import { DeleteAccountDialog, daysLeft, RestoreDialog } from "../components/DeleteAccountDialog";
 import { sentence } from "./labels";
 import { Snackbar } from "./Snackbar";
+import { forEach, SelectBox, SelectionBar, useSelection } from "../components/Selection";
 
 type StaffRole = Exclude<Role, "PATIENT">;
 
@@ -166,6 +167,12 @@ export function StaffAccounts() {
   const phone = useTier() === "mobile";
   const rowsBox = useRef<HTMLUListElement>(null);
   const [pageSize, setPageSize] = useState<number | null>(null);
+  // Rows chosen for a batch delete: those on the page that can be deleted.
+  const [batch, setBatch] = useState(false);
+  const selectable = (page?.accounts ?? [])
+    .filter((a) => a.status !== "DELETION_PENDING" && !(state.status === "signed-in" && state.me.staffId === a.staffId))
+    .map((a) => a.staffId);
+  const selection = useSelection(selectable, `${cursors.length}|${words}|${status}|${role}|${clinic}`);
 
   // How many rows the card holds, measured before the first page is asked for.
   useLayoutEffect(() => {
@@ -325,12 +332,6 @@ export function StaffAccounts() {
         </button>
       </header>
 
-      <p className="accounts-banner">
-        <Shield size={18} />
-        Only administrators see this page. Staff accounts are created here and nowhere else, there is no sign-up for the
-        console, and patients never appear in this list.
-      </p>
-
       <div className="accounts-tools">
         <SearchSuggest
           className="find-search accounts-search"
@@ -365,9 +366,13 @@ export function StaffAccounts() {
             moreActive={menuFilters}
             moreAlways
           />
-          <span className="accounts-count" aria-live="polite">
-            {page ? (page.count === page.total ? `${page.total} users` : `${page.count} of ${page.total} users`) : ""}
-          </span>
+          {selection.count ? (
+            <SelectionBar count={selection.count} noun={["account", "accounts"]} onDelete={() => setBatch(true)} onClear={selection.clear} />
+          ) : (
+            <span className="accounts-count" aria-live="polite">
+              {page ? (page.count === page.total ? `${page.total} users` : `${page.count} of ${page.total} users`) : ""}
+            </span>
+          )}
         </div>
       </div>
       <FilterMenu
@@ -390,11 +395,20 @@ export function StaffAccounts() {
 
       <section className="glass accounts-card" aria-label="Staff accounts" aria-busy={!page || undefined}>
         {failure && <Notice tone="error">{failure} Check your connection and try again.</Notice>}
-        <div className="accounts-head" aria-hidden="true">
-          <span>USER</span>
-          <span>GROUP</span>
-          <span>ACCOUNT STATUS</span>
-          <span>ROLE</span>
+        <div className="accounts-head">
+          <span className="accounts-head-first">
+            <SelectBox
+              checked={selection.all}
+              mixed={selection.some}
+              label="Select every account on this page"
+              disabled={!selectable.length}
+              onChange={selection.toggleAll}
+            />
+            <span aria-hidden="true">USER</span>
+          </span>
+          <span aria-hidden="true">GROUP</span>
+          <span aria-hidden="true">ACCOUNT STATUS</span>
+          <span aria-hidden="true">ROLE</span>
         </div>
         <ul ref={rowsBox} className={`accounts-rows${loading && page ? " accounts-rows-loading" : ""}`}>
           {!page
@@ -414,8 +428,17 @@ export function StaffAccounts() {
                     : { label: "Active", tone: "confirmed" };
                 const name = [account.givenName, account.familyName].filter(Boolean).join(" ") || "Unnamed account";
                 return (
-                  <li key={account.staffId} className={`account-row${off ? " account-row-off" : ""}`} style={{ "--i": index } as CSSProperties}>
+                  <li
+                    key={account.staffId}
+                    className={`account-row${off ? " account-row-off" : ""}${selection.has(account.staffId) ? " account-row-chosen" : ""}`}
+                    style={{ "--i": index } as CSSProperties}
+                  >
                     <span className="account-who">
+                      {selectable.includes(account.staffId) ? (
+                        <SelectBox checked={selection.has(account.staffId)} label={`Select ${name}`} onChange={() => selection.toggle(account.staffId)} />
+                      ) : (
+                        <span className="select-box-space" aria-hidden="true" />
+                      )}
                       <span className={`account-avatar${adminRole ? " account-avatar-admin" : ""}`} aria-hidden="true">
                         {initials(account.givenName, account.familyName) || "?"}
                       </span>
@@ -570,6 +593,31 @@ export function StaffAccounts() {
             await api(`/admin/staff/${encodeURIComponent(deleting.staffId)}`, { method: "DELETE" });
             setDeleting(null);
             done("Account deleted. It can be restored for 30 days.");
+          }}
+        />
+      )}
+      {batch && (
+        <DeleteAccountDialog
+          title={`Delete ${selection.count} ${selection.count === 1 ? "account" : "accounts"}?`}
+          lede="Each is signed out everywhere and cannot sign in to the console."
+          points={[
+            "Their roles stop at once; clinicians leave the directory.",
+            "Each can be restored from this list for 30 days.",
+            "After 30 days the sign-ins and their details are erased.",
+          ]}
+          confirmLabel={`Delete ${selection.count} ${selection.count === 1 ? "account" : "accounts"}`}
+          onClose={() => setBatch(false)}
+          onConfirm={async () => {
+            const result = await forEach([...selection.chosen], (id) =>
+              api(`/admin/staff/${encodeURIComponent(id)}`, { method: "DELETE" }),
+            );
+            setBatch(false);
+            selection.clear();
+            done(
+              result.failed
+                ? `${result.done} deleted; ${result.failed} could not be. They can be restored for 30 days.`
+                : `${result.done} ${result.done === 1 ? "account" : "accounts"} deleted. They can be restored for 30 days.`,
+            );
           }}
         />
       )}

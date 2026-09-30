@@ -273,6 +273,19 @@ class TestUnitLog:
         assert self.read(clinician)["statusCode"] == 403
 
 
+class TestEveryUnitsLog:
+    def test_an_administrator_reads_every_unit_at_once(self, reported):
+        send("a-1")
+        found = body_of(get("/messages", ADMIN, query={"day": "2026-03-01"}))
+        assert found["clinicId"] is None
+        assert len(found["messages"]) == 1
+        assert found["messages"][0]["clinicId"] == DOUALA
+        assert found["messages"][0]["clinicName"]
+
+    def test_the_desk_reads_only_its_own_unit(self, reported):
+        assert get("/messages", DESK, query={"day": "2026-03-01"})["statusCode"] == 403
+
+
 class TestDeliveryFigures:
     @pytest.fixture
     def week(self, reported):

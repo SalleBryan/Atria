@@ -99,8 +99,6 @@ export function PatientHome() {
   const behind = data ? past(data.appointments) : [];
   const next = ahead[0];
   const nextJoined = data && next ? join(data, next) : undefined;
-  // A place in the outpatient queue, not a time with a named doctor.
-  const queued = Boolean(next?.sessionId);
   const reminderAt = next ? new Date(new Date(next.startAt).getTime() - DAY_MS) : undefined;
   const reminderDue = reminderAt && reminderAt > new Date();
   const lastAttended = behind.find((a) => ["COMPLETED", "AWAITING_FEEDBACK"].includes(a.state));
@@ -174,21 +172,18 @@ export function PatientHome() {
             <section className="hero" aria-label="Your next visit">
               <span className="hero-bloom" aria-hidden="true" />
               <div className="hero-row">
-                {/* A queue place leads with its number, as the app's ticket does. */}
                 <span className="hero-avatar" aria-hidden="true">
-                  {queued ? `#${next.position ?? ""}` : initials(nextJoined.clinician?.givenName, nextJoined.clinician?.familyName) || "DR"}
+                  {initials(nextJoined.clinician?.givenName, nextJoined.clinician?.familyName) || "DR"}
                 </span>
                 <div className="hero-copy">
                   <span className="hero-tag">
                     <CheckMark size={11} />
                     NEXT VISIT · {stateLabel(next.state).label.toUpperCase()}
                   </span>
-                  <h2>{queued ? `Queue number ${next.position ?? ""}` : clinicianName(nextJoined.clinician)}</h2>
+                  {/* A queue place reads as the web's other lists put it: the queue and the place. */}
+                  <h2>{next.sessionId ? `Outpatient queue, place ${next.position ?? ""}` : clinicianName(nextJoined.clinician)}</h2>
                   <p>
-                    {(queued
-                      ? [nextJoined.type?.name ?? "General consultation", nextJoined.clinic?.name, "a doctor is assigned at check-in"]
-                      : [nextJoined.clinician?.specialty, nextJoined.clinic?.name, nextJoined.type?.name]
-                    )
+                    {[nextJoined.clinician?.specialty, nextJoined.clinic?.name, nextJoined.type?.name]
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
@@ -199,8 +194,8 @@ export function PatientHome() {
                     <dd>{clock.day(next.startAt)}</dd>
                   </div>
                   <div>
-                    <dt>{queued ? "ARRIVE FROM" : "TIME"}</dt>
-                    <dd>{clock.time(next.arrivalWindowStart ?? next.startAt)}</dd>
+                    <dt>TIME</dt>
+                    <dd>{clock.time(next.startAt)}</dd>
                   </div>
                   <div>
                     <dt>IN</dt>
@@ -337,13 +332,9 @@ export function VisitRow({ appointment, action = "Manage" }: { appointment: Appo
         <span>{clock.date(appointment.startAt)}</span>
       </span>
       <span className="visit-text">
-        <span className="visit-name">{appointment.sessionId ? `Queue number ${appointment.position ?? ""}` : clinicianName(clinician)}</span>
+        <span className="visit-name">{appointment.sessionId ? `Outpatient queue, place ${appointment.position ?? ""}` : clinicianName(clinician)}</span>
         <span className="visit-sub">
-          {[
-            appointment.sessionId ? "General consultation" : clinician?.specialty,
-            clinic?.name,
-            `${appointment.sessionId ? "arrive " : ""}${clock.time(appointment.arrivalWindowStart ?? appointment.startAt)} to ${clock.time(appointment.arrivalWindowEnd ?? appointment.endAt)}`,
-          ]
+          {[clinician?.specialty, clinic?.name, `${clock.time(appointment.startAt)} to ${clock.time(appointment.endAt)}`]
             .filter(Boolean)
             .join(" · ")}
         </span>

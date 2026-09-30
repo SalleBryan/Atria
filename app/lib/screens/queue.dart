@@ -521,9 +521,14 @@ class _QueueTicketScreenState extends State<QueueTicketScreen> {
                           sub:
                               '${session?.part ?? 'Session'} · ${_weekdays[d.weekday - 1]} ${d.day} ${_monthNames[d.month - 1].substring(0, 3)}',
                           chip: open ? 'Arrive inside your window' : 'This place was given up',
+                          // As the web's ticket has it: the place is a detail, the
+                          // arrival window is what the patient acts on.
                           stats: [
-                            ('${t.position ?? '–'}', 'Your place'),
-                            ('${session?.issued ?? '–'}', 'Issued'),
+                            (
+                              session == null ? '${t.position ?? '–'}' : '${t.position ?? '–'} of ${session!.issued}',
+                              'Place',
+                            ),
+                            (_clock(t.startAt), 'Arrive from'),
                             (wait == null ? '–' : shortWait(wait), 'Est. wait'),
                             ('${session?.clinicians ?? '–'}', 'Clinicians'),
                           ],
@@ -557,7 +562,7 @@ class _QueueTicketScreenState extends State<QueueTicketScreen> {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      'Queue position',
+                                      'Arrive between',
                                       style: AtriaType.body(
                                         size: 12.5,
                                         weight: FontWeight.w600,
@@ -586,24 +591,12 @@ class _QueueTicketScreenState extends State<QueueTicketScreen> {
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Text.rich(
-                                TextSpan(
-                                  children: [
-                                    TextSpan(
-                                      text: '${t.position ?? '–'}',
-                                      style: AtriaType.display(size: 34, color: AtriaColors.blue700),
-                                    ),
-                                    TextSpan(
-                                      text: session == null ? '' : '  of ${session!.issued} today',
-                                      style: AtriaType.body(size: 14, color: AtriaColors.ink700),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              Text(window, style: AtriaType.display(size: 30, color: AtriaColors.blue700)),
                               const SizedBox(height: 6),
                               Text(
-                                'Arrive $window',
-                                style: AtriaType.body(size: 15, weight: FontWeight.w700, color: AtriaColors.inkPrimary),
+                                'Place ${t.position ?? '–'}${session == null ? '' : ' of ${session!.issued}'} · '
+                                'come to the ${clinic?.name ?? 'outpatient'} desk; a doctor is assigned when you check in.',
+                                style: AtriaType.body(size: 13.5, color: AtriaColors.ink700),
                               ),
                               const SizedBox(height: 8),
                               Text(

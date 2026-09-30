@@ -57,13 +57,9 @@ export function TicketDetail({ appointment, actions }: { appointment: Appointmen
       <div className={`visit-hero${waiting ? "" : ` visit-hero-${status.tone}`}`}>
         <span className="hero-bloom" aria-hidden="true" />
         <span className="hero-tag">{waiting ? "PLACE IN THE QUEUE" : status.label.toUpperCase()}</span>
-        {/* The number leads, as on the app's ticket: this is a place in a queue, not a time. */}
-        <h2>
-          Queue number {appointment.position}
-          {session && <span className="visit-hero-of"> of {session.issuedTickets}</span>}
-        </h2>
+        <h2>{clock.long(from)}</h2>
         <p>
-          {[clock.long(from), type?.name ?? "General consultation", clinic?.name]
+          {[type?.name ?? "General consultation", session ? `${PART[session.partOfDay]} session` : null, clinic?.name]
             .filter(Boolean)
             .join(" · ")}
         </p>
@@ -77,8 +73,8 @@ export function TicketDetail({ appointment, actions }: { appointment: Appointmen
             <dd>{clock.time(until)}</dd>
           </div>
           <div>
-            <dt>SESSION</dt>
-            <dd>{session ? PART[session.partOfDay] : "Loading"}</dd>
+            <dt>PLACE</dt>
+            <dd>{session ? `${appointment.position} of ${session.issuedTickets}` : appointment.position}</dd>
           </div>
           <div>
             <dt>REF</dt>
@@ -92,8 +88,8 @@ export function TicketDetail({ appointment, actions }: { appointment: Appointmen
           <h3 id="queue-title">Your place</h3>
           <p className="queue-note">
             <Clock size={16} />
-            You are number {appointment.position}. Come to the {clinic?.name ?? "outpatient"} desk between {clock.time(from)} and{" "}
-            {clock.time(until)}; a doctor is assigned when you check in.
+            Come to the {clinic?.name ?? "outpatient"} desk between {clock.time(from)} and {clock.time(until)}. A doctor is assigned when
+            you check in.
           </p>
           <dl className="facts-list">
             <div>

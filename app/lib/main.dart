@@ -8,6 +8,11 @@ import 'config.dart';
 import 'demo/demo.dart';
 import 'patient/data.dart';
 import 'patient/shell.dart';
+import 'staff/data.dart';
+import 'staff/patients.dart';
+import 'staff/schedule.dart';
+import 'staff/shell.dart';
+import 'staff/visit.dart';
 import 'prefs.dart';
 import 'screens/account.dart';
 import 'screens/account_flows.dart';
@@ -70,8 +75,17 @@ String? _gate(Me me, Audience audience) {
 GoRouter routerFor(Session session, AppPrefs prefs) {
   PatientStore? store;
   PatientStore storeFor() => store ??= (PatientStore(session.api)..reload());
+  StaffStore? staff;
+  StaffStore staffFor() {
+    final me = (session.state as SignedIn).me;
+    return staff ??= (StaffStore(session.api, me)..load());
+  }
+
   session.addListener(() {
-    if (session.state is! SignedIn) store = null;
+    if (session.state is! SignedIn) {
+      store = null;
+      staff = null;
+    }
   });
 
   return GoRouter(
@@ -96,8 +110,15 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
         Loading() => at == '/' ? null : '/',
         SignedIn(:final me, :final audience) => switch (_gate(me, audience)) {
           final String gate => at == gate ? null : gate,
+          null when audience == Audience.staff => at.startsWith('/console') ? null : '/console',
           null =>
-            open.contains(at) || at == '/' || at == '/finish-account' || at == '/restore-account' ? '/home' : null,
+            open.contains(at) ||
+                    at == '/' ||
+                    at == '/finish-account' ||
+                    at == '/restore-account' ||
+                    at.startsWith('/console')
+                ? '/home'
+                : null,
         },
         _ => open.contains(at) ? null : (prefs.onboarded ? '/sign-in' : '/welcome'),
       };
@@ -223,6 +244,54 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
       GoRoute(
         path: '/queue/:id',
         builder: (_, state) => QueueTicketScreen(id: state.pathParameters['id']!, store: storeFor()),
+      ),
+      GoRoute(
+        path: '/console/patients/:id',
+        builder: (_, state) => PatientRecordScreen(store: staffFor(), id: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/console/book',
+        builder: (_, state) => ListenableBuilder(
+          listenable: staffFor(),
+          builder: (_, _) => BookForPatientScreen(
+            store: staffFor(),
+            patientId: state.uri.queryParameters['patient'],
+            clinicianId: state.uri.queryParameters['clinician'],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/console/visits/:id',
+        builder: (_, state) => StaffVisitScreen(store: staffFor(), id: state.pathParameters['id']!),
+      ),
+      ShellRoute(
+        builder: (context, state, child) =>
+            StaffShell(store: staffFor(), session: session, location: state.uri.toString(), child: child),
+        routes: [
+          GoRoute(
+            path: '/console',
+            builder: (_, state) => ListenableBuilder(
+              listenable: staffFor(),
+              builder: (_, _) => DayScheduleScreen(
+                key: ValueKey(state.uri.toString()),
+                store: staffFor(),
+                date: state.uri.queryParameters['date'],
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/console/patients',
+            builder: (_, _) => PatientsScreen(store: staffFor()),
+          ),
+          GoRoute(
+            path: '/console/week',
+            builder: (_, state) => WeekScreen(
+              key: ValueKey(state.uri.toString()),
+              store: staffFor(),
+              date: state.uri.queryParameters['date'],
+            ),
+          ),
+        ],
       ),
       ShellRoute(
         builder: (context, state, child) => PatientShell(

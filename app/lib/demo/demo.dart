@@ -283,7 +283,13 @@ class DemoApi implements Api {
         'landing': ['Upcoming visits'],
       };
     }
-    return hospital.answer(method, path, body, patientSide: staff == null);
+    return hospital.answer(
+      method,
+      path,
+      body,
+      patientSide: staff == null,
+      staffRoles: [...(staff?['roles'] as List? ?? const [])].cast<String>(),
+    );
   }
 }
 

@@ -56,6 +56,25 @@ class MockHospital {
   late final List<Map<String, dynamic>> clinics;
   late final List<Map<String, dynamic>> clinicians;
   late final List<Map<String, dynamic>> types;
+
+  /// Intake forms (atria.data.intake), each at version 1, and the care
+  /// context patients have given (services/booking/care.py), in memory.
+  late final List<Map<String, dynamic>> intakeForms = [
+    for (final f in _list(hospitalSpec['intakeForms']))
+      {
+        'intakeFormId': f['intakeFormId'],
+        'name': f['name'],
+        'version': 1,
+        'fields': jsonDecode(jsonEncode(f['fields'])),
+      },
+  ];
+  final careContexts = <String, Map<String, dynamic>>{};
+
+  Map<String, dynamic>? formOf(Object? typeId) {
+    final id = types.where((t) => t['appointmentTypeId'] == typeId).firstOrNull?['intakeFormId'];
+    return intakeForms.where((f) => f['intakeFormId'] == id).firstOrNull;
+  }
+
   late final Map<String, dynamic> tenant;
   late final List<Map<String, dynamic>> feeBands;
   final regionPack = {
@@ -152,6 +171,7 @@ class MockHospital {
           'patientRequestable': t['patientRequestable'] ?? false,
           'clinicIds': t['clinicIds'] == null ? null : [...t['clinicIds'] as List],
           'feeBandId': t['feeBandId'],
+          'intakeFormId': t['intakeFormId'],
           'minNoticeMinutes': 30,
           'maxAdvanceDays': 60,
           'cancellationWindowMinutes': 1440,
@@ -446,7 +466,13 @@ class MockHospital {
 
   /// Answers one call. [patientSide] mirrors the web preview's check of its own
   /// path: a patient is not offered a session whose hours are over.
-  Map<String, dynamic> answer(String method, String path, Object? body, {required bool patientSide}) {
+  Map<String, dynamic> answer(
+    String method,
+    String path,
+    Object? body, {
+    required bool patientSide,
+    List<String> staffRoles = const [],
+  }) {
     final url = Uri.parse(path);
     final p = url.path;
     final q = url.queryParameters;
@@ -456,7 +482,10 @@ class MockHospital {
     if (method == 'GET' && p == '/clinicians') return {'clinicians': clinicians, 'count': clinicians.length};
     if (method == 'GET' && p == '/clinics') return {'clinics': clinics, 'count': clinics.length};
     if (method == 'GET' && p == '/appointment-types') {
-      return {'gridUnitMinutes': _grid, 'appointmentTypes': types, 'count': types.length};
+      final withForms = [
+        for (final t in types) {...t, 'intakeForm': formOf(t['appointmentTypeId'])},
+      ];
+      return {'gridUnitMinutes': _grid, 'appointmentTypes': withForms, 'count': types.length};
     }
     if (method == 'GET' && p == '/patients/me/appointments') {
       final mine = appointments.where((a) => a['patientProfileId'] == 'pp-preview').toList();
@@ -541,6 +570,49 @@ class MockHospital {
         'appointmentTypeId': typeId,
         'gridUnitMinutes': _grid,
         'slots': freeStarts(id, date, typeId),
+      };
+    }
+
+    // Care context (services/booking/care.py): the patient and the assigned
+    // clinician read it; the desk, managers and administrators are refused;
+    // only the patient changes it, while the visit is still ahead.
+    final care = match(r'^/appointments/([^/]+)/care-context$');
+    if (care != null) {
+      final id = care.group(1)!;
+      final found = appointments.where((a) => a['appointmentId'] == id).firstOrNull;
+      if (found == null) _fail(404, 'not_found', 'no such appointment');
+      if (!patientSide && !staffRoles.contains('CLINICIAN')) {
+        _fail(403, 'forbidden', 'that action is not permitted for this account');
+      }
+      final form = formOf(found['appointmentTypeId']);
+      final open =
+          const ['BOOKED', 'CONFIRMED', 'RESCHEDULED', 'DISRUPTED'].contains(found['state']) &&
+          DateTime.parse(found['startAt'] as String).isAfter(DateTime.now());
+      if (method == 'PUT') {
+        if (!patientSide) _fail(403, 'forbidden', 'only the patient changes their answers');
+        if (form == null) _fail(400, 'invalid_request', 'this visit asks no questions');
+        if (b['consent'] != true) _fail(400, 'invalid_request', 'sharing answers needs your consent');
+        final answers = (b['answers'] as Map? ?? const {}).cast<String, dynamic>();
+        for (final f in _list(form['fields'])) {
+          final given = answers[f['id']];
+          if (f['required'] == true && (given == null || given == '')) {
+            _fail(400, 'invalid_request', 'please answer: ${f['label']}');
+          }
+        }
+        careContexts[id] = {
+          'answers': answers,
+          'submittedAt': DateTime.now().toUtc().toIso8601String(),
+          'formVersion': form['version'],
+        };
+      }
+      final held = careContexts[id];
+      return {
+        'appointmentId': id,
+        'patientProfileId': found['patientProfileId'],
+        'form': form,
+        'answers': held?['answers'],
+        'submittedAt': held?['submittedAt'],
+        'editable': patientSide && open && form != null,
       };
     }
 
@@ -1350,6 +1422,15 @@ class MockHospital {
       channel: patient == null ? null : b['channel'] as String?,
     );
     appointments.add(made);
+    final intake = (b['intake'] as Map?)?.cast<String, dynamic>();
+    if (intake?['consent'] == true) {
+      careContexts[made['appointmentId'] as String] = {
+        'answers': (intake!['answers'] as Map? ?? const {}).cast<String, dynamic>(),
+        'submittedAt': DateTime.now().toUtc().toIso8601String(),
+        'formVersion': 1,
+      };
+      return {...made, 'careContext': 'SAVED'};
+    }
     return made;
   }
 

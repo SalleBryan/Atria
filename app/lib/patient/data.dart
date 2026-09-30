@@ -99,16 +99,10 @@ class Clinic {
     return lat == null || lng == null ? null : (lat: lat, lng: lng);
   }
 
-  /// Walking directions to the unit's own door when it is placed, so a patient
-  /// is not left at the gate; otherwise a search for the unit at the hospital.
-  Uri get directions {
-    final door = entrance;
-    if (door != null) {
-      return Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${door.lat},${door.lng}&travelmode=walking');
-    }
-    final place = [name, address].whereType<String>().join(', ');
-    return Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeQueryComponent(place)}');
-  }
+  /// Directions to the hospital itself, by its street address: maps apps
+  /// know the hospital, not its units.
+  Uri get directions =>
+      Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeQueryComponent(address ?? '')}');
 }
 
 class AppointmentType {

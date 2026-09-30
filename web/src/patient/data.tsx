@@ -91,14 +91,12 @@ export function whereInside(clinic: Clinic): string {
 }
 
 /**
- * Walking directions to the unit's own door when the hospital has placed it,
- * so a patient is not left at the gate of a large site; otherwise a search
- * for the unit at the hospital's address.
+ * Directions to the hospital itself, by its street address. Units are found
+ * inside from the hospital map and the unit's own directions, so the maps app
+ * is never sent looking for a unit name it does not know.
  */
 export function directionsTo(clinic: Clinic): string {
-  const door = entranceOf(clinic);
-  if (door) return `https://www.google.com/maps/dir/?api=1&destination=${door.lat},${door.lng}&travelmode=walking`;
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([clinic.name, clinic.address].filter(Boolean).join(", "))}`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clinic.address ?? "")}`;
 }
 
 export interface AppointmentType {

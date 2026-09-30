@@ -887,7 +887,7 @@
 .accounts-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 4px 0 0; }
 .accounts-top h1 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 26px; letter-spacing: -0.022em; color: var(--ink-primary); }
 .accounts-top p { margin: 4px 0 0; font-size: 14px; color: var(--ink-muted); }
-.accounts-new { display: inline-flex; gap: 8px; padding: 0 22px; }
+.accounts-new { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 8px; align-self: center; padding: 0 22px; }
 /* The administration console's purple (Rev A admin frames). */
 .accounts-banner {
   display: flex;
@@ -1396,6 +1396,34 @@
   .account-row.settings-type-row { grid-template-columns: minmax(0, 1fr) 150px 150px 60px; }
   .accounts-head.settings-types-head > :nth-child(4),
   .settings-type-row > :nth-child(4) { display: none; }
+}
+/* Up to 1920x1080 the three sections share one glass panel that scrolls
+   as a whole, rather than each card scrolling on its own. Bigger screens keep
+   the three cards; phones stack them. */
+@media (min-width: 768px) and (max-width: 1920px), (min-width: 768px) and (max-height: 1080px) {
+  .settings-cols {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-content: start;
+    gap: 0;
+    padding: calc(16px + 6px * var(--tall)) 8px;
+    overflow-y: auto;
+    border: 1px solid #ffffff;
+    border-radius: 30px;
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.93), rgba(255, 255, 255, 0.7));
+    backdrop-filter: blur(26px);
+    box-shadow: 0 4px 22px rgba(16, 42, 94, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.97);
+  }
+  .settings-cols > .settings-card {
+    align-self: start;
+    padding: 0 18px;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  .settings-cols > .settings-card + .settings-card { border-left: 1px solid var(--line-hairline); }
 }
 @media (max-width: 767px) {
   .settings-page { height: auto; }

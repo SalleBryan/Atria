@@ -3,8 +3,8 @@
  * hospital's street address, so directions to the address leave a patient at
  * the gate; each unit the hospital has placed carries its entrance, and the
  * map draws them relative to one another. Choosing a unit, from the list or
- * its pin, shows where it is inside, its hours and walking directions to its
- * own door.
+ * its pin, shows where it is inside and its hours; directions lead to the
+ * hospital, since maps apps know it and not its units.
  *
  * The map is a drawing of the placed entrances, not a live map: no tiles, no
  * third-party script, nothing sent anywhere until the patient asks for
@@ -218,7 +218,7 @@ function UnitDetail({ clinic }: { clinic: Clinic }) {
       </dl>
       <a className="dock-button unit-directions" href={directionsTo(clinic)} target="_blank" rel="noreferrer">
         <Pin size={18} />
-        {entranceOf(clinic) ? "Directions to this unit" : "Directions to the hospital"}
+        Directions to the hospital
       </a>
     </div>
   );

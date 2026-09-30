@@ -154,8 +154,7 @@ class _Row extends StatelessWidget {
                     Text(
                       [
                         r['specialty'] as String?,
-                        if (starts != null && ends != null)
-                          '${ClinicClock.time(DateTime.parse(starts))} to ${ClinicClock.time(DateTime.parse(ends))}',
+                        starts == null ? 'Not working' : '$starts to $ends',
                       ].whereType<String>().join(' · '),
                       style: AtriaType.body(size: 12, color: AtriaColors.inkSoft),
                     ),

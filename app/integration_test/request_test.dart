@@ -30,6 +30,7 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tour.settle();
     await tour.tap('Send the request');
+    await tour.until(find.text('Your request'));
     expect(tour.shows('Your request'), isTrue);
     await tour.shot('request-6-sent');
   });

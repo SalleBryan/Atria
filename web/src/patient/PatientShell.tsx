@@ -22,6 +22,7 @@ import { useSession } from "../auth/session";
 import { Calendar, Home, Pulse, Search, SignOut, User } from "../components/icons";
 import { Waiting } from "../components/Waiting";
 import { initials, PatientDataProvider, upcoming, usePatientData } from "./data";
+import { revealSelected } from "../layout/side";
 
 interface Destination {
   to: string;
@@ -70,6 +71,7 @@ function Shell({ me }: { me: Me }) {
   useLayoutEffect(() => {
     pill.current?.getBoundingClientRect();
     setAt(selected);
+    revealSelected(pill.current, selected);
   }, [selected]);
 
   const name = [me.givenName, me.familyName].filter(Boolean).join(" ") || "Your account";
@@ -91,30 +93,31 @@ function Shell({ me }: { me: Me }) {
               <span className="side-product">Patient</span>
             </span>
           </div>
-          <p className="side-label">YOUR CARE</p>
-          <nav className="side-nav" aria-label="Patient">
-            <span
-              ref={pill}
-              className="side-pill"
-              aria-hidden="true"
-              style={{ "--at": at } as CSSProperties}
-            />
-            {destinations.map(({ to, label, icon: IconComponent, count }) => (
-              <NavLink key={to} to={to} className="side-item">
-                {/* Material 3's large badge, pinned to the icon as on a navigation rail. */}
-                <span className="side-icon">
-                  <IconComponent size={18} />
-                  {count ? (
-                    <span key={count} className="m3-badge" aria-label={`${count} upcoming`}>
-                      {count > 99 ? "99+" : count}
-                    </span>
-                  ) : null}
-                </span>
-                <span>{label}</span>
-              </NavLink>
-            ))}
-          </nav>
-          <div className="side-spacer" />
+          <div className="side-scroll">
+            <p className="side-label">YOUR CARE</p>
+            <nav className="side-nav" aria-label="Patient">
+              <span
+                ref={pill}
+                className="side-pill"
+                aria-hidden="true"
+                style={{ "--at": at } as CSSProperties}
+              />
+              {destinations.map(({ to, label, icon: IconComponent, count }) => (
+                <NavLink key={to} to={to} className="side-item">
+                  {/* Material 3's large badge, pinned to the icon as on a navigation rail. */}
+                  <span className="side-icon">
+                    <IconComponent size={18} />
+                    {count ? (
+                      <span key={count} className="m3-badge" aria-label={`${count} upcoming`}>
+                        {count > 99 ? "99+" : count}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span>{label}</span>
+                </NavLink>
+              ))}
+            </nav>
+          </div>
           <div className="side-me">
             <span className="side-avatar" aria-hidden="true">
               {initials(me.givenName, me.familyName) || "A"}

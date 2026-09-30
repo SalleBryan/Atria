@@ -24,6 +24,7 @@ import { MoreMenu } from "./MoreMenu";
 import { Waiting } from "../components/Waiting";
 import { initials } from "../patient/data";
 import { ROLE_LABEL, roleOf, StaffDataProvider, useStaffData } from "./data";
+import { revealSelected } from "../layout/side";
 
 interface Destination {
   to: string;
@@ -168,6 +169,7 @@ function Shell({ me }: { me: Me }) {
   useLayoutEffect(() => {
     pill.current?.getBoundingClientRect();
     setAt(selected);
+    revealSelected(pill.current, selected);
   }, [selected]);
 
   // An administrator signs in to the overview; after that "/console" is the
@@ -196,23 +198,24 @@ function Shell({ me }: { me: Me }) {
               <span className="side-product">{clinic ?? (role === "TENANT_ADMIN" ? "Admin console" : "Staff console")}</span>
             </span>
           </div>
-          <p className="side-label">{role === "TENANT_ADMIN" ? "ADMINISTRATION" : "UNIT"}</p>
-          <nav className="side-nav" aria-label="Console">
-            <span ref={pill} className="side-pill" aria-hidden="true" style={{ "--at": at } as CSSProperties} />
-            {destinations.map(({ to, label, icon: IconComponent, matches }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={to === "/console"}
-                className={() => `side-item${matches(pathname) ? " active" : ""}`}
-                aria-current={matches(pathname) ? "page" : undefined}
-              >
-                <IconComponent size={18} />
-                <span>{label}</span>
-              </NavLink>
-            ))}
-          </nav>
-          <div className="side-spacer" />
+          <div className="side-scroll">
+            <p className="side-label">{role === "TENANT_ADMIN" ? "ADMINISTRATION" : "UNIT"}</p>
+            <nav className="side-nav" aria-label="Console">
+              <span ref={pill} className="side-pill" aria-hidden="true" style={{ "--at": at } as CSSProperties} />
+              {destinations.map(({ to, label, icon: IconComponent, matches }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={to === "/console"}
+                  className={() => `side-item${matches(pathname) ? " active" : ""}`}
+                  aria-current={matches(pathname) ? "page" : undefined}
+                >
+                  <IconComponent size={18} />
+                  <span>{label}</span>
+                </NavLink>
+              ))}
+            </nav>
+          </div>
           <div className="side-me">
             <span className="side-avatar" aria-hidden="true">
               {initials(me.givenName, me.familyName) || "A"}

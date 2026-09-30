@@ -10,7 +10,7 @@ void main() {
   testWidgets('account screens', (tester) async {
     final tour = await Tour.boot(tester, email: null);
     await tour.shot('auth-1-sign-in');
-    await tour.tap('Staff');
+    await tour.tap('Clinic staff');
     await tour.shot('auth-2-staff');
     await tour.go('/create-account');
     await tour.shot('auth-3-create');

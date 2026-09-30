@@ -937,11 +937,13 @@ class _UnitDetail extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedSwitcher(
     duration: AtriaMotion.spatialDefaultDuration,
-    switchInCurve: AtriaMotion.spatialDefault,
     transitionBuilder: (child, animation) => FadeTransition(
       opacity: animation,
       child: SlideTransition(
-        position: Tween(begin: const Offset(0, .04), end: Offset.zero).animate(animation),
+        position: Tween(
+          begin: const Offset(0, .04),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: animation, curve: AtriaMotion.spatialDefault)),
         child: child,
       ),
     ),

@@ -226,14 +226,20 @@ class FadeThrough extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedSwitcher(
     duration: AtriaMotion.spatialDefaultDuration,
-    switchInCurve: AtriaMotion.spatialDefault,
-    switchOutCurve: AtriaMotion.effects,
+    // The spring overshoots past 1, so it drives only the scale; opacity reads
+    // the plain animation, which a curve can take safely.
     transitionBuilder: (child, animation) => FadeTransition(
       opacity: CurvedAnimation(
         parent: animation,
         curve: const Interval(.3, 1, curve: AtriaMotion.effects),
       ),
-      child: ScaleTransition(scale: Tween(begin: .96, end: 1.0).animate(animation), child: child),
+      child: ScaleTransition(
+        scale: Tween(
+          begin: .96,
+          end: 1.0,
+        ).animate(CurvedAnimation(parent: animation, curve: AtriaMotion.spatialDefault)),
+        child: child,
+      ),
     ),
     layoutBuilder: (current, previous) => Stack(children: [...previous, ?current]),
     child: KeyedSubtree(key: ValueKey(id), child: child),

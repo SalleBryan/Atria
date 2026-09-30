@@ -991,6 +991,8 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     return json(200, { q, count: found.length, results: found.slice(0, 20) }, 260);
   }
   if (method === "PATCH" && path === "/me") return json(200, {}, 300);
+  // Notifications on this browser: the preview has no push service behind it.
+  if (path === "/me/push") return json(200, method === "GET" ? { publicKey: null } : { subscribed: method === "POST" }, 200);
   if (method === "POST" && path === "/me/email") return json(200, {}, 300);
   if (method === "POST" && path === "/patients") {
     const made = body as { givenName: string; familyName: string; phoneE164: string; dateOfBirth?: string; sameNumberConfirmed?: boolean };

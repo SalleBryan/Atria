@@ -152,3 +152,20 @@ def grant_audit_write(table: dynamodb.ITable, function: lambda_.IFunction) -> No
             conditions={"ForAllValues:StringLike": {"dynamodb:LeadingKeys": [AUDIT_PARTITIONS]}},
         )
     )
+
+
+def grant_vapid(scope: Construct, function: lambda_.IFunction, settings: Environment) -> None:
+    """Read the Web Push VAPID key (a SecureString made by tools/vapid.py)."""
+    stack = Stack.of(scope)
+    function.add_to_role_policy(
+        iam.PolicyStatement(
+            actions=["ssm:GetParameter"],
+            resources=[
+                stack.format_arn(
+                    service="ssm",
+                    resource="parameter",
+                    resource_name=settings.vapid_parameter.lstrip("/"),
+                )
+            ],
+        )
+    )

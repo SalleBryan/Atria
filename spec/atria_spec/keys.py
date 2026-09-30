@@ -23,6 +23,7 @@ KEYS = [
     ('Staff membership', 'TENANT#t#STAFF#s', 'MEMBERSHIP', 'Main'),
     ('Clinician profile', 'TENANT#t#STAFF#s', 'CLINICIAN', 'Main'),
     ('Consent record', 'PERSON#p', 'CONSENT#grantedAt#id', 'Main'),
+    ('Push subscription', 'PERSON#p', 'PUSH#id', 'Main'),
     ('Priority allowance', 'TENANT#t#STAFF#s', 'PRIORITY', 'Main'),
     ('Availability template', 'TENANT#t#CLIN#c', 'AVAIL#weekday', 'Main'),
     ('Availability exception', 'TENANT#t#CLIN#c', 'EXC#start', 'Main'),

@@ -40,7 +40,7 @@ from constructs import Construct
 
 from atria_infra.config import Environment
 from atria_infra.stacks.data import DataStack
-from atria_infra.stacks.platform import PlatformStack, grant_table_write, service_function
+from atria_infra.stacks.platform import PlatformStack, grant_table_write, grant_vapid, service_function
 
 # A notice that has failed this many times is not going to succeed by being
 # tried again in the same shape. Parking it keeps the queue moving.
@@ -206,12 +206,14 @@ class AsyncStack(Stack):
                 "SCHEDULER_ROLE_ARN": self.scheduler_role.role_arn,
                 "OUTBOX_QUEUE_ARN": self.outbox.queue_arn,
                 "REMINDER_FAILURES_ARN": self.reminder_failures.queue_arn,
+                "VAPID_PARAMETER": settings.vapid_parameter,
             },
             timeout_seconds=60,
         )
         # It reads the appointment, the patient and the clinic, and writes the
         # message log, so it needs both directions on the one table.
         grant_table_write(data.main_table, self.sender)
+        grant_vapid(self, self.sender, settings)
         self.sender.add_event_source(
             sources.SqsEventSource(
                 self.outbox,

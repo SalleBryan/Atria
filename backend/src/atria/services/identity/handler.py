@@ -40,6 +40,7 @@ from atria.data.repository import Repository
 from atria.http import requests, responses
 from atria.http.handler import api
 from atria.services.identity import deletion
+from atria.services.notify import push
 
 _people: People | None = None
 
@@ -237,12 +238,29 @@ def take_verified_email(principal: Principal) -> dict[str, Any]:
     return person_details(principal)
 
 
+def push_route(principal: Principal, method: str, event: dict[str, Any]) -> dict[str, Any]:
+    """Notifications in this browser: the key to subscribe with, keep, forget."""
+    if method == "POST":
+        return push.subscribe(
+            principal.person_id, requests.json_body(event), at=dt.datetime.now(tz=dt.UTC)
+        )
+    if method == "DELETE":
+        endpoint = str(requests.json_body(event).get("endpoint") or "")
+        if endpoint:
+            push.subscriptions().remove(principal.person_id, endpoint)
+        return {"subscribed": False}
+    key = push.vapid()
+    return {"publicKey": key.public_key if key else None}
+
+
 @api
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
-    """GET /me, PATCH /me, POST /me/email, DELETE /me, POST /me/restore"""
+    """GET /me, PATCH /me, POST /me/email, DELETE /me, POST /me/restore, /me/push"""
     principal = requests.principal_from(event)
     method = str(event.get("httpMethod", "")).upper()
     resource = str(event.get("resource", ""))
+    if resource == "/me/push":
+        return responses.ok(push_route(principal, method, event))
     if method == "PATCH" and resource == "/me":
         edit(principal, requests.json_body(event))
     elif method == "POST" and resource == "/me/email":

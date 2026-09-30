@@ -89,6 +89,11 @@ def consent_record(person_id: str, granted_at: str, consent_id: str) -> Key:
     return Key(f"PERSON#{person_id}", f"CONSENT#{granted_at}#{consent_id}")
 
 
+def push_subscription(person_id: str, subscription_id: str) -> Key:
+    """One browser or device a person allowed notifications on (atria.data.push)."""
+    return Key(f"PERSON#{person_id}", f"PUSH#{subscription_id}")
+
+
 def priority_allowance(tenant_id: str, staff_id: str) -> Key:
     return Key(f"{TENANT}{tenant_id}#STAFF#{staff_id}", "PRIORITY")
 

@@ -34,6 +34,7 @@ export const KEY_PATTERNS: readonly KeyPattern[] = [
   { entity: "Staff membership", pk: "TENANT#t#STAFF#s", sk: "MEMBERSHIP", table: "Main" },
   { entity: "Clinician profile", pk: "TENANT#t#STAFF#s", sk: "CLINICIAN", table: "Main" },
   { entity: "Consent record", pk: "PERSON#p", sk: "CONSENT#grantedAt#id", table: "Main" },
+  { entity: "Push subscription", pk: "PERSON#p", sk: "PUSH#id", table: "Main" },
   { entity: "Priority allowance", pk: "TENANT#t#STAFF#s", sk: "PRIORITY", table: "Main" },
   { entity: "Availability template", pk: "TENANT#t#CLIN#c", sk: "AVAIL#weekday", table: "Main" },
   { entity: "Availability exception", pk: "TENANT#t#CLIN#c", sk: "EXC#start", table: "Main" },

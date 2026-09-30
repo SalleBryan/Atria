@@ -37,6 +37,7 @@ from atria.data.booking import Booking
 from atria.data.messages import SCHEDULED, Messages
 from atria.data.people import People
 from atria.data.repository import Item, Repository
+from atria.services.notify import push
 
 logger = Logger(service="atria-sender")
 
@@ -246,7 +247,53 @@ def provider_send(notice: notices.Notice, recipient: str) -> str:
 def send_notice(
     job: dict[str, Any], *, message_id: str | None, queued_at: dt.datetime | None
 ) -> str:
-    """Send one notice, or say why it was not sent."""
+    """Send one notice, or say why it was not sent, and push it where allowed."""
+    outcome = send_on_channel(job, message_id=message_id, queued_at=queued_at)
+    if outcome in ("sent", "no-address", "refused") and pushes(job):
+        push_notice(job)
+    return outcome
+
+
+def pushes(job: dict[str, Any]) -> bool:
+    """Whether this job is the one that pushes its notice.
+
+    A notice goes out as an email job, and a reminder fires as an SMS whose
+    email copy is itself an email job; pushing from the email job alone gives
+    each notice one push. A queue move is texted only, so it pushes itself.
+    """
+    if job.get("kind") == notices.QUEUE_MOVED:
+        return True
+    return job.get("channel") == "EMAIL"
+
+
+def push_notice(job: dict[str, Any]) -> None:
+    """Push the short (SMS) wording of a notice to the patient. Never raises."""
+    try:
+        tenant_id = str(job["tenantId"])
+        data = booking()
+        appointment = data.appointment(tenant_id, str(job["appointmentId"]))
+        profile = data.patient_profile(tenant_id, str(appointment["patientProfileId"]))
+        person = people().person_record(str(profile["personId"]))
+        kind = str(job["kind"])
+        channel = "SMS" if notices.available(kind, "SMS") else "EMAIL"
+        notice = compose_for(tenant_id, appointment, person, kind, channel)
+        title = notice.subject or "Atria"
+        push.notify(
+            str(person["personId"]),
+            title=title,
+            body=notice.body[:240],
+            url=f"/visits/{appointment['appointmentId']}",
+        )
+    except Exception:
+        logger.exception(
+            "the push could not be sent", extra={"appointmentId": job.get("appointmentId")}
+        )
+
+
+def send_on_channel(
+    job: dict[str, Any], *, message_id: str | None, queued_at: dt.datetime | None
+) -> str:
+    """Send one notice on its channel, or say why it was not sent."""
     tenant_id = str(job["tenantId"])
     appointment_id = str(job["appointmentId"])
     kind = str(job["kind"])

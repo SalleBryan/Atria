@@ -32,6 +32,7 @@ from atria_infra.stacks.platform import (
     PlatformStack,
     grant_audit_write,
     grant_table_write,
+    grant_vapid,
     service_function,
 )
 
@@ -86,9 +87,14 @@ class ApiStack(Stack):
             "IdentityService",
             handler="atria.services.identity.handler.handler",
             description="Who the caller is, and their own details",
-            environment={**common_environment, "USER_POOL_ID": pool.user_pool_id},
+            environment={
+                **common_environment,
+                "USER_POOL_ID": pool.user_pool_id,
+                "VAPID_PARAMETER": settings.vapid_parameter,
+            },
         )
         grant_table_write(data.main_table, self.identity_service)
+        grant_vapid(self, self.identity_service, settings)
         # POST /me/email reads the address Cognito has verified, one account
         # at a time; it changes nothing in the pool.
         self.identity_service.add_to_role_policy(
@@ -290,6 +296,7 @@ class ApiStack(Stack):
             (me, "DELETE"),
             (me.add_resource("email"), "POST"),
             (me.add_resource("restore"), "POST"),
+            *((push, verb) for push in [me.add_resource("push")] for verb in ("GET", "POST", "DELETE")),
         ):
             resource.add_method(
                 method,

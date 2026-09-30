@@ -50,6 +50,17 @@ class Environment:
     """
 
     notice_sender: str = ""
+
+    @property
+    def vapid_parameter(self) -> str:
+        """The SSM SecureString holding the Web Push VAPID private key (PEM).
+
+        Made once per environment with tools/vapid.py; CloudFormation cannot
+        create a SecureString, and the key must not change between deploys or
+        every browser's subscription stops working.
+        """
+        return f"/{self.prefix}/vapid-private-key"
+
     """The verified SES identity every notice is sent from.
 
     SES refuses an unverified sender, and the account is in the sandbox, so in

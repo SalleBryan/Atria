@@ -9,7 +9,7 @@
  * and a text comes 24 hours before, in the words the reminder really uses.
  */
 
-import { type ComponentType, useState } from "react";
+import { type ComponentType, useEffect, useState } from "react";
 
 import { useSession } from "../auth/session";
 import { SignOutMenu } from "../components/SignOutMenu";
@@ -18,6 +18,7 @@ import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Close, Globe, Mai
 import { EditDetails } from "./EditDetails";
 import { DeleteAccountDialog } from "../components/DeleteAccountDialog";
 import { api } from "../api/client";
+import { type PushState, pushState, turnPushOff, turnPushOn } from "../api/push";
 import { HospitalUnits } from "./HospitalUnits";
 import { LoadingPane } from "../components/LoadingPane";
 import { useTier } from "../layout/fit";
@@ -300,6 +301,7 @@ function Notifications() {
         <Row icon={Phone} tone="tone-amber" title="SMS reminders" sub="A text 24 hours before every visit" end={<On />} />
         <Row icon={Mail} tone="tone-green" title="Email confirmations" sub="Booking and cancellation receipts" end={<On />} />
         <Row icon={Calendar} tone="tone-blue" title="Short-notice bookings" sub="A confirmation text straight away instead" end={<On />} />
+        <PushRow />
       </div>
       <div className="inner-card settings-card">
         <h3>Reminder timing</h3>
@@ -327,6 +329,53 @@ function Notifications() {
           </span>
         </div>
       </div>
+    </>
+  );
+}
+
+const PUSH_SUB: Record<PushState, string> = {
+  on: "Every notice also appears on this device",
+  off: "Get every notice on this device as well",
+  blocked: "Blocked in this browser's site settings",
+  unsupported: "This browser cannot show notifications",
+};
+
+/** Notifications on this browser, beside SMS and email, never instead of them. */
+function PushRow() {
+  const [state, setState] = useState<PushState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  useEffect(() => {
+    pushState().then(setState, () => setState("unsupported"));
+  }, []);
+  const change = async () => {
+    setBusy(true);
+    setFailed(null);
+    try {
+      setState(await (state === "on" ? turnPushOff() : turnPushOn()));
+    } catch (e) {
+      setFailed(e instanceof Error ? e.message : "That did not work. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const can = state === "on" || state === "off";
+  return (
+    <>
+      <Row
+        icon={Bell}
+        tone="tone-blue"
+        title="Notifications on this device"
+        sub={state ? PUSH_SUB[state] : "Checking this browser"}
+        end={
+          can ? (
+            <button type="button" className="link-button" disabled={busy} onClick={change}>
+              {state === "on" ? "Turn off" : "Turn on"}
+            </button>
+          ) : undefined
+        }
+      />
+      {failed && <Notice tone="error">{failed}</Notice>}
     </>
   );
 }

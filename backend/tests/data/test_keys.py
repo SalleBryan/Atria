@@ -32,6 +32,7 @@ BUILT = {
     "Staff membership": keys.staff_membership("t1", "s1"),
     "Clinician profile": keys.clinician_profile("t1", "s1"),
     "Consent record": keys.consent_record("p1", "2026-01-01T09:00:00Z", "co1"),
+    "Push subscription": keys.push_subscription("p1", "ps1"),
     "Priority allowance": keys.priority_allowance("t1", "s1"),
     "Availability template": keys.availability_template("t1", "s1", 2),
     "Availability exception": keys.availability_exception("t1", "s1", "2026-03-04T08:00:00Z"),
@@ -91,7 +92,13 @@ def test_tenant_owned_keys_carry_the_tenant_prefix(entity):
     knowing nothing but its own identifier. It holds no personal data: only
     which tenant's log row the report is about."""
     built = BUILT[entity]
-    if entity in ("Region pack", "Person", "Consent record", "Provider message"):
+    if entity in (
+        "Region pack",
+        "Person",
+        "Consent record",
+        "Push subscription",
+        "Provider message",
+    ):
         assert not built.pk.startswith("TENANT#")
     else:
         assert built.pk.startswith("TENANT#t1#") or built.pk == "TENANT#t1"

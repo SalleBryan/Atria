@@ -9,6 +9,10 @@ import 'demo/demo.dart';
 import 'patient/data.dart';
 import 'patient/shell.dart';
 import 'staff/data.dart';
+import 'staff/oversight.dart';
+import 'staff/queue.dart';
+import 'staff/requests.dart';
+import 'staff/roster.dart';
 import 'staff/patients.dart';
 import 'staff/schedule.dart';
 import 'staff/shell.dart';
@@ -282,6 +286,34 @@ GoRouter routerFor(Session session, AppPrefs prefs) {
           GoRoute(
             path: '/console/patients',
             builder: (_, _) => PatientsScreen(store: staffFor()),
+          ),
+          GoRoute(
+            path: '/console/queue',
+            builder: (_, _) => StaffQueueScreen(store: staffFor()),
+          ),
+          GoRoute(
+            path: '/console/requests',
+            builder: (_, _) => RequestsScreen(store: staffFor()),
+          ),
+          GoRoute(
+            path: '/console/roster',
+            builder: (_, _) => RosterScreen(store: staffFor()),
+          ),
+          GoRoute(
+            path: '/console/availability',
+            builder: (_, _) => AvailabilityScreen(store: staffFor()),
+          ),
+          GoRoute(
+            path: '/console/messages',
+            builder: (_, _) => MessagesScreen(store: staffFor()),
+          ),
+          GoRoute(
+            path: '/console/reports',
+            builder: (_, _) => ReportsScreen(store: staffFor()),
+          ),
+          GoRoute(
+            path: '/console/audit',
+            builder: (_, _) => AuditScreen(store: staffFor()),
           ),
           GoRoute(
             path: '/console/week',

@@ -751,6 +751,28 @@ class MockHospital {
     }
 
     final unitSessions = match(r'^/clinics/([^/]+)/sessions$');
+    // A unit manager publishes a session: its capacity is worked out from the pace.
+    if (unitSessions != null && method == 'POST') {
+      final start = '${b['startTime']}';
+      final end = '${b['endTime']}';
+      final rostered = (b['rosteredClinicianCount'] as num?)?.toInt() ?? 1;
+      final hours = (_minutes(end) - _minutes(start)) / 60;
+      final made = {
+        'sessionId': 'se-${b['date']}-${start.replaceAll(':', '')}',
+        'clinicId': unitSessions.group(1),
+        'sessionDate': b['date'],
+        'startTime': start,
+        'endTime': end,
+        'rosteredClinicianCount': rostered,
+        'expectedThroughputPerHour': '4.5',
+        'actualThroughputPerHour': null,
+        'capacity': (hours * rostered * 4.5).floor(),
+        'issuedTickets': 0,
+        'status': 'OPEN',
+      };
+      sessions.add(made);
+      return _sessionView(made);
+    }
     if (unitSessions != null && method == 'GET') {
       final hospitalNow = iso(DateTime.now().toUtc().add(_offset)).substring(0, 16);
       bool open(Map<String, dynamic> s) =>

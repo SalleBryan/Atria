@@ -37,8 +37,17 @@ export function shownDate(iso: string | null | undefined): string {
   return found ? `${found[3]}/${found[2]}/${found[1]}` : "";
 }
 
-export function EditDetails({ editing, onDone }: { editing: Editing; onDone: (said: string | null) => void }) {
+export function EditDetails({
+  editing,
+  onDone,
+  audience,
+}: {
+  editing: Editing;
+  onDone: (said: string | null) => void;
+  audience?: "patient" | "staff";
+}) {
   const { state, refresh } = useSession();
+  const aud = audience ?? (state.status === "signed-in" ? state.audience : "patient");
   const me = state.status === "signed-in" ? state.me : undefined;
   const [given, setGiven] = useState(me?.givenName ?? "");
   const [family, setFamily] = useState(me?.familyName ?? "");
@@ -56,7 +65,7 @@ export function EditDetails({ editing, onDone }: { editing: Editing; onDone: (sa
     setFailure(null);
     try {
       await api("/me", { method: "PATCH", json: body });
-      await refresh("patient");
+      await refresh(aud);
       onDone(said);
     } catch (caught) {
       setFailure(messageFor(caught));
@@ -68,9 +77,17 @@ export function EditDetails({ editing, onDone }: { editing: Editing; onDone: (sa
     event.preventDefault();
     setError(undefined);
     if (editing === "name") {
-      await run({ givenName: given.trim(), familyName: family.trim() }, "Your name is saved. The front desk sees it too.");
+      const msg =
+        aud === "staff"
+          ? "Your name is saved across the console."
+          : "Your name is saved. The front desk sees it too.";
+      await run({ givenName: given.trim(), familyName: family.trim() }, msg);
     } else if (editing === "language") {
-      await run({ preferredLanguage: language }, `Messages will come in ${languageName(language)}.`);
+      const msg =
+        aud === "staff"
+          ? `Your preferred language is updated to ${languageName(language)}.`
+          : `Messages will come in ${languageName(language)}.`;
+      await run({ preferredLanguage: language }, msg);
     } else if (editing === "phone") {
       const number = normalisePhone(phone, country);
       if (!isMobile(number)) {
@@ -81,7 +98,11 @@ export function EditDetails({ editing, onDone }: { editing: Editing; onDone: (sa
         );
         return;
       }
-      await run({ phoneE164: number }, "Your mobile is saved. Reminders are texted there from now on.");
+      const msg =
+        aud === "staff"
+          ? "Your mobile number is saved."
+          : "Your mobile is saved. Reminders are texted there from now on.";
+      await run({ phoneE164: number }, msg);
     } else {
       const date = birthDate(born);
       if (!date) {

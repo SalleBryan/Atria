@@ -16,6 +16,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
+from atria.core.errors import Conflict
 from atria.data import catalogue, keys
 from atria.data.people import new_id
 from atria.data.repository import Item, Repository
@@ -60,6 +61,32 @@ class Settings:
         return self._repo.update_existing(
             keys.clinic(tenant_id, clinic_id), set_values=values, what="unit"
         )
+
+    def create_clinic(self, tenant_id: str, fields: dict[str, Any]) -> Item:
+        clinic_id = str(fields.get("clinicId") or new_id("c"))
+        name = str(fields["name"])
+        item = {
+            "type": "CLINIC",
+            "clinicId": clinic_id,
+            "tenantId": tenant_id,
+            "name": name,
+            "phone": fields.get("phone") or "",
+            "address": fields.get("address") or "",
+            "description": fields.get("description") or "",
+            "services": list(fields.get("services") or []),
+            "openingHours": dict(fields.get("openingHours") or {}),
+            "location": fields.get("location"),
+            **catalogue.clinic_listing(tenant_id, clinic_id, name),
+        }
+        self._repo.put(keys.clinic(tenant_id, clinic_id), item)
+        return item
+
+    def delete_clinic(self, tenant_id: str, clinic_id: str) -> None:
+        self.clinic(tenant_id, clinic_id)
+        session_partition = keys.session_listing(tenant_id, clinic_id, "", "", "").pk
+        if self._repo.query_partition(session_partition):
+            raise Conflict("Cannot delete unit: scheduled sessions exist for this unit.")
+        self._repo.delete(keys.clinic(tenant_id, clinic_id))
 
     # ------------------------------------------------------- appointment types
     def appointment_types(self, tenant_id: str) -> list[Item]:

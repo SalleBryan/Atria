@@ -132,8 +132,14 @@ ROUTES: dict[tuple[str, str], Route] = {
         "staff.suspend", WRITE, "STAFF", "id", patient_data=False
     ),
     ("PATCH", "/admin/settings"): Route("settings.tenant", WRITE, "TENANT", patient_data=False),
+    ("POST", "/admin/clinics"): Route(
+        "settings.unit_create", WRITE, "CLINIC", subject_field="clinicId", patient_data=False
+    ),
     ("PATCH", "/admin/clinics/{id}"): Route(
         "settings.unit", WRITE, "CLINIC", "id", patient_data=False
+    ),
+    ("DELETE", "/admin/clinics/{id}"): Route(
+        "settings.unit_delete", WRITE, "CLINIC", "id", patient_data=False
     ),
     ("POST", "/admin/appointment-types"): Route(
         "settings.type_create",

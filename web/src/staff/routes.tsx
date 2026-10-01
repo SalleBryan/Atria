@@ -17,6 +17,7 @@ import { RequestsPage } from "./Requests";
 import { RosterPage } from "./Roster";
 import { DaySchedule } from "./DaySchedule";
 import { Settings } from "./Settings";
+import { StaffAccount } from "./StaffAccount";
 import { StaffAccounts } from "./StaffAccounts";
 import { StaffShell } from "./StaffShell";
 import { VisitPage } from "./VisitPage";
@@ -25,6 +26,7 @@ import { WeekView } from "./WeekView";
 export const staffRoutes = (
   <Route element={<StaffShell />}>
     <Route path="/console" element={<DaySchedule />} />
+    <Route path="/console/account" element={<StaffAccount />} />
     <Route path="/console/overview" element={<AdminOverview />} />
     <Route path="/console/week" element={<WeekView />} />
     <Route path="/console/visits/:id" element={<VisitPage />} />

@@ -853,7 +853,9 @@ def test_the_settings_routes_exist(synthesised: cdk.App) -> None:
     for route in (
         ("/admin/settings", "GET"),
         ("/admin/settings", "PATCH"),
+        ("/admin/clinics", "POST"),
         ("/admin/clinics/{id}", "PATCH"),
+        ("/admin/clinics/{id}", "DELETE"),
         ("/admin/appointment-types", "POST"),
         ("/admin/appointment-types/{id}", "PATCH"),
         ("/admin/fee-bands/{id}", "PUT"),

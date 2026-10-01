@@ -30,7 +30,7 @@ import { useSession } from "../auth/session";
 import { Field, Notice } from "../components/controls";
 import { LoadingRow } from "../components/LoadingPane";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
-import { Building, CheckMark, Clipboard, Close, Filter, Info, Plus, Repeat, Shield, Star, Trash, Undo, User } from "../components/icons";
+import { Building, CheckMark, Clipboard, Close, Download, Filter, Info, Plus, Repeat, Shield, Star, Trash, Undo, Upload, User } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { Pager } from "../components/Pager";
 import { SelectMenu } from "../components/Pickers";
@@ -41,10 +41,12 @@ import { useTier } from "../layout/fit";
 import { initials } from "../patient/data";
 import { roleOf, useStaffData } from "./data";
 import { phoneShown } from "./Patients";
-import { DeleteAccountDialog, daysLeft, RestoreDialog } from "../components/DeleteAccountDialog";
+import { BatchRestoreDialog, DeleteAccountDialog, daysLeft, RestoreDialog } from "../components/DeleteAccountDialog";
 import { sentence } from "./labels";
 import { Snackbar } from "./Snackbar";
 import { forEach, SelectBox, SelectionBar, useSelection } from "../components/Selection";
+import { BatchStaffImport } from "./BatchStaffImport";
+import { downloadSingleStaffPdf } from "../utils/credentialPdf";
 
 type StaffRole = Exclude<Role, "PATIENT">;
 
@@ -150,6 +152,7 @@ export function StaffAccounts() {
   const [status, setStatus] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [clinic, setClinic] = useState<string | null>(null);
+  const [sort, setSort] = useState<"name_asc" | "name_desc" | "date_desc" | "date_asc">("name_asc");
   // The cursor of each page reached so far, so Previous can go back.
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -167,12 +170,14 @@ export function StaffAccounts() {
   const phone = useTier() === "mobile";
   const rowsBox = useRef<HTMLUListElement>(null);
   const [pageSize, setPageSize] = useState<number | null>(null);
-  // Rows chosen for a batch delete: those on the page that can be deleted.
+  // Rows chosen for a batch delete or restore.
   const [batch, setBatch] = useState(false);
+  const [batchRestore, setBatchRestore] = useState(false);
+  const [batchImporting, setBatchImporting] = useState(false);
   const selectable = (page?.accounts ?? [])
-    .filter((a) => a.status !== "DELETION_PENDING" && !(state.status === "signed-in" && state.me.staffId === a.staffId))
+    .filter((a) => !(state.status === "signed-in" && state.me.staffId === a.staffId))
     .map((a) => a.staffId);
-  const selection = useSelection(selectable, `${cursors.length}|${words}|${status}|${role}|${clinic}`);
+  const selection = useSelection(selectable, `${cursors.length}|${words}|${status}|${role}|${clinic}|${sort}`);
 
   // How many rows the card holds, measured before the first page is asked for.
   useLayoutEffect(() => {
@@ -204,8 +209,8 @@ export function StaffAccounts() {
     const later = window.setTimeout(() => setWords(query.trim()), 220);
     return () => window.clearTimeout(later);
   }, [query]);
-  // A new search, filter or page length starts again at the first page.
-  useEffect(() => setCursors([null]), [words, status, role, clinic, pageSize]);
+  // A new search, filter, sort or page length starts again at the first page.
+  useEffect(() => setCursors([null]), [words, status, role, clinic, sort, pageSize]);
 
   useEffect(() => {
     if (!admin || !pageSize) return;
@@ -215,6 +220,7 @@ export function StaffAccounts() {
     if (status) ask.set("status", status);
     if (role) ask.set("role", role);
     if (clinic) ask.set("clinic", clinic);
+    if (sort && sort !== "name_asc") ask.set("sort", sort);
     const cursor = cursors[cursors.length - 1];
     if (cursor) ask.set("cursor", cursor);
     setLoading(true);
@@ -229,7 +235,7 @@ export function StaffAccounts() {
     return () => {
       live = false;
     };
-  }, [admin, fresh, words, status, role, clinic, cursors, pageSize]);
+  }, [admin, fresh, words, status, role, clinic, sort, cursors, pageSize]);
 
   if (state.status !== "signed-in") return null;
   if (!admin) return <Navigate to="/console" replace />;
@@ -242,6 +248,11 @@ export function StaffAccounts() {
   const clinicOptions = byCount(facets.clinics, (id) => clinicName(id) ?? "Another unit");
   const awaiting = facets.status.awaiting ?? 0;
   const accounts = page?.accounts ?? [];
+  const chosenAccounts = accounts.filter((a) => selection.has(a.staffId));
+  const hasDeleted = chosenAccounts.some((a) => a.status === "DELETION_PENDING");
+  const hasNonDeleted = chosenAccounts.some((a) => a.status !== "DELETION_PENDING");
+  const canBatchDelete = selection.count > 0 && hasNonDeleted && !hasDeleted;
+  const canBatchRestore = selection.count > 0 && hasDeleted && !hasNonDeleted;
   const size = pageSize ?? PAGE_SIZE;
   const first = (page?.at ?? 0) * size + 1;
   const pages = page ? Math.max(1, Math.ceil(page.count / size)) : 1;
@@ -326,10 +337,16 @@ export function StaffAccounts() {
           <h1>Console users</h1>
           <p>Everyone who can sign in to the staff console</p>
         </div>
-        <button type="button" className="staff-primary accounts-new" onClick={() => setCreating(true)}>
-          <Plus size={16} />
-          Create staff account
-        </button>
+        <div className="accounts-actions">
+          <button type="button" className="outline-button accounts-new" onClick={() => setBatchImporting(true)}>
+            <Upload size={16} />
+            Import Excel
+          </button>
+          <button type="button" className="staff-primary accounts-new" onClick={() => setCreating(true)}>
+            <Plus size={16} />
+            Create staff account
+          </button>
+        </div>
       </header>
 
       <div className="accounts-tools">
@@ -366,8 +383,28 @@ export function StaffAccounts() {
             moreActive={menuFilters}
             moreAlways
           />
+          <div className="accounts-sort-select">
+            <SelectMenu
+              label="Sort by"
+              value={sort}
+              width={200}
+              options={[
+                { id: "name_asc", label: "Name (A to Z)" },
+                { id: "name_desc", label: "Name (Z to A)" },
+                { id: "date_desc", label: "Creation date (Newest)" },
+                { id: "date_asc", label: "Creation date (Oldest)" },
+              ]}
+              onChange={(v) => setSort(v as typeof sort)}
+            />
+          </div>
           {selection.count ? (
-            <SelectionBar count={selection.count} noun={["account", "accounts"]} onDelete={() => setBatch(true)} onClear={selection.clear} />
+            <SelectionBar
+              count={selection.count}
+              noun={["account", "accounts"]}
+              onDelete={canBatchDelete ? () => setBatch(true) : undefined}
+              onRestore={canBatchRestore ? () => setBatchRestore(true) : undefined}
+              onClear={selection.clear}
+            />
           ) : (
             <span className="accounts-count" aria-live="polite">
               {page ? (page.count === page.total ? `${page.total} users` : `${page.count} of ${page.total} users`) : ""}
@@ -404,10 +441,24 @@ export function StaffAccounts() {
               disabled={!selectable.length}
               onChange={selection.toggleAll}
             />
-            <span aria-hidden="true">USER</span>
+            <button
+              type="button"
+              className={`accounts-head-sort-btn${sort.startsWith("name") ? " sort-active" : ""}`}
+              onClick={() => setSort(sort === "name_asc" ? "name_desc" : "name_asc")}
+              title="Click to sort alphabetically"
+            >
+              USER {sort === "name_asc" ? "▲" : sort === "name_desc" ? "▼" : ""}
+            </button>
           </span>
           <span aria-hidden="true">GROUP</span>
-          <span aria-hidden="true">ACCOUNT STATUS</span>
+          <button
+            type="button"
+            className={`accounts-head-sort-btn${sort.startsWith("date") ? " sort-active" : ""}`}
+            onClick={() => setSort(sort === "date_desc" ? "date_asc" : "date_desc")}
+            title="Click to sort by creation date"
+          >
+            ACCOUNT STATUS {sort === "date_desc" ? "▼ (Newest)" : sort === "date_asc" ? "▲ (Oldest)" : ""}
+          </button>
           <span aria-hidden="true">ROLE</span>
         </div>
         <ul ref={rowsBox} className={`accounts-rows${loading && page ? " accounts-rows-loading" : ""}`}>
@@ -629,6 +680,34 @@ export function StaffAccounts() {
             await api(`/admin/staff/${encodeURIComponent(restoring.staffId)}/restore`, { method: "POST" });
             setRestoring(null);
             done("Account restored. They can sign in again.");
+          }}
+        />
+      )}
+      {batchRestore && (
+        <BatchRestoreDialog
+          count={selection.count}
+          noun="account"
+          onClose={() => setBatchRestore(false)}
+          onConfirm={async () => {
+            const result = await forEach([...selection.chosen], (id) =>
+              api(`/admin/staff/${encodeURIComponent(id)}/restore`, { method: "POST" }),
+            );
+            setBatchRestore(false);
+            selection.clear();
+            done(
+              result.failed
+                ? `${result.done} restored; ${result.failed} could not be.`
+                : `${result.done} ${result.done === 1 ? "account" : "accounts"} restored. They can sign in again.`,
+            );
+          }}
+        />
+      )}
+      {batchImporting && (
+        <BatchStaffImport
+          onClose={() => setBatchImporting(false)}
+          onDone={(count) => {
+            setBatchImporting(false);
+            done(`${count} ${count === 1 ? "staff account" : "staff accounts"} created.`);
           }}
         />
       )}
@@ -897,6 +976,24 @@ function CreateStaff({ onClose, onDone }: { onClose: () => void; onDone: (name: 
             </div>
             <footer className="sheet-foot">
               <span>Creating the account was logged against your admin user.</span>
+              <button
+                type="button"
+                className="outline-button"
+                onClick={() => {
+                  downloadSingleStaffPdf({
+                    name,
+                    role: ROLE_NAME[role] ?? role,
+                    unit: clinics.find((c) => c.clinicId === form.clinicId)?.name ?? "All units",
+                    signInName: created.signInName,
+                    temporaryPassword: created.temporaryPassword,
+                    email: form.email || null,
+                    phone: form.phone || null,
+                  });
+                }}
+              >
+                <Download size={16} />
+                Download credentials (PDF)
+              </button>
               <button type="button" className="staff-primary sheet-primary" onClick={() => onDone(name)}>
                 Done
               </button>

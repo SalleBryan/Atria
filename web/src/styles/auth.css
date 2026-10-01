@@ -510,16 +510,28 @@
 
 .notice {
   display: flex;
+  align-items: center;
   gap: 11px;
-  padding: 16px;
+  padding: 12px 20px;
   border: 1px solid var(--blue-600);
-  border-radius: 19px;
+  border-radius: 999px;
   background: rgba(47, 107, 228, 0.18);
   color: var(--blue-650);
-  font-size: 12.5px;
-  line-height: 19.4px;
+  font-size: 13px;
+  line-height: 1.4;
 }
-.notice > svg { flex: none; margin-top: 1px; }
+.notice:has(ul, ol, .batch-failed-list, p + p) {
+  align-items: flex-start;
+  border-radius: 18px;
+  padding: 14px 18px;
+}
+.notice > svg {
+  flex: none;
+}
+.notice > div {
+  flex: 1;
+  min-width: 0;
+}
 .notice-error {
   border-color: var(--status-cancelled);
   background: rgba(214, 72, 90, 0.1);

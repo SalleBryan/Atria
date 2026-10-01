@@ -72,11 +72,31 @@ def search(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     query = (requests.query_parameter(event, "q") or "").strip()
     if len(query) > 60:
         raise Invalid("that search is too long")
+    sort = (requests.query_parameter(event, "sort") or "date_desc").strip()
     if not query:
         # No search: the register itself, a page at a time (2026-09-28).
         everyone = [e for e in Register(repository()).everyone(principal.tenant_id) if shown(e)]
+        if sort == "name_asc":
+            everyone.sort(
+                key=lambda e: (
+                    str(e.get("familyName") or "").casefold(),
+                    str(e.get("givenName") or "").casefold(),
+                )
+            )
+        elif sort == "name_desc":
+            everyone.sort(
+                key=lambda e: (
+                    str(e.get("familyName") or "").casefold(),
+                    str(e.get("givenName") or "").casefold(),
+                ),
+                reverse=True,
+            )
+        elif sort == "date_asc":
+            everyone.sort(key=lambda e: str(e.get("createdAt") or ""))
+        else:
+            everyone.sort(key=lambda e: str(e.get("createdAt") or ""), reverse=True)
         listed, paging = page(everyone, event)
-        return {"q": "", **paging, "results": [view(e) for e in listed]}
+        return {"q": "", "sort": sort, **paging, "results": [view(e) for e in listed]}
     found = [
         e
         for e in Register(repository()).search(
@@ -84,8 +104,28 @@ def search(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
         )
         if shown(e)
     ]
+    if sort == "name_asc":
+        found.sort(
+            key=lambda e: (
+                str(e.get("familyName") or "").casefold(),
+                str(e.get("givenName") or "").casefold(),
+            )
+        )
+    elif sort == "name_desc":
+        found.sort(
+            key=lambda e: (
+                str(e.get("familyName") or "").casefold(),
+                str(e.get("givenName") or "").casefold(),
+            ),
+            reverse=True,
+        )
+    elif sort == "date_asc":
+        found.sort(key=lambda e: str(e.get("createdAt") or ""))
+    else:
+        found.sort(key=lambda e: str(e.get("createdAt") or ""), reverse=True)
     return {
         "q": query,
+        "sort": sort,
         "count": len(found),
         "nextCursor": None,
         "results": [view(e) for e in found],

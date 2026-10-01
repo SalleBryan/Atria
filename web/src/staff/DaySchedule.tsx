@@ -72,7 +72,7 @@ export function DaySchedule() {
   const data = directory.status === "ready" ? directory.data : undefined;
 
   const date = isDate(params.get("date")) ? (params.get("date") as string) : today();
-  const clinicId = me?.clinicId ?? params.get("clinic") ?? data?.clinics[0]?.clinicId;
+  const clinicId = me?.clinicId ?? params.get("clinic") ?? (role === "TENANT_ADMIN" ? "all" : data?.clinics[0]?.clinicId);
   const url = me ? scheduleUrl(role, me, clinicId, date) : undefined;
   const { state, reload } = useSchedule(url);
   const [said, setSaid] = useState<string | null>(null);
@@ -250,7 +250,10 @@ export function DaySchedule() {
             label="Unit"
             value={clinicId ?? null}
             width={300}
-            options={data.clinics.map((clinic) => ({ id: clinic.clinicId, label: clinic.name }))}
+            options={[
+              { id: "all", label: "All units" },
+              ...data.clinics.map((clinic) => ({ id: clinic.clinicId, label: clinic.name })),
+            ]}
             onChange={(id) => go({ clinic: id, visit: null })}
           />
         )}

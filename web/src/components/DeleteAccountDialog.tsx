@@ -136,6 +136,62 @@ export function RestoreDialog({ name, onConfirm, onClose }: { name: string; onCo
   );
 }
 
+/** Restoring multiple deleted accounts back within their 30 days. */
+export function BatchRestoreDialog({
+  count,
+  noun = "account",
+  onConfirm,
+  onClose,
+}: {
+  count: number;
+  noun?: string;
+  onConfirm: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const label = count === 1 ? noun : `${noun}s`;
+  return createPortal(
+    <div className="scrim" onClick={() => !busy && onClose()}>
+      <div className="dialog staff-dialog" role="dialog" aria-modal="true" aria-labelledby="restore-title" onClick={(event) => event.stopPropagation()}>
+        <span className="dialog-icon dialog-icon-blue" aria-hidden="true">
+          <Undo size={22} />
+        </span>
+        <h2 id="restore-title">Restore {count} {label}?</h2>
+        <p className="dialog-lede">
+          Each account comes back as it was before it was deleted, and can sign in again. Visits cancelled by the deletion stay cancelled.
+        </p>
+        {failure && <Notice tone="error">{failure}</Notice>}
+        <div className="dialog-actions">
+          <button type="button" className="outline-button keep" onClick={onClose} disabled={busy}>
+            Leave deleted
+          </button>
+          <button
+            type="button"
+            className="staff-primary"
+            disabled={busy}
+            aria-busy={busy || undefined}
+            onClick={async () => {
+              setBusy(true);
+              setFailure(null);
+              try {
+                await onConfirm();
+              } catch (caught) {
+                setFailure(messageFor(caught));
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? <LoadingIndicator size={20} label="Restoring" /> : null}
+            {busy ? "Restoring" : `Restore ${count} ${label}`}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 /** Whole days until a purge instant, never below zero. */
 export function daysLeft(purgeAt: string | null | undefined): number {
   if (!purgeAt) return 0;

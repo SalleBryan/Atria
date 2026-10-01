@@ -26,7 +26,7 @@ from atria_spec.region_packs import REGION_PACKS
 from atria.core import intake as intake_rules
 from atria.core import permissions
 from atria.core import settings as rules
-from atria.core.errors import AtriaError, NotFound
+from atria.core.errors import AtriaError, Invalid, NotFound
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
 from atria.data.catalogue import Catalogue
@@ -201,6 +201,19 @@ def change_tenant(principal: Principal, event: dict[str, Any]) -> dict[str, Any]
     return tenant_view(updated, store.region_pack(str(updated["regionPackCode"])))
 
 
+def create_clinic(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    permissions.require(principal, "clinic.manage", Subject(tenant_id=principal.tenant_id))
+    store = settings()
+    minutes = int(store.tenant(principal.tenant_id).get("gridUnitMinutes") or 10)
+    body = requests.json_body(event)
+    name = str(body.get("name") or "").strip()
+    if not name:
+        raise Invalid("a unit name is required")
+    changes = rules.clinic_changes(body, minutes=minutes)
+    created = store.create_clinic(principal.tenant_id, changes)
+    return {**pick(created, CLINIC_FIELDS)}
+
+
 def change_clinic(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     clinic_id = requests.path_parameter(event, "id")
     permissions.require(
@@ -211,6 +224,16 @@ def change_clinic(principal: Principal, event: dict[str, Any]) -> dict[str, Any]
     minutes = int(store.tenant(principal.tenant_id).get("gridUnitMinutes") or 10)
     changes = rules.clinic_changes(requests.json_body(event), minutes=minutes)
     return {**pick(store.update_clinic(principal.tenant_id, clinic_id, changes), CLINIC_FIELDS)}
+
+
+def delete_clinic(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    clinic_id = requests.path_parameter(event, "id")
+    permissions.require(
+        principal, "clinic.manage", Subject(tenant_id=principal.tenant_id, clinic_id=clinic_id)
+    )
+    store = settings()
+    store.delete_clinic(principal.tenant_id, clinic_id)
+    return {"deleted": True, "clinicId": clinic_id}
 
 
 def _type_context(principal: Principal) -> tuple[set[str], set[str], set[str]]:
@@ -299,8 +322,12 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
             return responses.ok(overview(principal))
         if method == "PATCH":
             return responses.ok(change_tenant(principal, event))
+    if method == "POST" and resource.endswith("/admin/clinics"):
+        return responses.created(create_clinic(principal, event))
     if method == "PATCH" and resource.endswith("/admin/clinics/{id}"):
         return responses.ok(change_clinic(principal, event))
+    if method == "DELETE" and resource.endswith("/admin/clinics/{id}"):
+        return responses.ok(delete_clinic(principal, event))
     if method == "POST" and resource.endswith("/admin/appointment-types"):
         return responses.created(create_type(principal, event))
     if method == "PATCH" and resource.endswith("/admin/appointment-types/{id}"):

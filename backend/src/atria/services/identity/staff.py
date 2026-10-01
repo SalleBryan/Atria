@@ -258,6 +258,20 @@ def list_accounts(
         and (not status or status_of(a) == status)
     ]
 
+    sort_order = query.get("sort") or "name_asc"
+
+    def name_key(a: dict[str, Any]) -> tuple[str, str]:
+        return (a.get("familyName") or "").casefold(), (a.get("givenName") or "").casefold()
+
+    if sort_order == "name_desc":
+        found.sort(key=name_key, reverse=True)
+    elif sort_order == "date_desc":
+        found.sort(key=lambda a: str(a.get("createdAt") or a.get("staffId") or ""), reverse=True)
+    elif sort_order == "date_asc":
+        found.sort(key=lambda a: str(a.get("createdAt") or a.get("staffId") or ""))
+    else:
+        found.sort(key=name_key)
+
     shown, more = paging.window(
         found, limit=query.get("limit"), cursor=query.get("cursor"), default=DEFAULT_PAGE
     )
@@ -390,7 +404,7 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     if method == "GET" and resource.endswith("/staff"):
         query = {
             name: requests.query_parameter(event, name)
-            for name in ("q", "role", "clinic", "status", "limit", "cursor")
+            for name in ("q", "role", "clinic", "status", "limit", "cursor", "sort")
         }
         return responses.ok(list_accounts(principal, query))
     if method == "POST" and resource.endswith("/staff"):

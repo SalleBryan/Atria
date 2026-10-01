@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { CheckMark, Close, Trash } from "./icons";
+import { CheckMark, Close, Trash, Undo } from "./icons";
 
 export function useSelection(selectable: string[], resetKey: unknown) {
   const [chosen, setChosen] = useState<Set<string>>(() => new Set());
@@ -75,18 +75,38 @@ export function SelectBox({
   );
 }
 
-/** "3 selected", with Delete and Clear; shown only while something is chosen. */
-export function SelectionBar({ count, noun, onDelete, onClear }: { count: number; noun: [string, string]; onDelete: () => void; onClear: () => void }) {
+/** "3 selected", with Delete, Restore and Clear; shown only while something is chosen. */
+export function SelectionBar({
+  count,
+  noun,
+  onDelete,
+  onRestore,
+  onClear,
+}: {
+  count: number;
+  noun: [string, string];
+  onDelete?: () => void;
+  onRestore?: () => void;
+  onClear: () => void;
+}) {
   if (!count) return null;
   return (
     <div className="selection-bar" role="region" aria-label="Selected">
       <span className="selection-count" aria-live="polite">
         {count} {count === 1 ? noun[0] : noun[1]} selected
       </span>
-      <button type="button" className="selection-delete" onClick={onDelete}>
-        <Trash size={15} />
-        Delete
-      </button>
+      {onRestore && (
+        <button type="button" className="selection-restore" onClick={onRestore}>
+          <Undo size={15} />
+          Restore
+        </button>
+      )}
+      {onDelete && (
+        <button type="button" className="selection-delete" onClick={onDelete}>
+          <Trash size={15} />
+          Delete
+        </button>
+      )}
       <button type="button" className="square-button" aria-label="Clear the selection" title="Clear" onClick={onClear}>
         <Close size={15} />
       </button>

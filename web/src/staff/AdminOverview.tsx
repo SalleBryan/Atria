@@ -43,6 +43,24 @@ interface StaffFacets {
   total: number;
   facets: { status: Record<string, number> };
 }
+interface HospitalReport {
+  week: string;
+  booked: number;
+  attended: number;
+  noShow: number;
+  cancelled: number;
+  lateCancelled: number;
+  attendance: number | null;
+  units?: {
+    clinicId: string;
+    clinicName: string | null;
+    booked: number;
+    attended: number;
+    noShow: number;
+    cancelled: number;
+    attendance: number | null;
+  }[];
+}
 
 const DAY = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" });
 const SHORT = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
@@ -72,6 +90,8 @@ export function AdminOverview() {
   const staff = useLoad<StaffFacets>("/admin/staff?limit=1");
   const delivery = useLoad<Delivery>("/messages/delivery?days=7");
   const capacity = useLoad<Capacity>("/capacity");
+  const report = useLoad<HospitalReport>("/reports");
+  const [metricView, setMetricView] = useState<"delivery" | "visits" | "units">("delivery");
   const from = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const today = new Date().toISOString().slice(0, 10);
   const audit = useLoad<{ entries: AuditEntry[] }>(`/audit?kind=WRITE&from=${from}&to=${today}&limit=40`);
@@ -93,10 +113,10 @@ export function AdminOverview() {
   const attention = email && sms ? email.bad + sms.bad : null;
 
   const tiles: { label: string; value: string; tone: string; icon: ComponentType<{ size?: number }> }[] = [
-    { label: "Console accounts", value: staff.found ? String(staff.found.total) : "–", tone: "overview-violet", icon: User },
-    { label: "Awaiting first sign-in", value: staff.found ? String(status.INVITED ?? 0) : "–", tone: "overview-amber", icon: Clock },
-    { label: "Delivered, last 7 days", value: rate === null ? "–" : `${(rate * 100).toFixed(1)}%`, tone: "overview-green", icon: Check },
-    { label: "Messages need attention", value: attention === null ? "–" : String(attention), tone: "overview-red", icon: Alert },
+    { label: "Console accounts", value: staff.found ? String(staff.found.total) : "-", tone: "overview-violet", icon: User },
+    { label: "Awaiting first sign-in", value: staff.found ? String(status.INVITED ?? 0) : "-", tone: "overview-amber", icon: Clock },
+    { label: "Delivered, last 7 days", value: rate === null ? "-" : `${(rate * 100).toFixed(1)}%`, tone: "overview-green", icon: Check },
+    { label: "Messages need attention", value: attention === null ? "-" : String(attention), tone: "overview-red", icon: Alert },
   ];
 
   return (
@@ -132,28 +152,155 @@ export function AdminOverview() {
       <div className="overview-cols">
         <section className="glass overview-card" aria-label="Delivery and capacity">
           <div className="overview-hrow">
-            <h2>Message delivery, last 7 days</h2>
-            <span>{email && sms ? `${email.all + sms.all} sent` : ""}</span>
-          </div>
-          {delivery.failed ? (
-            <p className="overview-empty">The delivery figures could not be loaded.</p>
-          ) : !delivery.found ? (
-            <LoadingPane className="compact" label="Loading delivery" />
-          ) : (
-            <DeliveryChart days={delivery.found.days} />
-          )}
-          {attention ? (
-            <div className="overview-alert" role="note">
-              <Alert size={18} />
-              <p>
-                <strong>
-                  {attention} {attention === 1 ? "message" : "messages"} did not arrive this week.
-                </strong>{" "}
-                The visits are still booked, so the front desk should phone those patients.{" "}
-                <Link to="/console/messages">See which</Link>
-              </p>
+            <div className="overview-segmented-control" role="tablist" aria-label="Metrics view">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={metricView === "delivery"}
+                className={`overview-segment-btn ${metricView === "delivery" ? "active" : ""}`}
+                onClick={() => setMetricView("delivery")}
+              >
+                Message delivery
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={metricView === "visits"}
+                className={`overview-segment-btn ${metricView === "visits" ? "active" : ""}`}
+                onClick={() => setMetricView("visits")}
+              >
+                Patient visits
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={metricView === "units"}
+                className={`overview-segment-btn ${metricView === "units" ? "active" : ""}`}
+                onClick={() => setMetricView("units")}
+              >
+                Unit volume
+              </button>
             </div>
-          ) : null}
+            <span>
+              {metricView === "delivery"
+                ? email && sms ? `${email.all + sms.all} sent` : ""
+                : metricView === "visits"
+                  ? report.found ? `${report.found.booked} visits recorded` : ""
+                  : report.found?.units ? `${report.found.units.length} units active` : ""}
+            </span>
+          </div>
+
+          {metricView === "delivery" && (
+            <>
+              {delivery.failed ? (
+                <p className="overview-empty">The delivery figures could not be loaded.</p>
+              ) : !delivery.found ? (
+                <LoadingPane className="compact" label="Loading delivery" />
+              ) : (
+                <DeliveryChart days={delivery.found.days} />
+              )}
+              {attention ? (
+                <div className="overview-alert" role="note">
+                  <Alert size={18} />
+                  <p>
+                    <strong>
+                      {attention} {attention === 1 ? "message" : "messages"} did not arrive this week.
+                    </strong>{" "}
+                    The visits are still booked, so the front desk should phone those patients.{" "}
+                    <Link to="/console/messages">See which</Link>
+                  </p>
+                </div>
+              ) : null}
+            </>
+          )}
+
+          {metricView === "visits" && (
+            <div className="overview-expressive-card">
+              {report.failed ? (
+                <p className="overview-empty">The visit figures could not be loaded.</p>
+              ) : !report.found ? (
+                <LoadingPane className="compact" label="Loading visits" />
+              ) : (
+                <>
+                  <div className="overview-expressive-kpis">
+                    <span className="overview-m3-pill attended">
+                      <Check size={14} />
+                      <strong>{report.found.attended}</strong> attended ({Math.round((report.found.attended / Math.max(1, report.found.booked)) * 100)}%)
+                    </span>
+                    <span className="overview-m3-pill noshow">
+                      <Alert size={14} />
+                      <strong>{report.found.noShow}</strong> no-shows
+                    </span>
+                    <span className="overview-m3-pill cancelled">
+                      <Clock size={14} />
+                      <strong>{report.found.cancelled + report.found.lateCancelled}</strong> cancelled
+                    </span>
+                  </div>
+                  <div
+                    className="overview-m3-meter"
+                    role="img"
+                    aria-label={`Visits breakdown: ${report.found.attended} attended, ${report.found.noShow} no-shows, ${report.found.cancelled + report.found.lateCancelled} cancelled`}
+                  >
+                    <span
+                      className="overview-m3-meter-seg attended"
+                      style={{ width: `${Math.max(4, (report.found.attended / Math.max(1, report.found.booked)) * 100)}%` }}
+                      title={`Attended: ${report.found.attended}`}
+                    />
+                    <span
+                      className="overview-m3-meter-seg noshow"
+                      style={{ width: `${Math.max(2, (report.found.noShow / Math.max(1, report.found.booked)) * 100)}%` }}
+                      title={`No-show: ${report.found.noShow}`}
+                    />
+                    <span
+                      className="overview-m3-meter-seg cancelled"
+                      style={{ width: `${Math.max(2, ((report.found.cancelled + report.found.lateCancelled) / Math.max(1, report.found.booked)) * 100)}%` }}
+                      title={`Cancelled: ${report.found.cancelled + report.found.lateCancelled}`}
+                    />
+                  </div>
+                  <div className="overview-legend">
+                    <span><i className="overview-swatch-ok" style={{ background: "linear-gradient(90deg, #10b981, #059669)" }} /> Attended</span>
+                    <span><i className="overview-swatch-bad" style={{ background: "linear-gradient(90deg, #f43f5e, #e11d48)" }} /> No-show</span>
+                    <span><i style={{ background: "linear-gradient(90deg, #f59e0b, #d97706)", width: 11, height: 11, borderRadius: 3 }} /> Cancelled</span>
+                    <span className="overview-legend-note"><Link to="/console/reports">View full reports &rarr;</Link></span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {metricView === "units" && (
+            <div className="overview-expressive-card">
+              {report.failed ? (
+                <p className="overview-empty">The unit volume could not be loaded.</p>
+              ) : !report.found || !report.found.units ? (
+                <LoadingPane className="compact" label="Loading unit volume" />
+              ) : (
+                <div className="overview-unit-rows">
+                  {report.found.units.slice(0, 5).map((u) => {
+                    const maxBooked = Math.max(1, ...report.found!.units!.map((x) => x.booked));
+                    const rate = u.attendance != null ? Math.round(u.attendance * 100) : null;
+                    return (
+                      <div key={u.clinicId} className="overview-unit-row">
+                        <div className="overview-unit-head">
+                          <span>{u.clinicName || u.clinicId}</span>
+                          <span>{u.booked} visits {rate !== null ? `(${rate}% attendance)` : ""}</span>
+                        </div>
+                        <div className="overview-unit-bar-track">
+                          <div
+                            className="overview-unit-bar-fill"
+                            style={{ width: `${Math.max(6, (u.booked / maxBooked) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="overview-legend">
+                    <span className="overview-legend-note"><Link to="/console/reports">Compare all units &rarr;</Link></span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="overview-hrow">
             <h2>Capacity next week</h2>

@@ -333,7 +333,7 @@ def live_queue(principal: Principal, event: dict[str, Any], *, people: People) -
     session = store.session(principal.tenant_id, session_id)
     permissions.require(
         principal,
-        "appointment.read",
+        "queue.read",
         Subject(tenant_id=principal.tenant_id, clinic_id=str(session["clinicId"])),
     )
     if not principal.is_staff:

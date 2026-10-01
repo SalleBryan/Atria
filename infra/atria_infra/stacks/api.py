@@ -521,7 +521,8 @@ class ApiStack(Stack):
         # is its own permission, checked in the service.
         settings_integration = apigateway.LambdaIntegration(self.settings_service, proxy=True)
         admin_settings = admin.add_resource("settings")
-        admin_clinic = admin.add_resource("clinics").add_resource("{id}")
+        admin_clinics = admin.add_resource("clinics")
+        admin_clinic = admin_clinics.add_resource("{id}")
         admin_types = admin.add_resource("appointment-types")
         admin_band = admin.add_resource("fee-bands").add_resource("{id}")
         admin_forms = admin.add_resource("intake-forms")
@@ -531,7 +532,9 @@ class ApiStack(Stack):
             (admin_forms.add_resource("{id}"), "PUT"),
             (admin_settings, "GET"),
             (admin_settings, "PATCH"),
+            (admin_clinics, "POST"),
             (admin_clinic, "PATCH"),
+            (admin_clinic, "DELETE"),
             (admin_types, "POST"),
             (admin_types.add_resource("{id}"), "PATCH"),
             (admin_band, "PUT"),

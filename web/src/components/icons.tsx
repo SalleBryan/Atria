@@ -166,6 +166,11 @@ export const Download = (p: IconProps) => (
     <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14" />
   </Icon>
 );
+export const Upload = (p: IconProps) => (
+  <Icon strokeWidth={1.75} {...p}>
+    <path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 19.5h14" />
+  </Icon>
+);
 export const ChevronRight = (p: IconProps) => (
   <Icon strokeWidth={2} {...p}>
     <path d="m9.5 6 6 6-6 6" />

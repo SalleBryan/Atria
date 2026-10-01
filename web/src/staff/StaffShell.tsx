@@ -11,7 +11,7 @@
  */
 
 import { type ComponentType, type CSSProperties, useLayoutEffect, useRef, useState } from "react";
-import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import type { Me } from "../api/client";
 import { useSession } from "../auth/session";
@@ -148,6 +148,12 @@ function Shell({ me }: { me: Me }) {
       matches: (path) => path.startsWith("/console/audit"),
     });
   }
+  destinations.push({
+    to: "/console/account",
+    label: "Account",
+    icon: User,
+    matches: (path) => path.startsWith("/console/account"),
+  });
   const selected = Math.max(
     0,
     destinations.findIndex((d) => d.matches(pathname)),
@@ -216,14 +222,16 @@ function Shell({ me }: { me: Me }) {
               ))}
             </nav>
           </div>
-          <div className="side-me">
-            <span className="side-avatar" aria-hidden="true">
-              {initials(me.givenName, me.familyName) || "A"}
-            </span>
-            <span className="side-me-text">
-              <span className="side-me-name">{name}</span>
-              <span className="side-me-sub">{ROLE_LABEL[role]} · Staff</span>
-            </span>
+          <div className={`side-me${pathname === "/console/account" ? " side-me-active" : ""}`}>
+            <Link to="/console/account" className="side-me-who" aria-label="Personal account" title="Personal account">
+              <span className="side-avatar" aria-hidden="true">
+                {initials(me.givenName, me.familyName) || "A"}
+              </span>
+              <span className="side-me-text">
+                <span className="side-me-name">{name}</span>
+                <span className="side-me-sub">{ROLE_LABEL[role]} · Staff</span>
+              </span>
+            </Link>
             <SignOutMenu className="icon-button" label="Sign out" align="end">
               <SignOut size={17} />
             </SignOutMenu>

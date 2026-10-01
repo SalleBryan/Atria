@@ -24,7 +24,8 @@ import { Navigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useSession } from "../auth/session";
 import { Checkbox, Field, Notice } from "../components/controls";
-import { Building, Clock, Close, Pencil, Pin, Plus, Shield, Sliders } from "../components/icons";
+import { DeleteAccountDialog } from "../components/DeleteAccountDialog";
+import { Building, Clock, Close, Pencil, Pin, Plus, Shield, Sliders, Trash } from "../components/icons";
 import type { IntakeForm, UnitLocation } from "../patient/data";
 import { FormsTab } from "./IntakeForms";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
@@ -471,12 +472,23 @@ function pagerProps(pages: ReturnType<typeof usePages<unknown>>) {
 const today = () => String((new Date().getUTCDay() + 6) % 7);
 
 function UnitsTab({ found, onSaved }: { found: Overview; onSaved: (message: string) => void }) {
-  const [editing, setEditing] = useState<Unit | null>(null);
+  const [editing, setEditing] = useState<Unit | "new" | null>(null);
+  const [deleting, setDeleting] = useState<Unit | null>(null);
   const box = useRef<HTMLUListElement>(null);
   const size = useRowsThatFit(box, { row: ".settings-unit-row", pitch: 76 });
   const pages = usePages(found.clinics, size, "units");
   return (
-    <section className="glass accounts-card" aria-label="Units">
+    <section className="glass accounts-card settings-units-card" aria-label="Units">
+      <div className="settings-units-toolbar">
+        <div className="settings-units-intro">
+          <h3>Hospital units ({found.clinics.length})</h3>
+          <p>Consultation clinics, departments and specialised care centres.</p>
+        </div>
+        <button type="button" className="staff-primary" onClick={() => setEditing("new")}>
+          <Plus size={16} />
+          Add unit
+        </button>
+      </div>
       <div className="accounts-head settings-units-head" aria-hidden="true">
         <span>UNIT</span>
         <span>SERVICES</span>
@@ -516,6 +528,15 @@ function UnitsTab({ found, onSaved }: { found: Overview; onSaved: (message: stri
                 >
                   <Pencil size={15} />
                 </button>
+                <button
+                  type="button"
+                  className="square-button danger"
+                  aria-label={`Delete ${unit.name}`}
+                  title="Delete"
+                  onClick={() => setDeleting(unit)}
+                >
+                  <Trash size={15} />
+                </button>
               </span>
             </li>
           );
@@ -524,12 +545,30 @@ function UnitsTab({ found, onSaved }: { found: Overview; onSaved: (message: stri
       <Pager noun="units" {...pagerProps(pages)} />
       {editing && (
         <UnitDialog
-          unit={editing}
+          unit={editing === "new" ? null : editing}
           onClose={() => setEditing(null)}
           onDone={(message) => {
             setEditing(null);
             onSaved(message);
           }}
+        />
+      )}
+      {deleting && (
+        <DeleteAccountDialog
+          title={`Delete ${deleting.name}?`}
+          lede="The unit will be removed from the directory. Patients will no longer be able to select it for bookings."
+          points={[
+            "The unit is removed from the directory immediately.",
+            "Active sessions or assigned staff must be reassigned or closed first.",
+          ]}
+          confirmLabel="Delete unit"
+          onConfirm={async () => {
+            await api(`/admin/clinics/${encodeURIComponent(deleting.clinicId)}`, { method: "DELETE" });
+            const name = deleting.name;
+            setDeleting(null);
+            onSaved(`${name} removed.`);
+          }}
+          onClose={() => setDeleting(null)}
         />
       )}
     </section>
@@ -595,18 +634,19 @@ function Dialog({
   );
 }
 
-function UnitDialog({ unit, onClose, onDone }: { unit: Unit; onClose: () => void; onDone: (message: string) => void }) {
-  const [name, setName] = useState(unit.name);
-  const [phone, setPhone] = useState(unit.phone ?? "");
-  const [description, setDescription] = useState(unit.description ?? "");
-  const [services, setServices] = useState<string[]>(unit.services ?? []);
+function UnitDialog({ unit, onClose, onDone }: { unit: Unit | null; onClose: () => void; onDone: (message: string) => void }) {
+  const isNew = unit === null;
+  const [name, setName] = useState(unit?.name ?? "");
+  const [phone, setPhone] = useState(unit?.phone ?? "");
+  const [description, setDescription] = useState(unit?.description ?? "");
+  const [services, setServices] = useState<string[]>(unit?.services ?? []);
   const [adding, setAdding] = useState("");
-  const [week, setWeek] = useState<Week>(() => weekFrom(unit.openingHours, { start: "07:30", end: "15:30" }));
-  const [building, setBuilding] = useState(unit.location?.building ?? "");
-  const [floor, setFloor] = useState(unit.location?.floor ?? "");
-  const [way, setWay] = useState(unit.location?.directions ?? "");
-  const [lat, setLat] = useState(String(unit.location?.lat ?? ""));
-  const [lng, setLng] = useState(String(unit.location?.lng ?? ""));
+  const [week, setWeek] = useState<Week>(() => weekFrom(unit?.openingHours, { start: "07:30", end: "15:30" }));
+  const [building, setBuilding] = useState(unit?.location?.building ?? "");
+  const [floor, setFloor] = useState(unit?.location?.floor ?? "");
+  const [way, setWay] = useState(unit?.location?.directions ?? "");
+  const [lat, setLat] = useState(String(unit?.location?.lat ?? ""));
+  const [lng, setLng] = useState(String(unit?.location?.lng ?? ""));
   const [locating, setLocating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -655,34 +695,43 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit; onClose: () => void
     setBusy(true);
     setFailure(null);
     try {
-      await api(`/admin/clinics/${encodeURIComponent(unit.clinicId)}`, {
-        method: "PATCH",
-        json: {
-          name: name.trim(),
-          phone: phone.replace(/\s/g, ""),
-          description: description.trim(),
-          services,
-          openingHours: daysOf(week),
-          location,
-        },
-      });
-      onDone(`${name.trim()} saved. Patients see the change now.`);
+      const payload = {
+        name: name.trim(),
+        phone: phone.replace(/\s/g, ""),
+        description: description.trim(),
+        services,
+        openingHours: daysOf(week),
+        location,
+      };
+      if (isNew) {
+        await api("/admin/clinics", {
+          method: "POST",
+          json: payload,
+        });
+        onDone(`${name.trim()} added. Patients see the unit now.`);
+      } else {
+        await api(`/admin/clinics/${encodeURIComponent(unit.clinicId)}`, {
+          method: "PATCH",
+          json: payload,
+        });
+        onDone(`${name.trim()} saved. Patients see the change now.`);
+      }
     } catch (caught) {
-      setFailure(`${sentence(caught instanceof Error ? caught.message : "The unit could not be saved")} Nothing was changed.`);
+      setFailure(`${sentence(caught instanceof Error ? caught.message : isNew ? "The unit could not be created" : "The unit could not be saved")} Nothing was changed.`);
       setBusy(false);
     }
   }
 
   return (
     <Dialog
-      title={unit.name}
-      lede="What patients read about the unit, and when it is open. Changes are recorded in the audit log."
+      title={isNew ? "Add hospital unit" : unit.name}
+      lede={isNew ? "Add a new consultation clinic, department or service line for the hospital." : "What patients read about the unit, and when it is open. Changes are recorded in the audit log."}
       icon={<Building size={22} />}
       busy={busy}
       onClose={onClose}
       formId="unit-form"
       submit={submit}
-      submitLabel="Save unit"
+      submitLabel={isNew ? "Add unit" : "Save unit"}
       canSubmit={Boolean(name.trim()) && pointOk}
     >
       <Field label="Name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />

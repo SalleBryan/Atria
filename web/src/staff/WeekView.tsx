@@ -114,7 +114,7 @@ export function WeekView() {
   const anchor = isDate(params.get("date")) ? (params.get("date") as string) : today();
   const monday = mondayOf(anchor);
   const sunday = shiftDate(monday, 6);
-  const clinicId = me?.clinicId ?? params.get("clinic") ?? data?.clinics[0]?.clinicId;
+  const clinicId = me?.clinicId ?? params.get("clinic") ?? (role === "TENANT_ADMIN" ? "all" : data?.clinics[0]?.clinicId);
   const clinic = data?.clinics.find((c) => c.clinicId === clinicId);
   const chosen = own ? me?.staffId ?? null : params.get("clinician");
 

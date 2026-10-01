@@ -336,6 +336,34 @@ class TestRunningTheQueue:
         assert windows[second["appointmentId"]] > second["arrivalWindowStart"]
         assert (live["waiting"], live["plannedPerHour"]) == (2, 4.0)
 
+    def test_clinician_in_unit_reads_queue_and_patient_is_forbidden(self, opd):
+        _repo, clinician = opd
+        session = body_of(publish(rostered=1))
+        ticket(session["sessionId"])
+        doctor = {
+            "personId": "p-doc",
+            "tenantId": TENANT,
+            "roles": "CLINICIAN",
+            "staffId": clinician,
+            "clinicId": DOUALA,
+        }
+        res = call(
+            "GET",
+            "/sessions/{id}/queue",
+            context=doctor,
+            path={"id": session["sessionId"]},
+        )
+        assert res["statusCode"] == 200
+        assert body_of(res)["waiting"] == 1
+
+        patient_res = call(
+            "GET",
+            "/sessions/{id}/queue",
+            context=patient_context(),
+            path={"id": session["sessionId"]},
+        )
+        assert patient_res["statusCode"] == 403
+
     def test_close_measures_and_the_next_session_learns(self, opd):
         _repo, clinician = opd
         session = body_of(publish(rostered=1))

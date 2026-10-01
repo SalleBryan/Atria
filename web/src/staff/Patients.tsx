@@ -21,19 +21,21 @@ import { type CountryCode, HOME_COUNTRY, isMobile, normalisePhone } from "../aut
 import { useSession } from "../auth/session";
 import { BirthDateField, birthDate } from "../components/BirthDateField";
 import { Checkbox, Field, Notice } from "../components/controls";
-import { ArrowLeft, Calendar, ChevronRight, Close, Plus, Search, Shield, Trash, Undo, User } from "../components/icons";
+import { ArrowLeft, Calendar, ChevronRight, Close, Plus, Search, Shield, Trash, Undo, Upload, User } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { LoadingPane } from "../components/LoadingPane";
 import { LoadingRow } from "../components/LoadingPane";
 import { PhoneField } from "../components/PhoneField";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
+import { SelectMenu } from "../components/Pickers";
 import { MATRIX } from "../generated/permissions";
 import { clock, initials, languageName, type Appointment } from "../patient/data";
 import { doctor, roleOf, useStaffData } from "./data";
-import { DeleteAccountDialog, daysLeft, RestoreDialog } from "../components/DeleteAccountDialog";
+import { BatchRestoreDialog, DeleteAccountDialog, daysLeft, RestoreDialog } from "../components/DeleteAccountDialog";
 import { CHANNEL, sentence, staffState } from "./labels";
 import { Snackbar } from "./Snackbar";
 import { forEach, SelectBox, SelectionBar, useSelection } from "../components/Selection";
+import { BatchPatientImport } from "./BatchPatientImport";
 
 export interface RegisterEntry {
   patientProfileId: string;
@@ -87,7 +89,10 @@ const can = (role: string, permission: keyof typeof MATRIX) => (MATRIX[permissio
  * Searched as the desk types, a beat after they pause. With `everyone`, no
  * search lists the whole register, newest first (2026-09-28).
  */
-export function useRegisterSearch(query: string, { everyone = false, fresh = 0 }: { everyone?: boolean; fresh?: number } = {}) {
+export function useRegisterSearch(
+  query: string,
+  { everyone = false, fresh = 0, sort = "date_desc" }: { everyone?: boolean; fresh?: number; sort?: string } = {},
+) {
   const [results, setResults] = useState<RegisterEntry[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -101,10 +106,11 @@ export function useRegisterSearch(query: string, { everyone = false, fresh = 0 }
     }
     let live = true;
     setBusy(true);
+    const sortParam = `sort=${encodeURIComponent(sort)}`;
     const later = window.setTimeout(() => {
       (listing
-        ? apiAll<{ results: RegisterEntry[]; nextCursor?: string | null }>("/patients", "results")
-        : api<{ results: RegisterEntry[] }>(`/patients?q=${encodeURIComponent(words)}`)
+        ? apiAll<{ results: RegisterEntry[]; nextCursor?: string | null }>(`/patients?${sortParam}`, "results")
+        : api<{ results: RegisterEntry[] }>(`/patients?q=${encodeURIComponent(words)}&${sortParam}`)
       )
         .then((found) => {
           if (!live) return;
@@ -120,7 +126,7 @@ export function useRegisterSearch(query: string, { everyone = false, fresh = 0 }
       live = false;
       window.clearTimeout(later);
     };
-  }, [query, everyone, fresh]);
+  }, [query, everyone, fresh, sort]);
   return { results, busy, failure };
 }
 
@@ -129,20 +135,26 @@ export function Patients() {
   const role = state.status === "signed-in" ? roleOf(state.me) : "RECEPTIONIST";
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<"date_desc" | "date_asc" | "name_asc" | "name_desc">("date_desc");
   const [fresh, setFresh] = useState(0);
-  const { results, busy, failure } = useRegisterSearch(query, { everyone: true, fresh });
+  const { results, busy, failure } = useRegisterSearch(query, { everyone: true, fresh, sort });
   const [adding, setAdding] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
   const rowsBox = useRef<HTMLUListElement>(null);
   const size = useRowsThatFit(rowsBox, { row: ".patient-row", pitch: 76 });
-  const pages = usePages(results ?? [], size, query);
+  const pages = usePages(results ?? [], size, `${query}|${sort}`);
   const creates = can(role, "patient.create");
   // An administrator may delete patients' accounts, several at once from the
-  // page shown; deleted ones wait out their 30 days and are not chosen again.
+  // page shown; deleted ones wait out their 30 days and can be restored.
   const deletes = role === "TENANT_ADMIN";
   const [batch, setBatch] = useState(false);
-  const selectable = deletes ? pages.shown.filter((p) => !p.deletionPurgeAt).map((p) => p.patientProfileId) : [];
-  const selection = useSelection(selectable, `${pages.page}|${query}`);
+  const [batchRestore, setBatchRestore] = useState(false);
+  const [batchImporting, setBatchImporting] = useState(false);
+  const selectable = deletes ? pages.shown.map((p) => p.patientProfileId) : [];
+  const selection = useSelection(selectable, `${pages.page}|${query}|${sort}`);
+  const selectedPatients = pages.shown.filter((p) => selection.has(p.patientProfileId));
+  const hasActiveSelected = selectedPatients.some((p) => !p.deletionPurgeAt);
+  const hasDeletedSelected = selectedPatients.some((p) => p.deletionPurgeAt);
 
   return (
     <div className="accounts-page patients-page">
@@ -152,10 +164,18 @@ export function Patients() {
           <p>The hospital's register. Search by name, mobile number or patient number.</p>
         </div>
         {creates && (
-          <button type="button" className="staff-primary accounts-new" onClick={() => setAdding(true)}>
-            <Plus size={16} />
-            New patient
-          </button>
+          <div className="accounts-actions">
+            {role === "TENANT_ADMIN" && (
+              <button type="button" className="outline-button accounts-new" onClick={() => setBatchImporting(true)}>
+                <Upload size={16} />
+                Import Excel
+              </button>
+            )}
+            <button type="button" className="staff-primary accounts-new" onClick={() => setAdding(true)}>
+              <Plus size={16} />
+              New patient
+            </button>
+          </div>
         )}
       </header>
 
@@ -173,8 +193,26 @@ export function Patients() {
           />
           {busy && <LoadingIndicator size={18} label="Searching" />}
         </label>
+        <SelectMenu
+          label="Sort by"
+          value={sort}
+          options={[
+            { id: "date_desc", label: "Newest first" },
+            { id: "date_asc", label: "Oldest first" },
+            { id: "name_asc", label: "Name (A to Z)" },
+            { id: "name_desc", label: "Name (Z to A)" },
+          ]}
+          onChange={(val) => setSort(val as "date_desc" | "date_asc" | "name_asc" | "name_desc")}
+          width={180}
+        />
         {/* Beside the search, so the list keeps its height and its page. */}
-        <SelectionBar count={selection.count} noun={["patient", "patients"]} onDelete={() => setBatch(true)} onClear={selection.clear} />
+        <SelectionBar
+          count={selection.count}
+          noun={["patient", "patients"]}
+          onDelete={hasActiveSelected && !hasDeletedSelected ? () => setBatch(true) : undefined}
+          onRestore={hasDeletedSelected && !hasActiveSelected ? () => setBatchRestore(true) : undefined}
+          onClear={selection.clear}
+        />
       </div>
 
       <section className="glass accounts-card" aria-label="Patients found">
@@ -189,10 +227,24 @@ export function Patients() {
                 disabled={!selectable.length}
                 onChange={selection.toggleAll}
               />
-              <span aria-hidden="true">PATIENT</span>
+              <button
+                type="button"
+                className="accounts-head-sort-btn"
+                onClick={() => setSort((s) => (s === "name_asc" ? "name_desc" : "name_asc"))}
+                title="Sort by patient name"
+              >
+                PATIENT {sort === "name_asc" ? "↑" : sort === "name_desc" ? "↓" : ""}
+              </button>
             </span>
           ) : (
-            <span aria-hidden="true">PATIENT</span>
+            <button
+              type="button"
+              className="accounts-head-sort-btn"
+              onClick={() => setSort((s) => (s === "name_asc" ? "name_desc" : "name_asc"))}
+              title="Sort by patient name"
+            >
+              PATIENT {sort === "name_asc" ? "↑" : sort === "name_desc" ? "↓" : ""}
+            </button>
           )}
           <span aria-hidden="true">MOBILE</span>
           <span aria-hidden="true">AGE</span>
@@ -285,17 +337,18 @@ export function Patients() {
       )}
       {batch && (
         <DeleteAccountDialog
-          title={`Delete ${selection.count} ${selection.count === 1 ? "patient's account" : "patients' accounts"}?`}
+          title={`Delete ${selectedPatients.filter((p) => !p.deletionPurgeAt).length} ${selectedPatients.filter((p) => !p.deletionPurgeAt).length === 1 ? "patient's account" : "patients' accounts"}?`}
           lede="Each is signed out and cannot sign in, and the front desk no longer finds them."
           points={[
             "Their upcoming visits are cancelled by the institution, so they keep their full entitlement.",
             "Each can be restored from their record for 30 days.",
             "After 30 days their details and sign-ins are erased; past visits stay without their names.",
           ]}
-          confirmLabel={`Delete ${selection.count} ${selection.count === 1 ? "account" : "accounts"}`}
+          confirmLabel={`Delete ${selectedPatients.filter((p) => !p.deletionPurgeAt).length} ${selectedPatients.filter((p) => !p.deletionPurgeAt).length === 1 ? "account" : "accounts"}`}
           onClose={() => setBatch(false)}
           onConfirm={async () => {
-            const result = await forEach([...selection.chosen], (id) =>
+            const activeIds = selectedPatients.filter((p) => !p.deletionPurgeAt).map((p) => p.patientProfileId);
+            const result = await forEach(activeIds, (id) =>
               api(`/admin/patients/${encodeURIComponent(id)}`, { method: "DELETE" }),
             );
             setBatch(false);
@@ -306,6 +359,37 @@ export function Patients() {
                 ? `${result.done} deleted; ${result.failed} could not be. Upcoming visits were cancelled.`
                 : `${result.done} ${result.done === 1 ? "account" : "accounts"} deleted. Upcoming visits were cancelled.`,
             );
+          }}
+        />
+      )}
+      {batchRestore && (
+        <BatchRestoreDialog
+          count={selectedPatients.filter((p) => p.deletionPurgeAt).length}
+          noun="patient"
+          onClose={() => setBatchRestore(false)}
+          onConfirm={async () => {
+            const deletedIds = selectedPatients.filter((p) => p.deletionPurgeAt).map((p) => p.patientProfileId);
+            const result = await forEach(deletedIds, (id) =>
+              api(`/admin/patients/${encodeURIComponent(id)}/restore`, { method: "POST" }),
+            );
+            setBatchRestore(false);
+            selection.clear();
+            setFresh((n) => n + 1);
+            setSaid(
+              result.failed
+                ? `${result.done} restored; ${result.failed} could not be.`
+                : `${result.done} ${result.done === 1 ? "patient" : "patients"} restored. They can sign in and book again.`,
+            );
+          }}
+        />
+      )}
+      {batchImporting && (
+        <BatchPatientImport
+          onClose={() => setBatchImporting(false)}
+          onDone={(count) => {
+            setBatchImporting(false);
+            setFresh((n) => n + 1);
+            setSaid(`${count} ${count === 1 ? "patient" : "patients"} registered.`);
           }}
         />
       )}

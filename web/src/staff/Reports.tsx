@@ -1,17 +1,13 @@
 /**
- * The weekly report (FR-MSR-01, FR-MSR-02, FR-MSR-04, FR-MSR-07).
+ * Clinical Operations Reports (FR-MSR-01, FR-MSR-02, FR-MSR-04, FR-MSR-07).
  *
- * A unit manager reads their unit's week; an administrator every unit's, or
- * one. The week's visits by what became of them, attendance by how patients
+ * A unit manager reads their unit's report; an administrator every unit's, or
+ * one. The period's visits by what became of them, attendance by how patients
  * booked and by what became of their reminder, and the fee ledger's entries
- * as a record of entitlement. Weeks go back to the first day of use.
+ * as a record of entitlement.
  *
- * It says what happened and nothing it cannot know: no figure claims what
- * reminders saved in money (FR-MSR-04), and the ledger is a record, not money
- * moved (FR-MSR-07).
- *
- * Built from the console's glass cards, the Staff accounts header, the
- * platform's picker, and the roster's load bars for rates.
+ * Supports Day, Week, Month, and Year granularities, Material 3 Expressive
+ * visual representations, and direct export to PDF, Excel (.xlsx), and CSV.
  */
 
 import { type CSSProperties, useEffect, useState } from "react";
@@ -20,9 +16,11 @@ import { Navigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
-import { ChevronLeft, ChevronRight, Shield } from "../components/icons";
+import { ChevronLeft, ChevronRight, Download, Shield } from "../components/icons";
 import { LoadingPane } from "../components/LoadingPane";
 import { SelectMenu } from "../components/Pickers";
+import { TENANT } from "../tenant";
+import { exportReportCsv, exportReportExcel, exportReportPdf } from "../utils/reportExport";
 import { roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
 
@@ -55,22 +53,32 @@ interface UnitWeek extends Figures {
   clinicId: string;
   clinicName: string | null;
   week: string;
+  from?: string;
   to: string;
+  granularity?: string;
   firstDay: string | null;
 }
 
 interface HospitalWeek extends Figures {
   week: string;
+  from?: string;
   to: string;
+  granularity?: string;
   firstDay: string | null;
   units: UnitWeek[];
 }
+
+type Granularity = "day" | "week" | "month" | "year";
 
 const CHANNEL: Record<string, string> = { ONLINE: "Online", WALK_IN: "At the desk", PHONE: "By phone", REFERRAL: "Referred" };
 const REMINDER: Record<string, string> = { SENT: "Reminder sent", FAILED: "Reminder failed", NOT_SENT: "No reminder" };
 const ENTITLEMENT: Record<string, string> = { FULL: "Full entitlement", PARTIAL: "Partial entitlement", NONE: "No entitlement" };
 
 const EVERY = "every";
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 function monday(date: Date): string {
   const day = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -82,23 +90,63 @@ const percent = (rate: number | null | undefined) => (rate == null ? "Not yet" :
 const money = (amount: number, currency: string) => `${new Intl.NumberFormat("en-GB").format(amount)} ${currency}`;
 const range = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
 
+function stepDate(current: string, gran: Granularity, delta: number): string {
+  const d = new Date(`${current}T12:00:00Z`);
+  if (gran === "day") {
+    d.setUTCDate(d.getUTCDate() + delta);
+  } else if (gran === "week") {
+    d.setUTCDate(d.getUTCDate() + delta * 7);
+  } else if (gran === "month") {
+    d.setUTCMonth(d.getUTCMonth() + delta);
+  } else if (gran === "year") {
+    d.setUTCFullYear(d.getUTCFullYear() + delta);
+  }
+  return d.toISOString().slice(0, 10);
+}
+
+function formatPeriod(current: string, gran: Granularity): string {
+  const d = new Date(`${current}T12:00:00Z`);
+  if (gran === "day") {
+    return new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(d);
+  }
+  if (gran === "week") {
+    const mon = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7)));
+    const sun = new Date(Date.UTC(mon.getUTCFullYear(), mon.getUTCMonth(), mon.getUTCDate() + 6));
+    return `${range.format(mon)} to ${range.format(sun)}`;
+  }
+  if (gran === "month") {
+    return new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }).format(d);
+  }
+  return `Year ${d.getUTCFullYear()}`;
+}
+
 export function Reports() {
   const { state } = useSession();
   const { state: directory } = useStaffData();
   const me = state.status === "signed-in" ? state.me : undefined;
   const role = me ? roleOf(me) : "RECEPTIONIST";
   const admin = role === "TENANT_ADMIN";
-  const thisWeek = monday(new Date());
-  const [week, setWeek] = useState(thisWeek);
+
+  const [granularity, setGranularity] = useState<Granularity>("week");
+  const [date, setDate] = useState(() => (granularity === "week" ? monday(new Date()) : todayIso()));
   const [unit, setUnit] = useState<string>(admin ? EVERY : (me?.clinicId ?? ""));
   const [found, setFound] = useState<UnitWeek | HospitalWeek | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const [exportMenu, setExportMenu] = useState(false);
 
   useEffect(() => {
     if (!unit) return;
     let live = true;
     setFound(null);
-    const path = unit === EVERY ? `/reports?week=${week}` : `/clinics/${encodeURIComponent(unit)}/report?week=${week}`;
+    const isWeek = granularity === "week";
+    const path =
+      unit === EVERY
+        ? isWeek
+          ? `/reports?week=${encodeURIComponent(date)}`
+          : `/reports?date=${encodeURIComponent(date)}&granularity=${granularity}`
+        : isWeek
+          ? `/clinics/${encodeURIComponent(unit)}/report?week=${encodeURIComponent(date)}`
+          : `/clinics/${encodeURIComponent(unit)}/report?date=${encodeURIComponent(date)}&granularity=${granularity}`;
     api<UnitWeek | HospitalWeek>(path)
       .then((data) => {
         if (!live) return;
@@ -109,51 +157,149 @@ export function Reports() {
     return () => {
       live = false;
     };
-  }, [unit, week]);
+  }, [unit, date, granularity]);
 
   if (state.status !== "signed-in") return null;
   if (role !== "TENANT_ADMIN" && role !== "CLINIC_MANAGER") return <Navigate to="/console" replace />;
 
   const clinics = directory.status === "ready" ? directory.data.clinics : [];
-  const step = (days: number) => setWeek(new Date(Date.parse(`${week}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10));
-  const firstWeek = found?.firstDay ? monday(new Date(`${found.firstDay}T12:00:00Z`)) : null;
+  const unitName = unit === EVERY ? "All hospital units" : clinics.find((c) => c.clinicId === unit)?.name ?? unit;
+  const periodLabel = formatPeriod(date, granularity);
+
+  const step = (delta: number) => setDate((curr) => stepDate(curr, granularity, delta));
+  const firstDay = found?.firstDay ?? "2026-09-19";
+  const isAtStart = date <= firstDay;
+  const isAtEnd = date >= todayIso();
+
   const hospital = found && "units" in found ? found : null;
   const one = found && !("units" in found) ? found : null;
+
+  const attendanceRate = found
+    ? one
+      ? one.attendance
+      : found.attended + found.noShow
+        ? found.attended / (found.attended + found.noShow)
+        : null
+    : null;
 
   return (
     <div className="accounts-page reports-page">
       <header className="accounts-top">
         <div>
-          <h1>Weekly report</h1>
-          <p>What happened to the week's visits, and what the fee ledger recorded.</p>
+          <h1>
+            {granularity === "day"
+              ? "Daily report"
+              : granularity === "month"
+                ? "Monthly report"
+                : granularity === "year"
+                  ? "Annual report"
+                  : "Weekly report"}
+          </h1>
+          <p>Visits disposition, attendance rate and fee ledger summary.</p>
         </div>
+
         <div className="reports-controls">
+          {/* Material 3 Expressive Granularity Selector */}
+          <div className="overview-segmented-control reports-granularity-control" role="tablist" aria-label="Timeframe granularity">
+            {(["day", "week", "month", "year"] as const).map((g) => (
+              <button
+                key={g}
+                type="button"
+                role="tab"
+                aria-selected={granularity === g}
+                className={`overview-segment-btn ${granularity === g ? "active" : ""}`}
+                onClick={() => {
+                  setGranularity(g);
+                  if (g === "week") {
+                    setDate((curr) => monday(new Date(`${curr}T12:00:00Z`)));
+                  }
+                }}
+              >
+                {g === "day" ? "Day" : g === "week" ? "Week" : g === "month" ? "Month" : "Year"}
+              </button>
+            ))}
+          </div>
+
           {admin && (
             <SelectMenu
               label="Unit"
               value={unit}
-              width={300}
+              width={260}
               options={[{ id: EVERY, label: "Every unit" }, ...clinics.map((c) => ({ id: c.clinicId, label: c.name }))]}
               onChange={setUnit}
             />
           )}
+
           <div className="changes-week">
             <button
               type="button"
               className="square-button"
-              aria-label="Previous week"
-              disabled={Boolean(firstWeek && week <= firstWeek)}
-              onClick={() => step(-7)}
+              aria-label="Previous period"
+              disabled={isAtStart}
+              onClick={() => step(-1)}
             >
               <ChevronLeft size={16} />
             </button>
-            <span>
-              {range.format(new Date(`${week}T12:00:00Z`))} to {range.format(new Date(Date.parse(`${week}T12:00:00Z`) + 6 * 86400000))}
-            </span>
-            <button type="button" className="square-button" aria-label="Next week" disabled={week >= thisWeek} onClick={() => step(7)}>
+            <span>{periodLabel}</span>
+            <button
+              type="button"
+              className="square-button"
+              aria-label="Next period"
+              disabled={isAtEnd}
+              onClick={() => step(1)}
+            >
               <ChevronRight size={16} />
             </button>
           </div>
+
+          {/* Download Action Menu */}
+          {found && (
+            <div className="reports-download-dropdown">
+              <button
+                type="button"
+                className="outline-button reports-download-btn"
+                onClick={() => setExportMenu((m) => !m)}
+                aria-expanded={exportMenu}
+              >
+                <Download size={15} />
+                Download report
+              </button>
+              {exportMenu && (
+                <div className="reports-export-menu glass" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setExportMenu(false);
+                      exportReportPdf(found, periodLabel, unitName, TENANT.name);
+                    }}
+                  >
+                    Download PDF (.pdf)
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setExportMenu(false);
+                      exportReportExcel(found, periodLabel, unitName);
+                    }}
+                  >
+                    Download Excel (.xlsx)
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setExportMenu(false);
+                      exportReportCsv(found, periodLabel);
+                    }}
+                  >
+                    Download CSV (.csv)
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
@@ -162,7 +308,8 @@ export function Reports() {
         <LoadingPane label="Loading the report" />
       ) : (
         <>
-          <section className="reports-tiles" aria-label="The week in numbers">
+          {/* Top KPI Tiles */}
+          <section className="reports-tiles" aria-label={granularity === "week" ? "The week in numbers" : "In numbers"}>
             {(
               [
                 ["Booked", found.booked],
@@ -179,9 +326,74 @@ export function Reports() {
             ))}
             <div className="glass reports-tile reports-tile-accent" style={{ "--i": 5 } as CSSProperties}>
               <span className="reports-tile-label">Attendance</span>
-              <span className="reports-tile-value">
-                {percent(one ? one.attendance : found.attended + found.noShow ? found.attended / (found.attended + found.noShow) : null)}
+              <span className="reports-tile-value">{percent(attendanceRate)}</span>
+            </div>
+          </section>
+
+          {/* Material 3 Expressive Visual Distribution Meter */}
+          <section className="glass reports-visual-section" aria-label="Visit outcome visual analysis">
+            <div className="reports-visual-top">
+              <div>
+                <h3>Visit Disposition Breakdown</h3>
+                <p>Proportional outcomes across registered appointments in this period.</p>
+              </div>
+              <div className="reports-visual-rate-pill">
+                <span>Overall Attendance</span>
+                <strong>{percent(attendanceRate)}</strong>
+              </div>
+            </div>
+
+            <div
+              className="overview-m3-meter reports-outcome-meter"
+              role="img"
+              aria-label={`Outcomes breakdown: ${found.attended} attended, ${found.noShow} no-show, ${found.cancelled} cancelled`}
+            >
+              <span
+                className="overview-m3-meter-seg attended"
+                style={{ width: `${Math.max(3, (found.attended / Math.max(1, found.booked)) * 100)}%` }}
+                title={`Attended: ${found.attended}`}
+              />
+              <span
+                className="overview-m3-meter-seg noshow"
+                style={{ width: `${Math.max(2, (found.noShow / Math.max(1, found.booked)) * 100)}%` }}
+                title={`No-show: ${found.noShow}`}
+              />
+              <span
+                className="overview-m3-meter-seg cancelled"
+                style={{ width: `${Math.max(2, (found.cancelled / Math.max(1, found.booked)) * 100)}%` }}
+                title={`Cancelled: ${found.cancelled}`}
+              />
+              {found.lateCancelled > 0 && (
+                <span
+                  className="overview-m3-meter-seg late"
+                  style={{
+                    width: `${Math.max(2, (found.lateCancelled / Math.max(1, found.booked)) * 100)}%`,
+                    background: "linear-gradient(90deg, #ea580c, #c2410c)",
+                  }}
+                  title={`Late cancelled: ${found.lateCancelled}`}
+                />
+              )}
+            </div>
+
+            <div className="overview-expressive-kpis reports-outcome-pills">
+              <span className="overview-m3-pill attended">
+                <i style={{ width: 8, height: 8, borderRadius: 99, background: "#10b981", display: "inline-block" }} />
+                <strong>{found.attended}</strong> Attended ({Math.round((found.attended / Math.max(1, found.booked)) * 100)}%)
               </span>
+              <span className="overview-m3-pill noshow">
+                <i style={{ width: 8, height: 8, borderRadius: 99, background: "#f43f5e", display: "inline-block" }} />
+                <strong>{found.noShow}</strong> No-shows ({Math.round((found.noShow / Math.max(1, found.booked)) * 100)}%)
+              </span>
+              <span className="overview-m3-pill cancelled">
+                <i style={{ width: 8, height: 8, borderRadius: 99, background: "#f59e0b", display: "inline-block" }} />
+                <strong>{found.cancelled}</strong> Cancelled ({Math.round((found.cancelled / Math.max(1, found.booked)) * 100)}%)
+              </span>
+              {found.lateCancelled > 0 && (
+                <span className="overview-m3-pill" style={{ background: "rgba(234, 88, 12, 0.12)", color: "#c2410c" }}>
+                  <i style={{ width: 8, height: 8, borderRadius: 99, background: "#ea580c", display: "inline-block" }} />
+                  <strong>{found.lateCancelled}</strong> Late ({Math.round((found.lateCancelled / Math.max(1, found.booked)) * 100)}%)
+                </span>
+              )}
             </div>
           </section>
 
@@ -250,7 +462,7 @@ export function Reports() {
                       </dl>
                     </>
                   ) : (
-                    <p className="today-empty">No visit closed this week yet.</p>
+                    <p className="today-empty">No visits closed in this period yet.</p>
                   )}
                 </section>
               </div>
@@ -294,7 +506,7 @@ function RateCard({ title, note, rows }: { title: string; note?: string; rows: (
           ))}
         </ul>
       ) : (
-        <p className="today-empty">No visits this week.</p>
+        <p className="today-empty">No visits in this period.</p>
       )}
     </section>
   );

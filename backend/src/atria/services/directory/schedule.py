@@ -30,6 +30,7 @@ from atria.core.errors import Invalid, NotFound
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
 from atria.data.booking import Booking
+from atria.data.catalogue import Catalogue
 from atria.data.people import People
 from atria.http import paging, requests
 from atria.http.views import appointment_view
@@ -129,12 +130,21 @@ def clinic_day(
 ) -> dict[str, Any]:
     """Every appointment in one clinic on one of its dates, or on up to a week of them."""
     clinic_id = requests.path_parameter(event, "id")
-    data.clinic(principal.tenant_id, clinic_id)
-    permissions.require(
-        principal,
-        "appointment.read",
-        Subject(tenant_id=principal.tenant_id, clinic_id=clinic_id),
-    )
+    if clinic_id == "all":
+        permissions.require(
+            principal,
+            "appointment.read",
+            Subject(tenant_id=principal.tenant_id),
+        )
+        clinics = Catalogue(data.repository).clinics(principal.tenant_id)
+    else:
+        data.clinic(principal.tenant_id, clinic_id)
+        permissions.require(
+            principal,
+            "appointment.read",
+            Subject(tenant_id=principal.tenant_id, clinic_id=clinic_id),
+        )
+        clinics = [{"clinicId": clinic_id}]
 
     zone = data.zone(principal.tenant_id)
     raw_from = requests.query_parameter(event, "from")
@@ -150,11 +160,13 @@ def clinic_day(
             )
         found = [
             appointment
+            for c in clinics
             for n in range((last - first).days + 1)
             for appointment in data.clinic_day(
-                principal.tenant_id, clinic_id, (first + dt.timedelta(days=n)).isoformat()
+                principal.tenant_id, str(c["clinicId"]), (first + dt.timedelta(days=n)).isoformat()
             )
         ]
+        found.sort(key=lambda a: str(a.get("startAt", "")))
         shown, more = paging.page(found, event)
         return {
             "clinicId": clinic_id,
@@ -168,7 +180,12 @@ def clinic_day(
         }
     raw = requests.query_parameter(event, "date")
     day = schedule.parse_date(raw, name="date") if raw else data.now().astimezone(zone).date()
-    found = data.clinic_day(principal.tenant_id, clinic_id, day.isoformat())
+    found = [
+        appointment
+        for c in clinics
+        for appointment in data.clinic_day(principal.tenant_id, str(c["clinicId"]), day.isoformat())
+    ]
+    found.sort(key=lambda a: str(a.get("startAt", "")))
     shown, more = paging.page(found, event)
     return {
         "clinicId": clinic_id,

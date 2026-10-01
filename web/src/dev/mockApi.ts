@@ -437,8 +437,9 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   if (method === "GET" && day && url.searchParams.get("from")) {
     const from = url.searchParams.get("from") as string;
     const to = url.searchParams.get("to") ?? from;
+    const isAll = day[1] === "all";
     const found = appointments
-      .filter((a) => a.clinicId === day[1] && clinicDate(a.startAt) >= from && clinicDate(a.startAt) <= to)
+      .filter((a) => (isAll || a.clinicId === day[1]) && clinicDate(a.startAt) >= from && clinicDate(a.startAt) <= to)
       .sort(byStart);
     return json(
       200,
@@ -448,7 +449,8 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   }
   if (method === "GET" && day) {
     const date = url.searchParams.get("date") ?? clinicDate(new Date());
-    const found = appointments.filter((a) => a.clinicId === day[1] && clinicDate(a.startAt) === date).sort(byStart);
+    const isAll = day[1] === "all";
+    const found = appointments.filter((a) => (isAll || a.clinicId === day[1]) && clinicDate(a.startAt) === date).sort(byStart);
     return json(
       200,
       { clinicId: day[1], date, timezone: "Africa/Douala", count: found.length, appointments: found, patients: named(found) },
@@ -927,9 +929,12 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   }
   const unitReport = path.match(/^\/clinics\/([^/]+)\/report$/);
   if (method === "GET" && (unitReport || path === "/reports")) {
-    const week = url.searchParams.get("week") ?? new Date().toISOString().slice(0, 10);
+    const rawDate = url.searchParams.get("date") ?? url.searchParams.get("week") ?? new Date().toISOString().slice(0, 10);
+    const granularity = (url.searchParams.get("granularity") ?? "week").toLowerCase();
+    const mult = granularity === "day" ? 0.2 : granularity === "month" ? 4.2 : granularity === "year" ? 52 : 1;
     const figures = (seed: number) => {
-      const booked = 40 + ((seed * 17) % 60);
+      const base = 40 + ((seed * 17) % 60);
+      const booked = Math.max(5, Math.round(base * mult));
       const attended = Math.round(booked * 0.71);
       const noShow = Math.round(booked * 0.09);
       const cancelled = Math.round(booked * 0.08);
@@ -971,28 +976,42 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     };
     if (unitReport) {
       const unit = clinics.find((c) => c.clinicId === unitReport[1]);
-      return json(200, { clinicId: unitReport[1], clinicName: unit?.name ?? null, week, to: week, firstDay: "2026-09-19", ...figures(clinics.indexOf(unit!)) }, 400);
+      return json(200, { clinicId: unitReport[1], clinicName: unit?.name ?? null, week: rawDate, from: rawDate, to: rawDate, granularity, firstDay: "2026-09-19", ...figures(clinics.indexOf(unit!)) }, 300);
     }
-    const units = clinics.map((c, i) => ({ clinicId: c.clinicId, clinicName: c.name, week, to: week, firstDay: "2026-09-19", ...figures(i) }));
+    const units = clinics.map((c, i) => ({ clinicId: c.clinicId, clinicName: c.name, week: rawDate, from: rawDate, to: rawDate, granularity, firstDay: "2026-09-19", ...figures(i) }));
     const sum = (key: "booked" | "attended" | "noShow" | "cancelled" | "lateCancelled") => units.reduce((n, u) => n + u[key], 0);
     return json(
       200,
-      { week, to: week, firstDay: "2026-09-19", units, booked: sum("booked"), attended: sum("attended"), noShow: sum("noShow"), cancelled: sum("cancelled"), lateCancelled: sum("lateCancelled") },
-      400,
+      { week: rawDate, from: rawDate, to: rawDate, granularity, firstDay: "2026-09-19", units, booked: sum("booked"), attended: sum("attended"), noShow: sum("noShow"), cancelled: sum("cancelled"), lateCancelled: sum("lateCancelled") },
+      300,
     );
   }
   if (method === "GET" && path === "/patients") {
     const q = (url.searchParams.get("q") ?? "").trim();
-    if (!q) return json(200, { q, count: register.length, nextCursor: null, results: [...register].reverse() }, 260);
-    const digits = q.replace(/[\s().-]/g, "");
-    const found = register.filter((p) =>
-      /^\+?\d{4,}$/.test(digits)
-        ? String(p.phoneE164).includes(digits.replace(/^\+/, ""))
-        : /^[a-z]{1,4}-?\d{2,}$/i.test(q)
-          ? String(p.patientNumber).replace("-", "").toLowerCase().startsWith(q.replace("-", "").toLowerCase())
-          : fold(`${p.familyName} ${p.givenName}`).startsWith(fold(q)) || fold(`${p.givenName} ${p.familyName}`).startsWith(fold(q)),
-    );
-    return json(200, { q, count: found.length, results: found.slice(0, 20) }, 260);
+    const sort = url.searchParams.get("sort") ?? "date_desc";
+    let list: typeof register;
+    if (!q) {
+      list = [...register];
+    } else {
+      const digits = q.replace(/[\s().-]/g, "");
+      list = register.filter((p) =>
+        /^\+?\d{4,}$/.test(digits)
+          ? String(p.phoneE164).includes(digits.replace(/^\+/, ""))
+          : /^[a-z]{1,4}-?\d{2,}$/i.test(q)
+            ? String(p.patientNumber).replace("-", "").toLowerCase().startsWith(q.replace("-", "").toLowerCase())
+            : fold(`${p.familyName} ${p.givenName}`).startsWith(fold(q)) || fold(`${p.givenName} ${p.familyName}`).startsWith(fold(q)),
+      );
+    }
+    if (sort === "name_asc") {
+      list.sort((a, b) => `${a.familyName} ${a.givenName}`.localeCompare(`${b.familyName} ${b.givenName}`));
+    } else if (sort === "name_desc") {
+      list.sort((a, b) => `${b.familyName} ${b.givenName}`.localeCompare(`${a.familyName} ${a.givenName}`));
+    } else if (sort === "date_asc") {
+      list.sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
+    } else {
+      list.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+    }
+    return json(200, { q, sort, count: list.length, nextCursor: null, results: q ? list.slice(0, 50) : list }, 260);
   }
   if (method === "PATCH" && path === "/me") return json(200, {}, 300);
   // Notifications on this browser: the preview has no push service behind it.
@@ -1109,6 +1128,27 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       return json(200, settingsOverview().tenant, 500);
     }
   }
+  if (method === "POST" && path === "/admin/clinics") {
+    const raw = body as Record<string, unknown>;
+    const clinicId = (raw.clinicId as string) || `c-${Math.random().toString(16).slice(2, 8)}`;
+    const created = {
+      clinicId,
+      name: String(raw.name || "").trim(),
+      phone: String(raw.phone || "").trim(),
+      description: String(raw.description || "").trim(),
+      services: Array.isArray(raw.services) ? raw.services : [],
+      openingHours: (raw.openingHours as Record<string, unknown>) || {
+        "0": { start: "07:30", end: "15:30" },
+        "1": { start: "07:30", end: "15:30" },
+        "2": { start: "07:30", end: "15:30" },
+        "3": { start: "07:30", end: "15:30" },
+        "4": { start: "07:30", end: "15:30" },
+      },
+      location: (raw.location as Record<string, unknown>) || null,
+    };
+    clinics.push(created as unknown as (typeof clinics)[number]);
+    return json(201, created, 500);
+  }
   const unit = path.match(/^\/admin\/clinics\/([^/]+)$/);
   if (method === "PATCH" && unit) {
     const found = clinics.find((c) => c.clinicId === unit[1]);
@@ -1116,6 +1156,12 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     Object.assign(found, body as Record<string, unknown>);
     for (const [day, span] of Object.entries(found.openingHours)) if (!span) delete found.openingHours[day];
     return json(200, found, 500);
+  }
+  if (method === "DELETE" && unit) {
+    const index = clinics.findIndex((c) => c.clinicId === unit[1]);
+    if (index === -1) return json(404, { code: "not_found", message: "no such unit" });
+    clinics.splice(index, 1);
+    return json(200, { deleted: true, clinicId: unit[1] }, 500);
   }
   if (method === "POST" && path === "/admin/appointment-types") {
     const created: MockType = {
@@ -1232,6 +1278,16 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         (!clinic || a.clinicId === clinic) &&
         (!status || statusOf(a) === status),
     );
+    const sort = url.searchParams.get("sort") ?? "name_asc";
+    if (sort === "name_desc") {
+      found.sort((a, b) => `${b.familyName} ${b.givenName}`.localeCompare(`${a.familyName} ${a.givenName}`));
+    } else if (sort === "date_desc") {
+      found.sort((a, b) => String(b.createdAt ?? b.staffId).localeCompare(String(a.createdAt ?? a.staffId)));
+    } else if (sort === "date_asc") {
+      found.sort((a, b) => String(a.createdAt ?? a.staffId).localeCompare(String(b.createdAt ?? b.staffId)));
+    } else {
+      found.sort((a, b) => `${a.familyName} ${a.givenName}`.localeCompare(`${b.familyName} ${b.givenName}`));
+    }
     const limit = Math.min(50, Number(url.searchParams.get("limit") ?? 25));
     const start = Number(atob(url.searchParams.get("cursor") ?? "") || 0);
     const after = start + limit;
@@ -1333,7 +1389,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         temporaryPassword: `Tmp-${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}`,
         note: "The account signs in with the temporary password and must change it.",
       },
-      800,
+      60,
     );
   }
   if (method === "POST" && path === "/appointments") {

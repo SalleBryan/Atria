@@ -1873,7 +1873,7 @@ paths:
       operationId: liveQueue
       summary: The desk's live queue, in position order (FR-BKG-13)
       description: |
-        Permission appointment.read at clinic scope, staff only. Recalculates
+        Permission queue.read at clinic scope, staff only. Recalculates
         arrival windows first, then lists every ticket with the patients'
         names, the counts waiting, arrived and in consultation, and the planned
         against the actual pace so far.

@@ -65,6 +65,8 @@ MATRIX = {
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
  "session.disrupt":         {"PATIENT":"none","RECEPTIONIST":"clinic","CLINICIAN":"clinic",
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
+ "queue.read":              {"PATIENT":"none","RECEPTIONIST":"clinic","CLINICIAN":"clinic",
+                             "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"tenant"},
  "queue.assign_next":       {"PATIENT":"none","RECEPTIONIST":"clinic","CLINICIAN":"clinic",
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
 
@@ -72,7 +74,7 @@ MATRIX = {
  "patient.read":            {"PATIENT":"own","RECEPTIONIST":"clinic","CLINICIAN":"own",
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"tenant"},
  "patient.create":          {"PATIENT":"own","RECEPTIONIST":"clinic","CLINICIAN":"clinic",
-                             "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
+                             "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"tenant"},
  "patient.update":          {"PATIENT":"own","RECEPTIONIST":"clinic","CLINICIAN":"none",
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
  "patient.delete":          {"PATIENT":"own","RECEPTIONIST":"none","CLINICIAN":"none",

@@ -326,9 +326,12 @@
 .staff-primary {
   position: relative;
   isolation: isolate;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   height: 48px;
+  padding: 0 20px;
   overflow: hidden;
   border: 0;
   border-radius: 16px;
@@ -1444,6 +1447,7 @@
 .settings-save-on { opacity: 1; }
 .settings-save .outline-button,
 .settings-save .staff-primary { height: 44px; padding: 0 20px; }
+.settings-banner { margin: 0 0 20px; }
 .settings-card-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 6px 14px; }
 .settings-card-top p { margin: 0; font-size: 13px; color: var(--ink-muted); }
 .settings-units-toolbar {
@@ -1495,15 +1499,20 @@
 .settings-type-name .chip { flex: none; padding: 3px 9px; font-size: 11px; }
 .settings-amount { font-family: var(--font-display); font-size: 16px !important; }
 .settings-dialog { max-width: 560px; }
-.settings-dialog-form { display: flex; flex-direction: column; gap: 12px; }
-.settings-dialog-form .field { margin: 0; }
+.settings-dialog-form { display: flex; flex-direction: column; gap: 14px; }
+.settings-dialog-form .field { margin: 0; padding-bottom: 0; }
 .settings-label { font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-muted); }
 .settings-services { display: flex; flex-wrap: wrap; gap: 8px; }
 .settings-service { display: inline-flex; align-items: center; gap: 6px; }
 .settings-service button { display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 99px; color: inherit; background: transparent; cursor: pointer; }
 .settings-service button:hover { background: rgba(47, 107, 228, 0.16); }
 .settings-grow { flex: 1; min-width: 180px; }
-.settings-add { align-self: flex-end; height: 54px; padding: 0 18px; }
+.settings-service-row { display: flex; align-items: center; gap: 8px; }
+.settings-service-row .input { flex: 1; height: 52px; }
+.settings-service-row .tonal-button { flex: none; height: 52px; padding: 0 20px; }
+.settings-coords-row { display: flex; align-items: flex-end; gap: 8px; }
+.settings-coords-row .tonal-button { flex: none; height: 52px; padding: 0 18px; margin-bottom: 0; }
+.settings-add { align-self: flex-end; height: 52px; padding: 0 18px; }
 .settings-unit-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
 .settings-matrix-wrap { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--line-hairline); border-radius: 20px; background: #ffffff; }
 .settings-matrix { width: 100%; border-collapse: collapse; font-size: 13px; }

@@ -23,9 +23,11 @@ import { Navigate } from "react-router-dom";
 
 import { api } from "../api/client";
 import { useSession } from "../auth/session";
+import { type CountryCode, HOME_COUNTRY, nationalInput, normalisePhone } from "../auth/phone";
 import { Checkbox, Field, Notice } from "../components/controls";
 import { DeleteAccountDialog } from "../components/DeleteAccountDialog";
 import { Building, Clock, Close, Pencil, Pin, Plus, Shield, Sliders, Trash } from "../components/icons";
+import { PhoneField } from "../components/PhoneField";
 import type { IntakeForm, UnitLocation } from "../patient/data";
 import { FormsTab } from "./IntakeForms";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
@@ -484,7 +486,7 @@ function UnitsTab({ found, onSaved }: { found: Overview; onSaved: (message: stri
           <h3>Hospital units ({found.clinics.length})</h3>
           <p>Consultation clinics, departments and specialised care centres.</p>
         </div>
-        <button type="button" className="staff-primary" onClick={() => setEditing("new")}>
+        <button type="button" className="staff-primary accounts-new" onClick={() => setEditing("new")}>
           <Plus size={16} />
           Add unit
         </button>
@@ -636,8 +638,10 @@ function Dialog({
 
 function UnitDialog({ unit, onClose, onDone }: { unit: Unit | null; onClose: () => void; onDone: (message: string) => void }) {
   const isNew = unit === null;
+  const initial = nationalInput(unit?.phone ?? "", HOME_COUNTRY);
   const [name, setName] = useState(unit?.name ?? "");
-  const [phone, setPhone] = useState(unit?.phone ?? "");
+  const [phone, setPhone] = useState(initial.text);
+  const [country, setCountry] = useState<CountryCode>(initial.country);
   const [description, setDescription] = useState(unit?.description ?? "");
   const [services, setServices] = useState<string[]>(unit?.services ?? []);
   const [adding, setAdding] = useState("");
@@ -697,7 +701,7 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit | null; onClose: () 
     try {
       const payload = {
         name: name.trim(),
-        phone: phone.replace(/\s/g, ""),
+        phone: phone.trim() ? normalisePhone(phone, country) : "",
         description: description.trim(),
         services,
         openingHours: daysOf(week),
@@ -735,7 +739,13 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit | null; onClose: () 
       canSubmit={Boolean(name.trim()) && pointOk}
     >
       <Field label="Name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
-      <Field label="Phone" value={phone} maxLength={16} placeholder="+237..." onChange={(e) => setPhone(e.target.value)} />
+      <PhoneField
+        label="Phone number"
+        value={phone}
+        onChange={setPhone}
+        country={country}
+        onCountry={setCountry}
+      />
       <label className="settings-label" htmlFor="unit-description">
         Description
       </label>
@@ -747,35 +757,40 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit | null; onClose: () 
         onChange={(e) => setDescription(e.target.value)}
       />
       <span className="settings-label">Services</span>
-      <span className="settings-services">
-        {services.map((service) => (
-          <span key={service} className="chip chip-booked settings-service">
-            {service}
-            <button type="button" aria-label={`Remove ${service}`} onClick={() => setServices(services.filter((s) => s !== service))}>
-              <Close size={11} />
-            </button>
-          </span>
-        ))}
-      </span>
-      <span className="settings-inline">
-        <Field
-          label="Add a service"
-          className="settings-grow"
-          value={adding}
-          maxLength={60}
-          onChange={(e) => setAdding(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              add();
-            }
-          }}
-        />
-        <button type="button" className="tonal-button settings-add" onClick={add} disabled={!adding.trim()}>
+      {services.length > 0 && (
+        <span className="settings-services">
+          {services.map((service) => (
+            <span key={service} className="chip chip-booked settings-service">
+              {service}
+              <button type="button" aria-label={`Remove ${service}`} onClick={() => setServices(services.filter((s) => s !== service))}>
+                <Close size={11} />
+              </button>
+            </span>
+          ))}
+        </span>
+      )}
+      <div className="settings-service-row">
+        <div className="input settings-grow">
+          <input
+            id="unit-service-input"
+            aria-label="Add a service"
+            placeholder="Add a service (e.g. Minor surgery, Consultation)"
+            value={adding}
+            maxLength={60}
+            onChange={(e) => setAdding(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+              }
+            }}
+          />
+        </div>
+        <button type="button" className="tonal-button" onClick={add} disabled={!adding.trim()}>
           <Plus size={15} />
           Add
         </button>
-      </span>
+      </div>
       <span className="settings-label">Opening hours</span>
       <WeekHours week={week} onChange={setWeek} closedLabel="Closed" />
       <span className="settings-label">Where it is in the hospital</span>
@@ -797,7 +812,7 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit | null; onClose: () 
         value={way}
         onChange={(e) => setWay(e.target.value)}
       />
-      <span className="settings-inline">
+      <div className="settings-coords-row">
         <Field label="Entrance latitude" className="settings-grow" inputMode="decimal" value={lat} placeholder="4.1532" onChange={(e) => setLat(e.target.value)} />
         <Field
           label="Entrance longitude"
@@ -808,11 +823,11 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit | null; onClose: () 
           error={pointOk ? undefined : "Both numbers, in decimal degrees"}
           onChange={(e) => setLng(e.target.value)}
         />
-        <button type="button" className="tonal-button settings-add" onClick={here} disabled={locating} aria-busy={locating || undefined}>
+        <button type="button" className="tonal-button" onClick={here} disabled={locating} aria-busy={locating || undefined}>
           {locating ? <LoadingIndicator size={18} label="Finding where you are" /> : <Pin size={15} />}
           I am at the door
         </button>
-      </span>
+      </div>
       {failure && <Notice tone="error">{failure}</Notice>}
     </Dialog>
   );

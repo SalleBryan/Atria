@@ -234,7 +234,11 @@ def main() -> int:
     def book(token: str | None, patient: str | None, clinician: str, at: str) -> tuple[int, str]:
         body = {"appointmentTypeId": TYPE, "clinicianProfileId": clinician, "startAt": at}
         if patient:
-            body |= {"patientProfileId": patient, "channel": "PHONE", "callbackPhone": "+12025550199"}
+            body |= {
+                "patientProfileId": patient,
+                "channel": "PHONE",
+                "callbackPhone": "+12025550199",
+            }
         status, raw, _h = devkit.call(f"{base}/appointments", token, method="POST", body=body)
         return status, raw
 

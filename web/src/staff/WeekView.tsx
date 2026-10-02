@@ -25,6 +25,7 @@ import { useSession } from "../auth/session";
 import { Button, Notice } from "../components/controls";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
 import { Bell, Calendar, ChevronLeft, ChevronRight, Close } from "../components/icons";
+import { SelectMenu } from "../components/Pickers";
 import { type Appointment, type Clinic, type Clinician, clock } from "../patient/data";
 import {
   CANCELLED_STATES,
@@ -134,7 +135,9 @@ export function WeekView() {
 
   // The clinicians of this clinic, and anyone else who appears on its week (a suspended one, say).
   const clinicians = useMemo(() => {
-    const listed = (data?.clinicians ?? []).filter((c) => own ? c.clinicianProfileId === me?.staffId : c.clinicId === clinicId);
+    const listed = (data?.clinicians ?? []).filter((c) =>
+      own ? c.clinicianProfileId === me?.staffId : clinicId === "all" ? true : c.clinicId === clinicId,
+    );
     const ids = new Set(listed.map((c) => c.clinicianProfileId));
     const extra = everyone
       .map((a) => a.clinicianProfileId)
@@ -162,7 +165,10 @@ export function WeekView() {
   );
 
   // The hours the grid spans: the clinic's opening hours, widened to fit any visit outside them.
-  const opening = Object.values(clinic?.openingHours ?? {});
+  const opening =
+    clinicId === "all"
+      ? (data?.clinics ?? []).flatMap((c) => Object.values(c.openingHours ?? {}))
+      : Object.values(clinic?.openingHours ?? {});
   let first = opening.length ? Math.min(...opening.map((h) => toMinutes(h.start))) : 8 * 60;
   let last = opening.length ? Math.max(...opening.map((h) => toMinutes(h.end))) : 17 * 60;
   for (const a of shown) {
@@ -212,15 +218,37 @@ export function WeekView() {
                 ? [
                     `${shown.length} appointment${shown.length === 1 ? "" : "s"}`,
                     own ? null : `${inView} clinician${inView === 1 ? "" : "s"}`,
-                    clinic?.name,
+                    clinicId === "all" ? "All units" : clinic?.name,
                   ]
                     .filter(Boolean)
                     .join(" · ")
                 : "Loading the week"}
             </p>
           </div>
+          {role === "TENANT_ADMIN" && data && (
+            <SelectMenu
+              label="Unit"
+              value={clinicId ?? null}
+              width={300}
+              options={[
+                { id: "all", label: "All units" },
+                ...data.clinics.map((c) => ({ id: c.clinicId, label: c.name })),
+              ]}
+              onChange={(id) => go({ clinic: id, clinician: null })}
+            />
+          )}
           <div className="segmented" role="tablist" aria-label="View">
-            <button type="button" role="tab" aria-selected="false" className="segment" onClick={() => navigate(`/console?date=${anchor}${chosen && !own ? `&clinician=${chosen}` : ""}`)}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected="false"
+              className="segment"
+              onClick={() =>
+                navigate(
+                  `/console?date=${anchor}${clinicId ? `&clinic=${clinicId}` : ""}${chosen && !own ? `&clinician=${chosen}` : ""}`,
+                )
+              }
+            >
               Day
             </button>
             <button type="button" role="tab" aria-selected="true" className="segment segment-on">

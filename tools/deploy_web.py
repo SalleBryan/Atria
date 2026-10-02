@@ -32,7 +32,8 @@ REGION = "us-east-1"
 
 
 def outputs() -> dict[str, str]:
-    stack = boto3.client("cloudformation", region_name=REGION).describe_stacks(StackName=STACK)["Stacks"][0]
+    cf = boto3.client("cloudformation", region_name=REGION)
+    stack = cf.describe_stacks(StackName=STACK)["Stacks"][0]
     return {o["OutputKey"]: o["OutputValue"] for o in stack.get("Outputs", [])}
 
 
@@ -85,7 +86,8 @@ def main() -> int:
     print(f"deploying job {job['jobId']} ({len(body) // 1024} KB)")
 
     while True:
-        status = amplify.get_job(appId=app_id, branchName=BRANCH, jobId=job["jobId"])["job"]["summary"]["status"]
+        job_info = amplify.get_job(appId=app_id, branchName=BRANCH, jobId=job["jobId"])
+        status = job_info["job"]["summary"]["status"]
         if status in ("SUCCEED", "FAILED", "CANCELLED"):
             break
         time.sleep(5)

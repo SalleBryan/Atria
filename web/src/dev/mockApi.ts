@@ -541,7 +541,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   }
   const one = path.match(/^\/appointments\/([^/]+)$/);
   if (one) {
-    const found = appointments.find((a) => a.appointmentId === one[1]);
+    const found = appointments.find((a) => a.appointmentId === one[1]) ?? todayQueue.find((a) => a.appointmentId === one[1]);
     if (!found) return json(404, { code: "not_found", message: "no such appointment" });
     if (method === "GET") {
       // The ledger entry once closed, and what cancelling now would record (FR-MSR-05, FR-MSR-06).
@@ -640,7 +640,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   // What happens after booking (services/booking/visits.py), without the rules' fine print.
   const acted = path.match(/^\/appointments\/([^/]+)\/(reschedule|confirm|arrive|start|complete|no-show)$/);
   if (method === "POST" && acted) {
-    const found = appointments.find((a) => a.appointmentId === acted[1]);
+    const found = appointments.find((a) => a.appointmentId === acted[1]) ?? todayQueue.find((a) => a.appointmentId === acted[1]);
     if (!found) return json(404, { code: "not_found", message: "no such appointment" });
     const next: Record<string, string> = {
       reschedule: "RESCHEDULED",

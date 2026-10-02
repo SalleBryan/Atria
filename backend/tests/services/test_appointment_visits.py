@@ -221,6 +221,13 @@ class TestTheVisit:
         booked = book(clinician)
         assert act(booked["appointmentId"], "arrive")["statusCode"] == 403
 
+    def test_a_clinician_can_record_arrival_at_their_clinic(self, wired):
+        _repo, clinician = wired
+        booked = book(clinician)
+        response = act(booked["appointmentId"], "arrive", context=clinician_context(clinician))
+        assert response["statusCode"] == 200
+        assert body_of(response)["state"] == "ARRIVED"
+
     def test_the_desk_does_not_open_a_consultation(self, wired):
         _repo, clinician = wired
         booked = book(clinician)

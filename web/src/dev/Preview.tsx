@@ -147,7 +147,7 @@ export default function Preview() {
   const as = query.get("as") ?? "patient";
   const initialMe = PEOPLE[as] ?? PEOPLE.patient!;
   const [me, setMe] = useState(initialMe);
-  setPreviewCaller(me.roles);
+  setPreviewCaller(me);
 
   useEffect(() => {
     const onUpdated = (e: Event) => {

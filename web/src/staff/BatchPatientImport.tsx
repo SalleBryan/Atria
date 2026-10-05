@@ -366,7 +366,7 @@ export function BatchPatientImport({
             </div>
 
             <footer className="sheet-foot">
-              <span>Patients are available immediately for appointment booking.</span>
+              <span>Each patient can be booked as soon as they are added.</span>
               <button
                 type="button"
                 className="staff-primary sheet-primary"

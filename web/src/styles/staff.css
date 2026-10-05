@@ -381,7 +381,12 @@
   .staff-top { flex-wrap: wrap; padding: 14px 16px; }
   .staff-title { order: 3; flex-basis: 100%; margin: 4px 0 0; }
   .staff-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .staff-tile { height: 72px; }
+  /* Icon and figure side by side, the label under both: beside them it had
+     64px and broke "Reminders to send" over three lines. */
+  .staff-tile { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 8px 10px; height: auto; padding: 12px 14px; }
+  .staff-tile-icon { width: 36px; height: 36px; border-radius: 12px; }
+  .staff-tile > :not(.staff-tile-icon) { display: contents; }
+  .staff-tile-label { grid-column: 1 / -1; margin-top: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .staff-cols { grid-template-columns: minmax(0, 1fr); }
   .staff-card { padding: 16px 14px 0; }
   .day-rows { overflow: visible; }
@@ -393,7 +398,8 @@
   /* The status goes under the name, so a long one never squeezes the name. */
   .day-row {
     display: grid;
-    grid-template-columns: 52px auto 40px minmax(0, 1fr);
+    /* The avatar's track holds its 12px margin too, or it met the name. */
+    grid-template-columns: 52px auto 52px minmax(0, 1fr);
     align-items: center;
     row-gap: 6px;
     height: auto;
@@ -931,6 +937,12 @@
   font-weight: 600;
   line-height: 1.5;
   color: #ffffff;
+  background: var(--gradient-primary);
+  box-shadow: var(--shadow-primary);
+}
+/* Purple is the administrator's colour; the front desk, clinicians and
+   managers saw it on Messages, Reports and the audit log (audit 2026-10-05). */
+.admin-app .accounts-banner {
   background: linear-gradient(120deg, var(--admin-light), var(--admin-base));
   box-shadow: 0 12px 28px rgba(91, 52, 196, 0.26);
 }
@@ -1096,9 +1108,14 @@
   height: 54px;
   border-radius: 18px;
   color: #ffffff;
+  background: var(--gradient-primary);
+  box-shadow: var(--shadow-primary);
+  animation: pop-in var(--move-fast) both 120ms;
+}
+/* The sheet sits on <body>, outside .admin-app, so the console is asked. */
+body:has(.admin-app) .sheet-icon:not(.sheet-icon-done) {
   background: linear-gradient(140deg, var(--admin-light), var(--admin-base));
   box-shadow: 0 10px 22px rgba(91, 52, 196, 0.3);
-  animation: pop-in var(--move-fast) both 120ms;
 }
 
 /* The administrator's console wears the admin frames' purple. */
@@ -1837,6 +1854,7 @@
 }
 .reports-visual-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -1855,6 +1873,7 @@
 }
 .reports-visual-rate-pill {
   display: flex;
+  flex: none;
   align-items: baseline;
   gap: 8px;
   padding: 6px 16px;
@@ -1968,6 +1987,8 @@
   .accounts-head.messages-days-head { display: none; }
 }
 .settings-hint { margin: -4px 0 0; font-size: 12.5px; color: var(--ink-muted); }
+.settings-fixed { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; }
+.settings-fixed > .settings-hint { margin: 0; }
 .settings-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 @media (max-width: 767px) { .settings-pair { grid-template-columns: minmax(0, 1fr); } }
 
@@ -2440,9 +2461,11 @@
 }
 .m3-column-x span:hover,
 .m3-column-x span.active {
-  color: var(--admin-base, #8b5cf6);
+  color: var(--blue-600);
   font-weight: 700;
 }
+.admin-app .m3-column-x span:hover,
+.admin-app .m3-column-x span.active { color: var(--admin-base); }
 .m3-bars-legend {
   display: flex;
   flex-wrap: wrap;

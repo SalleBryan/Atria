@@ -313,19 +313,19 @@ export function Reports() {
           <section className="glass reports-visual-section" aria-label="Visit outcome visual analysis">
             <div className="reports-visual-top">
               <div>
-                <h3>Clinical Outcomes & Channel Analysis</h3>
-                <p>Interactive Material 3 visual distribution across appointments in this period.</p>
+                <h3>Outcomes and channels</h3>
+                <p>How this period's visits ended, how they were booked, and where.</p>
               </div>
               <div className="reports-visual-rate-pill">
-                <span>Overall Attendance</span>
+                <span>Attendance</span>
                 <strong>{percent(attendanceRate)}</strong>
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 24, marginTop: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))", gap: 24, marginTop: 12 }}>
               <DonutChart
-                title="Visit Disposition Breakdown"
-                subtitle="Proportion of registered visits attended, missed, or cancelled."
+                title="How visits ended"
+                subtitle="Attended, missed or cancelled, as a share of the visits booked."
                 segments={[
                   {
                     id: "attended",
@@ -349,7 +349,7 @@ export function Reports() {
                     ? [
                         {
                           id: "lateCancelled",
-                          label: "Late Cancelled",
+                          label: "Late cancelled",
                           value: found.lateCancelled,
                           color: "#ea580c",
                         },
@@ -363,8 +363,8 @@ export function Reports() {
 
               {found.byChannel && found.byChannel.length > 0 && (
                 <DonutChart
-                  title="Booking Channel Share"
-                  subtitle="How patients booked their consultations for this period."
+                  title="How patients booked"
+                  subtitle="How this period's bookings reached the unit."
                   segments={found.byChannel.map((c) => {
                     const colors: Record<string, string> = {
                       ONLINE: "#3b82f6",
@@ -395,8 +395,8 @@ export function Reports() {
             {hospital && hospital.units && hospital.units.length > 0 && (
               <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--line-hairline, #e1e7f0)" }}>
                 <MultiUnitBarChart
-                  title="Hospital Units Comparative Volume"
-                  subtitle="Volume distribution and attendance rates across every operational unit."
+                  title="Volume by unit"
+                  subtitle="Visits and attendance at each unit."
                   units={hospital.units.map((u) => ({
                     unitId: u.clinicId,
                     name: u.clinicName || u.clinicId,

@@ -165,15 +165,13 @@ function Shell({ me }: { me: Me }) {
   );
 
   // A phone's bar holds four destinations and "More" (or "Sign out" when
-  // four is all there is); the one open is always among the four.
+  // four is all there is). The four stay put and "More" lights for what it
+  // holds: swapping the open one into the bar moved Availability from under
+  // the thumb (audit 2026-10-05).
   const BAR = 4;
   const fits = destinations.length <= BAR;
-  const bar = fits
-    ? destinations
-    : selected < BAR - 1
-      ? destinations.slice(0, BAR)
-      : [...destinations.slice(0, BAR - 1), destinations[selected] as Destination];
-  const rest = fits ? [] : destinations.filter((d) => !bar.includes(d));
+  const bar = fits ? destinations : destinations.slice(0, BAR);
+  const rest = fits ? [] : destinations.slice(BAR);
 
   const [at, setAt] = useState(selected);
   const pill = useRef<HTMLSpanElement>(null);

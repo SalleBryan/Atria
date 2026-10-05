@@ -9,6 +9,7 @@
  */
 
 import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Navigate } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -193,7 +194,7 @@ function PlaceDialog({
     }
   }
 
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
       <div
         className="dialog staff-dialog move-dialog"
@@ -247,7 +248,8 @@ function PlaceDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -277,7 +279,7 @@ function DeclineDialog({
     }
   }
 
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
       <div
         className="dialog staff-dialog"
@@ -319,6 +321,7 @@ function DeclineDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

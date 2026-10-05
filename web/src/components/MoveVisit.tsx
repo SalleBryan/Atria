@@ -14,6 +14,7 @@
  */
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { api } from "../api/client";
 import { type Appointment, type AppointmentType, clock, initials } from "../patient/data";
@@ -110,7 +111,7 @@ export function MoveVisit({
     }
   }
 
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
       <div
         ref={dialog}
@@ -224,6 +225,7 @@ export function MoveVisit({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

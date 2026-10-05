@@ -79,15 +79,15 @@ def search(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
         if sort == "name_asc":
             everyone.sort(
                 key=lambda e: (
-                    str(e.get("familyName") or "").casefold(),
                     str(e.get("givenName") or "").casefold(),
+                    str(e.get("familyName") or "").casefold(),
                 )
             )
         elif sort == "name_desc":
             everyone.sort(
                 key=lambda e: (
-                    str(e.get("familyName") or "").casefold(),
                     str(e.get("givenName") or "").casefold(),
+                    str(e.get("familyName") or "").casefold(),
                 ),
                 reverse=True,
             )
@@ -107,15 +107,15 @@ def search(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     if sort == "name_asc":
         found.sort(
             key=lambda e: (
-                str(e.get("familyName") or "").casefold(),
                 str(e.get("givenName") or "").casefold(),
+                str(e.get("familyName") or "").casefold(),
             )
         )
     elif sort == "name_desc":
         found.sort(
             key=lambda e: (
-                str(e.get("familyName") or "").casefold(),
                 str(e.get("givenName") or "").casefold(),
+                str(e.get("familyName") or "").casefold(),
             ),
             reverse=True,
         )

@@ -101,6 +101,7 @@ class ApiStack(Stack):
             iam.PolicyStatement(
                 actions=[
                     "cognito-idp:AdminGetUser",
+                    "cognito-idp:AdminUpdateUserAttributes",
                     # DELETE /me and POST /me/restore (services/identity/deletion.py).
                     "cognito-idp:ListUsers",
                     "cognito-idp:AdminEnableUser",
@@ -125,6 +126,7 @@ class ApiStack(Stack):
             iam.PolicyStatement(
                 actions=[
                     "cognito-idp:AdminCreateUser",
+                    "cognito-idp:AdminUpdateUserAttributes",
                     "cognito-idp:AdminDeleteUser",
                     "cognito-idp:AdminUserGlobalSignOut",
                     # Deleting and restoring accounts, with 30 days' grace.

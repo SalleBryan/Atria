@@ -15,6 +15,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { api } from "../api/client";
 import { Notice } from "../components/controls";
+import { DatePickerMenu } from "../components/DatePickerMenu";
 import { ArrowLeft, Clock, Stethoscope, Users } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { LoadingPane } from "../components/LoadingPane";
@@ -122,9 +123,19 @@ export function JoinQueue() {
           <p className="today-empty">No sessions are published for the next two weeks yet. The desk can add you when you arrive.</p>
         ) : (
           <>
-            <p className="dialog-label">DAY</p>
+            <div className="queue-day-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <p className="dialog-label" style={{ margin: 0 }}>DAY</p>
+              <DatePickerMenu
+                value={day ?? days[0]}
+                label="Pick a date"
+                onChange={(chosenDate) => {
+                  setDay(chosenDate);
+                  setChosen(null);
+                }}
+              />
+            </div>
             <div className="days" role="radiogroup" aria-label="Day">
-              {days.slice(0, 7).map((date) => {
+              {(day && !days.slice(0, 7).includes(day) ? [day, ...days.filter((d) => d !== day)] : days).slice(0, 7).map((date) => {
                 const places = (sessions ?? []).filter((s) => s.sessionDate === date).reduce((n, s) => n + s.remaining, 0);
                 const on = date === day;
                 return (

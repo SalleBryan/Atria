@@ -24,6 +24,7 @@ user pool about every account.
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import os
 import re
 from typing import Any
@@ -41,6 +42,8 @@ from atria.http import requests, responses
 from atria.http.handler import api
 from atria.services.identity import deletion
 from atria.services.notify import push
+
+logger = logging.getLogger("atria.services.identity")
 
 _people: People | None = None
 
@@ -210,6 +213,54 @@ def edit(principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
                 date_of_birth=updated.get("dateOfBirth"),
             ),
         )
+    if principal.staff_id and principal.tenant_id:
+        from atria.data import people as people_module
+
+        m_key = keys.staff_membership(principal.tenant_id, principal.staff_id)
+        membership = repo.get(m_key)
+        if membership:
+            membership["directorySort"] = people_module.staff_list_sort(
+                family_name=str(updated.get("familyName") or ""),
+                given_name=str(updated.get("givenName") or ""),
+                staff_id=principal.staff_id,
+            )
+            repo.put(m_key, membership)
+        c_key = keys.clinician_profile(principal.tenant_id, principal.staff_id)
+        clinician = repo.get(c_key)
+        if clinician:
+            clinician["givenName"] = updated.get("givenName")
+            clinician["familyName"] = updated.get("familyName")
+            if clinician.get("registrationYear"):
+                clinician["directorySort"] = people_module.directory_sort(
+                    registration_year=clinician["registrationYear"],
+                    family_name=str(updated.get("familyName") or ""),
+                    staff_id=principal.staff_id,
+                )
+            repo.put(c_key, clinician)
+
+    sub_id = person.get("cognitoSub")
+    if sub_id and USER_POOL_ID:
+        attrs = []
+        if "givenName" in changes:
+            attrs.append({"Name": "given_name", "Value": str(changes["givenName"])})
+        if "familyName" in changes:
+            attrs.append({"Name": "family_name", "Value": str(changes["familyName"])})
+        if "givenName" in changes or "familyName" in changes:
+            full = f"{updated.get('givenName', '')} {updated.get('familyName', '')}".strip()
+            attrs.append({"Name": "name", "Value": full})
+        if "preferredLanguage" in changes:
+            attrs.append({"Name": "locale", "Value": str(changes["preferredLanguage"])})
+        if attrs:
+            try:
+                cognito().admin_update_user_attributes(
+                    UserPoolId=USER_POOL_ID,
+                    Username=str(sub_id),
+                    UserAttributes=attrs,
+                )
+            except Exception as exc:
+                # Cognito sync is best-effort and does not prevent database update
+                logger.warning("Cognito sync failed for %s: %s", sub_id, exc)
+
     return person_details(principal) | {
         "dateOfBirth": updated.get("dateOfBirth"),
         "preferredLanguage": updated.get("preferredLanguage"),

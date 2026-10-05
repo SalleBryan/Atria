@@ -23,6 +23,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useSession } from "../auth/session";
 import { Button, Notice } from "../components/controls";
+import { DatePickerMenu } from "../components/DatePickerMenu";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
 import { Bell, Calendar, ChevronLeft, ChevronRight, Close } from "../components/icons";
 import { SelectMenu } from "../components/Pickers";
@@ -210,6 +211,11 @@ export function WeekView() {
             <button type="button" className="today-button" disabled={thisWeek} onClick={() => go({ date: null })}>
               This week
             </button>
+            <DatePickerMenu
+              value={monday}
+              label="Pick week"
+              onChange={(nextDate) => go({ date: nextDate })}
+            />
           </div>
           <div className="staff-title">
             <h1>{weekTitle(monday, days[days.length - 1] ?? shiftDate(monday, 5))}</h1>

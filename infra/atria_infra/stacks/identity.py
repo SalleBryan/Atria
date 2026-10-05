@@ -265,7 +265,9 @@ class IdentityStack(Stack):
 
         # Cognito's own emails, the codes and the invitation, written in the
         # same layout as every booking email (ADR 0020). It reads nothing and
-        # writes nothing: everything it needs arrives in the event.
+        # Cognito's own emails, the codes and the invitation, written in the
+        # same layout as every booking email (ADR 0020). Reads person record
+        # if available to ensure updated name is delivered.
         self.custom_message = service_function(
             self,
             "CustomMessage",
@@ -279,11 +281,13 @@ class IdentityStack(Stack):
                 "POWERTOOLS_LOG_LEVEL": "INFO",
                 "ENVIRONMENT": settings.name,
                 "APP_URL": settings.app_url,
+                "MAIN_TABLE": data.main_table.table_name,
             },
             timeout_seconds=5,
             # On the sign-in path, where every millisecond is one a person waits.
             memory_mb=512,
         )
+        data.main_table.grant_read_data(self.custom_message)
         self.user_pool.add_trigger(
             cognito.UserPoolOperation.CUSTOM_MESSAGE,
             self.custom_message,

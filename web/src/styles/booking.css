@@ -356,9 +356,9 @@
 .day:nth-child(7) { animation-delay: 180ms, 180ms; }
 .day:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(16, 42, 94, 0.08); }
 .day:active:not(:disabled) { transform: scale(0.95); }
-.day-name { font-size: 11px; font-weight: 600; color: var(--ink-550); }
-.day-number { font-family: var(--font-display); font-weight: 600; font-size: 20px; line-height: 25px; color: var(--ink-900); }
-.day-free { display: grid; place-items: center; min-height: 13px; font-size: 10px; font-weight: 600; color: var(--ink-550); }
+.day-name { font-size: 11px; font-weight: 600; color: var(--ink-550); white-space: nowrap; }
+.day-number { font-family: var(--font-display); font-weight: 600; font-size: 20px; line-height: 24px; color: var(--ink-900); }
+.day-free { display: grid; place-items: center; min-height: 14px; font-size: 10px; font-weight: 600; color: var(--ink-550); white-space: nowrap; }
 .day-on {
   border-color: transparent;
   border-radius: 28px;
@@ -840,9 +840,9 @@
   .detail-facts { width: 100%; }
   .detail-facts > div { flex: 1; padding: 10px 6px; }
   /* Seven days never squeeze into a phone: the strip scrolls sideways, each day a thumb wide. */
-  .days { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; scroll-snap-type: x proximity; }
-  .days > * { flex: 0 0 56px; scroll-snap-align: start; }
-  .day { height: 68px; border-radius: 16px; }
+  .days { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 6px 4px 10px; margin: 0 -4px; scroll-snap-type: x proximity; }
+  .days > * { flex: 0 0 74px; min-width: 74px; scroll-snap-align: start; }
+  .day { height: auto; min-height: 80px; padding: 8px 6px 7px; border-radius: 18px; box-sizing: border-box; }
   .dock { position: sticky; bottom: 92px; }
   .dock-row { flex-wrap: wrap; }
   .dock-button { width: 100%; justify-content: center; }

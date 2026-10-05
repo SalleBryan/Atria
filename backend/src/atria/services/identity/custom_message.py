@@ -204,12 +204,30 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     try:
         request = event.get("request") or {}
         attributes = request.get("userAttributes") or {}
+        given_name = str(attributes.get("given_name") or "")
+        locale = attributes.get("locale")
+
+        sub = attributes.get("sub") or event.get("userName")
+        if os.environ.get("MAIN_TABLE") and sub:
+            try:
+                from atria.data.people import People
+                from atria.data.repository import Repository
+
+                person = People(Repository()).by_cognito_sub(str(sub))
+                if person:
+                    if person.get("givenName"):
+                        given_name = str(person["givenName"])
+                    if person.get("preferredLanguage"):
+                        locale = str(person["preferredLanguage"])
+            except Exception:
+                logger.exception("could not resolve person from DynamoDB, using attributes")
+
         subject, html = compose(
             purpose,
-            language=notices.language_for(attributes.get("locale")),
+            language=notices.language_for(locale),
             code=str(request.get("codeParameter") or "{####}"),
             username=str(request.get("usernameParameter") or "{username}"),
-            given_name=str(attributes.get("given_name") or ""),
+            given_name=given_name,
             app_url=APP_URL,
         )
     except Exception:

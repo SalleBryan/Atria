@@ -15,6 +15,7 @@
  */
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { api } from "../api/client";
 import { useSession } from "../auth/session";
@@ -319,7 +320,7 @@ function TimeOffDialog({
     }
   }
 
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
       <div
         className="dialog staff-dialog move-dialog"
@@ -433,6 +434,7 @@ function TimeOffDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

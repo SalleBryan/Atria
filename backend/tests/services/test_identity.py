@@ -212,8 +212,10 @@ class TestEditingOneself:
         )
         return wired
 
-    def call(self, method, resource, body=None):
-        e = event(patientProfileId="pp-1")
+    def call(self, method, resource, body=None, **context):
+        base = {"patientProfileId": "pp-1"}
+        base.update(context)
+        e = event(**base)
         e.update(
             httpMethod=method,
             resource=resource,
@@ -262,6 +264,71 @@ class TestEditingOneself:
         found = Register(amina).search("t-cm-001", "aminatou")
         assert [e["patientProfileId"] for e in found] == ["pp-1"]
         assert Register(amina).search("t-cm-001", "amina ngo") == []
+
+    def test_the_name_change_updates_cognito_attributes(self, amina, monkeypatch):
+        from atria.services.identity import handler
+
+        person = amina.get(keys.person("p-1"))
+        amina.put(keys.person("p-1"), {**person, "cognitoSub": "sub-amina"})
+        calls = []
+
+        class MockCognito:
+            def admin_update_user_attributes(self, **kwargs):
+                calls.append(kwargs)
+
+        monkeypatch.setattr(handler, "cognito", lambda: MockCognito())
+        monkeypatch.setattr(handler, "USER_POOL_ID", "us-east-1_pool")
+
+        res = self.call("PATCH", "/me", {"givenName": "Tracy", "familyName": "Nzume"})
+        assert res["statusCode"] == 200
+        assert len(calls) == 1
+        attrs = {a["Name"]: a["Value"] for a in calls[0]["UserAttributes"]}
+        assert attrs["given_name"] == "Tracy"
+        assert attrs["family_name"] == "Nzume"
+        assert attrs["name"] == "Tracy Nzume"
+
+    def test_staff_name_change_updates_staff_directory_sort(self, amina, monkeypatch):
+        # Create staff membership
+        staff_key = keys.staff_membership("t-cm-001", "s-1")
+        amina.put(
+            staff_key,
+            {
+                "type": "STAFF_MEMBERSHIP",
+                "staffMembershipId": "s-1",
+                "tenantId": "t-cm-001",
+                "personId": "p-1",
+                "roles": ["CLINICIAN"],
+                "directorySort": "initial#sort",
+            },
+        )
+        clinician_key = keys.clinician_profile("t-cm-001", "s-1")
+        amina.put(
+            clinician_key,
+            {
+                "type": "CLINICIAN_PROFILE",
+                "clinicianProfileId": "s-1",
+                "tenantId": "t-cm-001",
+                "givenName": "Old",
+                "familyName": "Name",
+                "registrationYear": 2020,
+                "directorySort": "2020#Name#s-1",
+            },
+        )
+        # Call PATCH /me with staff context
+        res = self.call(
+            "PATCH",
+            "/me",
+            {"givenName": "Tracy", "familyName": "Nzume"},
+            roles="CLINICIAN",
+            staffId="s-1",
+        )
+        assert res["statusCode"] == 200
+        updated_membership = amina.get(staff_key)
+        assert updated_membership["directorySort"] == "nzume#tracy#s-1"
+        updated_clinician = amina.get(clinician_key)
+        assert updated_clinician["givenName"] == "Tracy"
+        assert updated_clinician["familyName"] == "Nzume"
+        assert updated_clinician["directorySort"] == "2020#Nzume#s-1"
 
     @pytest.mark.parametrize(
         "body",

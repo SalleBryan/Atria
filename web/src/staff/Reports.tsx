@@ -17,6 +17,8 @@ import { api } from "../api/client";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
 import { ChevronLeft, ChevronRight, Download, Shield } from "../components/icons";
+import { DatePickerMenu } from "../components/DatePickerMenu";
+import { DonutChart, MultiUnitBarChart } from "../components/ExpressiveCharts";
 import { LoadingPane } from "../components/LoadingPane";
 import { SelectMenu } from "../components/Pickers";
 import { TENANT } from "../tenant";
@@ -184,7 +186,7 @@ export function Reports() {
 
   return (
     <div className="accounts-page reports-page">
-      <header className="accounts-top">
+      <header className="accounts-top reports-header">
         <div>
           <h1>
             {granularity === "day"
@@ -198,62 +200,9 @@ export function Reports() {
           <p>Visits disposition, attendance rate and fee ledger summary.</p>
         </div>
 
-        <div className="reports-controls">
-          {/* Material 3 Expressive Granularity Selector */}
-          <div className="overview-segmented-control reports-granularity-control" role="tablist" aria-label="Timeframe granularity">
-            {(["day", "week", "month", "year"] as const).map((g) => (
-              <button
-                key={g}
-                type="button"
-                role="tab"
-                aria-selected={granularity === g}
-                className={`overview-segment-btn ${granularity === g ? "active" : ""}`}
-                onClick={() => {
-                  setGranularity(g);
-                  if (g === "week") {
-                    setDate((curr) => monday(new Date(`${curr}T12:00:00Z`)));
-                  }
-                }}
-              >
-                {g === "day" ? "Day" : g === "week" ? "Week" : g === "month" ? "Month" : "Year"}
-              </button>
-            ))}
-          </div>
-
-          {admin && (
-            <SelectMenu
-              label="Unit"
-              value={unit}
-              width={260}
-              options={[{ id: EVERY, label: "Every unit" }, ...clinics.map((c) => ({ id: c.clinicId, label: c.name }))]}
-              onChange={setUnit}
-            />
-          )}
-
-          <div className="changes-week">
-            <button
-              type="button"
-              className="square-button"
-              aria-label="Previous period"
-              disabled={isAtStart}
-              onClick={() => step(-1)}
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span>{periodLabel}</span>
-            <button
-              type="button"
-              className="square-button"
-              aria-label="Next period"
-              disabled={isAtEnd}
-              onClick={() => step(1)}
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          {/* Download Action Menu */}
-          {found && (
+        {/* Download Action Menu - Right Aligned on Screen */}
+        {found && (
+          <div className="accounts-actions reports-actions">
             <div className="reports-download-dropdown">
               <button
                 type="button"
@@ -299,9 +248,76 @@ export function Reports() {
                 </div>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </header>
+
+      {/* Filter and Period Navigation Toolbar */}
+      <div className="reports-toolbar">
+        {/* Material 3 Expressive Granularity Selector */}
+        <div className="overview-segmented-control reports-granularity-control" role="tablist" aria-label="Timeframe granularity">
+          {(["day", "week", "month", "year"] as const).map((g) => (
+            <button
+              key={g}
+              type="button"
+              role="tab"
+              aria-selected={granularity === g}
+              className={`overview-segment-btn ${granularity === g ? "active" : ""}`}
+              onClick={() => {
+                setGranularity(g);
+                if (g === "week") {
+                  setDate((curr) => monday(new Date(`${curr}T12:00:00Z`)));
+                }
+              }}
+            >
+              {g === "day" ? "Day" : g === "week" ? "Week" : g === "month" ? "Month" : "Year"}
+            </button>
+          ))}
+        </div>
+
+        {admin && (
+          <SelectMenu
+            label="Unit"
+            value={unit}
+            width={260}
+            options={[{ id: EVERY, label: "Every unit" }, ...clinics.map((c) => ({ id: c.clinicId, label: c.name }))]}
+            onChange={setUnit}
+          />
+        )}
+
+        <div className="changes-week">
+          <button
+            type="button"
+            className="square-button"
+            aria-label="Previous period"
+            disabled={isAtStart}
+            onClick={() => step(-1)}
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span>{periodLabel}</span>
+          <button
+            type="button"
+            className="square-button"
+            aria-label="Next period"
+            disabled={isAtEnd}
+            onClick={() => step(1)}
+          >
+            <ChevronRight size={16} />
+          </button>
+          <DatePickerMenu
+            value={date}
+            label="Jump to date"
+            onChange={(nextDate) => {
+              if (granularity === "week") {
+                setDate(monday(new Date(`${nextDate}T12:00:00Z`)));
+              } else {
+                setDate(nextDate);
+              }
+            }}
+          />
+        </div>
+      </div>
 
       {failure && <Notice tone="error">{failure}</Notice>}
       {!found ? (
@@ -330,12 +346,12 @@ export function Reports() {
             </div>
           </section>
 
-          {/* Material 3 Expressive Visual Distribution Meter */}
+          {/* Material 3 Expressive Visual Distribution Charts */}
           <section className="glass reports-visual-section" aria-label="Visit outcome visual analysis">
             <div className="reports-visual-top">
               <div>
-                <h3>Visit Disposition Breakdown</h3>
-                <p>Proportional outcomes across registered appointments in this period.</p>
+                <h3>Clinical Outcomes & Channel Analysis</h3>
+                <p>Interactive Material 3 visual distribution across appointments in this period.</p>
               </div>
               <div className="reports-visual-rate-pill">
                 <span>Overall Attendance</span>
@@ -343,58 +359,94 @@ export function Reports() {
               </div>
             </div>
 
-            <div
-              className="overview-m3-meter reports-outcome-meter"
-              role="img"
-              aria-label={`Outcomes breakdown: ${found.attended} attended, ${found.noShow} no-show, ${found.cancelled} cancelled`}
-            >
-              <span
-                className="overview-m3-meter-seg attended"
-                style={{ width: `${Math.max(3, (found.attended / Math.max(1, found.booked)) * 100)}%` }}
-                title={`Attended: ${found.attended}`}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 24, marginTop: 12 }}>
+              <DonutChart
+                title="Visit Disposition Breakdown"
+                subtitle="Proportion of registered visits attended, missed, or cancelled."
+                segments={[
+                  {
+                    id: "attended",
+                    label: "Attended",
+                    value: found.attended,
+                    color: "#10b981",
+                  },
+                  {
+                    id: "noshow",
+                    label: "No-show",
+                    value: found.noShow,
+                    color: "#f43f5e",
+                  },
+                  {
+                    id: "cancelled",
+                    label: "Cancelled",
+                    value: found.cancelled,
+                    color: "#f59e0b",
+                  },
+                  ...(found.lateCancelled > 0
+                    ? [
+                        {
+                          id: "lateCancelled",
+                          label: "Late Cancelled",
+                          value: found.lateCancelled,
+                          color: "#ea580c",
+                        },
+                      ]
+                    : []),
+                ]}
+                centerValue={percent(attendanceRate)}
+                centerSub="Attendance"
+                size={230}
               />
-              <span
-                className="overview-m3-meter-seg noshow"
-                style={{ width: `${Math.max(2, (found.noShow / Math.max(1, found.booked)) * 100)}%` }}
-                title={`No-show: ${found.noShow}`}
-              />
-              <span
-                className="overview-m3-meter-seg cancelled"
-                style={{ width: `${Math.max(2, (found.cancelled / Math.max(1, found.booked)) * 100)}%` }}
-                title={`Cancelled: ${found.cancelled}`}
-              />
-              {found.lateCancelled > 0 && (
-                <span
-                  className="overview-m3-meter-seg late"
-                  style={{
-                    width: `${Math.max(2, (found.lateCancelled / Math.max(1, found.booked)) * 100)}%`,
-                    background: "linear-gradient(90deg, #ea580c, #c2410c)",
-                  }}
-                  title={`Late cancelled: ${found.lateCancelled}`}
+
+              {found.byChannel && found.byChannel.length > 0 && (
+                <DonutChart
+                  title="Booking Channel Share"
+                  subtitle="How patients booked their consultations for this period."
+                  segments={found.byChannel.map((c) => {
+                    const colors: Record<string, string> = {
+                      ONLINE: "#3b82f6",
+                      WALK_IN: "#06b6d4",
+                      PHONE: "#8b5cf6",
+                      REFERRAL: "#ec4899",
+                    };
+                    const channelNames: Record<string, string> = {
+                      ONLINE: "Online booking",
+                      WALK_IN: "Front desk",
+                      PHONE: "Phone booking",
+                      REFERRAL: "Referral",
+                    };
+                    return {
+                      id: c.channel,
+                      label: channelNames[c.channel] ?? c.channel,
+                      value: c.booked,
+                      color: colors[c.channel] ?? "#64748b",
+                    };
+                  })}
+                  centerValue={String(found.booked)}
+                  centerSub="Bookings"
+                  size={230}
                 />
               )}
             </div>
 
-            <div className="overview-expressive-kpis reports-outcome-pills">
-              <span className="overview-m3-pill attended">
-                <i style={{ width: 8, height: 8, borderRadius: 99, background: "#10b981", display: "inline-block" }} />
-                <strong>{found.attended}</strong> Attended ({Math.round((found.attended / Math.max(1, found.booked)) * 100)}%)
-              </span>
-              <span className="overview-m3-pill noshow">
-                <i style={{ width: 8, height: 8, borderRadius: 99, background: "#f43f5e", display: "inline-block" }} />
-                <strong>{found.noShow}</strong> No-shows ({Math.round((found.noShow / Math.max(1, found.booked)) * 100)}%)
-              </span>
-              <span className="overview-m3-pill cancelled">
-                <i style={{ width: 8, height: 8, borderRadius: 99, background: "#f59e0b", display: "inline-block" }} />
-                <strong>{found.cancelled}</strong> Cancelled ({Math.round((found.cancelled / Math.max(1, found.booked)) * 100)}%)
-              </span>
-              {found.lateCancelled > 0 && (
-                <span className="overview-m3-pill" style={{ background: "rgba(234, 88, 12, 0.12)", color: "#c2410c" }}>
-                  <i style={{ width: 8, height: 8, borderRadius: 99, background: "#ea580c", display: "inline-block" }} />
-                  <strong>{found.lateCancelled}</strong> Late ({Math.round((found.lateCancelled / Math.max(1, found.booked)) * 100)}%)
-                </span>
-              )}
-            </div>
+            {hospital && hospital.units && hospital.units.length > 0 && (
+              <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--line-hairline, #e1e7f0)" }}>
+                <MultiUnitBarChart
+                  title="Hospital Units Comparative Volume"
+                  subtitle="Volume distribution and attendance rates across every operational unit."
+                  units={hospital.units.map((u) => ({
+                    unitId: u.clinicId,
+                    name: u.clinicName || u.clinicId,
+                    attended: u.attended,
+                    noShow: u.noShow,
+                    cancelled: u.cancelled + u.lateCancelled,
+                    total: u.booked,
+                    rate: u.attendance,
+                  }))}
+                  onSelectUnit={(id) => setUnit(id)}
+                />
+              </div>
+            )}
           </section>
 
           {hospital ? (
@@ -406,19 +458,25 @@ export function Reports() {
                 <span>NO-SHOW</span>
                 <span>ATTENDANCE</span>
               </div>
-              <ul className="accounts-rows">
-                {hospital.units.map((u, index) => (
-                  <li key={u.clinicId} className="account-row reports-unit-row" style={{ "--i": index } as CSSProperties}>
-                    <button type="button" className="reports-unit-link" onClick={() => setUnit(u.clinicId)}>
-                      {u.clinicName ?? u.clinicId}
-                    </button>
-                    <span>{u.booked}</span>
-                    <span>{u.attended}</span>
-                    <span>{u.noShow}</span>
-                    <RateBar rate={u.attendance ?? null} label={`${u.clinicName} attendance`} />
-                  </li>
-                ))}
-              </ul>
+              {hospital.units.length > 0 ? (
+                <ul className="accounts-rows">
+                  {hospital.units.map((u, index) => (
+                    <li key={u.clinicId} className="account-row reports-unit-row" style={{ "--i": index } as CSSProperties}>
+                      <button type="button" className="reports-unit-link" onClick={() => setUnit(u.clinicId)}>
+                        {u.clinicName ?? u.clinicId}
+                      </button>
+                      <span>{u.booked}</span>
+                      <span>{u.attended}</span>
+                      <span>{u.noShow}</span>
+                      <RateBar rate={u.attendance ?? null} label={`${u.clinicName} attendance`} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="overview-empty" style={{ padding: "20px 16px", textAlign: "center" }}>
+                  No units recorded activity in this period.
+                </p>
+              )}
             </section>
           ) : (
             one && (

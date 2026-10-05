@@ -16,6 +16,7 @@ import { Link, Navigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useSession } from "../auth/session";
 import { LoadingPane } from "../components/LoadingPane";
+import { DonutChart, MultiUnitBarChart } from "../components/ExpressiveCharts";
 import { Alert, Building, Calendar, Check, Clock, Mail, Plus, Shield, Sliders, User } from "../components/icons";
 import { clock, initials } from "../patient/data";
 import { TENANT } from "../tenant";
@@ -221,49 +222,37 @@ export function AdminOverview() {
               ) : !report.found ? (
                 <LoadingPane className="compact" label="Loading visits" />
               ) : (
-                <>
-                  <div className="overview-expressive-kpis">
-                    <span className="overview-m3-pill attended">
-                      <Check size={14} />
-                      <strong>{report.found.attended}</strong> attended ({Math.round((report.found.attended / Math.max(1, report.found.booked)) * 100)}%)
-                    </span>
-                    <span className="overview-m3-pill noshow">
-                      <Alert size={14} />
-                      <strong>{report.found.noShow}</strong> no-shows
-                    </span>
-                    <span className="overview-m3-pill cancelled">
-                      <Clock size={14} />
-                      <strong>{report.found.cancelled + report.found.lateCancelled}</strong> cancelled
-                    </span>
-                  </div>
-                  <div
-                    className="overview-m3-meter"
-                    role="img"
-                    aria-label={`Visits breakdown: ${report.found.attended} attended, ${report.found.noShow} no-shows, ${report.found.cancelled + report.found.lateCancelled} cancelled`}
-                  >
-                    <span
-                      className="overview-m3-meter-seg attended"
-                      style={{ width: `${Math.max(4, (report.found.attended / Math.max(1, report.found.booked)) * 100)}%` }}
-                      title={`Attended: ${report.found.attended}`}
-                    />
-                    <span
-                      className="overview-m3-meter-seg noshow"
-                      style={{ width: `${Math.max(2, (report.found.noShow / Math.max(1, report.found.booked)) * 100)}%` }}
-                      title={`No-show: ${report.found.noShow}`}
-                    />
-                    <span
-                      className="overview-m3-meter-seg cancelled"
-                      style={{ width: `${Math.max(2, ((report.found.cancelled + report.found.lateCancelled) / Math.max(1, report.found.booked)) * 100)}%` }}
-                      title={`Cancelled: ${report.found.cancelled + report.found.lateCancelled}`}
-                    />
-                  </div>
-                  <div className="overview-legend">
-                    <span><i className="overview-swatch-ok" style={{ background: "linear-gradient(90deg, #10b981, #059669)" }} /> Attended</span>
-                    <span><i className="overview-swatch-bad" style={{ background: "linear-gradient(90deg, #f43f5e, #e11d48)" }} /> No-show</span>
-                    <span><i style={{ background: "linear-gradient(90deg, #f59e0b, #d97706)", width: 11, height: 11, borderRadius: 3 }} /> Cancelled</span>
-                    <span className="overview-legend-note"><Link to="/console/reports">View full reports &rarr;</Link></span>
-                  </div>
-                </>
+                <DonutChart
+                  title="Visit Outcomes Distribution"
+                  subtitle="Proportion of registered visits attended, missed, or cancelled this week."
+                  segments={[
+                    {
+                      id: "attended",
+                      label: "Attended",
+                      value: report.found.attended,
+                      color: "#10b981",
+                    },
+                    {
+                      id: "noshow",
+                      label: "No-show",
+                      value: report.found.noShow,
+                      color: "#f43f5e",
+                    },
+                    {
+                      id: "cancelled",
+                      label: "Cancelled",
+                      value: report.found.cancelled + report.found.lateCancelled,
+                      color: "#f59e0b",
+                    },
+                  ]}
+                  centerValue={
+                    report.found.booked > 0
+                      ? `${Math.round((report.found.attended / report.found.booked) * 100)}%`
+                      : "0%"
+                  }
+                  centerSub="Attendance Rate"
+                  size={230}
+                />
               )}
             </div>
           )}
@@ -275,29 +264,19 @@ export function AdminOverview() {
               ) : !report.found || !report.found.units ? (
                 <LoadingPane className="compact" label="Loading unit volume" />
               ) : (
-                <div className="overview-unit-rows">
-                  {report.found.units.slice(0, 5).map((u) => {
-                    const maxBooked = Math.max(1, ...report.found!.units!.map((x) => x.booked));
-                    const rate = u.attendance != null ? Math.round(u.attendance * 100) : null;
-                    return (
-                      <div key={u.clinicId} className="overview-unit-row">
-                        <div className="overview-unit-head">
-                          <span>{u.clinicName || u.clinicId}</span>
-                          <span>{u.booked} visits {rate !== null ? `(${rate}% attendance)` : ""}</span>
-                        </div>
-                        <div className="overview-unit-bar-track">
-                          <div
-                            className="overview-unit-bar-fill"
-                            style={{ width: `${Math.max(6, (u.booked / maxBooked) * 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div className="overview-legend">
-                    <span className="overview-legend-note"><Link to="/console/reports">Compare all units &rarr;</Link></span>
-                  </div>
-                </div>
+                <MultiUnitBarChart
+                  title="Unit Volume & Outcomes"
+                  subtitle="Comparison of appointment volume and attendance across active hospital units."
+                  units={report.found.units.map((u) => ({
+                    unitId: u.clinicId,
+                    name: u.clinicName || u.clinicId,
+                    attended: u.attended,
+                    noShow: u.noShow,
+                    cancelled: u.cancelled,
+                    total: u.booked,
+                    rate: u.attendance,
+                  }))}
+                />
               )}
             </div>
           )}
@@ -365,8 +344,8 @@ function DeliveryChart({ days }: { days: Delivery["days"] }) {
       <div className="overview-plot" role="img" aria-label={rows.map((r) => `${DAY.format(new Date(`${r.day}T12:00:00Z`))}: ${r.ok} delivered, ${r.bad} failed`).join("; ")}>
         {rows.map((r, i) => (
           <div key={r.day} className="overview-bar" style={{ "--i": i } as CSSProperties}>
-            {r.bad > 0 && <span className="overview-bar-bad" style={{ height: `${Math.max(4, (r.bad / top) * 100)}%` }} />}
-            <span className="overview-bar-ok" style={{ height: `${(r.ok / top) * 100}%` }} />
+            {r.bad > 0 && <span className="overview-bar-bad" style={{ height: `${Math.min(96, Math.max(4, (r.bad / top) * 100))}%` }} />}
+            <span className="overview-bar-ok" style={{ height: `${Math.min(r.bad > 0 ? 96 : 100, (r.ok / top) * 100)}%` }} />
           </div>
         ))}
       </div>

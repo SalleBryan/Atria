@@ -20,6 +20,7 @@
 
 import { type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
+import { createPortal } from "react-dom";
 
 import { api } from "../api/client";
 import { useSession } from "../auth/session";
@@ -600,7 +601,7 @@ function Dialog({
   canSubmit: boolean;
   children: ReactNode;
 }) {
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
       <div
         className="dialog staff-dialog move-dialog settings-dialog"
@@ -632,7 +633,8 @@ function Dialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

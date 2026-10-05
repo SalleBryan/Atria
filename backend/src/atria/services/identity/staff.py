@@ -261,7 +261,7 @@ def list_accounts(
     sort_order = query.get("sort") or "name_asc"
 
     def name_key(a: dict[str, Any]) -> tuple[str, str]:
-        return (a.get("familyName") or "").casefold(), (a.get("givenName") or "").casefold()
+        return (a.get("givenName") or "").casefold(), (a.get("familyName") or "").casefold()
 
     if sort_order == "name_desc":
         found.sort(key=name_key, reverse=True)

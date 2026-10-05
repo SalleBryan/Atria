@@ -223,21 +223,26 @@
 /* ------------------------------------------------------------ the dialog */
 
 .scrim {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 40;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  z-index: 1000;
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(16, 42, 94, 0.35);
-  backdrop-filter: blur(6px);
+  background: rgba(16, 42, 94, 0.42);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   animation: fade-in var(--fade-slow) both;
 }
 .dialog {
   width: 100%;
   max-width: 458px;
   max-height: 100%;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 26px;
   border: 1px solid #ffffff;
   border-radius: 30px;

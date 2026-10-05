@@ -84,6 +84,18 @@ class TestPerson:
     def test_no_name_is_a_plain_greeting(self):
         assert "Hello," in message(locale="en", given_name="")
 
+    def test_custom_message_uses_dynamodb_given_name_when_table_set(self, monkeypatch):
+        monkeypatch.setenv("MAIN_TABLE", "test-table")
+
+        class MockPeople:
+            def by_cognito_sub(self, sub: str):
+                return {"givenName": "Tracy", "preferredLanguage": "en"}
+
+        monkeypatch.setattr("atria.data.people.People", lambda _repo: MockPeople())
+        ev = event(given_name="OldName", sub="sub-123")
+        res = custom_message.handler(ev, None)
+        assert "Hello Tracy," in res["response"]["emailMessage"]
+
 
 class TestNeverBreaksSignUp:
     def test_a_failure_leaves_cognitos_default(self, monkeypatch):

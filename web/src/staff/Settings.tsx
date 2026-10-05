@@ -4,7 +4,8 @@
  *
  * Five tabs over one read (GET /admin/settings):
  *
- *   Hospital     name, region pack and its lock, the grid, languages,
+ *   Hospital     name, region pack and its lock, the grid (English only
+ *                until Phase 3, so no language choice),
  *                reminders, senders, and the policy switches
  *   Units        each unit's profile, services and opening hours
  *   Visit types  what can be booked, maintained without a release
@@ -19,8 +20,8 @@
  */
 
 import { type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { Navigate } from "react-router-dom";
 import { createPortal } from "react-dom";
+import { Navigate } from "react-router-dom";
 
 import { api } from "../api/client";
 import { useSession } from "../auth/session";
@@ -131,7 +132,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "roles", label: "Roles" },
 ];
 
-const LANGUAGE: Record<string, string> = { en: "English", fr: "French" };
 export const LINE: Record<Line, string> = { GENERAL: "General", SPECIALIST: "Specialist", PROCEDURE: "Procedure" };
 const LINE_TONE: Record<Line, string> = { GENERAL: "chip-confirmed", SPECIALIST: "chip-booked", PROCEDURE: "chip-admin" };
 const BOOKED_BY: Record<VisitType["bookableBy"], string> = {
@@ -323,20 +323,6 @@ function HospitalTab({ found, onSaved }: { found: Overview; onSaved: (message: s
               disabled={start.regionPackLocked}
               onChange={(v) => set({ gridUnitMinutes: Number(v) })}
             />
-          </Row>
-          <Row title="Languages" help="What patients can choose for messages and screens.">
-            <span className="settings-checks">
-              {pack.languages.map((code) => (
-                <Checkbox
-                  key={code}
-                  checked={draft.languages.includes(code)}
-                  disabled={draft.languages.length === 1 && draft.languages.includes(code)}
-                  onChange={(on) => set({ languages: on ? [...draft.languages, code] : draft.languages.filter((l) => l !== code) })}
-                >
-                  {LANGUAGE[code] ?? code}
-                </Checkbox>
-              ))}
-            </span>
           </Row>
         </section>
 

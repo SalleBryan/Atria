@@ -270,12 +270,13 @@ export function downloadStaffTemplate(clinics: ClinicRef[]) {
 export function downloadPatientTemplate() {
   const wb = XLSX.utils.book_new();
 
-  const headers = ["Given Name", "Family Name", "Mobile", "Date of Birth", "Language"];
+  // No language column: Atria is English only until Phase 3.
+  const headers = ["Given Name", "Family Name", "Mobile", "Date of Birth"];
 
   const sampleRows = [
-    ["Paul", "Biya", "+237 6 70 00 11 22", "13/02/1985", "French"],
-    ["Grace", "Ngo", "+237 6 99 12 34 56", "24/11/1992", "English"],
-    ["Jean", "Kamga", "+237 6 77 88 99 00", "05/08/1978", "French"],
+    ["Paul", "Biya", "+237 6 70 00 11 22", "13/02/1985"],
+    ["Grace", "Ngo", "+237 6 99 12 34 56", "24/11/1992"],
+    ["Jean", "Kamga", "+237 6 77 88 99 00", "05/08/1978"],
   ];
 
   const wsData = [headers, ...sampleRows];
@@ -286,7 +287,6 @@ export function downloadPatientTemplate() {
     { wch: 18 }, // Family Name
     { wch: 22 }, // Mobile
     { wch: 18 }, // Date of Birth
-    { wch: 14 }, // Language
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, "Patients");
@@ -299,7 +299,6 @@ export function downloadPatientTemplate() {
     ["Family Name", "Yes", "Patient last name"],
     ["Mobile", "Yes", "Mobile number with country code, e.g. +237 6 70 00 00 00. Reminders go here by SMS."],
     ["Date of Birth", "Optional", "DD/MM/YYYY or YYYY-MM-DD, e.g. 15/04/1990"],
-    ["Language", "Optional", "English or French (defaults to English if omitted)"],
   ];
   const refWs = XLSX.utils.aoa_to_sheet(refData);
   refWs["!cols"] = [{ wch: 18 }, { wch: 12 }, { wch: 60 }];

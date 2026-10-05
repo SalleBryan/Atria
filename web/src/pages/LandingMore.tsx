@@ -212,7 +212,7 @@ const QUESTIONS = [
   },
   {
     q: "Which languages can I use?",
-    a: "The screens are in English today. You can choose French for your texts and emails, and see which clinicians consult in French or English.",
+    a: "Atria is in English: the screens, texts and emails. You can still see which clinicians consult in French or English.",
   },
 ];
 

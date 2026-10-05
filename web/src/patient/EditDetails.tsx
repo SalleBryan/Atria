@@ -1,6 +1,7 @@
 /**
  * Changing one's own details (2026-09-28, 2026-09-30): the name, the mobile,
- * the date of birth and the language, each through PATCH /me. The email is
+ * and the date of birth, each through PATCH /me. Language is English only
+ * until Phase 3. The email is
  * what the account signs in with, so it is shown and not changed here. A
  * verified mobile changes by one-time code, which comes with SMS
  * verification; until then only an unverified number can be corrected.
@@ -20,10 +21,8 @@ import { Field, Notice } from "../components/controls";
 import { User } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { PhoneField } from "../components/PhoneField";
-import { SelectMenu } from "../components/Pickers";
-import { languageName } from "./data";
 
-export type Editing = null | "name" | "language" | "phone" | "born";
+export type Editing = null | "name" | "phone" | "born";
 
 /** "+237670000142" as "6 70 00 01 42", for the field beside its flag. */
 export function localMobile(e164: string | null | undefined): string {
@@ -51,7 +50,6 @@ export function EditDetails({
   const me = state.status === "signed-in" ? state.me : undefined;
   const [given, setGiven] = useState(me?.givenName ?? "");
   const [family, setFamily] = useState(me?.familyName ?? "");
-  const [language, setLanguage] = useState(me?.languages?.[0] ?? "en");
   const [phone, setPhone] = useState(localMobile(me?.phoneE164));
   const [country, setCountry] = useState<CountryCode>(HOME_COUNTRY);
   const [born, setBorn] = useState(shownDate(me?.dateOfBirth));
@@ -82,12 +80,6 @@ export function EditDetails({
           ? "Your name is saved across the console."
           : "Your name is saved. The front desk sees it too.";
       await run({ givenName: given.trim(), familyName: family.trim() }, msg);
-    } else if (editing === "language") {
-      const msg =
-        aud === "staff"
-          ? `Your preferred language is updated to ${languageName(language)}.`
-          : `Messages will come in ${languageName(language)}.`;
-      await run({ preferredLanguage: language }, msg);
     } else if (editing === "phone") {
       const number = normalisePhone(phone, country);
       if (!isMobile(number)) {
@@ -116,11 +108,9 @@ export function EditDetails({
   const ready =
     editing === "name"
       ? given.trim().length > 0 && family.trim().length > 0
-      : editing === "language"
-        ? true
-        : editing === "phone"
-          ? phone.trim().length > 0
-          : born.trim().length > 0;
+      : editing === "phone"
+        ? phone.trim().length > 0
+        : born.trim().length > 0;
 
   return (
     <form className="inner-card settings-card edit-details" onSubmit={save} noValidate>
@@ -129,18 +119,6 @@ export function EditDetails({
         <div className="edit-details-pair">
           <Field label="Given name" icon={User} value={given} onChange={(e) => setGiven(e.target.value)} autoComplete="given-name" />
           <Field label="Family name" icon={User} value={family} onChange={(e) => setFamily(e.target.value)} autoComplete="family-name" />
-        </div>
-      )}
-      {editing === "language" && (
-        <div className="field">
-          <span className="field-label">Language</span>
-          <SelectMenu
-            label="Language"
-            value={language}
-            width={260}
-            options={["en", "fr"].map((code) => ({ id: code, label: languageName(code) }))}
-            onChange={setLanguage}
-          />
         </div>
       )}
       {editing === "phone" && (

@@ -30,7 +30,7 @@ import { PhoneField } from "../components/PhoneField";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { SelectMenu } from "../components/Pickers";
 import { MATRIX } from "../generated/permissions";
-import { clock, initials, languageName, type Appointment } from "../patient/data";
+import { clock, initials, type Appointment } from "../patient/data";
 import { doctor, roleOf, useStaffData } from "./data";
 import { BatchRestoreDialog, DeleteAccountDialog, daysLeft, RestoreDialog } from "../components/DeleteAccountDialog";
 import { CHANNEL, sentence, staffState } from "./labels";
@@ -416,7 +416,6 @@ export function NewPatient({
   const [country, setCountry] = useState<CountryCode>(HOME_COUNTRY);
   const [bornText, setBornText] = useState("");
   const born = birthDate(bornText);
-  const [language, setLanguage] = useState<"en" | "fr">("en");
   const [shared, setShared] = useState<RegisterEntry[] | null>(null);
   const [sameNumber, setSameNumber] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -434,7 +433,6 @@ export function NewPatient({
           familyName: family.trim(),
           phoneE164: normalisePhone(phone, country),
           ...(born ? { dateOfBirth: born } : {}),
-          preferredLanguage: language,
           ...(sameNumber ? { sameNumberConfirmed: true } : {}),
         },
       });
@@ -496,25 +494,6 @@ export function NewPatient({
               onChange={setBornText}
               error={bornWrong ? "Enter a real date of birth, such as 02/04/1990, or leave it empty." : undefined}
             />
-            <div className="off-fields">
-              <div className="off-field">
-                <span>Messages in</span>
-                <div className="segmented" role="radiogroup" aria-label="Messages in">
-                  {(["en", "fr"] as const).map((code) => (
-                    <button
-                      key={code}
-                      type="button"
-                      role="radio"
-                      aria-checked={language === code}
-                      className={`segment${language === code ? " segment-on" : ""}`}
-                      onClick={() => setLanguage(code)}
-                    >
-                      {languageName(code)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
             {shared && (
               <div className="patients-shared">
                 <Notice tone="info">
@@ -680,8 +659,6 @@ export function PatientRecordPage() {
               </dd>
               <dt>Date of birth</dt>
               <dd>{record.dateOfBirth ? clock.long(`${record.dateOfBirth}T12:00:00Z`) : "Not given"}</dd>
-              <dt>Messages in</dt>
-              <dd>{record.preferredLanguage ? languageName(record.preferredLanguage) : "Not chosen"}</dd>
               <dt>Account</dt>
               <dd>
                 {record.hasAccount ? "Signs in to Atria" : "No account yet"}

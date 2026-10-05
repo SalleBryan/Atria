@@ -14,7 +14,7 @@ import { type ComponentType, useEffect, useState } from "react";
 import { useSession } from "../auth/session";
 import { SignOutMenu } from "../components/SignOutMenu";
 import { Notice } from "../components/controls";
-import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Close, Globe, Mail, Phone, Pin, Shield, User } from "../components/icons";
+import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Close, Mail, Phone, Pin, Shield, User } from "../components/icons";
 import { EditDetails, type Editing, shownDate } from "./EditDetails";
 import { DeleteAccountDialog } from "../components/DeleteAccountDialog";
 import { api } from "../api/client";
@@ -22,7 +22,7 @@ import { type PushState, pushState, turnPushOff, turnPushOn } from "../api/push"
 import { HospitalUnits } from "./HospitalUnits";
 import { LoadingPane } from "../components/LoadingPane";
 import { useTier } from "../layout/fit";
-import { clock, join, languageName, past, upcoming, usePatientData } from "./data";
+import { clock, join, past, upcoming, usePatientData } from "./data";
 import { TENANT } from "../tenant";
 
 type Section = "details" | "notifications" | "clinics";
@@ -145,7 +145,7 @@ export function Account() {
           <>
             <header className="section-head">
               <h1 id="section-title">Personal details</h1>
-              <p>What Atria holds about you. Change your name, mobile, date of birth and language here; your email is how you sign in, and the front desk at {TENANT.name} can help with it.</p>
+              <p>What Atria holds about you. Change your name and date of birth here; your email is how you sign in, and the front desk at {TENANT.name} can help with it.</p>
             </header>
             {said && <Notice tone="success">{said}</Notice>}
             {editing ? (
@@ -160,13 +160,6 @@ export function Account() {
             <div className="inner-card settings-card">
               <Row icon={User} tone="tone-blue" title="Name" sub={name} end={<EditLink label="Change your name" onClick={() => start("name")} />} />
               <Row icon={Mail} tone="tone-green" title="Email" sub={me?.email ?? "Not given"} />
-              <Row
-                icon={Globe}
-                tone="tone-blue"
-                title="Language"
-                sub={languageName(me?.languages?.[0] ?? "en")}
-                end={<EditLink label="Change your language" onClick={() => start("language")} />}
-              />
               <Row
                 icon={Phone}
                 tone="tone-amber"

@@ -30,7 +30,7 @@ import { MoveVisit } from "../components/MoveVisit";
 import { BeforeVisit } from "./BeforeVisit";
 import { NewTimeOffer } from "./NewTimeOffer";
 import { RequestDetail, TicketDetail } from "./QueueVisit";
-import { Alert, Bell, Building, CheckMark, ChevronLeft, Close, Filter, Mail, Stethoscope, User } from "../components/icons";
+import { Alert, Bell, Building, Calendar, CheckMark, ChevronLeft, Close, Filter, Info, Mail, Stethoscope, User } from "../components/icons";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { rank, SearchSuggest, type SuggestionGroup } from "../components/SearchSuggest";
 import { LoadingIndicator } from "../components/LoadingIndicator";
@@ -632,7 +632,11 @@ function VisitDetail({
                 </span>
                 <span>
                   <span className="timeline-title">
-                    {reminderAt.getTime() > Date.parse(appointment.createdAt) ? "SMS reminder scheduled" : "SMS confirmation sent"}
+                    {reminderAt.getTime() > Date.parse(appointment.createdAt)
+                      ? reminderAt.getTime() > Date.now()
+                        ? "SMS reminder scheduled"
+                        : "SMS reminder due"
+                      : "SMS confirmation sent"}
                   </span>
                   <span className="timeline-sub">
                     {reminderAt.getTime() > Date.parse(appointment.createdAt)
@@ -742,7 +746,7 @@ function CancelDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <span className="dialog-icon" aria-hidden="true">
-          <Close size={22} />
+          <Calendar size={22} />
         </span>
         <h2 id="cancel-title">Cancel this visit?</h2>
         <p className="dialog-lede">
@@ -786,19 +790,19 @@ function CancelDialog({
             <textarea
               className="dialog-text"
               aria-label="Your reason"
-              placeholder="Tell the clinic why, in a few words"
+              placeholder="Tell the unit why, in a few words"
               maxLength={300}
               autoFocus
               value={other}
               onChange={(event) => setOther(event.target.value)}
             />
           )}
-          <div className={`dialog-note${(preview ? preview.entitlement !== "FULL" : late) ? " dialog-note-late" : ""}`}>
-            <Alert size={15} />
+          <div className={`dialog-note${(preview ? preview.entitlement !== "FULL" : late) ? " dialog-note-late" : " dialog-note-calm"}`}>
+            {(preview ? preview.entitlement !== "FULL" : late) ? <Alert size={15} /> : <Info size={15} />}
             <p>
               {late
                 ? `This visit is ${awayText} away, inside the ${windowHours} hour cancellation window, so it will be recorded as a late cancellation.`
-                : `Cancelling inside ${windowHours} hours of a visit is recorded by the clinic. This one is ${awayText} away, so nothing is flagged.`}
+                : `Cancelling inside ${windowHours} hours of a visit is recorded by the hospital. This one is ${awayText} away, so nothing is flagged.`}
             </p>
           </div>
           <dl className="fee-band" aria-label="What cancelling now records">

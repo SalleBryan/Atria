@@ -306,6 +306,9 @@
 }
 .dialog-note > svg { flex: none; margin-top: 1px; }
 .dialog-note p { margin: 0; font-size: 12px; line-height: 1.55; }
+/* Nothing flagged: the platform's info blue, not the amber of a warning
+   (audit 2026-10-05). */
+.dialog-note-calm { border-color: var(--blue-200); color: var(--blue-700); background: rgba(74, 131, 240, 0.08); }
 .dialog-note-late { border-color: var(--status-cancelled); color: var(--status-cancelled-ink); background: rgba(214, 72, 90, 0.1); }
 .dialog form > .notice { margin-top: 12px; }
 .dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
@@ -408,6 +411,9 @@
   color: var(--ink-450);
   background: #ffffff;
 }
+/* Not offered yet: a dashed outline on the field colour, so it never reads
+   as a choice that did nothing when tapped (audit 2026-10-05). */
+.lead[aria-disabled="true"] { border-style: dashed; background: var(--surface-field); cursor: not-allowed; }
 .lead span:first-child { font-family: var(--font-display); font-weight: 600; font-size: 16px; }
 .lead span:last-child { font-size: 11px; }
 .lead-on {

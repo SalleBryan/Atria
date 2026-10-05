@@ -18,7 +18,7 @@ import { createPortal } from "react-dom";
 
 import { api } from "../api/client";
 import { Notice } from "../components/controls";
-import { Alert, Close, Mail } from "../components/icons";
+import { Alert, Calendar, Info, Mail } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { type Appointment, type AppointmentType, type Clinician, clock, initials } from "../patient/data";
 import { doctor, fullName, noonOf, type PatientName } from "./data";
@@ -100,9 +100,9 @@ export function CancelVisit({
         onClick={(event) => event.stopPropagation()}
       >
         <span className="dialog-icon" aria-hidden="true">
-          <Close size={22} />
+          <Calendar size={22} />
         </span>
-        <h2 id="staff-cancel-title">Cancel this appointment?</h2>
+        <h2 id="staff-cancel-title">Cancel this visit?</h2>
         <p className="dialog-lede">
           The time returns to the unit's calendar straight away and the patient's reminder is removed. This is recorded
           against your account.
@@ -175,8 +175,8 @@ export function CancelVisit({
           )}
 
           {by && (
-            <div className={`dialog-note${by === "PATIENT" && late ? " dialog-note-late" : ""}`}>
-              <Alert size={15} />
+            <div className={`dialog-note${by === "PATIENT" && late ? " dialog-note-late" : " dialog-note-calm"}`}>
+              {by === "PATIENT" && late ? <Alert size={15} /> : <Info size={15} />}
               <p>
                 {by === "CLINIC"
                   ? "Recorded as cancelled by the institution, so the patient keeps their full entitlement."
@@ -213,7 +213,7 @@ export function CancelVisit({
               aria-busy={busy || undefined}
             >
               {busy ? <LoadingIndicator size={20} label="Cancelling" /> : null}
-              {busy ? "Cancelling" : "Cancel appointment"}
+              {busy ? "Cancelling" : "Cancel visit"}
             </button>
           </div>
         </form>

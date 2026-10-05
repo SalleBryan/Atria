@@ -597,10 +597,10 @@ function Dialog({
         aria-labelledby={`${formId}-title`}
         onClick={(event) => event.stopPropagation()}
       >
-        <button type="button" className="icon-button dialog-close" aria-label="Close" onClick={onClose} disabled={busy}>
-          <Close size={16} />
-        </button>
         <div className="move-scroll">
+          <button type="button" className="icon-button dialog-close" aria-label="Close" onClick={onClose} disabled={busy}>
+            <Close size={16} />
+          </button>
           <span className="dialog-icon dialog-icon-blue accounts-dialog-icon" aria-hidden="true">
             {icon}
           </span>
@@ -1158,7 +1158,7 @@ function FeesTab({ found, onSaved }: { found: Overview; onSaved: (message: strin
     <section className="glass accounts-card" aria-label="Fee bands">
       <p className="accounts-banner settings-banner">
         <Shield size={18} />
-        Amounts are recorded in the fee ledger at every visit's close. No money moves in Atria before Phase 3, and a rating never changes a
+        Amounts are recorded in the fee ledger at every visit's close. No money moves through Atria yet, and a rating never changes a
         fee.
       </p>
       <div className="accounts-head settings-fees-head" aria-hidden="true">

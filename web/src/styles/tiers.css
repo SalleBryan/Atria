@@ -173,7 +173,7 @@
   .phone-bar > span { text-align: center; font-family: var(--font-display); font-weight: 600; font-size: 16px; color: var(--ink-primary); }
   .patient-app:has(.find-care[data-step="detail"]) .bottom-nav { display: none; }
   .find-care[data-step="detail"] .detail-hero { border-radius: 28px; }
-  .find-care[data-step="detail"] .days { display: flex; gap: 10px; margin: 0 -20px; padding: 0 20px 8px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .find-care[data-step="detail"] .days { display: flex; gap: 10px; margin: 0 -20px; padding: 0 20px 8px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-padding-inline: 20px; }
   .find-care[data-step="detail"] .day { flex: none; width: 74px; height: auto; min-height: 80px; padding: 8px 6px 7px; border-radius: 18px; }
   .find-care[data-step="detail"] .slots { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .find-care[data-step="detail"] .slot { height: 52px; border-radius: 16px; }

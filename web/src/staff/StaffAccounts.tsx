@@ -31,7 +31,7 @@ import { useSession } from "../auth/session";
 import { Field, Notice } from "../components/controls";
 import { LoadingRow } from "../components/LoadingPane";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
-import { Building, CheckMark, Clipboard, Close, Download, Filter, Info, Plus, Repeat, Shield, Star, Trash, Undo, Upload, User } from "../components/icons";
+import { Building, CheckMark, Clipboard, Close, Download, Filter, Info, Lock, Plus, Repeat, Shield, Star, Trash, Undo, Upload, User } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { Pager } from "../components/Pager";
 import { SelectMenu } from "../components/Pickers";
@@ -335,7 +335,7 @@ export function StaffAccounts() {
     <div className="accounts-page">
       <header className="accounts-top">
         <div>
-          <h1>Console users</h1>
+          <h1>Staff accounts</h1>
           <p>Everyone who can sign in to the staff console</p>
         </div>
         <div className="accounts-actions">
@@ -476,7 +476,7 @@ export function StaffAccounts() {
                   : off
                   ? { label: "Suspended", tone: "neutral" }
                   : account.mustSetPassword
-                    ? { label: "Must set password", tone: "awaiting" }
+                    ? { label: STATUS_NAME.awaiting, tone: "awaiting" }
                     : { label: "Active", tone: "confirmed" };
                 const name = [account.givenName, account.familyName].filter(Boolean).join(" ") || "Unnamed account";
                 return (
@@ -825,7 +825,7 @@ function Suspend({ account, onClose, onDone }: { account: Listed; onClose: () =>
     <div className="scrim" onClick={() => !busy && onClose()}>
       <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="suspend-title" onClick={(e) => e.stopPropagation()}>
         <span className="dialog-icon" aria-hidden="true">
-          <Close size={22} />
+          <Lock size={22} />
         </span>
         <h2 id="suspend-title">Suspend {name}?</h2>
         <p className="dialog-lede">

@@ -16,4 +16,10 @@ describe("messageFor", () => {
   it("tells a closed account how to get it back", () => {
     expect(messageFor(refused("NotAuthorizedException", "User is disabled."))).toMatch(/restored within 30 days/);
   });
+
+  it("never shows the sign-in library's own wiring", () => {
+    expect(messageFor(new Error("No AmplifyContext available. Make sure Amplify.configure() was called."))).toBe(
+      "Signing in is not available right now. Try again in a few minutes.",
+    );
+  });
 });

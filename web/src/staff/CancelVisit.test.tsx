@@ -48,7 +48,7 @@ function open(hoursAhead = 72) {
       onCancelled={onCancelled}
     />,
   );
-  return { dialog: screen.getByRole("dialog", { name: "Cancel this appointment?" }), onCancelled, user: userEvent.setup() };
+  return { dialog: screen.getByRole("dialog", { name: "Cancel this visit?" }), onCancelled, user: userEvent.setup() };
 }
 
 describe("Cancelling from the desk", () => {
@@ -59,14 +59,14 @@ describe("Cancelling from the desk", () => {
 
   it("will not cancel until a reason says who called it off", () => {
     const { dialog } = open();
-    expect(within(dialog).getByRole("button", { name: "Cancel appointment" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Cancel visit" })).toBeDisabled();
   });
 
   it("fr_vis_03: a clinic reason cancels as the clinic, and says the entitlement is kept", async () => {
     const { dialog, onCancelled, user } = open();
     await user.click(within(dialog).getByRole("radio", { name: "Clinician unavailable" }));
     expect(dialog).toHaveTextContent("the patient keeps their full entitlement");
-    await user.click(within(dialog).getByRole("button", { name: "Cancel appointment" }));
+    await user.click(within(dialog).getByRole("button", { name: "Cancel visit" }));
     expect(api).toHaveBeenCalledWith("/appointments/a-1", {
       method: "DELETE",
       json: { cancelledBy: "CLINIC", reason: "Clinician unavailable" },
@@ -90,7 +90,7 @@ describe("Cancelling from the desk", () => {
   it("asks who called it off for any other reason, and keeps the note", async () => {
     const { dialog, user } = open();
     await user.click(within(dialog).getByRole("radio", { name: "Other" }));
-    const submit = within(dialog).getByRole("button", { name: "Cancel appointment" });
+    const submit = within(dialog).getByRole("button", { name: "Cancel visit" });
     expect(submit).toBeDisabled();
     await user.click(within(dialog).getByRole("radio", { name: "The patient" }));
     // "Other" says why before it can be recorded.
@@ -107,7 +107,7 @@ describe("Cancelling from the desk", () => {
     api.mockRejectedValue(new ApiError(409, "that appointment is already cancelled"));
     const { dialog, onCancelled, user } = open();
     await user.click(within(dialog).getByRole("radio", { name: "Double booking" }));
-    await user.click(within(dialog).getByRole("button", { name: "Cancel appointment" }));
+    await user.click(within(dialog).getByRole("button", { name: "Cancel visit" }));
     expect(await within(dialog).findByText("That appointment is already cancelled. Nothing was changed; try again.")).toBeInTheDocument();
     expect(onCancelled).not.toHaveBeenCalled();
   });

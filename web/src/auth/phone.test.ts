@@ -1,4 +1,4 @@
-import { countries, countryOf, isMobile, nationalInput, normalisePhone, withCountry } from "./phone";
+import { countries, countryOf, isMobile, maskedPhone, nationalInput, normalisePhone, withCountry } from "./phone";
 
 describe("phone numbers on the Cameroon pack", () => {
   it.each([
@@ -85,5 +85,11 @@ describe("the phone field after its dial code", () => {
 
   it("keeps a stored number's national part when a field opens on it", () => {
     expect(nationalInput("+237691234567", "CM").text).toBe("6 91 23 45 67");
+  });
+
+  it("hides a number's middle after its own country code", () => {
+    expect(maskedPhone("+12025550142")).toBe("+1 ••••••• 142");
+    expect(maskedPhone("+237670000123")).toBe("+237 •••••• 123");
+    expect(maskedPhone(null)).toBe("Not given");
   });
 });

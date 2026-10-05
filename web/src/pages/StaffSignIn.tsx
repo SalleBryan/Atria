@@ -24,7 +24,7 @@ import { Lock, Mail } from "../components/icons";
 
 export const STAFF_FOOTER = (
   <>
-    Staff accounts are issued by your practice administrator.
+    Staff accounts are issued by your hospital's administrator.
     <br />
     Access is logged for audit.
   </>
@@ -73,7 +73,7 @@ export function StaffSignIn() {
         // console, and must not keep a staff-client session.
         await signOut();
         await refresh("staff");
-        setError("That is a patient account. Patients sign in through the Atria app, not the console.");
+        setError("That is a patient account. Patients sign in on the patient sign-in page, not the console.");
       } else {
         setError(state.status === "unresolved" ? state.message : "Sign-in did not complete.");
       }
@@ -91,7 +91,7 @@ export function StaffSignIn() {
       </StatusPill>
       <h1 className="title">Sign in to the console.</h1>
       <p className="lede">
-        Use the credentials your practice administrator issued you. Patients sign in through the Atria app, not here.
+        Use the credentials your hospital's administrator issued you. Patients sign in on the patient sign-in page, not here.
       </p>
       <form className="form-card" onSubmit={submit} noValidate>
         {notice && <Notice tone="success">{notice}</Notice>}

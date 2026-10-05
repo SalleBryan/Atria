@@ -15,6 +15,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiAll, type Me } from "../api/client";
+import { MATRIX } from "../generated/permissions";
 import {
   ACTIVE_STATES,
   type Appointment,
@@ -119,6 +120,18 @@ export function roleOf(me: Me): StaffRole {
   }
   return "RECEPTIONIST";
 }
+
+/**
+ * Attendance as the API works it out (core/report.attendance): attended of
+ * those who were due to come, so a cancellation neither helps nor hurts.
+ */
+export function attendanceOf({ attended, noShow }: { attended: number; noShow: number }): number | null {
+  return attended + noShow ? attended / (attended + noShow) : null;
+}
+
+/** Whether the role holds a permission at any scope (spec/atria_spec/roles.py). */
+export const can = (role: StaffRole, permission: keyof typeof MATRIX): boolean =>
+  (MATRIX[permission] as Record<string, string>)[role] !== "none";
 
 /** Whether the role reads one clinician's calendar rather than a clinic's day. */
 export const readsOwnCalendar = (role: StaffRole) => role === "CLINICIAN";

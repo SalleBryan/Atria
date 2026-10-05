@@ -134,7 +134,7 @@ describe("Messages", () => {
     const tiles = await screen.findByRole("region", { name: "Delivery in numbers" });
     expect(within(tiles).getByText("75%")).toBeInTheDocument();
     expect(within(tiles).getByText("25%")).toBeInTheDocument();
-    expect(within(tiles).getByText("$0.32")).toBeInTheDocument();
+    expect(within(tiles).getByText("US$0.32")).toBeInTheDocument();
     expect(screen.getByText("notices@atria.invalid")).toBeInTheDocument();
     expect(screen.getByText("Sandbox: verified numbers only")).toBeInTheDocument();
   });

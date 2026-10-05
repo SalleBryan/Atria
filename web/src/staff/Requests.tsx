@@ -15,7 +15,7 @@ import { Navigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
-import { Close, Stethoscope } from "../components/icons";
+import { Alert, Close, Stethoscope } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { LoadingRow } from "../components/LoadingPane";
 import { SelectMenu } from "../components/Pickers";
@@ -203,10 +203,10 @@ function PlaceDialog({
         aria-labelledby="place-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <button type="button" className="icon-button dialog-close" aria-label="Close" onClick={onClose} disabled={busy}>
-          <Close size={16} />
-        </button>
         <div className="move-scroll">
+          <button type="button" className="icon-button dialog-close" aria-label="Close" onClick={onClose} disabled={busy}>
+            <Close size={16} />
+          </button>
           <span className="dialog-icon dialog-icon-blue" aria-hidden="true">
             <Stethoscope size={22} />
           </span>
@@ -289,7 +289,7 @@ function DeclineDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <span className="dialog-icon" aria-hidden="true">
-          <Close size={22} />
+          <Alert size={22} />
         </span>
         <h2 id="decline-title">Decline {appointment.reference}?</h2>
         <p className="dialog-lede">The patient reads the reason in their visits and by email. Keep it plain and kind.</p>

@@ -356,8 +356,18 @@
 }
 .staff-primary:hover::before { opacity: 0.1; }
 .staff-primary:active { border-radius: 11px; transform: scale(0.98); }
+/* The administrator's main action wears the admin purple like the rest of
+   that console; dialogs sit on <body>, so the console is asked
+   (audit 2026-10-05). */
+.admin-app .staff-primary,
+body:has(.admin-app) .scrim .staff-primary {
+  background: linear-gradient(140deg, var(--admin-light), var(--admin-base));
+  box-shadow: 0 10px 22px rgba(91, 52, 196, 0.3);
+}
 /* Not yet possible: the platform's quiet field colour, so an unready action never looks ready. */
-.staff-primary:disabled { color: var(--ink-muted); background: var(--surface-field); box-shadow: none; cursor: default; transform: none; }
+.staff-primary:disabled,
+.admin-app .staff-primary:disabled,
+body:has(.admin-app) .scrim .staff-primary:disabled { color: var(--ink-muted); background: var(--surface-field); box-shadow: none; cursor: default; transform: none; }
 .staff-primary:disabled::before { opacity: 0; }
 .panel-actions .outline-danger { height: calc(42px + 6px * var(--tall)); }
 .staff-panel-empty {
@@ -440,7 +450,7 @@
   font-size: 13px;
   color: var(--ink-primary);
   background: #ffffff;
-  resize: vertical;
+  resize: none;
   transition: border-color var(--fade), box-shadow var(--move-fast);
 }
 .dialog-text:focus {
@@ -1151,6 +1161,9 @@ body:has(.admin-app) .sheet-icon:not(.sheet-icon-done) {
   .staff-row > .account-role { display: block; }
   .accounts-head.staff-head > :nth-child(2),
   .staff-row > :nth-child(2) { display: none; }
+  .accounts-head.staff-head,
+  .account-row.staff-row { grid-template-columns: minmax(0, 1fr) 150px 160px 132px; }
+  .staff-row .chip-awaiting { white-space: nowrap; }
   /* The audit log keeps when and from where, and drops the record's kind. */
   .accounts-head.audit-head,
   .account-row.audit-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 140px; }
@@ -1350,10 +1363,14 @@ body:has(.admin-app) .sheet-icon:not(.sheet-icon-done) {
   overflow-x: hidden;
   scrollbar-gutter: stable;
 }
-/* The platform's scrollbar (tokens.css), its track starting below the close button. */
-.move-scroll::-webkit-scrollbar-track { margin: 44px 0 8px; }
+/* The platform's scrollbar (tokens.css), inset from the dialog's corners. */
+.move-scroll::-webkit-scrollbar-track { margin: 8px 0; }
 .move-dialog form { display: flex; flex-direction: column; gap: 10px; }
-.dialog-close { position: absolute; top: 18px; right: 18px; z-index: 2; background: #ffffff; box-shadow: 0 2px 8px rgba(16, 42, 94, 0.12); }
+/* The close sits in the scrolling content, beside the icon, and scrolls away
+   with the title: pinned over the content, the rows slid under it
+   (audit 2026-10-05). Escape and Cancel close the dialog from anywhere. */
+.move-scroll { position: relative; }
+.dialog-close { position: absolute; top: 0; right: 14px; z-index: 2; }
 /* Content fades out under the dialog's edges as it scrolls, instead of being cut. */
 .move-scroll {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
@@ -1457,15 +1474,22 @@ body:has(.admin-app) .sheet-icon:not(.sheet-icon-done) {
   background: var(--gradient-primary);
 }
 .admin-app .settings-pack-code { background: linear-gradient(140deg, var(--admin-light), var(--admin-base)); }
+/* The save bar, on its own surface at every size as the phone has it: bare
+   on the page, under the cards, it read as stray buttons (audit 2026-10-05). */
 .settings-save {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
   min-height: 52px;
-  padding: 0 4px;
+  padding: 8px 12px 8px 20px;
+  border: 1px solid #ffffff;
+  border-radius: 22px;
   font-size: 13px;
   color: var(--ink-muted);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-panel);
   opacity: 0.55;
   transition: opacity var(--fade);
 }
@@ -1615,7 +1639,7 @@ body:has(.admin-app) .sheet-icon:not(.sheet-icon-done) {
   .settings-fee-row > .account-role { grid-column: 1; }
   .settings-unit-checks { grid-template-columns: minmax(0, 1fr); }
   .settings-save:not(.settings-save-on) { display: none; }
-  .settings-save { position: sticky; bottom: 84px; padding: 10px 12px; border-radius: 20px; background: rgba(255, 255, 255, 0.94); box-shadow: 0 8px 24px rgba(16, 42, 94, 0.14); }
+  .settings-save { position: sticky; bottom: 84px; padding: 10px 12px; border-radius: 20px; box-shadow: 0 8px 24px rgba(16, 42, 94, 0.14); }
 }
 .settings-unit-row .account-role span,
 .settings-type-row .account-role span,
@@ -1819,7 +1843,7 @@ body:has(.admin-app) .sheet-icon:not(.sheet-icon-done) {
   .account-row.request-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 8px; }
   .session-row > .account-role,
   .request-row > .account-role { grid-column: 1; }
-  .queue-stats { gap: 14px; }
+  .queue-stats { flex-wrap: wrap; gap: 10px 14px; }
 }
 
 /* The clinical operations report (Reports.tsx). */

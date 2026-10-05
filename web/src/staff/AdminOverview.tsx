@@ -21,7 +21,7 @@ import { Alert, Building, Calendar, Check, Clock, Mail, Plus, Shield, Sliders, U
 import { clock, initials } from "../patient/data";
 import { TENANT } from "../tenant";
 import { ACTION_LABEL, type AuditEntry } from "./AuditLog";
-import { roleOf } from "./data";
+import { attendanceOf, roleOf } from "./data";
 
 interface Channel {
   attempted: number;
@@ -51,7 +51,6 @@ interface HospitalReport {
   noShow: number;
   cancelled: number;
   lateCancelled: number;
-  attendance: number | null;
   units?: {
     clinicId: string;
     clinicName: string | null;
@@ -63,6 +62,7 @@ interface HospitalReport {
   }[];
 }
 
+const rateShown = (rate: number | null) => (rate == null ? "–" : `${Math.round(rate * 100)}%`);
 const DAY = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" });
 const SHORT = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
 
@@ -115,7 +115,7 @@ export function AdminOverview() {
 
   const tiles: { label: string; value: string; tone: string; icon: ComponentType<{ size?: number }> }[] = [
     { label: "Console accounts", value: staff.found ? String(staff.found.total) : "-", tone: "overview-violet", icon: User },
-    { label: "Awaiting first sign-in", value: staff.found ? String(status.INVITED ?? 0) : "-", tone: "overview-amber", icon: Clock },
+    { label: "Awaiting first sign-in", value: staff.found ? String(status.awaiting ?? 0) : "-", tone: "overview-amber", icon: Clock },
     { label: "Delivered, last 7 days", value: rate === null ? "-" : `${(rate * 100).toFixed(1)}%`, tone: "overview-green", icon: Check },
     { label: "Messages need attention", value: attention === null ? "-" : String(attention), tone: "overview-red", icon: Alert },
   ];
@@ -245,12 +245,11 @@ export function AdminOverview() {
                       color: "#f59e0b",
                     },
                   ]}
-                  centerValue={
-                    report.found.booked > 0
-                      ? `${Math.round((report.found.attended / report.found.booked) * 100)}%`
-                      : "0%"
-                  }
-                  centerSub="Attendance Rate"
+                  // Attended of those due to come, as Reports shows it: dividing
+                  // by every booking counted the cancelled too, so the two
+                  // pages disagreed (audit 2026-10-05).
+                  centerValue={rateShown(attendanceOf(report.found))}
+                  centerSub="Attendance"
                   size={230}
                 />
               )}
@@ -301,7 +300,7 @@ export function AdminOverview() {
               [
                 ["/console/staff?create=1", "Create account", "Staff or admin", Plus, "overview-violet"],
                 ["/console/messages", "Messaging", "Senders and health", Mail, "overview-blue"],
-                ["/console/settings", "Clinic settings", "Units, visit types, fees", Sliders, "overview-green"],
+                ["/console/settings", "Hospital settings", "Units, visit types, fees", Sliders, "overview-green"],
                 ["/console/audit", "Audit log", "Who changed what", Shield, "overview-grey"],
               ] as const
             ).map(([to, title, sub, IconComponent, tone]) => (

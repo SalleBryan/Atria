@@ -31,6 +31,7 @@ import { AnswerList } from "../patient/BeforeVisit";
 import { ACTIVE_STATES, type Appointment, type CareContext, clock, initials } from "../patient/data";
 import { CancelVisit } from "./CancelVisit";
 import {
+  can,
   CANCELLED_STATES,
   doctor,
   fullName,
@@ -139,12 +140,14 @@ export function VisitPage() {
   const name = day.status === "ready" ? patientName(day.data.patients, appointment) : { givenName: null, familyName: null };
   const { label, tone } = staffState(appointment.state);
   const cancelled = CANCELLED_STATES.includes(appointment.state);
-  const canCancel = ACTIVE_STATES.includes(appointment.state) && Date.parse(appointment.startAt) > Date.now();
+  // Each action as the matrix allows it: an administrator reads every visit
+  // but books, moves, cancels and checks in none (audit 2026-10-05).
+  const canCancel = can(role, "appointment.cancel") && ACTIVE_STATES.includes(appointment.state) && Date.parse(appointment.startAt) > Date.now();
   const scheduled = SCHEDULED.includes(appointment.state);
   const consults = Boolean(me?.roles.some((r) => r === "CLINICIAN" || r === "CLINIC_MANAGER"));
-  const canArrive = scheduled && clock.isoDate(appointment.startAt) === clock.isoDate(new Date());
-  const noShowDue = scheduled && Date.now() >= Date.parse(appointment.endAt) + NO_SHOW_GRACE_MS;
-  const canMove = scheduled && Date.parse(appointment.startAt) > Date.now();
+  const canArrive = can(role, "appointment.check_in") && scheduled && clock.isoDate(appointment.startAt) === clock.isoDate(new Date());
+  const noShowDue = can(role, "appointment.mark_no_show") && scheduled && Date.now() >= Date.parse(appointment.endAt) + NO_SHOW_GRACE_MS;
+  const canMove = can(role, "appointment.reschedule") && scheduled && Date.parse(appointment.startAt) > Date.now();
   const patientLabel = fullName(name);
 
   async function act(action: string, done: string) {
@@ -365,7 +368,7 @@ export function VisitPage() {
                 <span>
                   <span className="timeline-title">SMS reminder</span>
                   <span className="timeline-sub">
-                    Scheduled for {clock.day(reminder)}, {clock.time(reminder)} · 24h ahead
+                    {reminder.getTime() > Date.now() ? "Scheduled for" : "Due"} {clock.day(reminder)}, {clock.time(reminder)} · 24h ahead
                   </span>
                 </span>
               </li>

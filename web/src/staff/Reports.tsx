@@ -24,7 +24,7 @@ import { SelectMenu } from "../components/Pickers";
 import { TENANT } from "../tenant";
 import { exportReportCsv, exportReportExcel, exportReportPdf } from "../utils/reportExport";
 import { ReportDownload } from "./ReportDownload";
-import { roleOf, useStaffData } from "./data";
+import { attendanceOf, roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
 
 interface Rate {
@@ -176,13 +176,7 @@ export function Reports() {
   const hospital = found && "units" in found ? found : null;
   const one = found && !("units" in found) ? found : null;
 
-  const attendanceRate = found
-    ? one
-      ? one.attendance
-      : found.attended + found.noShow
-        ? found.attended / (found.attended + found.noShow)
-        : null
-    : null;
+  const attendanceRate = found ? (one ? one.attendance : attendanceOf(found)) : null;
 
   return (
     <div className="accounts-page reports-page">

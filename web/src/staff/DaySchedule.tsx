@@ -34,6 +34,7 @@ import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { rank, SearchSuggest, type SuggestionGroup } from "../components/SearchSuggest";
 import { ACTIVE_STATES, type Appointment, clock, initials } from "../patient/data";
 import {
+  can,
   CANCELLED_STATES,
   doctor,
   ROLE_LABEL,
@@ -555,11 +556,13 @@ function VisitPanel({
   onCancel: () => void;
 }) {
   const { state: directory } = useStaffData();
+  const { state } = useSession();
+  const role = state.status === "signed-in" ? roleOf(state.me) : "RECEPTIONIST";
   const name = patientName(schedule.patients, appointment);
   const joined = joinDirectory(directory.status === "ready" ? directory.data : undefined, appointment);
   const { label, tone } = staffState(appointment.state);
   const cancelled = CANCELLED_STATES.includes(appointment.state);
-  const canCancel = ACTIVE_STATES.includes(appointment.state) && Date.parse(appointment.startAt) > Date.now();
+  const canCancel = can(role, "appointment.cancel") && ACTIVE_STATES.includes(appointment.state) && Date.parse(appointment.startAt) > Date.now();
   const reminder = reminderAt(appointment);
   const clinician = doctor(joined.clinician);
 
@@ -634,7 +637,7 @@ function VisitPanel({
               <span>
                 <span className="timeline-title">SMS reminder</span>
                 <span className="timeline-sub">
-                  Scheduled for {clock.day(reminder)}, {clock.time(reminder)} · 24h ahead
+                  {reminder.getTime() > Date.now() ? "Scheduled for" : "Due"} {clock.day(reminder)}, {clock.time(reminder)} · 24h ahead
                 </span>
               </span>
             </li>

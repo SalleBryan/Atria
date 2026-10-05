@@ -10,7 +10,7 @@ import { createPortal } from "react-dom";
 
 import { messageFor } from "../auth/errors";
 import { Notice } from "./controls";
-import { Alert, Close, Undo } from "./icons";
+import { Alert, Trash, Undo } from "./icons";
 import { LoadingIndicator } from "./LoadingIndicator";
 
 export function DeleteAccountDialog({
@@ -62,7 +62,7 @@ export function DeleteAccountDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <span className="dialog-icon" aria-hidden="true">
-          <Close size={22} />
+          <Trash size={22} />
         </span>
         <h2 id="delete-title">{title}</h2>
         <p className="dialog-lede">{lede}</p>

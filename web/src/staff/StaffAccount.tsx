@@ -177,7 +177,7 @@ export function StaffAccount() {
             <header className="section-head">
               <h1 id="section-title">Personal details</h1>
               <p>
-                What Atria holds about you. Change your name, mobile, date of birth and preferred language here.
+                What Atria holds about you. Change your name, mobile and date of birth here.
                 Your work email is your sign-in identifier and is managed by an administrator.
               </p>
             </header>
@@ -215,13 +215,6 @@ export function StaffAccount() {
                 title="Work mobile"
                 sub={me.phoneVerified ? masked(me.phoneE164) : `${phoneShown(me.phoneE164)} (unverified)`}
                 end={<EditLink label="Change your mobile" onClick={() => start("phone")} />}
-              />
-              <Row
-                icon={Globe}
-                tone="tone-blue"
-                title="Language"
-                sub={languageName(me.languages?.[0] ?? "en")}
-                end={<EditLink label="Change your language" onClick={() => start("language")} />}
               />
               <Row
                 icon={Calendar}

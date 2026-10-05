@@ -100,7 +100,6 @@ export function BatchPatientImport({
         givenName: r.givenName,
         familyName: r.familyName,
         phoneE164: r.phoneE164,
-        preferredLanguage: r.preferredLanguage,
       };
       if (r.dateOfBirth) body.dateOfBirth = r.dateOfBirth;
 
@@ -245,7 +244,6 @@ export function BatchPatientImport({
                       <th>Name</th>
                       <th>Mobile</th>
                       <th>Date of Birth</th>
-                      <th>Language</th>
                       <th>Status</th>
                     </tr>
                   </thead>
@@ -258,7 +256,6 @@ export function BatchPatientImport({
                         </td>
                         <td className="row-mobile">{row.phoneRaw}</td>
                         <td className="row-dob">{row.dateOfBirth ?? "Not given"}</td>
-                        <td className="row-lang">{row.preferredLanguage === "fr" ? "French" : "English"}</td>
                         <td className="row-status">
                           {row.valid ? (
                             <span className="badge-valid">Ready</span>

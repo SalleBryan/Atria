@@ -433,7 +433,7 @@ export function StaffAccounts() {
 
       <section className="glass accounts-card" aria-label="Staff accounts" aria-busy={!page || undefined}>
         {failure && <Notice tone="error">{failure} Check your connection and try again.</Notice>}
-        <div className="accounts-head">
+        <div className="accounts-head staff-head">
           <span className="accounts-head-first">
             <SelectBox
               checked={selection.all}
@@ -482,7 +482,7 @@ export function StaffAccounts() {
                 return (
                   <li
                     key={account.staffId}
-                    className={`account-row${off ? " account-row-off" : ""}${selection.has(account.staffId) ? " account-row-chosen" : ""}`}
+                    className={`account-row staff-row${off ? " account-row-off" : ""}${selection.has(account.staffId) ? " account-row-chosen" : ""}`}
                     style={{ "--i": index } as CSSProperties}
                   >
                     <span className="account-who">

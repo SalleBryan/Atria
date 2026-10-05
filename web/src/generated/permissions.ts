@@ -33,6 +33,7 @@ export const PERMISSIONS = [
   "session.disrupt",
   "queue.read",
   "queue.assign_next",
+  "queue.add_walk_in",
   "patient.read",
   "patient.create",
   "patient.update",
@@ -60,7 +61,7 @@ export type Permission = (typeof PERMISSIONS)[number];
 /** permission to role to scope. A permission not listed here does not exist. */
 export const MATRIX: Record<Permission, Record<Role, Scope>> = {
   "appointment.read": { PATIENT: "own", RECEPTIONIST: "clinic", CLINICIAN: "own", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "tenant" },
-  "appointment.create": { PATIENT: "own", RECEPTIONIST: "clinic", CLINICIAN: "clinic", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "none" },
+  "appointment.create": { PATIENT: "own", RECEPTIONIST: "clinic", CLINICIAN: "own", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "none" },
   "appointment.reschedule": { PATIENT: "own", RECEPTIONIST: "clinic", CLINICIAN: "own", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "none" },
   "appointment.cancel": { PATIENT: "own", RECEPTIONIST: "clinic", CLINICIAN: "own", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "none" },
   "appointment.check_in": { PATIENT: "none", RECEPTIONIST: "clinic", CLINICIAN: "clinic", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "none" },
@@ -75,6 +76,7 @@ export const MATRIX: Record<Permission, Record<Role, Scope>> = {
   "session.disrupt": { PATIENT: "none", RECEPTIONIST: "clinic", CLINICIAN: "clinic", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "none" },
   "queue.read": { PATIENT: "none", RECEPTIONIST: "clinic", CLINICIAN: "clinic", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "tenant" },
   "queue.assign_next": { PATIENT: "none", RECEPTIONIST: "clinic", CLINICIAN: "clinic", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "none" },
+  "queue.add_walk_in": { PATIENT: "none", RECEPTIONIST: "clinic", CLINICIAN: "clinic", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "none" },
   "patient.read": { PATIENT: "own", RECEPTIONIST: "clinic", CLINICIAN: "own", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "tenant" },
   "patient.create": { PATIENT: "own", RECEPTIONIST: "clinic", CLINICIAN: "clinic", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "tenant" },
   "patient.update": { PATIENT: "own", RECEPTIONIST: "clinic", CLINICIAN: "none", CLINIC_MANAGER: "clinic", TENANT_ADMIN: "none" },

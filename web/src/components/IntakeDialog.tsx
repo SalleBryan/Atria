@@ -93,89 +93,95 @@ export function IntakeDialog({
     }
   }
 
-  // On <body>, in the zoomed menu layer, so no scrolling pane clips it.
+  // On <body>, outside the zoomed layout, like every other dialog: the scrim
+  // covers the whole window. The header scrolls with the questions so a short
+  // window keeps room for them; the actions stay put.
   return createPortal(
-    <div className="menu-layer">
-      <div className="scrim" onClick={() => !busy && onClose()}>
-        <div
-          ref={dialog}
-          className="dialog intake-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="intake-title"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <span className="dialog-icon dialog-icon-blue" aria-hidden="true">
-            <Clipboard size={22} />
-          </span>
-          <h2 id="intake-title">Before your visit</h2>
-          <p className="dialog-lede">
-            A few questions from {clinician}, so your visit starts where it
-            should.{" "}
-            {mode === "book"
-              ? "Answer what you like, or book now and add them later from your visit."
-              : "You can change them until the visit starts."}
-          </p>
-          <form onSubmit={share}>
-            <div className="move-scroll">
-              <IntakeFields
-                form={form}
-                answers={answers}
-                onChange={setAnswers}
-                consent={consent}
-                onConsent={setConsent}
-                clinician={clinician}
-              />
-            </div>
-            {failure && <Notice tone="error">{failure}</Notice>}
-            <div className="dialog-actions">
-              {mode === "book" ? (
-                <button
-                  type="button"
-                  className="outline-button keep"
-                  onClick={() => void skip()}
-                  disabled={Boolean(busy)}
-                >
-                  {busy === "skip" ? (
-                    <LoadingIndicator size={18} label="Booking" />
-                  ) : null}
-                  {busy === "skip" ? "Booking" : "Book without answers"}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="outline-button keep"
-                  onClick={onClose}
-                  disabled={Boolean(busy)}
-                >
-                  Not now
-                </button>
-              )}
+    <div className="scrim" onClick={() => !busy && onClose()}>
+      <div
+        ref={dialog}
+        className="dialog move-dialog intake-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="intake-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <form onSubmit={share}>
+          <div className="move-scroll">
+            <span className="dialog-icon dialog-icon-blue" aria-hidden="true">
+              <Clipboard size={22} />
+            </span>
+            <h2 id="intake-title">Before your visit</h2>
+            <p className="dialog-lede">
+              A few questions from {clinician}, so your visit starts where it
+              should.{" "}
+              {mode === "book"
+                ? "Answer what you like, or book now and add them later from your visit."
+                : "You can change them until the visit starts."}
+            </p>
+            <IntakeFields
+              form={form}
+              answers={answers}
+              onChange={(next) => {
+                setAnswers(next);
+                setFailure(null);
+              }}
+              consent={consent}
+              onConsent={(next) => {
+                setConsent(next);
+                setFailure(null);
+              }}
+              clinician={clinician}
+            />
+          </div>
+          {failure && <Notice tone="error">{failure}</Notice>}
+          <div className="dialog-actions move-actions">
+            {mode === "book" ? (
               <button
-                type="submit"
-                className="dock-button"
+                type="button"
+                className="outline-button keep"
+                onClick={() => void skip()}
                 disabled={Boolean(busy)}
-                aria-busy={busy === "share" || undefined}
               >
-                {busy === "share" ? (
-                  <LoadingIndicator
-                    size={20}
-                    label={mode === "book" ? "Booking" : "Saving"}
-                  />
+                {busy === "skip" ? (
+                  <LoadingIndicator size={18} label="Booking" />
                 ) : null}
-                <span>
-                  {busy === "share"
-                    ? mode === "book"
-                      ? "Booking"
-                      : "Saving"
-                    : mode === "book"
-                      ? "Share and book"
-                      : "Save answers"}
-                </span>
+                {busy === "skip" ? "Booking" : "Book without answers"}
               </button>
-            </div>
-          </form>
-        </div>
+            ) : (
+              <button
+                type="button"
+                className="outline-button keep"
+                onClick={onClose}
+                disabled={Boolean(busy)}
+              >
+                Not now
+              </button>
+            )}
+            <button
+              type="submit"
+              className="dock-button"
+              disabled={Boolean(busy)}
+              aria-busy={busy === "share" || undefined}
+            >
+              {busy === "share" ? (
+                <LoadingIndicator
+                  size={20}
+                  label={mode === "book" ? "Booking" : "Saving"}
+                />
+              ) : null}
+              <span>
+                {busy === "share"
+                  ? mode === "book"
+                    ? "Booking"
+                    : "Saving"
+                  : mode === "book"
+                    ? "Share and book"
+                    : "Save answers"}
+              </span>
+            </button>
+          </div>
+        </form>
       </div>
     </div>,
     document.body,

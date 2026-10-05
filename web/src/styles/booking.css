@@ -923,9 +923,9 @@
 .intake-range { flex: none; font-size: 12px; font-weight: 600; color: var(--ink-muted); }
 .intake-choices { flex-wrap: wrap; align-self: flex-start; }
 .intake-consent { padding: 12px 14px; border: 1.5px solid rgba(74, 131, 240, 0.35); border-radius: 18px; background: rgba(74, 131, 240, 0.06); }
-.intake-dialog { display: flex; flex-direction: column; width: min(560px, 100%); max-height: calc(var(--fit-height, 100vh) - 48px); overflow: hidden; }
-.intake-dialog form { display: flex; flex-direction: column; min-height: 0; }
-.intake-dialog .move-scroll { min-height: 0; margin: 0 -6px; padding: 4px 6px; overflow-y: auto; }
+/* The move dialog's shape (staff.css .move-dialog): one scroll, fixed actions. */
+.intake-dialog { width: min(560px, 100%); }
+.intake-dialog form { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
 .intake-answers { display: flex; flex-direction: column; gap: 10px; margin: 0; }
 .intake-answers div { display: flex; flex-direction: column; gap: 2px; }
 .intake-answers dt { font-size: 12px; font-weight: 600; color: var(--ink-muted); }

@@ -31,7 +31,7 @@ import { Pager, usePages, useRowsThatFit } from "../components/Pager";
 import { SelectMenu } from "../components/Pickers";
 import { MATRIX } from "../generated/permissions";
 import { clock, initials, type Appointment } from "../patient/data";
-import { doctor, roleOf, useStaffData } from "./data";
+import { clinicianBooks, doctor, roleOf, useStaffData } from "./data";
 import { BatchRestoreDialog, DeleteAccountDialog, daysLeft, RestoreDialog } from "../components/DeleteAccountDialog";
 import { CHANNEL, sentence, staffState } from "./labels";
 import { Snackbar } from "./Snackbar";
@@ -86,6 +86,16 @@ export function age(dateOfBirth: string | null | undefined): string | null {
 
 const can = (role: string, permission: keyof typeof MATRIX) => (MATRIX[permission] as Record<string, string>)[role] !== "none";
 
+/** Whether the signed-in staff member books visits: see clinicianBooks. */
+export function useBooks(): boolean {
+  const { state } = useSession();
+  const { state: directory } = useStaffData();
+  if (state.status !== "signed-in") return false;
+  const role = roleOf(state.me);
+  if (!can(role, "appointment.create")) return false;
+  return role !== "CLINICIAN" || (directory.status === "ready" && clinicianBooks(directory.data.types, state.me.clinicId));
+}
+
 /**
  * Searched as the desk types, a beat after they pause. With `everyone`, no
  * search lists the whole register, newest first (2026-09-28).
@@ -134,6 +144,7 @@ export function useRegisterSearch(
 export function Patients() {
   const { state } = useSession();
   const role = state.status === "signed-in" ? roleOf(state.me) : "RECEPTIONIST";
+  const books = useBooks();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"date_desc" | "date_asc" | "name_asc" | "name_desc">("date_desc");
@@ -325,6 +336,7 @@ export function Patients() {
       {adding && (
         <NewPatient
           start={query}
+          books={books}
           onClose={() => setAdding(false)}
           onDone={(made, book) => {
             setAdding(false);
@@ -402,10 +414,13 @@ export function Patients() {
 /** A minimal record: a name, a mobile number, the date of birth if known (FR-BKG-07). */
 export function NewPatient({
   start = "",
+  books = true,
   onClose,
   onDone,
 }: {
   start?: string;
+  /** False for a clinician who books no one: the record is saved, not booked. */
+  books?: boolean;
   onClose: () => void;
   onDone: (made: RegisterEntry, book: boolean) => void;
 }) {
@@ -471,7 +486,7 @@ export function NewPatient({
             A minimal record, with a patient number, so they can be booked now. They can create an account later with the same mobile
             number.
           </p>
-          <form id="new-patient-form" className="settings-dialog-form" onSubmit={(event) => void submit(event, true)}>
+          <form id="new-patient-form" className="settings-dialog-form" onSubmit={(event) => void submit(event, books)}>
             <div className="off-fields">
               <Field label="Given name" value={given} maxLength={60} onChange={(e) => setGiven(e.target.value)} />
               <Field label="Family name" value={family} maxLength={60} onChange={(e) => setFamily(e.target.value)} />
@@ -518,12 +533,14 @@ export function NewPatient({
           </form>
         </div>
         <div className="dialog-actions move-actions">
-          <button type="button" className="outline-button keep" disabled={busy || !ready} onClick={(event) => void submit(event, false)}>
-            Save only
-          </button>
+          {books && (
+            <button type="button" className="outline-button keep" disabled={busy || !ready} onClick={(event) => void submit(event, false)}>
+              Save only
+            </button>
+          )}
           <button type="submit" form="new-patient-form" className="staff-primary" disabled={busy || !ready} aria-busy={busy || undefined}>
             {busy ? <LoadingIndicator size={20} label="Saving" /> : null}
-            {busy ? "Saving" : "Save and book"}
+            {busy ? "Saving" : books ? "Save and book" : "Save"}
           </button>
         </div>
       </div>
@@ -559,7 +576,7 @@ export function PatientRecordPage() {
 
   const clinicians = directory.status === "ready" ? directory.data.clinicians : [];
   const clinics = directory.status === "ready" ? directory.data.clinics : [];
-  const books = can(role, "appointment.create");
+  const books = useBooks();
   const scopeNote = { own: "Your visits with them", clinic: "Visits in your unit", tenant: "Every visit at the hospital" };
 
   return (

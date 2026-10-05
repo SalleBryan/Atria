@@ -1128,6 +1128,12 @@
   .account-row { grid-template-columns: minmax(0, 1fr) 110px 170px 132px; }
   .accounts-head > :nth-child(4),
   .account-role { display: none; }
+  /* Staff accounts keep the role and unit, and drop the group (the avatar
+     colour and the role already mark an administrator). */
+  .accounts-head.staff-head > :nth-child(4),
+  .staff-row > .account-role { display: block; }
+  .accounts-head.staff-head > :nth-child(2),
+  .staff-row > :nth-child(2) { display: none; }
   /* The audit log keeps when and from where, and drops the record's kind. */
   .accounts-head.audit-head,
   .account-row.audit-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 140px; }
@@ -1367,6 +1373,8 @@
 .availability-picker { width: 260px; }
 .picker-avatar { display: grid; flex: none; place-items: center; width: 26px; height: 26px; border-radius: 9px; font-family: var(--font-display); font-size: 10.5px; font-weight: 700; color: #ffffff; background: var(--gradient-primary); }
 .availability-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; flex: 1; min-height: 0; }
+/* A general practitioner's booking screen holds only the way to the queue. */
+.book-page > .accounts-new { align-self: flex-start; }
 .availability-card { display: flex; flex-direction: column; gap: 12px; min-height: 0; padding: calc(16px + 6px * var(--tall)) 22px; overflow-y: auto; border-radius: 30px; }
 .availability-card h2 { margin: 0; font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--ink-primary); }
 .availability-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -1634,7 +1642,11 @@
 .book-patient { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line-hairline); border-radius: 18px; background: #ffffff; }
 .book-patient .account-text { flex: 1; }
 .book-results { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.book-results .suggest-item { width: 100%; }
+/* The results sit in the page, not in a menu, so the button gets the menu's
+   reset here: no browser border, fill or centred text. */
+.book-results .suggest-item { width: 100%; border: 0; background: transparent; font: inherit; color: inherit; text-align: left; }
+.book-results .suggest-item:hover,
+.book-results .suggest-item:focus-visible { background: rgba(47, 107, 228, 0.08); outline: none; }
 .book-new { align-self: flex-start; padding: 0 16px; height: 40px; }
 .book-picker { width: 100%; }
 .book-when { gap: 10px; }
@@ -1709,16 +1721,26 @@
   .roster-page,
   .book-page { height: auto; }
   .accounts-head.patients-head { display: none; }
-  .patient-link { grid-template-columns: minmax(0, 1fr) 24px; row-gap: 6px; }
-  .patient-row .account-role { grid-column: 1; }
-  .patient-go { grid-column: 2; grid-row: 1; }
+  /* The search takes the row, and the order sits under it as on Staff
+     accounts: side by side, "Newest first" was cut to "Newe...". */
+  .patients-tools { flex-wrap: wrap; gap: 12px; }
+  .patients-tools > .patients-search { flex: 1 1 100%; }
+  /* Name and number beside the chevron, then mobile and age on one line.
+     The name spanned both columns and fell below an empty first row. */
+  .patient-link { grid-template-columns: auto minmax(0, 1fr) 24px; row-gap: 8px; column-gap: 12px; }
+  .patient-link > .account-who { grid-column: 1 / 3; grid-row: 1; }
+  .patient-row .patient-link > .account-role { grid-column: auto; grid-row: 2; }
+  .patient-go { grid-column: 3; grid-row: 1; }
   .patient-record-cols,
   .book-cols { grid-template-columns: minmax(0, 1fr); }
   .patient-facts { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .patient-facts dd { margin-bottom: 8px; }
+  /* The clinician, then whether they are on shift and their hours, then the
+     day's load: a phone showed only the load (audit 2026-10-05). */
   .account-row.roster-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 10px; }
-  .roster-row > .account-role { display: none; }
-  .roster-row > .roster-load { grid-column: 1 / -1; }
+  .account-row.roster-row > :nth-child(2) { display: block; grid-column: 1; grid-row: 2; align-self: center; }
+  .account-row.roster-row > .account-role { display: block; grid-column: 2; grid-row: 2; text-align: right; }
+  .account-row.roster-row > .roster-load { grid-column: 1 / -1; grid-row: 3; }
   .changes-rows li { grid-template-columns: minmax(0, 1fr) auto; }
   .changes-why { grid-column: 1 / -1; white-space: normal; }
   .book-dock { flex-direction: column; align-items: stretch; }
@@ -1793,9 +1815,6 @@
 .reports-granularity-control {
   margin-right: 2px;
 }
-.reports-download-dropdown {
-  position: relative;
-}
 .reports-download-btn {
   display: inline-flex;
   align-items: center;
@@ -1808,42 +1827,6 @@
   cursor: pointer;
   background: #ffffff;
 }
-.reports-export-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  min-width: 210px;
-  padding: 6px;
-  border-radius: 16px;
-  border: 1px solid var(--line-hairline);
-  background: #ffffff;
-  box-shadow: 0 10px 25px rgba(16, 42, 94, 0.12);
-  animation: fade-in var(--fade) both;
-}
-.reports-export-menu button {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding: 10px 14px;
-  border: none;
-  border-radius: 10px;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink-primary);
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--fade);
-}
-.reports-export-menu button:hover {
-  background: var(--surface-field, #edf2fb);
-  color: var(--blue-600);
-}
-
 .reports-visual-section {
   display: flex;
   flex-direction: column;
@@ -1962,12 +1945,21 @@
 .account-row.messages-day-row { min-height: 52px; font-size: 13px; color: var(--ink-800); }
 @media (max-width: 1199px) {
   .messages-cols { grid-template-columns: minmax(0, 1fr); }
+  /* The visit gives way, and its heading with it: the status kept the
+     "Visit" heading when only the cell was hidden (audit 2026-10-05). */
+  .accounts-head.messages-head,
+  .account-row.message-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 170px; }
+  .accounts-head.messages-head > :nth-child(3) { display: none; }
+  .accounts-head.messages-head > :nth-child(4) { display: block; }
 }
 @media (max-width: 767px) {
   .messages-page { height: auto; }
-  .account-row.message-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .message-row > :nth-child(2),
-  .message-row > :nth-child(3),
+  /* Who and the status, then what was sent and the visit it was about:
+     a phone kept only the first row (audit 2026-10-05). */
+  .account-row.message-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 8px; }
+  .account-row.message-row > .message-status { grid-column: 2; grid-row: 1; align-items: flex-end; text-align: right; }
+  .account-row.message-row > :nth-child(2) { display: block; grid-column: 1; grid-row: 2; }
+  .account-row.message-row > .account-role { display: block; grid-column: 2; grid-row: 2; align-self: end; text-align: right; }
   .accounts-head.messages-head { display: none; }
   .account-row.messages-day-row { grid-template-columns: minmax(0, 1fr) 90px 90px; }
   .messages-day-row > :nth-child(2),
@@ -2348,6 +2340,8 @@
   gap: 10px;
   min-width: 0;
   width: 100%;
+  /* A <figure>: without this the browser's 40px side margins push it out of the card. */
+  margin: 0;
 }
 .m3-column-scroll-area {
   width: 100%;

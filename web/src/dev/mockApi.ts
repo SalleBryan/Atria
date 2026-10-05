@@ -1433,14 +1433,14 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       conflictShown = true;
       return json(409, { code: "conflict", message: "that time has just been taken" }, 600);
     }
-    // A booking from the desk names its patient and channel (FR-BKG-07, FR-STF-14).
+    // A staff booking names its patient and channel (FR-BKG-07, FR-STF-14).
     const made = appointment(
       request.clinicianProfileId,
       request.appointmentTypeId,
       new Date(request.startAt),
       "BOOKED",
       0,
-      request.patientProfileId ? { patient: request.patientProfileId, bookedByRole: "RECEPTIONIST", channel: request.channel } : {},
+      request.patientProfileId ? { patient: request.patientProfileId, bookedByRole: callerRole, channel: request.channel } : {},
     );
     appointments.push(made);
     const intake = (body as { intake?: { answers?: Record<string, unknown>; consent?: boolean } }).intake;
@@ -1454,6 +1454,12 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
 }
 
 let conflictShown = false;
+// Who is signed in to the preview, so a staff booking is recorded against
+// their role as the API records it (role_used), not always the desk's.
+let callerRole = "RECEPTIONIST";
+export function setPreviewCaller(roles: readonly string[]): void {
+  callerRole = roles.find((r) => r !== "PATIENT") ?? "PATIENT";
+}
 const availability: Record<string, { hours: Record<string, { start: string; end: string }>; timeOff: { groupId: string }[] }> = {};
 // A second account with the same number is refused, as the pool refuses it.
 const usedPhones = new Set<string>(["+12025550142"]);

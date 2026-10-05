@@ -209,6 +209,17 @@ class TestTickets:
         )
         assert second["channel"] == "WALK_IN"
 
+    def test_a_clinician_adds_a_walk_in_to_their_units_queue(self, opd):
+        """queue.add_walk_in: a clinician books only themselves but may fill the queue."""
+        _repo, clinician = opd
+        session = body_of(publish())
+        doctor = staff_context(personId="p-doc", roles="CLINICIAN", staffId=clinician)
+        result = ticket(
+            session["sessionId"], context=doctor, patientProfileId="pp-2", channel="WALK_IN"
+        )
+        assert result["statusCode"] == 201
+        assert body_of(result)["bookedByRole"] == "CLINICIAN"
+
     def test_fr_stf_11_a_client_supplied_position_is_refused(self, opd):
         session = body_of(publish())
         result = ticket(session["sessionId"], position=1)

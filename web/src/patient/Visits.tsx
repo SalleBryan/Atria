@@ -55,9 +55,16 @@ const BOOKED_VIA: Record<string, string> = {
   ONLINE: "Atria web",
   WEB: "Atria web",
   APP: "Atria app",
-  PHONE: "Front desk, by phone",
-  WALK_IN: "Front desk",
 };
+
+/** Who booked a visit for the patient, and how: a specialist books their own follow-ups. */
+function bookedVia({ channel, bookedByRole }: Pick<Appointment, "channel" | "bookedByRole">): string {
+  const who = bookedByRole === "CLINICIAN" ? "Your clinician" : "Front desk";
+  if (channel === "PHONE") return `${who}, by phone`;
+  if (channel === "WALK_IN") return bookedByRole === "CLINICIAN" ? `${who}, in person` : who;
+  if (channel === "REFERRAL") return `${who}, from your referral`;
+  return BOOKED_VIA[channel ?? ""] ?? "Atria";
+}
 
 function hoursUntil(instant: string, now = Date.now()): number {
   return (Date.parse(instant) - now) / 3600000;
@@ -441,9 +448,13 @@ function VisitDetail({
           Cancel visit
         </button>
       )}
-      <a className="dock-button directions" href={directions} target="_blank" rel="noreferrer">
-        Get directions
-      </a>
+      {/* Only while the visit is going ahead: a cancelled, past or
+          rebook-needed visit has nowhere to go yet. */}
+      {active && appointment.state !== "DISRUPTED" && (
+        <a className="dock-button directions" href={directions} target="_blank" rel="noreferrer">
+          Get directions
+        </a>
+      )}
     </div>
   );
 
@@ -460,9 +471,11 @@ function VisitDetail({
                 Give up my place
               </button>
             )}
-            <a className="dock-button directions" href={directions} target="_blank" rel="noreferrer">
-              Get directions
-            </a>
+            {waiting && (
+              <a className="dock-button directions" href={directions} target="_blank" rel="noreferrer">
+                Get directions
+              </a>
+            )}
           </div>
         }
       />
@@ -512,7 +525,15 @@ function VisitDetail({
         </dl>
       </div>
 
-      {type?.intakeFormId && <BeforeVisit appointmentId={appointment.appointmentId} clinician={clinicianName(clinician)} />}
+      {/* Keyed on the state and time: a cancel or a move re-reads whether the
+          answers can still be changed. */}
+      {type?.intakeFormId && (
+        <BeforeVisit
+          key={`${appointment.appointmentId}-${appointment.state}-${appointment.startAt}`}
+          appointmentId={appointment.appointmentId}
+          clinician={clinicianName(clinician)}
+        />
+      )}
 
       <div className="visit-cols">
         <section className="panel inner-card" aria-labelledby="who-title">
@@ -541,7 +562,7 @@ function VisitDetail({
             </div>
             <div>
               <dt>Booked via</dt>
-              <dd>{BOOKED_VIA[appointment.channel ?? ""] ?? "Atria"}</dd>
+              <dd>{bookedVia(appointment)}</dd>
             </div>
             <FeeRecord appointmentId={appointment.appointmentId} state={appointment.state} />
             {active && (

@@ -8,6 +8,10 @@
  * is. A walk-in is for today; a referral is for a specialist visit or a
  * procedure. The booking is recorded against the staff account.
  *
+ * A clinician books only themselves (user, 2026-10-05; the API's
+ * appointment.create is "own" for them): the clinician is fixed, not picked,
+ * and the visit type starts on the specialist follow-up.
+ *
  * Extends the console's look: Availability's two glass cards, the platform's
  * pickers and segmented control, and the Move dialog's day and time choice.
  */
@@ -16,7 +20,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
-import { type CountryCode, HOME_COUNTRY, normalisePhone } from "../auth/phone";
+import { type CountryCode, HOME_COUNTRY, nationalInput, normalisePhone } from "../auth/phone";
 import { useSession } from "../auth/session";
 import { Field, Notice } from "../components/controls";
 import { Calendar, Close, Plus, Search, Stethoscope } from "../components/icons";
@@ -25,7 +29,7 @@ import { PhoneField } from "../components/PhoneField";
 import { SelectMenu } from "../components/Pickers";
 import { type Slot, WeekSlots } from "../components/WeekSlots";
 import { type Appointment, clock, initials, offeredAt } from "../patient/data";
-import { doctor, roleOf, useStaffData } from "./data";
+import { clinicianBooks, doctor, roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
 import { age, fullName, NewPatient, phoneShown, type RegisterEntry, useRegisterSearch } from "./Patients";
 
@@ -42,6 +46,7 @@ export function BookForPatient() {
   const { state: directory } = useStaffData();
   const me = state.status === "signed-in" ? state.me : undefined;
   const role = me ? roleOf(me) : "RECEPTIONIST";
+  const selfOnly = role === "CLINICIAN";
   const navigate = useNavigate();
   const [params] = useSearchParams();
 
@@ -55,10 +60,17 @@ export function BookForPatient() {
   const [callback, setCallback] = useState("");
   const [callbackCountry, setCallbackCountry] = useState<CountryCode>(HOME_COUNTRY);
   const [facility, setFacility] = useState("");
+  // A number on the register is stored with its country code: split it into
+  // the flag and the national number, or a +1 number read as "+237 (202)...".
+  const takeCallback = (e164: string | null | undefined) => {
+    const split = nationalInput(e164 ?? "", HOME_COUNTRY);
+    setCallbackCountry(split.country);
+    setCallback(split.text);
+  };
   const [referrer, setReferrer] = useState("");
   const [note, setNote] = useState("");
 
-  const [clinicianId, setClinicianId] = useState<string | null>(params.get("clinician"));
+  const [clinicianId, setClinicianId] = useState<string | null>(selfOnly ? (me?.staffId ?? null) : params.get("clinician"));
   const [typeId, setTypeId] = useState<string | null>(null);
   const [slot, setSlot] = useState<Slot | null>(null);
   const [fresh, setFresh] = useState(0);
@@ -73,7 +85,7 @@ export function BookForPatient() {
       .then((found) => {
         if (!live) return;
         setPatient(found);
-        setCallback((current) => current || found.phoneE164 || "");
+        if (!callback) takeCallback(found.phoneE164);
       })
       .catch(() => live && setPatientId(null));
     return () => {
@@ -84,9 +96,11 @@ export function BookForPatient() {
   const clinicians = useMemo(() => {
     if (directory.status !== "ready") return [];
     const all = directory.data.clinicians;
-    // The desk books in its own unit; an administrator anywhere.
+    // The desk books in its own unit; an administrator anywhere; a clinician
+    // only themselves.
+    if (selfOnly) return all.filter((c) => c.clinicianProfileId === me?.staffId);
     return role === "TENANT_ADMIN" ? all : all.filter((c) => c.clinicId === me?.clinicId || c.clinicianProfileId === me?.staffId);
-  }, [directory, role, me?.clinicId, me?.staffId]);
+  }, [directory, role, selfOnly, me?.clinicId, me?.staffId]);
   const clinician = clinicians.find((c) => c.clinicianProfileId === clinicianId);
   const types = useMemo(() => {
     if (directory.status !== "ready" || !clinician) return [];
@@ -98,7 +112,9 @@ export function BookForPatient() {
         (channel !== "REFERRAL" || t.serviceLine === "SPECIALIST" || t.serviceLine === "PROCEDURE"),
     );
   }, [directory, clinician, channel]);
-  const type = types.find((t) => t.appointmentTypeId === typeId) ?? types[0];
+  // A clinician booking is most often the next visit with them.
+  const preferred = selfOnly ? types.find((t) => t.code === "SPEC_FOLLOW") : undefined;
+  const type = types.find((t) => t.appointmentTypeId === typeId) ?? preferred ?? types[0];
   const clinicName =
     directory.status === "ready" ? (id: string | null) => directory.data.clinics.find((c) => c.clinicId === id)?.name : () => undefined;
 
@@ -136,6 +152,29 @@ export function BookForPatient() {
       setFresh((n) => n + 1);
       setBusy(false);
     }
+  }
+
+  // A general practitioner books no one: their patients come through the
+  // queue, and a specialist visit is booked by the front desk from the
+  // referral (audit 2026-10-05).
+  if (selfOnly && directory.status === "ready" && !clinicianBooks(directory.data.types, me?.clinicId)) {
+    return (
+      <div className="availability-page book-page">
+        <header className="accounts-top">
+          <div>
+            <h1>Book for a patient</h1>
+            <p>Your unit sees patients through the queue.</p>
+          </div>
+        </header>
+        <Notice>
+          Add the patient to today's queue from Queue. To send them to a specialist, give them a referral; the front desk books
+          the visit with it.
+        </Notice>
+        <Link to="/console/queue" className="staff-primary accounts-new">
+          Open the queue
+        </Link>
+      </div>
+    );
   }
 
   return (
@@ -197,7 +236,7 @@ export function BookForPatient() {
                       onClick={() => {
                         setPatient(p);
                         setPatientId(p.patientProfileId);
-                        setCallback(p.phoneE164 ?? "");
+                        takeCallback(p.phoneE164);
                       }}
                     >
                       <span className="suggest-text">
@@ -271,30 +310,44 @@ export function BookForPatient() {
           )}
 
           <span className="settings-label">With</span>
-          <SelectMenu
-            label="Clinician"
-            value={clinicianId}
-            width={340}
-            className="book-picker"
-            placeholder="Choose a clinician"
-            searchable
-            icon={<Stethoscope size={15} />}
-            onChange={(id) => {
-              setClinicianId(id);
-              setTypeId(null);
-              setSlot(null);
-            }}
-            options={clinicians.map((c) => ({
-              id: c.clinicianProfileId,
-              label: doctor(c),
-              hint: [c.specialty, clinicName(c.clinicId)].filter(Boolean).join(" · "),
-              lead: (
-                <span className="picker-avatar" aria-hidden="true">
-                  {initials(c.givenName, c.familyName)}
+          {selfOnly ? (
+            clinician ? (
+              <div className="book-patient">
+                <span className="account-avatar" aria-hidden="true">
+                  {initials(clinician.givenName, clinician.familyName)}
                 </span>
-              ),
-            }))}
-          />
+                <span className="account-text">
+                  <span className="account-name">{doctor(clinician)} (you)</span>
+                  <span className="account-sub">{[clinician.specialty, clinicName(clinician.clinicId)].filter(Boolean).join(" · ")}</span>
+                </span>
+              </div>
+            ) : null
+          ) : (
+            <SelectMenu
+              label="Clinician"
+              value={clinicianId}
+              width={340}
+              className="book-picker"
+              placeholder="Choose a clinician"
+              searchable
+              icon={<Stethoscope size={15} />}
+              onChange={(id) => {
+                setClinicianId(id);
+                setTypeId(null);
+                setSlot(null);
+              }}
+              options={clinicians.map((c) => ({
+                id: c.clinicianProfileId,
+                label: doctor(c),
+                hint: [c.specialty, clinicName(c.clinicId)].filter(Boolean).join(" · "),
+                lead: (
+                  <span className="picker-avatar" aria-hidden="true">
+                    {initials(c.givenName, c.familyName)}
+                  </span>
+                ),
+              }))}
+            />
+          )}
           {clinician && (
             <SelectMenu
               label="Visit type"
@@ -356,7 +409,7 @@ export function BookForPatient() {
             setAdding(false);
             setPatient(made);
             setPatientId(made.patientProfileId);
-            setCallback(made.phoneE164 ?? "");
+            takeCallback(made.phoneE164);
           }}
         />
       )}

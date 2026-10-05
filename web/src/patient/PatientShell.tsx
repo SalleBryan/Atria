@@ -23,6 +23,7 @@ import { Calendar, Home, Pulse, Search, SignOut, User } from "../components/icon
 import { Waiting } from "../components/Waiting";
 import { initials, PatientDataProvider, upcoming, usePatientData } from "./data";
 import { revealSelected } from "../layout/side";
+import { useScrollTopOnNavigate } from "../layout/scrollTop";
 
 interface Destination {
   to: string;
@@ -49,6 +50,7 @@ export function PatientShell() {
 
 function Shell({ me }: { me: Me }) {
   const { pathname } = useLocation();
+  useScrollTopOnNavigate(pathname);
   const { signOut } = useSession();
   const { state } = usePatientData();
   const ahead = state.status === "ready" ? upcoming(state.data.appointments).length : undefined;

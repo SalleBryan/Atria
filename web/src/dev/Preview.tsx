@@ -24,6 +24,7 @@ import type { Me } from "../api/client";
 import { SessionContext } from "../auth/session";
 import { patientRoutes } from "../patient/routes";
 import { staffRoutes } from "../staff/routes";
+import { setPreviewCaller } from "./mockApi";
 
 const BASE = {
   tenantId: "t-cm-001",
@@ -146,6 +147,7 @@ export default function Preview() {
   const as = query.get("as") ?? "patient";
   const initialMe = PEOPLE[as] ?? PEOPLE.patient!;
   const [me, setMe] = useState(initialMe);
+  setPreviewCaller(me.roles);
 
   useEffect(() => {
     const onUpdated = (e: Event) => {

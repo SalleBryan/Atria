@@ -121,10 +121,10 @@ export function MoveVisit({
         aria-labelledby="move-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <button type="button" className="icon-button dialog-close" aria-label="Close" onClick={onClose} disabled={busy}>
-          <Close size={16} />
-        </button>
         <div className="move-scroll">
+          <button type="button" className="icon-button dialog-close" aria-label="Close" onClick={onClose} disabled={busy}>
+            <Close size={16} />
+          </button>
           <span className="dialog-icon dialog-icon-blue" aria-hidden="true">
             <Clock size={22} />
           </span>
@@ -143,7 +143,7 @@ export function MoveVisit({
               <span className="who-sub">{[appointment.reference, withWhom, type?.name].filter(Boolean).join(" · ")}</span>
             </span>
             <span className="dialog-when">
-              <span>Now {clock.time(appointment.startAt)}</span>
+              <span>Booked for {clock.time(appointment.startAt)}</span>
               <span>{clock.day(appointment.startAt)}</span>
             </span>
           </div>

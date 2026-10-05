@@ -103,10 +103,10 @@ describe("One visit, from the desk", () => {
     renderVisit();
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Cancel visit" }));
-    const dialog = screen.getByRole("dialog", { name: "Cancel this appointment?" });
+    const dialog = screen.getByRole("dialog", { name: "Cancel this visit?" });
     await user.click(within(dialog).getByRole("radio", { name: "Unit closure" }));
     respond({ ...VISIT, state: "CLINIC_CANCELLED" });
-    await user.click(within(dialog).getByRole("button", { name: "Cancel appointment" }));
+    await user.click(within(dialog).getByRole("button", { name: "Cancel visit" }));
     expect(await screen.findByText(/APT-4194 cancelled/)).toBeInTheDocument();
     expect(await screen.findByText("CANCELLED BY THE INSTITUTION")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel visit" })).not.toBeInTheDocument();

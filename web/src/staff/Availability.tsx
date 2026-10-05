@@ -329,10 +329,10 @@ function TimeOffDialog({
         aria-labelledby="off-dialog-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <button type="button" className="icon-button dialog-close" aria-label="Close" onClick={onClose} disabled={busy}>
-          <Close size={16} />
-        </button>
         <div className="move-scroll">
+          <button type="button" className="icon-button dialog-close" aria-label="Close" onClick={onClose} disabled={busy}>
+            <Close size={16} />
+          </button>
           <span className="dialog-icon dialog-icon-blue" aria-hidden="true">
             <Clock size={22} />
           </span>

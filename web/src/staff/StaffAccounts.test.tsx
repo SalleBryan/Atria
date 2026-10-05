@@ -214,7 +214,7 @@ describe("Staff accounts", () => {
     expect(await within(list).findByText("Nadine Fotso")).toBeInTheDocument();
     expect(screen.getByText("5 users")).toBeInTheDocument();
     expect(within(list).getByText("ADMIN")).toBeInTheDocument();
-    expect(within(list).getByText("Must set password")).toBeInTheDocument();
+    expect(within(list).getByText("Awaiting first sign-in")).toBeInTheDocument();
     expect(within(list).getByText("Suspended")).toBeInTheDocument();
     expect(list).toHaveTextContent("1 account has a temporary password");
   });

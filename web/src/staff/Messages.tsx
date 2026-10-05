@@ -100,11 +100,14 @@ const shortDay = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "nume
 const percent = (rate: number | null) => (rate == null ? "None sent" : `${Math.round(rate * 1000) / 10}%`);
 const ROW_PITCH = 76;
 
-/** Spend in dollars and cents; SNS prices a message in fractions of a cent. */
+/**
+ * Spend in US dollars and cents: AWS bills texts in dollars, in fractions of
+ * a cent. Written "US$" so it never reads as the hospital's francs.
+ */
 export function dollars(amount: string): string {
   const value = Number(amount);
-  if (!value) return "$0.00";
-  return value < 0.01 ? "Under $0.01" : `$${value.toFixed(2)}`;
+  if (!value) return "US$0.00";
+  return value < 0.01 ? "Under US$0.01" : `US$${value.toFixed(2)}`;
 }
 
 /** The unit picker's first choice for an administrator: every unit at once. */
@@ -359,7 +362,7 @@ function DeliveryFigures({ days }: { days: string }) {
             ["Bounce rate", percent(email.bounceRate)],
             ["Complaint rate", percent(email.complaintRate)],
             ["SMS delivered", percent(sms.deliveryRate)],
-            ["SMS spend", dollars(sms.spendUsd)],
+            ["SMS spend, billed by AWS", dollars(sms.spendUsd)],
           ] as const
         ).map(([label, value], index) => (
           <div key={label} className="glass reports-tile" style={{ "--i": index } as CSSProperties}>

@@ -158,6 +158,22 @@ function local(daysFromToday: number, hour: number, minute = 0): Date {
 
 const iso = (instant: Date) => instant.toISOString().replace(/\.\d{3}Z$/, "Z");
 
+/**
+ * Dr Tabi's leave, next Monday to Friday: the one source the roster, free
+ * times and the administrator's coming week all read, where each once had
+ * its own (audit 2026-10-05).
+ */
+function leaveWeek(): { from: string; to: string } {
+  const monday = new Date(Date.now() + OFFSET_MS);
+  monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7));
+  const day = (n: number) => new Date(monday.getTime() + n * 86400000).toISOString().slice(0, 10);
+  return { from: day(0), to: day(4) };
+}
+const onLeave = (clinicianId: string, date: string) => {
+  const { from, to } = leaveWeek();
+  return clinicianId === "s-tabi" && date >= from && date <= to;
+};
+
 let sequence = 4821;
 function appointment(
   clinician: string,
@@ -388,7 +404,7 @@ function freeStarts(clinicianId: string, date: string, typeId: string) {
   const clinician = clinicians.find((c) => c.clinicianProfileId === clinicianId);
   const clinic = clinics.find((c) => c.clinicId === clinician?.clinicId);
   const type = types.find((t) => t.appointmentTypeId === typeId);
-  if (!clinician || !clinic || !type) return [];
+  if (!clinician || !clinic || !type || onLeave(clinicianId, date)) return [];
   const [year, month, day] = date.split("-").map(Number) as [number, number, number];
   const weekday = (new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7;
   // The clinician's own hours once saved on Availability, else the unit's.
@@ -865,7 +881,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         from: iso(0),
         to: iso(6),
         cliniciansOnShift: 12,
-        leave: [{ clinicianProfileId: "c-tabi", clinicianName: "Ernest Tabi", clinicId: "u-rhb-medicine", clinicName: "Medical Unit", from: iso(0), to: iso(4), booked: 14 }],
+        leave: [{ clinicianProfileId: "s-tabi", clinicianName: "Ernest Tabi", clinicId: "u-rhb-medicine", clinicName: "Medical Unit", ...leaveWeek(), booked: 14 }],
         uncovered: [{ clinicId: "u-rhb-eye", clinicName: "Eye Unit", days: ["Fri"], dates: [iso(4)] }],
         covered: [
           { clinicId: "u-rhb-paeds", clinicName: "Paediatrics Unit", clinicians: 2, freeHours: 62 },
@@ -1111,7 +1127,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         const visits = appointments.filter(
           (a) => a.clinicianProfileId === c.clinicianProfileId && String(a.startAt).slice(0, 10) === date && a.state !== "PATIENT_CANCELLED",
         ).length + (i * 3) % 7;
-        const leave = Boolean(hours) && i === 2;
+        const leave = Boolean(hours) && onLeave(c.clinicianProfileId, date);
         const status = !hours
           ? "OFF"
           : leave

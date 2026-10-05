@@ -49,7 +49,7 @@
   gap: 6px;
   height: 100%;
   min-height: 0;
-  padding: 22px 18px;
+  padding: calc(14px + 8px * var(--tall)) 18px;
   border: 1px solid #ffffff;
   border-radius: 30px;
   background: linear-gradient(150deg, rgba(255, 255, 255, 0.93), rgba(255, 255, 255, 0.7));
@@ -63,7 +63,7 @@
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 0 6px 18px;
+  padding: 0 6px calc(8px + 10px * var(--tall));
 }
 .side-mark {
   display: grid;
@@ -118,7 +118,11 @@
   letter-spacing: 0.1em;
   color: var(--ink-muted);
 }
+/* A short window closes the items up (--tall) before the list has to
+   scroll: the manager's and administrator's nine did (audit 2026-10-05). */
 .side-nav {
+  --item: calc(38px + 8px * var(--tall));
+  --pill-step: calc(var(--item) + 6px);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -129,7 +133,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 46px;
+  height: var(--item, 46px);
   border-radius: 19px;
   background: var(--gradient-primary);
   box-shadow: 0 8px 18px rgba(36, 97, 219, 0.3);
@@ -142,7 +146,7 @@
   display: flex;
   align-items: center;
   gap: 11px;
-  height: 46px;
+  height: var(--item, 46px);
   padding: 0 12px;
   border-radius: 15px;
   font-size: 13.5px;
@@ -809,10 +813,10 @@
     height: auto;
     min-height: 100vh;
     min-height: 100dvh;
-    overflow: visible;
     /* The drifting orbs reach past the edges; clipped, not hidden, so the page
-       still scrolls as a whole and nothing becomes a scroll container. */
-    overflow-x: clip;
+       still scrolls as a whole and nothing becomes a scroll container. Both
+       ways: one drifting below the content made the page ~300px longer. */
+    overflow: clip;
     zoom: 1;
   }
   .side-margin { display: none; }

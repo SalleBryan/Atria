@@ -10,6 +10,7 @@
 import { type ComponentType, useState } from "react";
 import { Navigate } from "react-router-dom";
 
+import { maskedPhone } from "../auth/phone";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
 import {
@@ -41,10 +42,6 @@ const SECTIONS: { id: Section; label: string; icon: ComponentType<{ size?: numbe
   { id: "session", label: "Session & security", icon: Lock },
 ];
 
-function masked(phone: string | null | undefined): string {
-  if (!phone) return "Not given";
-  return `${phone.slice(0, 4)} ${"•".repeat(Math.max(0, phone.length - 7))} ${phone.slice(-3)}`;
-}
 
 function EditLink({ label, onClick }: { label: string; onClick: () => void }) {
   return (
@@ -213,7 +210,7 @@ export function StaffAccount() {
                 icon={Phone}
                 tone="tone-amber"
                 title="Work mobile"
-                sub={me.phoneVerified ? masked(me.phoneE164) : `${phoneShown(me.phoneE164)} (unverified)`}
+                sub={me.phoneVerified ? maskedPhone(me.phoneE164) : `${phoneShown(me.phoneE164)} (unverified)`}
                 end={<EditLink label="Change your mobile" onClick={() => start("phone")} />}
               />
               <Row

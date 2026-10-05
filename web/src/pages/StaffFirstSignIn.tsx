@@ -72,7 +72,7 @@ export function StaffFirstSignIn() {
         <>
           <StepsBrand
             steps={[
-              { title: "Account created for you", text: "Your practice administrator added you to the console", state: "done" },
+              { title: "Account created for you", text: "Your hospital's administrator added you to the console", state: "done" },
               { title: "Temporary password used", text: "Signed in with the one-time password from your invitation email", state: "done" },
               {
                 title: "Choose your own password",

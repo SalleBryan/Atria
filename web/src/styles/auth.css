@@ -514,7 +514,9 @@
   gap: 11px;
   padding: 12px 20px;
   border: 1px solid var(--blue-600);
-  border-radius: 999px;
+  /* Half a one-line notice's height: the Rev A pill on one line, a rounded
+     box once it wraps, where 999px drew a three-line capsule (audit 2026-10-05). */
+  border-radius: 22px;
   background: rgba(47, 107, 228, 0.18);
   color: var(--blue-650);
   font-size: 13px;

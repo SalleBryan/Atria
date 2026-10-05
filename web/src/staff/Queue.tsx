@@ -272,6 +272,10 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
               <dd>{found.arrived}</dd>
             </div>
             <div>
+              <dt>With a doctor</dt>
+              <dd>{found.inConsultation}</dd>
+            </div>
+            <div>
               <dt>Seen</dt>
               <dd>{found.seen}</dd>
             </div>
@@ -455,10 +459,10 @@ function WalkInDialog({ sessionId, onClose, onDone }: { sessionId: string; onClo
         aria-labelledby="walk-in-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <button type="button" className="icon-button dialog-close" aria-label="Close" onClick={onClose} disabled={busy}>
-          <Close size={16} />
-        </button>
         <div className="move-scroll">
+          <button type="button" className="icon-button dialog-close" aria-label="Close" onClick={onClose} disabled={busy}>
+            <Close size={16} />
+          </button>
           <span className="dialog-icon dialog-icon-blue" aria-hidden="true">
             <Users size={22} />
           </span>
@@ -662,10 +666,10 @@ function PublishDialog({ clinicId, onClose, onDone }: { clinicId: string; onClos
         aria-labelledby="publish-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <button type="button" className="icon-button dialog-close" aria-label="Close" onClick={onClose} disabled={busy}>
-          <Close size={16} />
-        </button>
         <div className="move-scroll">
+          <button type="button" className="icon-button dialog-close" aria-label="Close" onClick={onClose} disabled={busy}>
+            <Close size={16} />
+          </button>
           <span className="dialog-icon dialog-icon-blue" aria-hidden="true">
             <Users size={22} />
           </span>

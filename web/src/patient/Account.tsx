@@ -11,6 +11,7 @@
 
 import { type ComponentType, useEffect, useState } from "react";
 
+import { maskedPhone } from "../auth/phone";
 import { useSession } from "../auth/session";
 import { SignOutMenu } from "../components/SignOutMenu";
 import { Notice } from "../components/controls";
@@ -50,10 +51,6 @@ const SMS_DATE = new Intl.DateTimeFormat("en-GB", {
   year: "numeric",
 });
 
-function masked(phone: string | null | undefined): string {
-  if (!phone) return "Not given";
-  return `${phone.slice(0, 4)} ${"•".repeat(Math.max(0, phone.length - 7))} ${phone.slice(-3)}`;
-}
 
 export function Account() {
   const { state: session, signOut } = useSession();
@@ -164,7 +161,7 @@ export function Account() {
                 icon={Phone}
                 tone="tone-amber"
                 title="Mobile"
-                sub={me?.phoneVerified ? masked(me?.phoneE164) : `${masked(me?.phoneE164)} · not verified yet`}
+                sub={me?.phoneVerified ? maskedPhone(me?.phoneE164) : `${maskedPhone(me?.phoneE164)} · not verified yet`}
                 end={
                   // A verified number changes by a code sent to it, which comes with SMS.
                   me?.phoneVerified ? (
@@ -270,7 +267,9 @@ function Row({
 function Notifications() {
   const { state } = usePatientData();
   const data = state.status === "ready" ? state.data : undefined;
-  const next = data ? upcoming(data.appointments)[0] : undefined;
+  // A visit a reminder is sent for: a set time with a named clinician. A
+  // procedure request or a queue place read "…Surgical Unit, . Ref" here.
+  const next = data ? upcoming(data.appointments).find((a) => a.clinicianProfileId && a.state !== "REQUESTED") : undefined;
   const joined = data && next ? join(data, next) : undefined;
   const reminderAt = next ? new Date(Date.parse(next.startAt) - 24 * 3600 * 1000) : undefined;
   const sample =
@@ -310,7 +309,7 @@ function Notifications() {
           ].map(([value, label, on]) => (
             <span key={String(value)} role="radio" aria-checked={Boolean(on)} aria-disabled={!on} className={`lead${on ? " lead-on" : ""}`}>
               <span>{value}</span>
-              <span>{label}</span>
+              <span>{on ? label : "Later release"}</span>
             </span>
           ))}
         </div>

@@ -27,6 +27,11 @@ export function messageFor(error: unknown): string {
     return "This account has been closed by the hospital. Contact the front desk: it can be restored within 30 days of closing.";
   }
   if (name in MESSAGES) return MESSAGES[name] as string;
+  // The library's own wiring ("No AmplifyContext available", a pool not
+  // configured) means nothing to the person reading it (audit 2026-10-05).
+  if (error instanceof Error && /amplify|user ?pool|not configured/i.test(`${name} ${error.message}`)) {
+    return "Signing in is not available right now. Try again in a few minutes.";
+  }
   if (error instanceof Error && error.message && !/exception/i.test(error.message)) {
     return error.message;
   }

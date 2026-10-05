@@ -137,10 +137,15 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
   color: inherit;
 }
+
+/* No native controls: the browser's resize grip is one. A text box keeps the
+   height its design gives it and scrolls inside (audit 2026-10-05). */
+textarea { resize: none; }
 
 :focus-visible {
   outline: 3px solid rgba(74, 131, 240, 0.45);

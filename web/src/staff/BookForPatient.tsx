@@ -17,7 +17,7 @@
  */
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
 import { type CountryCode, HOME_COUNTRY, nationalInput, normalisePhone } from "../auth/phone";
@@ -29,7 +29,7 @@ import { PhoneField } from "../components/PhoneField";
 import { SelectMenu } from "../components/Pickers";
 import { type Slot, WeekSlots } from "../components/WeekSlots";
 import { type Appointment, clock, initials, offeredAt } from "../patient/data";
-import { clinicianBooks, doctor, roleOf, useStaffData } from "./data";
+import { can, clinicianBooks, doctor, roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
 import { age, fullName, NewPatient, phoneShown, type RegisterEntry, useRegisterSearch } from "./Patients";
 
@@ -153,6 +153,9 @@ export function BookForPatient() {
       setBusy(false);
     }
   }
+
+  // The matrix gives an administrator no booking (appointment.create "none").
+  if (me && !can(role, "appointment.create")) return <Navigate to="/console/patients" replace />;
 
   // A general practitioner books no one: their patients come through the
   // queue, and a specialist visit is booked by the front desk from the

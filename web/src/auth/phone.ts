@@ -128,3 +128,16 @@ export function nationalInput(raw: string, country: CountryCode): { country: Cou
   if (at === HOME_COUNTRY) compact = compact.replace(/^0+/, "");
   return { country: at, text: compact ? new AsYouType(at).input(compact) : "" };
 }
+
+/**
+ * A stored number with its middle hidden: the country code, then dots, then
+ * the last three digits. The code is read from the number, so a +1 number is
+ * "+1 ••••••• 142", not "+120 ••••• 142" (audit 2026-10-05).
+ */
+export function maskedPhone(e164: string | null | undefined): string {
+  if (!e164) return "Not given";
+  const parsed = parsePhoneNumberFromString(e164);
+  const code = parsed ? `+${parsed.countryCallingCode}` : e164.slice(0, 4);
+  const national = parsed ? String(parsed.nationalNumber) : e164.slice(4);
+  return `${code} ${"•".repeat(Math.max(0, national.length - 3))} ${national.slice(-3)}`;
+}

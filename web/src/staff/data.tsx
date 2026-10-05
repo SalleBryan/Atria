@@ -22,6 +22,7 @@ import {
   type Clinic,
   type Clinician,
   clock,
+  offeredAt,
   ZONE,
 } from "../patient/data";
 
@@ -121,6 +122,16 @@ export function roleOf(me: Me): StaffRole {
 
 /** Whether the role reads one clinician's calendar rather than a clinic's day. */
 export const readsOwnCalendar = (role: StaffRole) => role === "CLINICIAN";
+
+/**
+ * Whether a clinician has visits staff can book with them. A clinician books
+ * only themselves, so one whose unit offers nothing on the grid (the
+ * outpatient department's general practitioners, who see the queue) does not
+ * book at all: the screen offered them nothing to choose (audit 2026-10-05).
+ */
+export function clinicianBooks(types: readonly AppointmentType[], clinicId: string | null | undefined): boolean {
+  return types.some((t) => t.durationUnits && t.bookableBy !== "PATIENT" && offeredAt(t, clinicId));
+}
 
 /* -------------------------------------------------------------- the day */
 

@@ -207,7 +207,11 @@ def issue(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     subject = Subject(
         tenant_id=principal.tenant_id, patient_profile_id=patient_id, clinic_id=clinic_id
     )
-    permissions.require(caller, "appointment.create", subject)
+    # A patient's own place is a booking; staff adding someone is a walk-in,
+    # which a clinician may do for their unit's queue though they book visits
+    # only for themselves.
+    permission = "appointment.create" if by_patient else "queue.add_walk_in"
+    permissions.require(caller, permission, subject)
     data.patient_profile(principal.tenant_id, patient_id)
 
     if by_patient:
@@ -266,7 +270,7 @@ def issue(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
         appointment_type_id=str(kind["appointmentTypeId"]),
         channel=channel,
         actor_person_id=caller.person_id,
-        actor_role=role_used(caller, "appointment.create"),
+        actor_role=role_used(caller, permission),
         window=arrival,
     )
     tenant = data.tenant(principal.tenant_id)

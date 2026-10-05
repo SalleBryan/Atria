@@ -1292,6 +1292,7 @@ const PERMISSION_LABEL: Record<string, string> = {
   "session.publish": "Publish sessions",
   "session.disrupt": "Mark a clinician unavailable",
   "queue.assign_next": "Call the next patient",
+  "queue.add_walk_in": "Add walk-ins to the queue",
   "patient.read": "See patient records",
   "patient.create": "Register patients",
   "patient.update": "Update patient records",

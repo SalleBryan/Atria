@@ -35,7 +35,9 @@ MATRIX = {
  # ---- booking -------------------------------------------------------------
  "appointment.read":        {"PATIENT":"own","RECEPTIONIST":"clinic","CLINICIAN":"own",
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"tenant"},
- "appointment.create":      {"PATIENT":"own","RECEPTIONIST":"clinic","CLINICIAN":"clinic",
+ # A clinician books only themselves (user, 2026-10-05); colleagues are the
+ # desk's to book. Walk-ins into a queue have their own permission below.
+ "appointment.create":      {"PATIENT":"own","RECEPTIONIST":"clinic","CLINICIAN":"own",
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
  "appointment.reschedule":  {"PATIENT":"own","RECEPTIONIST":"clinic","CLINICIAN":"own",
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
@@ -68,6 +70,8 @@ MATRIX = {
  "queue.read":              {"PATIENT":"none","RECEPTIONIST":"clinic","CLINICIAN":"clinic",
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"tenant"},
  "queue.assign_next":       {"PATIENT":"none","RECEPTIONIST":"clinic","CLINICIAN":"clinic",
+                             "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
+ "queue.add_walk_in":       {"PATIENT":"none","RECEPTIONIST":"clinic","CLINICIAN":"clinic",
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
 
  # ---- people --------------------------------------------------------------

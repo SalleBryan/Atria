@@ -65,8 +65,13 @@
   .detail-facts > div { flex: 1; }
 
   /* My visits (52:2): the visit's actions in a row under both cards. */
-  .visit-detail > .visit-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 12px; margin-top: 0; }
-  .visit-detail > .visit-actions > * { height: 50px; }
+  /* Equal buttons in one row; a new-time offer or a notice takes a row of
+     its own at its own height. (A grid of auto-fit minmax(0, 1fr) made
+     hundreds of 1px tracks.) The cards above never shrink to make room. */
+  .visit-detail > .visit-cols { flex: none; }
+  .visit-detail > .visit-actions { display: flex; flex-wrap: wrap; flex-direction: row; gap: 12px; margin-top: 0; }
+  .visit-detail > .visit-actions > * { flex: 1 1 0; min-width: 0; height: 50px; }
+  .visit-detail > .visit-actions > :is(.new-time, .notice) { flex-basis: 100%; height: auto; }
 
   /* Booked (47:115) fits the tablet frame whole; only its light ran over. */
   .booked-screen { overflow: hidden; }
@@ -344,6 +349,10 @@
   /* Staff accounts on a phone: each account a card, its status and actions
      on a second line. */
   .accounts-top { flex-wrap: wrap; }
+  /* The header's buttons take the full width and share it, so the second one
+     (Create staff account) wraps under the first instead of leaving the screen. */
+  .accounts-top > .accounts-actions { flex-wrap: wrap; width: 100%; }
+  .accounts-top > .accounts-actions > * { flex: 1 1 auto; justify-content: center; }
   .accounts-banner { padding: 16px 18px; font-size: 12.5px; }
   .accounts-filters { flex-direction: column; align-items: stretch; }
   .accounts-search { max-width: none; }
@@ -356,6 +365,10 @@
   .account-row > :nth-child(2) { display: none; }
   .account-row > :nth-child(3) { grid-column: 1; }
   .account-actions { grid-column: 2; grid-row: 2; }
+  /* A staff account: its role and unit under the name, then status and actions. */
+  .staff-row > .account-role { grid-column: 1 / -1; grid-row: 2; }
+  .staff-row > :nth-child(3),
+  .staff-row > .account-actions { grid-row: 3; }
   /* The audit log: who, then what, then the record and when side by side. */
   .account-row.audit-row { grid-template-columns: minmax(0, 1fr) auto; }
   .audit-row > .audit-action { display: block; grid-column: 1 / -1; }
@@ -461,6 +474,11 @@
     background: linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.86));
     box-shadow: 0 12px 30px rgba(16, 42, 94, 0.16);
   }
+  .visits[data-step="detail"] .visit-detail .visit-actions > :is(.new-time, .notice),
+  .visits[data-step="detail"] .visit-detail .visit-actions:has(.new-time) > * { grid-column: 1 / -1; }
+  /* With a new-time offer the bar is too tall to pin over the visit: it sits
+     at the end of the page instead. */
+  .visits[data-step="detail"] .visit-detail .visit-actions:has(.new-time) { position: static; }
 
   /* Booked (Mobile · Booking confirmed, 35:89): the check, heading and lede
      centred, then the ticket, then what happens next, then the actions. */

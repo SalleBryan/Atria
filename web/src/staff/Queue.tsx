@@ -83,6 +83,15 @@ export function QueuePage() {
   const [failure, setFailure] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
 
+  // Seen once this session, "/console" is the schedule again (StaffShell).
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("atria.queue", "1");
+    } catch {
+      // Without storage StaffShell keeps the schedule as the landing.
+    }
+  }, []);
+
   useEffect(() => {
     if (!clinicId) return;
     let live = true;

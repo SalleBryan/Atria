@@ -195,6 +195,19 @@ class TestStaffBooking:
         body = {**BODY, "appointmentTypeId": "at-minor-proc"}
         assert service.handler(receptionist_event(body), None)["statusCode"] == 201
 
+    def test_a_clinician_books_a_patient_with_themselves(self, wired):
+        """A specialist books their own follow-ups, attributed to them."""
+        context = {"roles": "CLINICIAN", "staffId": CLINICIAN, "clinicId": CLINIC}
+        result = service.handler(event(BODY, **context), None)
+        assert result["statusCode"] == 201
+        assert body_of(result)["bookedByRole"] == "CLINICIAN"
+
+    def test_a_clinician_cannot_book_a_patient_with_a_colleague(self, wired, repository):
+        """Booking a colleague is the front desk's work: the scope is the clinician's own."""
+        membership(repository, "s-clin-2", roles=["CLINICIAN"], clinic_id=CLINIC)
+        context = {"roles": "CLINICIAN", "staffId": "s-clin-2", "clinicId": CLINIC}
+        assert service.handler(event(BODY, **context), None)["statusCode"] == 403
+
     def test_staff_booking_for_themselves_is_treated_as_a_patient(self, wired):
         """Guard SELF_SUBJECT_DROPS_STAFF_SCOPE: no staff tooling on one's own record."""
         body = {**BODY, "appointmentTypeId": "at-minor-proc"}

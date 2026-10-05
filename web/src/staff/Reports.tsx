@@ -16,13 +16,14 @@ import { Navigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
-import { ChevronLeft, ChevronRight, Download, Shield } from "../components/icons";
+import { ChevronLeft, ChevronRight, Shield } from "../components/icons";
 import { DatePickerMenu } from "../components/DatePickerMenu";
 import { DonutChart, MultiUnitBarChart } from "../components/ExpressiveCharts";
 import { LoadingPane } from "../components/LoadingPane";
 import { SelectMenu } from "../components/Pickers";
 import { TENANT } from "../tenant";
 import { exportReportCsv, exportReportExcel, exportReportPdf } from "../utils/reportExport";
+import { ReportDownload } from "./ReportDownload";
 import { roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
 
@@ -134,7 +135,6 @@ export function Reports() {
   const [unit, setUnit] = useState<string>(admin ? EVERY : (me?.clinicId ?? ""));
   const [found, setFound] = useState<UnitWeek | HospitalWeek | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const [exportMenu, setExportMenu] = useState(false);
 
   useEffect(() => {
     if (!unit) return;
@@ -203,51 +203,14 @@ export function Reports() {
         {/* Download Action Menu - Right Aligned on Screen */}
         {found && (
           <div className="accounts-actions reports-actions">
-            <div className="reports-download-dropdown">
-              <button
-                type="button"
-                className="outline-button reports-download-btn"
-                onClick={() => setExportMenu((m) => !m)}
-                aria-expanded={exportMenu}
-              >
-                <Download size={15} />
-                Download report
-              </button>
-              {exportMenu && (
-                <div className="reports-export-menu glass" role="menu">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setExportMenu(false);
-                      exportReportPdf(found, periodLabel, unitName, TENANT.name);
-                    }}
-                  >
-                    Download PDF (.pdf)
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setExportMenu(false);
-                      exportReportExcel(found, periodLabel, unitName);
-                    }}
-                  >
-                    Download Excel (.xlsx)
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setExportMenu(false);
-                      exportReportCsv(found, periodLabel);
-                    }}
-                  >
-                    Download CSV (.csv)
-                  </button>
-                </div>
-              )}
-            </div>
+            <ReportDownload
+              admin={admin}
+              formats={[
+                { id: "pdf", label: "PDF", hint: "To print or share", pick: () => exportReportPdf(found, periodLabel, unitName, TENANT.name) },
+                { id: "xlsx", label: "Excel", hint: "Summary, units, channels, fees", pick: () => exportReportExcel(found, periodLabel, unitName) },
+                { id: "csv", label: "CSV", hint: "Plain rows for any spreadsheet", pick: () => exportReportCsv(found, periodLabel) },
+              ]}
+            />
           </div>
         )}
       </header>

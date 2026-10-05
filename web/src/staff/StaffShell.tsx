@@ -25,6 +25,7 @@ import { Waiting } from "../components/Waiting";
 import { initials } from "../patient/data";
 import { ROLE_LABEL, roleOf, StaffDataProvider, useStaffData } from "./data";
 import { revealSelected } from "../layout/side";
+import { useScrollTopOnNavigate } from "../layout/scrollTop";
 
 interface Destination {
   to: string;
@@ -49,6 +50,7 @@ export function StaffShell() {
 
 function Shell({ me }: { me: Me }) {
   const { pathname } = useLocation();
+  useScrollTopOnNavigate(pathname);
   const { state } = useStaffData();
   const role = roleOf(me);
 
@@ -71,9 +73,12 @@ function Shell({ me }: { me: Me }) {
     },
   ];
   const types = state.status === "ready" ? state.data.types : [];
-  // The outpatient department's staff run the queue (FR-BKG-13).
-  if (role !== "TENANT_ADMIN" && runsQueue(types, me.clinicId)) {
-    destinations.push({
+  // The outpatient department's staff run the queue (FR-BKG-13). For its
+  // general practitioners the queue is the day's work, so it comes first.
+  const queueUnit = role !== "TENANT_ADMIN" && runsQueue(types, me.clinicId);
+  const gp = queueUnit && role === "CLINICIAN";
+  if (queueUnit) {
+    destinations.splice(gp ? 0 : destinations.length, 0, {
       to: "/console/queue",
       label: "Queue",
       icon: ListOrdered,
@@ -180,8 +185,13 @@ function Shell({ me }: { me: Me }) {
 
   // An administrator signs in to the overview; after that "/console" is the
   // schedule like everyone else's, so the Schedule link still goes there.
-  if (role === "TENANT_ADMIN" && pathname === "/console" && !sawOverview()) {
+  if (role === "TENANT_ADMIN" && pathname === "/console" && !sawFirst("atria.overview")) {
     return <Navigate to="/console/overview" replace />;
+  }
+  // A general practitioner signs in to the queue the same way: their visits
+  // come from it, so the schedule alone opened on an empty day (audit 2026-10-05).
+  if (gp && pathname === "/console" && !sawFirst("atria.queue")) {
+    return <Navigate to="/console/queue" replace />;
   }
 
   const clinic = state.status === "ready" ? state.data.clinics.find((c) => c.clinicId === me.clinicId)?.name : undefined;
@@ -272,9 +282,9 @@ function Shell({ me }: { me: Me }) {
   );
 }
 
-function sawOverview(): boolean {
+function sawFirst(key: string): boolean {
   try {
-    return Boolean(sessionStorage.getItem("atria.overview"));
+    return Boolean(sessionStorage.getItem(key));
   } catch {
     return true;
   }

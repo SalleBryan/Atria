@@ -140,6 +140,7 @@ const BOOKED_BY: Record<VisitType["bookableBy"], string> = {
   PATIENT: "Patients only",
 };
 
+const MAX_FEE = 10_000_000;
 export const xaf = (amount: number) => `${new Intl.NumberFormat("en-GB").format(amount)} XAF`;
 
 const options = (values: number[], label: (n: number) => string): PickerOption[] => values.map((n) => ({ id: String(n), label: label(n) }));
@@ -717,7 +718,7 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit | null; onClose: () 
   return (
     <Dialog
       title={isNew ? "Add hospital unit" : unit.name}
-      lede={isNew ? "Add a new consultation clinic, department or service line for the hospital." : "What patients read about the unit, and when it is open. Changes are recorded in the audit log."}
+      lede={isNew ? "A department or service patients can be seen in. Its visit types are added under Visit types." : "What patients read about the unit, and when it is open. Changes are recorded in the audit log."}
       icon={<Building size={22} />}
       busy={busy}
       onClose={onClose}
@@ -989,21 +990,29 @@ function TypeDialog({
     >
       <Field label="Name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
       <span className="settings-label">Service line</span>
-      <div className="segmented" role="radiogroup" aria-label="Service line">
-        {(["GENERAL", "SPECIALIST", "PROCEDURE"] as const).map((l) => (
-          <button
-            key={l}
-            type="button"
-            role="radio"
-            aria-checked={line === l}
-            disabled={Boolean(type) && type?.serviceLine !== l}
-            className={`segment${line === l ? " segment-on" : ""}`}
-            onClick={() => setLine(l)}
-          >
-            {LINE[l]}
-          </button>
-        ))}
-      </div>
+      {type ? (
+        // Fixed once the type exists: its visits were booked on that line. Two
+        // greyed choices beside it looked like they could be picked.
+        <p className="settings-fixed">
+          <span className={`chip ${LINE_TONE[type.serviceLine]}`}>{LINE[type.serviceLine]}</span>
+          <span className="settings-hint">Fixed once a type is added; add a new type for another line.</span>
+        </p>
+      ) : (
+        <div className="segmented" role="radiogroup" aria-label="Service line">
+          {(["GENERAL", "SPECIALIST", "PROCEDURE"] as const).map((l) => (
+            <button
+              key={l}
+              type="button"
+              role="radio"
+              aria-checked={line === l}
+              className={`segment${line === l ? " segment-on" : ""}`}
+              onClick={() => setLine(l)}
+            >
+              {LINE[l]}
+            </button>
+          ))}
+        </div>
+      )}
       <p className="availability-note">
         {general
           ? "A general consultation is a ticket in the day's queue, with no set length."
@@ -1153,7 +1162,7 @@ function FeesTab({ found, onSaved }: { found: Overview; onSaved: (message: strin
         fee.
       </p>
       <div className="accounts-head settings-fees-head" aria-hidden="true">
-        <span>PRACTICE</span>
+        <span>FEE BAND</span>
         <span>AMOUNT</span>
         <span>IN FORCE SINCE</span>
       </div>
@@ -1210,8 +1219,12 @@ function BandDialog({ band, onClose, onDone }: { band: FeeBand; onClose: () => v
   const [reference, setReference] = useState(band.scheduleReference ?? "");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  const value = Number(amount.replace(/\s|,/g, ""));
-  const valid = Number.isInteger(value) && value >= 0;
+  const typed = amount.replace(/\s|,/g, "");
+  const value = Number(typed);
+  // The API's bounds (core/settings.fee_band_fields): whole francs, at most ten million.
+  const valid = typed !== "" && Number.isInteger(value) && value >= 0 && value <= MAX_FEE;
+  // Allowed, but worth a second look before every later visit is charged it.
+  const unusual = valid && value !== band.baseAmountMinor && (value === 0 || (band.baseAmountMinor > 0 && (value >= band.baseAmountMinor * 3 || value * 3 <= band.baseAmountMinor)));
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -1245,9 +1258,17 @@ function BandDialog({ band, onClose, onDone }: { band: FeeBand; onClose: () => v
         label="Amount in XAF"
         inputMode="numeric"
         value={amount}
-        error={valid ? undefined : "A whole number of francs"}
+        hint={valid ? xaf(value) : undefined}
+        error={valid ? undefined : `A whole number of francs, up to ${xaf(MAX_FEE)}`}
         onChange={(e) => setAmount(e.target.value)}
       />
+      {unusual && (
+        <Notice>
+          {value === 0
+            ? `${band.practice} becomes free from today.`
+            : `That is ${value > band.baseAmountMinor ? "more than three times" : "under a third of"} the ${xaf(band.baseAmountMinor)} it is now. Check the amount before saving.`}
+        </Notice>
+      )}
       <Field
         label="Taken from"
         hint="The schedule or decision the amount comes from."

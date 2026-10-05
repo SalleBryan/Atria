@@ -223,8 +223,8 @@ export function AdminOverview() {
                 <LoadingPane className="compact" label="Loading visits" />
               ) : (
                 <DonutChart
-                  title="Visit Outcomes Distribution"
-                  subtitle="Proportion of registered visits attended, missed, or cancelled this week."
+                  title="How visits ended"
+                  subtitle="Attended, missed or cancelled, as a share of this week's visits."
                   segments={[
                     {
                       id: "attended",
@@ -265,8 +265,8 @@ export function AdminOverview() {
                 <LoadingPane className="compact" label="Loading unit volume" />
               ) : (
                 <MultiUnitBarChart
-                  title="Unit Volume & Outcomes"
-                  subtitle="Comparison of appointment volume and attendance across active hospital units."
+                  title="Volume by unit"
+                  subtitle="Visits and attendance at each unit."
                   units={report.found.units.map((u) => ({
                     unitId: u.clinicId,
                     name: u.clinicName || u.clinicId,

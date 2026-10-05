@@ -220,11 +220,14 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
   const iAmDoctor = role === "CLINICIAN";
   const calls = can(role, "queue.assign_next");
 
-  async function step(path: string, message: string, body?: unknown) {
+  async function step(path: string, message: string, body?: unknown, settle?: (queue: LiveQueue) => LiveQueue) {
     setBusy(path);
     setFailure(null);
     try {
       await api(path, { method: "POST", ...(body ? { json: body } : {}) });
+      // Shown at once, so "Call next" is ready without waiting for the
+      // queue to be read again (audit 2026-10-05); the read then confirms it.
+      if (settle) setFound((shown) => (shown ? settle(shown) : shown));
       onDone(message);
       load();
     } catch (caught) {
@@ -275,7 +278,7 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
             <div>
               <dt>Pace</dt>
               <dd>
-                {found.actualPerHour ?? "–"} of {found.plannedPerHour} an hour
+                {found.actualPerHour == null ? "–" : perHour(found.actualPerHour)} of {perHour(found.plannedPerHour)} an hour
               </dd>
             </div>
           </dl>
@@ -361,7 +364,14 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
                       type="button"
                       className="outline-button queue-arrive"
                       disabled={busy !== null}
-                      onClick={() => void step(`/appointments/${t.appointmentId}/arrive`, "Arrival recorded.")}
+                      onClick={() =>
+                        void step(`/appointments/${t.appointmentId}/arrive`, "Arrival recorded.", undefined, (queue) => ({
+                          ...queue,
+                          waiting: Math.max(0, queue.waiting - 1),
+                          arrived: queue.arrived + 1,
+                          appointments: queue.appointments.map((a) => (a.appointmentId === t.appointmentId ? { ...a, state: "ARRIVED" } : a)),
+                        }))
+                      }
                     >
                       Arrived
                     </button>
@@ -707,6 +717,9 @@ function PublishDialog({ clinicId, onClose, onDone }: { clinicId: string; onClos
     document.body,
   );
 }
+
+/** Patients an hour, to one decimal: the API keeps two. */
+const perHour = (value: number) => String(Math.round(value * 10) / 10);
 
 /** Whether a unit runs a queue: it offers a general consultation (the outpatient department). */
 export function runsQueue(types: { serviceLine: string; clinicIds?: string[] | null }[], clinicId: string | null | undefined): boolean {

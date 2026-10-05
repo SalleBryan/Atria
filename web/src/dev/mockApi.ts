@@ -391,7 +391,11 @@ function freeStarts(clinicianId: string, date: string, typeId: string) {
   if (!clinician || !clinic || !type) return [];
   const [year, month, day] = date.split("-").map(Number) as [number, number, number];
   const weekday = (new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7;
-  const hours = (clinic.openingHours as Record<string, { start: string; end: string }>)[String(weekday)];
+  // The clinician's own hours once saved on Availability, else the unit's.
+  const own = availability[clinicianId]?.hours;
+  const hours = (own && Object.keys(own).length ? own : (clinic.openingHours as Record<string, { start: string; end: string }>))[
+    String(weekday)
+  ];
   if (!hours) return [];
   const at = (clock: string) => {
     const [h, m] = clock.split(":").map(Number) as [number, number];
@@ -595,7 +599,10 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     const id = avail[1] as string;
     const held = (availability[id] ??= { hours: {}, timeOff: [] });
     if (method === "GET" && avail[2] === "availability") {
-      const unitHours = Object.fromEntries([0, 1, 2, 3, 4].map((d) => [String(d), { start: "08:00", end: "16:00" }]));
+      // The unit's own opening hours, the ones free times are cut from: a
+      // fixed 08:00 to 16:00 here disagreed with the 07:30 booking offered.
+      const unit = clinics.find((c) => c.clinicId === clinicians.find((c) => c.clinicianProfileId === id)?.clinicId);
+      const unitHours = { ...((unit?.openingHours ?? {}) as Record<string, { start: string; end: string }>) };
       return json(200, {
         clinicianProfileId: id,
         usesUnitHours: !Object.keys(held.hours).length,
@@ -698,18 +705,24 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     if (method === "GET" && !oneSession[2]) return json(200, sessionView(session), 200);
     if (method === "GET" && oneSession[2] === "queue") {
       const count = (states: string[]) => tickets.filter((t) => states.includes(String(t.state))).length;
+      // Seen per hour since the session opened, as the API works it out
+      // (services/booking/queue.py); a fixed 11.2 never moved.
+      const opens = Date.parse(`${session.sessionDate}T${session.startTime}:00Z`) - OFFSET_MS;
+      const closes = Date.parse(`${session.sessionDate}T${session.endTime}:00Z`) - OFFSET_MS;
+      const elapsed = Math.max(0, (Math.min(Date.now(), closes) - opens) / 3600000);
+      const seen = count(["COMPLETED", "AWAITING_FEEDBACK"]);
       return json(
         200,
         {
           ...sessionView(session),
           appointments: tickets,
           patients,
-          waiting: count(["BOOKED", "CONFIRMED"]),
+          waiting: count(["BOOKED", "CONFIRMED", "RESCHEDULED"]),
           arrived: count(["ARRIVED"]),
           inConsultation: count(["IN_CONSULTATION"]),
-          seen: count(["COMPLETED"]),
+          seen,
           plannedPerHour: 4.5 * session.rosteredClinicianCount,
-          actualPerHour: 11.2,
+          actualPerHour: elapsed >= 0.25 ? Math.round((seen / elapsed) * 100) / 100 : null,
         },
         300,
       );
@@ -1073,10 +1086,16 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   if (method === "GET" && record && record[1] !== "me") {
     const found = register.find((p) => p.patientProfileId === record[1]);
     if (!found) return json(404, { code: "not_found", message: "no such patient" });
+    // The visits in the caller's scope, as the API cuts them
+    // (atria.services.patients.register.record).
+    const visitScope = callerRole === "TENANT_ADMIN" ? "tenant" : callerRole === "CLINICIAN" ? "own" : "clinic";
     const visits = appointments
       .filter((a) => a.patientProfileId === found.patientProfileId)
+      .filter((a) =>
+        visitScope === "tenant" ? true : visitScope === "own" ? a.clinicianProfileId === caller.staffId : a.clinicId === caller.clinicId,
+      )
       .sort((a, b) => String(b.startAt).localeCompare(String(a.startAt)));
-    return json(200, { ...found, visitScope: "clinic", appointments: visits }, 300);
+    return json(200, { ...found, visitScope, appointments: visits }, 300);
   }
   const roster = path.match(/^\/clinics\/([^/]+)\/roster$/);
   if (method === "GET" && roster) {
@@ -1457,8 +1476,10 @@ let conflictShown = false;
 // Who is signed in to the preview, so a staff booking is recorded against
 // their role as the API records it (role_used), not always the desk's.
 let callerRole = "RECEPTIONIST";
-export function setPreviewCaller(roles: readonly string[]): void {
-  callerRole = roles.find((r) => r !== "PATIENT") ?? "PATIENT";
+let caller: { clinicId: string | null; staffId: string | null } = { clinicId: null, staffId: null };
+export function setPreviewCaller(me: { roles: readonly string[]; clinicId?: string | null; staffId?: string | null }): void {
+  callerRole = me.roles.find((r) => r !== "PATIENT") ?? "PATIENT";
+  caller = { clinicId: me.clinicId ?? null, staffId: me.staffId ?? null };
 }
 const availability: Record<string, { hours: Record<string, { start: string; end: string }>; timeOff: { groupId: string }[] }> = {};
 // A second account with the same number is refused, as the pool refuses it.

@@ -14,6 +14,7 @@
  */
 
 import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, Navigate } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -426,7 +427,7 @@ function WalkInDialog({ sessionId, onClose, onDone }: { sessionId: string; onClo
     }
   }
 
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
       <div
         className="dialog staff-dialog move-dialog settings-dialog"
@@ -510,7 +511,8 @@ function WalkInDialog({ sessionId, onClose, onDone }: { sessionId: string; onClo
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -632,7 +634,7 @@ function PublishDialog({ clinicId, onClose, onDone }: { clinicId: string; onClos
     }
   }
 
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
       <div
         className="dialog staff-dialog move-dialog settings-dialog"
@@ -692,7 +694,8 @@ function PublishDialog({ clinicId, onClose, onDone }: { clinicId: string; onClos
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

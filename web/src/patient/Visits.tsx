@@ -18,6 +18,7 @@
  */
 
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -709,7 +710,7 @@ function CancelDialog({
     }
   }
 
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
       <div
         ref={dialog}
@@ -808,6 +809,7 @@ function CancelDialog({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -22,6 +22,7 @@
  */
 
 import { type CSSProperties, type FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Navigate, useLocation } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -745,7 +746,7 @@ function ChangeRole({ account, onClose, onDone }: { account: Listed; onClose: ()
     }
   }
 
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
       <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="role-title" onClick={(e) => e.stopPropagation()}>
         <span className="dialog-icon accounts-dialog-icon" aria-hidden="true">
@@ -798,7 +799,8 @@ function ChangeRole({ account, onClose, onDone }: { account: Listed; onClose: ()
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -819,7 +821,7 @@ function Suspend({ account, onClose, onDone }: { account: Listed; onClose: () =>
     }
   }
 
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
       <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="suspend-title" onClick={(e) => e.stopPropagation()}>
         <span className="dialog-icon" aria-hidden="true">
@@ -841,7 +843,8 @@ function Suspend({ account, onClose, onDone }: { account: Listed; onClose: () =>
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -935,7 +938,7 @@ function CreateStaff({ onClose, onDone }: { onClose: () => void; onDone: (name: 
 
   const name = [form.givenName.trim(), form.familyName.trim()].filter(Boolean).join(" ");
 
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => !busy && !created && onClose()}>
       <div
         ref={sheet}
@@ -1129,7 +1132,8 @@ function CreateStaff({ onClose, onDone }: { onClose: () => void; onDone: (name: 
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -1181,7 +1185,7 @@ function PriorityAllowance({ account, onClose, onDone }: { account: Listed; onCl
     }
   }
 
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
       <div className="dialog staff-dialog" role="dialog" aria-modal="true" aria-labelledby="priority-title" onClick={(e) => e.stopPropagation()}>
         <span className="dialog-icon dialog-icon-blue accounts-dialog-icon" aria-hidden="true">
@@ -1223,6 +1227,7 @@ function PriorityAllowance({ account, onClose, onDone }: { account: Listed; onCl
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

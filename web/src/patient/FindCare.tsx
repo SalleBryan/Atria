@@ -22,6 +22,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
 import { Notice } from "../components/controls";
+import { DatePickerMenu } from "../components/DatePickerMenu";
 import { IntakeDialog } from "../components/IntakeDialog";
 import { LoadingPane } from "../components/LoadingPane";
 import {
@@ -520,6 +521,17 @@ export function FindCare() {
                   >
                     <ChevronRight size={16} />
                   </button>
+                  <DatePickerMenu
+                    value={weekStart}
+                    minDate={today}
+                    maxDate={lastBookable ?? undefined}
+                    label="Pick a date"
+                    buttonClass="icon-button"
+                    onChange={(chosenDate) => {
+                      setWeekStart(chosenDate < today ? today : chosenDate);
+                      setDay(chosenDate);
+                    }}
+                  />
                 </div>
               </div>
               <div className="days" role="radiogroup" aria-label="Day" key={`${selected.clinicianProfileId}-${weekStart}`}>

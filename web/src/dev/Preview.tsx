@@ -17,7 +17,7 @@
  * (import.meta.env.DEV), so it is never part of a production build.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import type { Me } from "../api/client";
@@ -144,7 +144,18 @@ PEOPLE["patient-google"] = { ...PEOPLE.patient!, phoneE164: null, phoneVerified:
 export default function Preview() {
   const query = new URLSearchParams(window.location.search);
   const as = query.get("as") ?? "patient";
-  const me = PEOPLE[as] ?? PEOPLE.patient!;
+  const initialMe = PEOPLE[as] ?? PEOPLE.patient!;
+  const [me, setMe] = useState(initialMe);
+
+  useEffect(() => {
+    const onUpdated = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setMe((prev) => ({ ...prev, ...detail }));
+    };
+    window.addEventListener("atria:me-updated", onUpdated);
+    return () => window.removeEventListener("atria:me-updated", onUpdated);
+  }, []);
+
   const audience = me.roles.includes("PATIENT") ? ("patient" as const) : ("staff" as const);
   const start = query.get("at") ?? (audience === "staff" ? "/console" : "/home");
   const session = useMemo(

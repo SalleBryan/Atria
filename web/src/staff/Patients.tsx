@@ -14,6 +14,7 @@
  */
 
 import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { api, apiAll, ApiError } from "../api/client";
@@ -451,7 +452,7 @@ export function NewPatient({
   const bornWrong = Boolean(bornText.trim()) && !born;
   const ready = given.trim() && family.trim() && isMobile(normalisePhone(phone, country)) && !bornWrong && (!shared || sameNumber);
 
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
       <div
         className="dialog staff-dialog move-dialog settings-dialog"
@@ -547,7 +548,8 @@ export function NewPatient({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -9,6 +9,7 @@
  */
 
 import { type ChangeEvent, type DragEvent, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../api/client";
 import { Notice } from "../components/controls";
 import { CheckMark, Clipboard, Close, Download, Upload, Users } from "../components/icons";
@@ -159,7 +160,7 @@ export function BatchStaffImport({
   const validCount = rows.filter((r) => r.valid).length;
   const errorCount = rows.length - validCount;
 
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => step !== "running" && onClose()}>
       <div
         className="dialog staff-dialog batch-import-dialog"
@@ -431,7 +432,8 @@ export function BatchStaffImport({
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

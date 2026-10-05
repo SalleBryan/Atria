@@ -27,6 +27,7 @@ import { useSession } from "../auth/session";
 import { Button, Notice } from "../components/controls";
 import { SelectMenu } from "../components/Pickers";
 import { LoadingRow } from "../components/LoadingPane";
+import { DatePickerMenu } from "../components/DatePickerMenu";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
 import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Clock, Close, Filter, Info, User } from "../components/icons";
 import { Pager, usePages, useRowsThatFit } from "../components/Pager";
@@ -234,6 +235,11 @@ export function DaySchedule() {
           <button type="button" className="today-button" disabled={isToday} onClick={() => go({ date: null, visit: null })}>
             Today
           </button>
+          <DatePickerMenu
+            value={date}
+            label="Pick date"
+            onChange={(nextDate) => go({ date: nextDate, visit: null })}
+          />
         </div>
         <div className="staff-title">
           <h1>{heading}</h1>

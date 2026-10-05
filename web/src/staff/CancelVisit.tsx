@@ -14,6 +14,7 @@
  */
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { api } from "../api/client";
 import { Notice } from "../components/controls";
@@ -88,7 +89,7 @@ export function CancelVisit({
     }
   }
 
-  return (
+  return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
       <div
         ref={dialog}
@@ -217,6 +218,7 @@ export function CancelVisit({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

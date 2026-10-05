@@ -204,6 +204,8 @@ const patients: Record<string, { givenName: string; familyName: string }> = {
   "pp-kamga": { givenName: "Herve", familyName: "Kamga" },
   "pp-beyala": { givenName: "Ines", familyName: "Beyala" },
   "pp-essomba": { givenName: "Joel", familyName: "Essomba" },
+  "pp-makane": { givenName: "Makane", familyName: "Thanksgiving" },
+  "pp-salle": { givenName: "Salle Yimnai", familyName: "Nzume" },
 };
 
 const desk = { bookedByRole: "RECEPTIONIST", channel: "WALK_IN" };
@@ -1003,9 +1005,9 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       );
     }
     if (sort === "name_asc") {
-      list.sort((a, b) => `${a.familyName} ${a.givenName}`.localeCompare(`${b.familyName} ${b.givenName}`));
+      list.sort((a, b) => `${a.givenName} ${a.familyName}`.localeCompare(`${b.givenName} ${b.familyName}`));
     } else if (sort === "name_desc") {
-      list.sort((a, b) => `${b.familyName} ${b.givenName}`.localeCompare(`${a.familyName} ${a.givenName}`));
+      list.sort((a, b) => `${b.givenName} ${b.familyName}`.localeCompare(`${a.givenName} ${a.familyName}`));
     } else if (sort === "date_asc") {
       list.sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
     } else {
@@ -1013,7 +1015,31 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     }
     return json(200, { q, sort, count: list.length, nextCursor: null, results: q ? list.slice(0, 50) : list }, 260);
   }
-  if (method === "PATCH" && path === "/me") return json(200, {}, 300);
+  if (method === "PATCH" && path === "/me") {
+    const patch = body as {
+      givenName?: string;
+      familyName?: string;
+      preferredLanguage?: string;
+      dateOfBirth?: string;
+      phoneE164?: string;
+    };
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("atria:me-updated", { detail: patch }));
+    }
+    for (const s of staffAccounts) {
+      if (patch.givenName && (s.staffId === "s-admin" || s.staffId === "s-doc-gp")) {
+        s.givenName = patch.givenName;
+        if (patch.familyName) s.familyName = patch.familyName;
+      }
+    }
+    for (const c of clinicians) {
+      if (patch.givenName && (c.clinicianProfileId === "s-doc-gp" || c.givenName?.includes("Tracy"))) {
+        c.givenName = patch.givenName as any;
+        if (patch.familyName) c.familyName = patch.familyName as any;
+      }
+    }
+    return json(200, patch, 300);
+  }
   // Notifications on this browser: the preview has no push service behind it.
   if (path === "/me/push") return json(200, method === "GET" ? { publicKey: null } : { subscribed: method === "POST" }, 200);
   if (method === "POST" && path === "/me/email") return json(200, {}, 300);
@@ -1253,7 +1279,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   }
   if (method === "GET" && path === "/admin/staff") {
     // Searched, filtered and paged as the API does it (atria.services.identity.staff.list_accounts).
-    const sorted = [...staffAccounts].sort((a, b) => String(a.familyName).localeCompare(String(b.familyName)));
+    const sorted = [...staffAccounts].sort((a, b) => `${a.givenName} ${a.familyName}`.localeCompare(`${b.givenName} ${b.familyName}`));
     const statusOf = (a: Record<string, unknown>) =>
       a.status === "DELETION_PENDING" ? "deleted" : a.status === "SUSPENDED" ? "suspended" : a.mustSetPassword ? "awaiting" : "active";
     const count = (keyOf: (a: Record<string, unknown>) => string[]) =>
@@ -1280,13 +1306,13 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     );
     const sort = url.searchParams.get("sort") ?? "name_asc";
     if (sort === "name_desc") {
-      found.sort((a, b) => `${b.familyName} ${b.givenName}`.localeCompare(`${a.familyName} ${a.givenName}`));
+      found.sort((a, b) => `${b.givenName} ${b.familyName}`.localeCompare(`${a.givenName} ${a.familyName}`));
     } else if (sort === "date_desc") {
       found.sort((a, b) => String(b.createdAt ?? b.staffId).localeCompare(String(a.createdAt ?? a.staffId)));
     } else if (sort === "date_asc") {
       found.sort((a, b) => String(a.createdAt ?? a.staffId).localeCompare(String(b.createdAt ?? b.staffId)));
     } else {
-      found.sort((a, b) => `${a.familyName} ${a.givenName}`.localeCompare(`${b.familyName} ${b.givenName}`));
+      found.sort((a, b) => `${a.givenName} ${a.familyName}`.localeCompare(`${b.givenName} ${b.familyName}`));
     }
     const limit = Math.min(50, Number(url.searchParams.get("limit") ?? 25));
     const start = Number(atob(url.searchParams.get("cursor") ?? "") || 0);

@@ -279,6 +279,18 @@ class TestApiStack:
             {"Type": "REQUEST", "IdentitySource": "method.request.header.Authorization"},
         )
 
+    def test_open_visits_are_closed_every_hour(self, synthesised):
+        template = template_for(synthesised, "api")
+        rules = template.find_resources("AWS::Events::Rule")
+        assert any(r["Properties"].get("ScheduleExpression") == "rate(1 hour)" for r in rules.values())
+        template.has_resource_properties(
+            "AWS::Lambda::Function",
+            {
+                "Handler": "atria.services.booking.closing.handler",
+                "Environment": {"Variables": Match.object_like({"DEFAULT_TENANT_ID": Match.any_value()})},
+            },
+        )
+
     def test_me_is_served_by_the_identity_service(self, synthesised):
         template = template_for(synthesised, "api")
         resources = template.find_resources("AWS::ApiGateway::Resource")

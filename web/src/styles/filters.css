@@ -232,6 +232,12 @@
 }
 .choice-logo img { width: 22px; height: 22px; object-fit: contain; }
 .choice-item:hover, .choice-item:focus-visible { border-radius: 16px; background: rgba(47, 107, 228, 0.1); outline: none; }
+.choice-item:disabled { cursor: not-allowed; }
+.choice-item:disabled:hover { background: none; }
+.choice-item:disabled .choice-logo,
+.choice-item:disabled .suggest-main { opacity: 0.45; }
+.choice-item-danger .choice-logo { color: var(--status-cancelled); }
+.choice-item-danger .suggest-main { color: var(--status-cancelled); }
 
 /* ---------------------------------------------------------- pages */
 .pager {

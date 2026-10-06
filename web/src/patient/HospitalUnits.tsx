@@ -13,7 +13,7 @@
 
 import { useRef, useState } from "react";
 
-import { Pager, usePages, useRowsThatFit } from "../components/Pager";
+import { PAGE_ROWS, Pager, usePages } from "../components/Pager";
 import { ChevronRight, Pin } from "../components/icons";
 import { type Clinic, directionsTo, entranceOf, hoursOn, whereInside } from "./data";
 
@@ -23,10 +23,8 @@ const MAP = { width: 400, height: 220, pad: 28 };
 export function HospitalUnits({ clinics, hospital }: { clinics: Clinic[]; hospital: string }) {
   const [chosenId, setChosenId] = useState<string | null>(clinics[0]?.clinicId ?? null);
   const chosen = clinics.find((c) => c.clinicId === chosenId) ?? clinics[0];
-  const rowsBox = useRef<HTMLUListElement>(null);
   const side = useRef<HTMLDivElement>(null);
-  const size = useRowsThatFit(rowsBox, { row: ".unit-row", pitch: 62, gap: 8 });
-  const pages = usePages(clinics, size, "units");
+  const pages = usePages(clinics, PAGE_ROWS, "units");
 
   function choose(clinicId: string) {
     setChosenId(clinicId);
@@ -36,7 +34,7 @@ export function HospitalUnits({ clinics, hospital }: { clinics: Clinic[]; hospit
   return (
     <div className="hospital-units">
       <div className="inner-card settings-card unit-list">
-        <ul ref={rowsBox} className="unit-rows" aria-label="Units">
+        <ul className="unit-rows" aria-label="Units">
           {pages.shown.map((clinic) => {
             const today = hoursOn(clinic);
             const active = clinic.clinicId === chosen?.clinicId;

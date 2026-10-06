@@ -21,7 +21,7 @@
  * never kept by the console.
  */
 
-import { type CSSProperties, type FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, Fragment, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Navigate, useLocation } from "react-router-dom";
 
@@ -34,11 +34,11 @@ import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu
 import { Building, CheckMark, Clipboard, Close, Download, Filter, Info, Key, Lock, Plus, Repeat, Shield, Star, Trash, Undo, Upload, User } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { Pager } from "../components/Pager";
+import { RowActions } from "../components/RowActions";
 import { SelectMenu } from "../components/Pickers";
 import { PhoneField } from "../components/PhoneField";
 import { SearchSuggest, type SuggestionGroup } from "../components/SearchSuggest";
 import { MATRIX, REQUIRED_ON_CREATE, type Role } from "../generated/permissions";
-import { useTier } from "../layout/fit";
 import { initials } from "../patient/data";
 import { roleOf, useStaffData } from "./data";
 import { phoneShown } from "./Patients";
@@ -116,13 +116,11 @@ interface Page {
 }
 
 /**
- * Accounts a page on a phone, where the page scrolls anyway. Wider, a page is
- * as many rows as the card holds, so the list never scrolls and the pager is
- * always in view. Either way well inside the API's 50 (NFR-PERF-04).
+ * Accounts a page: 50, the API's most (NFR-PERF-04). Lists page only past 50
+ * rows, so a batch selection reaches as many accounts as it can (feedback
+ * 2026-10-06); the card scrolls when a page is taller than it.
  */
-const PAGE_SIZE = 10;
-/** A row's height and the gap under it, until a row is there to measure. */
-const ROW_PITCH = 76;
+const PAGE_SIZE = 50;
 
 /** Most accounts first, as the filter row and menu offer them. */
 const byCount = (counts: Record<string, number>, label: (id: string) => string): FilterOption[] =>
@@ -170,9 +168,6 @@ export function StaffAccounts() {
   const [issuing, setIssuing] = useState<Listed[] | null>(null);
   const [said, setSaid] = useState<string | null>(null);
   const admin = state.status === "signed-in" && roleOf(state.me) === "TENANT_ADMIN";
-  const phone = useTier() === "mobile";
-  const rowsBox = useRef<HTMLUListElement>(null);
-  const [pageSize, setPageSize] = useState<number | null>(null);
   // Rows chosen for a batch delete or restore.
   const [batch, setBatch] = useState(false);
   const [batchRestore, setBatchRestore] = useState(false);
@@ -182,43 +177,18 @@ export function StaffAccounts() {
     .map((a) => a.staffId);
   const selection = useSelection(selectable, `${cursors.length}|${words}|${status}|${role}|${clinic}|${sort}`);
 
-  // How many rows the card holds, measured before the first page is asked for.
-  useLayoutEffect(() => {
-    if (phone) {
-      setPageSize(PAGE_SIZE);
-      return;
-    }
-    const box = rowsBox.current;
-    if (!box) return;
-    const measure = () => {
-      // Nothing laid out (a test, say): the phone's page length will do.
-      if (!box.clientHeight) {
-        setPageSize(PAGE_SIZE);
-        return;
-      }
-      const row = box.querySelector<HTMLElement>(".account-row");
-      const pitch = row ? row.offsetHeight + 8 : ROW_PITCH;
-      setPageSize(Math.max(3, Math.min(50, Math.floor((box.clientHeight + 8) / pitch))));
-    };
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(box);
-    return () => observer.disconnect();
-  }, [phone, admin]);
-
   // Search as the administrator types, a beat after they pause.
   useEffect(() => {
     const later = window.setTimeout(() => setWords(query.trim()), 220);
     return () => window.clearTimeout(later);
   }, [query]);
   // A new search, filter, sort or page length starts again at the first page.
-  useEffect(() => setCursors([null]), [words, status, role, clinic, sort, pageSize]);
+  useEffect(() => setCursors([null]), [words, status, role, clinic, sort]);
 
   useEffect(() => {
-    if (!admin || !pageSize) return;
+    if (!admin) return;
     let live = true;
-    const ask = new URLSearchParams({ limit: String(pageSize) });
+    const ask = new URLSearchParams({ limit: String(PAGE_SIZE) });
     if (words) ask.set("q", words);
     if (status) ask.set("status", status);
     if (role) ask.set("role", role);
@@ -238,7 +208,7 @@ export function StaffAccounts() {
     return () => {
       live = false;
     };
-  }, [admin, fresh, words, status, role, clinic, sort, cursors, pageSize]);
+  }, [admin, fresh, words, status, role, clinic, sort, cursors]);
 
   if (state.status !== "signed-in") return null;
   if (!admin) return <Navigate to="/console" replace />;
@@ -259,9 +229,8 @@ export function StaffAccounts() {
   // A new temporary password is for an account that can sign in: not one
   // suspended or being deleted.
   const passwordable = chosenAccounts.filter((a) => a.status === "INVITED" || a.status === "ACTIVE");
-  const size = pageSize ?? PAGE_SIZE;
-  const first = (page?.at ?? 0) * size + 1;
-  const pages = page ? Math.max(1, Math.ceil(page.count / size)) : 1;
+  const first = (page?.at ?? 0) * PAGE_SIZE + 1;
+  const pages = page ? Math.max(1, Math.ceil(page.count / PAGE_SIZE)) : 1;
   const menuFilters = [role, clinic].filter(Boolean).length;
   const done = (message: string) => {
     setSaid(message);
@@ -474,7 +443,7 @@ export function StaffAccounts() {
           </button>
           <span aria-hidden="true">ROLE</span>
         </div>
-        <ul ref={rowsBox} className={`accounts-rows${loading && page ? " accounts-rows-loading" : ""}`}>
+        <ul className={`accounts-rows${loading && page ? " accounts-rows-loading" : ""}`}>
           {!page
             ? [<LoadingRow key="loading" />]
             : accounts.map((account, index) => {
@@ -532,58 +501,48 @@ export function StaffAccounts() {
                           Restore
                         </button>
                       ) : (
-                      <>
-                      <button
-                        type="button"
-                        className="square-button"
-                        aria-label={`${name}'s priority allowance`}
-                        title="Priority allowance"
-                        disabled={off || adminRole}
-                        onClick={() => setGranting(account)}
-                      >
-                        <Star size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="square-button"
-                        aria-label={`New temporary password for ${name}`}
-                        title="New temporary password"
-                        disabled={off || self}
-                        onClick={() => setIssuing([account])}
-                      >
-                        <Key size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="square-button"
-                        aria-label={`Change ${name}'s role`}
-                        title="Change role"
-                        disabled={off || self}
-                        onClick={() => setChanging(account)}
-                      >
-                        <Repeat size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="square-button account-suspend"
-                        aria-label={`Suspend ${name}`}
-                        title="Suspend"
-                        disabled={off || self}
-                        onClick={() => setSuspending(account)}
-                      >
-                        <Close size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="square-button account-suspend"
-                        aria-label={`Delete ${name}`}
-                        title="Delete"
-                        disabled={self}
-                        onClick={() => setDeleting(account)}
-                      >
-                        <Trash size={15} />
-                      </button>
-                      </>
+                        <RowActions
+                          label={`Actions for ${name}`}
+                          actions={[
+                            {
+                              key: "priority",
+                              label: "Priority allowance",
+                              icon: Star,
+                              pick: () => setGranting(account),
+                              unavailable: off ? "The account is suspended" : adminRole ? "Not for an administrator" : null,
+                            },
+                            {
+                              key: "password",
+                              label: "New temporary password",
+                              icon: Key,
+                              pick: () => setIssuing([account]),
+                              unavailable: off ? "The account is suspended" : self ? "Not for your own account" : null,
+                            },
+                            {
+                              key: "role",
+                              label: "Change role",
+                              icon: Repeat,
+                              pick: () => setChanging(account),
+                              unavailable: off ? "The account is suspended" : self ? "Not for your own account" : null,
+                            },
+                            {
+                              key: "suspend",
+                              label: "Suspend",
+                              icon: Close,
+                              pick: () => setSuspending(account),
+                              unavailable: off ? "Already suspended" : self ? "Not for your own account" : null,
+                              danger: true,
+                            },
+                            {
+                              key: "delete",
+                              label: "Delete",
+                              icon: Trash,
+                              pick: () => setDeleting(account),
+                              unavailable: self ? "Not for your own account" : null,
+                              danger: true,
+                            },
+                          ]}
+                        />
                       )}
                     </span>
                   </li>

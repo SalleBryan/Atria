@@ -1092,6 +1092,11 @@ body:has(.admin-app) .scrim .staff-primary:disabled { color: var(--ink-muted); b
 .account-role span:first-child { font-size: 13px; font-weight: 600; color: var(--ink-primary); }
 .account-role span:last-child { margin-top: 2px; font-size: 12px; color: var(--ink-muted); }
 .account-actions { display: flex; justify-content: flex-end; gap: 8px; }
+/* A staff account's actions sit behind one button (components/RowActions),
+   so the role beside them has the room the five icons took. */
+.accounts-head.staff-head,
+.account-row.staff-row { grid-template-columns: minmax(0, 1fr) 120px 200px 230px 104px; }
+.staff-row .account-role > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-actions .square-button { color: var(--blue-600); }
 .account-actions .account-suspend { color: var(--status-cancelled); }
 .account-actions .square-button:disabled { opacity: 0.35; cursor: not-allowed; }
@@ -1162,7 +1167,7 @@ body:has(.admin-app) .sheet-icon:not(.sheet-icon-done) {
   .accounts-head.staff-head > :nth-child(2),
   .staff-row > :nth-child(2) { display: none; }
   .accounts-head.staff-head,
-  .account-row.staff-row { grid-template-columns: minmax(0, 1fr) 150px 160px 132px; }
+  .account-row.staff-row { grid-template-columns: minmax(0, 1fr) 160px 190px 104px; }
   .staff-row .chip-awaiting { white-space: nowrap; }
   /* The audit log keeps when and from where, and drops the record's kind. */
   .accounts-head.audit-head,

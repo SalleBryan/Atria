@@ -84,7 +84,11 @@ function step(event: VisitEvent, audience: Audience): { title: string; tone: str
     case "COMPLETED":
       return { title: "Visit completed", tone: "dot-done", icon: <CheckMark size={11} /> };
     case "NO_SHOW":
-      return { title: "Recorded as not attended", tone: "dot-red", icon: <User size={11} /> };
+      return {
+        title: event.actorRole === "SYSTEM" ? "Closed as not attended" : "Recorded as not attended",
+        tone: "dot-red",
+        icon: <User size={11} />,
+      };
     default:
       return { title: event.kind.charAt(0) + event.kind.slice(1).toLowerCase().replace(/_/g, " "), tone: "dot-blue-tint", icon: <Bell size={11} /> };
   }

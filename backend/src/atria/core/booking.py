@@ -377,8 +377,9 @@ def _whole(value: object, *, name: str) -> int:
 # lifecycle spec says which moves exist; these say when and with what.
 
 # An appointment still scheduled this long after its end is proposed to staff
-# as a no-show. Proposed, never imposed: a patient seen late but not checked in
-# is not marked absent by a clock (FR-STF-05).
+# as a no-show. Through the rest of its day it is only proposed: a patient seen
+# late but not checked in can still be recorded as arrived (FR-STF-05). Once
+# the day is over the hourly closing job records it (services/booking/closing).
 NO_SHOW_GRACE = dt.timedelta(minutes=30)
 
 # Whoever moves an appointment, and so what the patient is owed for the move.

@@ -192,6 +192,12 @@ export const Close = (p: IconProps) => (
     <path d="m6.5 6.5 11 11M17.5 6.5l-11 11" />
   </Icon>
 );
+/** Three dots: a row's further actions. */
+export const Dots = (p: IconProps) => (
+  <Icon strokeWidth={2.6} {...p}>
+    <path d="M12 5.5h.01M12 12h.01M12 18.5h.01" />
+  </Icon>
+);
 export const More = (p: IconProps) => (
   <Icon strokeWidth={1.75} {...p}>
     <rect x="4" y="4" width="6.5" height="6.5" rx="2" />

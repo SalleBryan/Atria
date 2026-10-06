@@ -223,10 +223,10 @@ describe("Staff accounts", () => {
     respond();
     renderAccounts();
     await screen.findByText("Nadine Fotso");
-    expect(api).toHaveBeenCalledWith("/admin/staff?limit=10");
+    expect(api).toHaveBeenCalledWith("/admin/staff?limit=50");
     await userEvent.setup().type(screen.getByRole("combobox", { name: "Search accounts" }), "kofi");
     expect(await screen.findByText("1 of 5 users")).toBeInTheDocument();
-    expect(api).toHaveBeenCalledWith("/admin/staff?limit=10&q=kofi");
+    expect(api).toHaveBeenCalledWith("/admin/staff?limit=50&q=kofi");
   });
 
   it("filters to those awaiting their first sign-in", async () => {
@@ -243,7 +243,8 @@ describe("Staff accounts", () => {
     respond();
     renderAccounts();
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "Change Nadine Fotso's role" }));
+    await user.click(await screen.findByRole("button", { name: "Actions for Nadine Fotso" }));
+    await user.click(screen.getByRole("menuitem", { name: "Change role" }));
     const dialog = screen.getByRole("dialog", { name: "Change Nadine Fotso's role" });
     await user.click(within(dialog).getByRole("radio", { name: /Unit manager/ }));
     await user.click(within(dialog).getByRole("button", { name: "Change role" }));
@@ -255,7 +256,8 @@ describe("Staff accounts", () => {
     respond();
     renderAccounts();
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "Change Esther Mbarga's role" }));
+    await user.click(await screen.findByRole("button", { name: "Actions for Esther Mbarga" }));
+    await user.click(screen.getByRole("menuitem", { name: "Change role" }));
     const dialog = screen.getByRole("dialog", { name: "Change Esther Mbarga's role" });
     expect(dialog).toHaveTextContent("Create one for the new role, then suspend this one.");
     expect(within(dialog).queryByRole("button", { name: "Change role" })).not.toBeInTheDocument();
@@ -265,7 +267,8 @@ describe("Staff accounts", () => {
     respond();
     renderAccounts();
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "Suspend Kofi Ngassa" }));
+    await user.click(await screen.findByRole("button", { name: "Actions for Kofi Ngassa" }));
+    await user.click(screen.getByRole("menuitem", { name: "Suspend" }));
     await user.click(within(screen.getByRole("dialog", { name: "Suspend Kofi Ngassa?" })).getByRole("button", { name: "Suspend" }));
     expect(change).toHaveBeenCalledWith("/admin/staff/s-new/suspend", undefined);
   });
@@ -273,7 +276,12 @@ describe("Staff accounts", () => {
   it("offers nothing on an account already suspended, or on the administrator's own", async () => {
     respond();
     renderAccounts();
-    expect(await screen.findByRole("button", { name: "Suspend Joyce Ebolo" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Suspend Sandrine Eyenga" })).toBeDisabled();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Actions for Joyce Ebolo" }));
+    expect(screen.getByRole("menuitem", { name: /^Suspend/ })).toBeDisabled();
+    expect(screen.getByText("Already suspended")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: "Actions for Sandrine Eyenga" }));
+    expect(screen.getByRole("menuitem", { name: /^Suspend/ })).toBeDisabled();
   });
 });

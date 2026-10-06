@@ -233,6 +233,47 @@ class TestSuspend:
         assert service.handler(event, None)["statusCode"] == 403
 
 
+class TestTemporaryPassword:
+    """A fresh temporary password, for an expired first one or a forgotten one."""
+
+    def reset(self, staff_id: str, role: str = "TENANT_ADMIN"):
+        event = admin_event("POST", "/admin/staff/{id}/temporary-password", id=staff_id)
+        event["requestContext"]["authorizer"]["roles"] = role
+        return service.handler(event, None)
+
+    def test_an_administrator_gets_a_new_password_once(self, wired):
+        created = body_of(service.handler(admin_event("POST", "/admin/staff", BODY), None))
+        result = self.reset(str(created["staffId"]))
+        assert result["statusCode"] == 200
+        issued = body_of(result)
+        assert issued["temporaryPassword"] != created["temporaryPassword"]
+        assert len(str(issued["temporaryPassword"])) >= 12
+        assert issued["signInName"] == BODY["phoneE164"]
+
+    def test_the_pool_must_have_the_password_changed_at_sign_in(self, wired, pool):
+        created = body_of(service.handler(admin_event("POST", "/admin/staff", BODY), None))
+        self.reset(str(created["staffId"]))
+        client = boto3.client("cognito-idp", region_name="us-east-1")
+        user = client.admin_get_user(UserPoolId=pool, Username=str(created["signInName"]))
+        assert user["UserStatus"] == "FORCE_CHANGE_PASSWORD"
+
+    def test_an_active_account_is_awaiting_its_own_password_again(self, wired):
+        created = body_of(service.handler(admin_event("POST", "/admin/staff", BODY), None))
+        People(wired).activate(tenant_id=TENANT, staff_id=str(created["staffId"]))
+        assert body_of(self.reset(str(created["staffId"])))["status"] == "INVITED"
+
+    def test_a_suspended_account_is_restored_first(self, wired):
+        created = body_of(service.handler(admin_event("POST", "/admin/staff", BODY), None))
+        service.handler(
+            admin_event("POST", "/admin/staff/{id}/suspend", id=str(created["staffId"])), None
+        )
+        assert self.reset(str(created["staffId"]))["statusCode"] == 409
+
+    def test_a_clinic_manager_cannot_issue_one(self, wired):
+        created = body_of(service.handler(admin_event("POST", "/admin/staff", BODY), None))
+        assert self.reset(str(created["staffId"]), role="CLINIC_MANAGER")["statusCode"] == 403
+
+
 class TestListingAccounts:
     """The administration console's list of staff accounts (FR-ACC-04, FR-ACC-18)."""
 

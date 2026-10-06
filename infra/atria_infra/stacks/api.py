@@ -129,6 +129,9 @@ class ApiStack(Stack):
                     "cognito-idp:AdminUpdateUserAttributes",
                     "cognito-idp:AdminDeleteUser",
                     "cognito-idp:AdminUserGlobalSignOut",
+                    # A fresh temporary password for an account whose first
+                    # one expired, or whose holder forgot theirs.
+                    "cognito-idp:AdminSetUserPassword",
                     # Deleting and restoring accounts, with 30 days' grace.
                     "cognito-idp:ListUsers",
                     "cognito-idp:AdminDisableUser",
@@ -337,7 +340,12 @@ class ApiStack(Stack):
                 authorizer=self.request_authoriser,
                 authorization_type=apigateway.AuthorizationType.CUSTOM,
             )
-        for path, method in (("roles", "PATCH"), ("suspend", "POST"), ("priority-allowance", "PUT")):
+        for path, method in (
+            ("roles", "PATCH"),
+            ("suspend", "POST"),
+            ("priority-allowance", "PUT"),
+            ("temporary-password", "POST"),
+        ):
             staff_member.add_resource(path).add_method(
                 method,
                 staff_integration,

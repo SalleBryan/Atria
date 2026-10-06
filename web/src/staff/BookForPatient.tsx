@@ -170,7 +170,7 @@ export function BookForPatient() {
           </div>
         </header>
         <Notice>
-          Add the patient to today's queue from Queue. To send them to a specialist, give them a referral; the front desk books
+          Add the patient to today's queue from Queue. To send them to a specialist, give them a referral; a receptionist books
           the visit with it.
         </Notice>
         <Link to="/console/queue" className="staff-primary accounts-new">

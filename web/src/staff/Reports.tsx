@@ -75,7 +75,7 @@ type Granularity = "day" | "week" | "month" | "year";
 
 const CHANNEL: Record<string, string> = { ONLINE: "Online", WALK_IN: "At the desk", PHONE: "By phone", REFERRAL: "Referred" };
 const REMINDER: Record<string, string> = { SENT: "Reminder sent", FAILED: "Reminder failed", NOT_SENT: "No reminder" };
-const ENTITLEMENT: Record<string, string> = { FULL: "Full entitlement", PARTIAL: "Partial entitlement", NONE: "No entitlement" };
+const ENTITLEMENT: Record<string, string> = { FULL: "Full refund", PARTIAL: "Partial refund", NONE: "No refund" };
 
 const EVERY = "every";
 
@@ -368,7 +368,7 @@ export function Reports() {
                     };
                     const channelNames: Record<string, string> = {
                       ONLINE: "Online booking",
-                      WALK_IN: "Front desk",
+                      WALK_IN: "At the desk",
                       PHONE: "Phone booking",
                       REFERRAL: "Referral",
                     };
@@ -450,7 +450,7 @@ export function Reports() {
                 <section className="glass availability-card reports-ledger" aria-labelledby="ledger-title">
                   <h2 id="ledger-title">Fee ledger</h2>
                   <p className="accounts-banner reports-banner">
-                    <Shield size={16} />A record of each closed visit's fee and entitlement. No money moves through Atria.
+                    <Shield size={16} />A record of each closed visit's fee and refund. No money moves through Atria.
                   </p>
                   {one.ledger && one.ledger.entries ? (
                     <>

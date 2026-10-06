@@ -25,7 +25,11 @@ const OUTCOME: Record<string, string> = {
   CLINIC_CANCELLED: "Cancelled by the hospital",
 };
 
-const BAND: Record<Entry["entitlement"], string> = { FULL: "Full", PARTIAL: "Partial", NONE: "None" };
+/**
+ * What the outcome entitles the patient to back (data/ledger.py, FR-MSR-06),
+ * said as the refund it is: "Entitlement: Full" read as nothing to a patient.
+ */
+const REFUND: Record<Entry["entitlement"], string> = { FULL: "Full refund", PARTIAL: "Partial refund", NONE: "No refund" };
 
 const CLOSED = ["COMPLETED", "AWAITING_FEEDBACK", "NO_SHOW", "PATIENT_CANCELLED", "CLINIC_CANCELLED"];
 
@@ -55,9 +59,9 @@ export function FeeRecord({ appointmentId, state }: { appointmentId: string; sta
         </dd>
       </div>
       <div>
-        <dt>Entitlement</dt>
+        <dt>Refund</dt>
         <dd>
-          {BAND[entry.entitlement]} · {OUTCOME[entry.outcome] ?? entry.outcome}. A record only; nothing is paid through Atria.
+          {REFUND[entry.entitlement]} · {OUTCOME[entry.outcome] ?? entry.outcome}. A record only; nothing is paid through Atria.
         </dd>
       </div>
     </>

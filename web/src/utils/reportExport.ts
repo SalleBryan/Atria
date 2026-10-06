@@ -55,7 +55,7 @@ const COLORS = {
 
 const CHANNEL_NAMES: Record<string, string> = {
   ONLINE: "Online booking",
-  WALK_IN: "Front desk walk-in",
+  WALK_IN: "Walk-in at the desk",
   PHONE: "Telephone booking",
   REFERRAL: "Clinical referral",
 };

@@ -97,7 +97,10 @@ export function PatientHome() {
   const data = state.status === "ready" ? state.data : undefined;
   const ahead = data ? upcoming(data.appointments) : [];
   const behind = data ? past(data.appointments) : [];
-  const next = ahead[0];
+  // The hero is the next visit with a time. A procedure request has none
+  // yet: its "start" is when it was asked, which read "15:06, in Now" here
+  // (audit 2026-10-06). Requests stay in the list below.
+  const next = ahead.find((a) => a.state !== "REQUESTED");
   const nextJoined = data && next ? join(data, next) : undefined;
   const reminderAt = next ? new Date(new Date(next.startAt).getTime() - DAY_MS) : undefined;
   const reminderDue = reminderAt && reminderAt > new Date();
@@ -323,8 +326,9 @@ export function PatientHome() {
 export function VisitRow({ appointment, action = "Manage" }: { appointment: Appointment; action?: string }) {
   const { state } = usePatientData();
   if (state.status !== "ready") return null;
-  const { clinician, clinic } = join(state.data, appointment);
+  const { clinician, clinic, type } = join(state.data, appointment);
   const status = stateLabel(appointment.state);
+  const requested = appointment.state === "REQUESTED";
   return (
     <li className="visit-row">
       <span className="date-tile" aria-hidden="true">
@@ -332,9 +336,21 @@ export function VisitRow({ appointment, action = "Manage" }: { appointment: Appo
         <span>{clock.date(appointment.startAt)}</span>
       </span>
       <span className="visit-text">
-        <span className="visit-name">{appointment.sessionId ? `Outpatient queue, place ${appointment.position ?? ""}` : clinicianName(clinician)}</span>
+        <span className="visit-name">
+          {appointment.sessionId
+            ? `Outpatient queue, place ${appointment.position ?? ""}`
+            : requested
+              ? (type?.name ?? "Procedure request")
+              : clinicianName(clinician)}
+        </span>
         <span className="visit-sub">
-          {[clinician?.specialty, clinic?.name, `${clock.time(appointment.startAt)} to ${clock.time(appointment.endAt)}`]
+          {/* As My visits words them: a request has no time, a queue place an arrival. */}
+          {(appointment.sessionId
+            ? [clinic?.name, `arrive ${clock.time(appointment.startAt)}`]
+            : requested
+              ? [clinic?.name, "time to be set"]
+              : [clinician?.specialty, clinic?.name, `${clock.time(appointment.startAt)} to ${clock.time(appointment.endAt)}`]
+          )
             .filter(Boolean)
             .join(" · ")}
         </span>
@@ -372,12 +388,15 @@ function Activity({
   for (const appointment of recent) {
     if (items.length >= 3) break;
     const cancelled = appointment.state.endsWith("CANCELLED");
+    const requested = appointment.state === "REQUESTED";
     items.push({
       key: appointment.appointmentId,
       tone: cancelled ? "tone-red" : "tone-blue",
       icon: cancelled ? <Calendar size={17} /> : <Mail size={17} />,
-      title: cancelled ? "Visit cancelled" : "Visit booked",
-      body: `${appointment.reference} for ${clock.day(appointment.startAt)} at ${clock.time(appointment.startAt)}`,
+      title: cancelled ? "Visit cancelled" : requested ? "Procedure requested" : "Visit booked",
+      body: requested
+        ? `${appointment.reference}, time to be set by the unit`
+        : `${appointment.reference} for ${clock.day(appointment.startAt)} at ${clock.time(appointment.startAt)}`,
       foot: `Booked ${clock.day(appointment.createdAt)}, ${clock.time(appointment.createdAt)}`,
     });
   }

@@ -33,7 +33,7 @@ export function staffState(state: string) {
 /** Who booked, by the role recorded on the appointment. Blank means the patient did. */
 export const BOOKED_BY: Record<string, string> = {
   PATIENT: "Booked by the patient",
-  RECEPTIONIST: "Booked by the front desk",
+  RECEPTIONIST: "Booked by a receptionist",
   CLINICIAN: "Booked by a clinician",
   CLINIC_MANAGER: "Booked by the unit manager",
 };

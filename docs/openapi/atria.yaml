@@ -2834,6 +2834,27 @@ components:
                     amountMinor: { type: [integer, "null"] }
                     currency: { type: string }
                     freeUntil: { type: string, format: date-time }
+            history:
+              description: |
+                What happened to the visit, oldest first (APPOINTMENT_EVENT):
+                the timeline reads it rather than the current state. A patient
+                reads the role that acted and whether it was them; staff also
+                read who, and every reason.
+              type: array
+              items:
+                type: object
+                properties:
+                  appointmentEventId: { type: string }
+                  kind: { type: string, description: "BOOKED, REQUESTED, PLACED, CONFIRMED, RESCHEDULED, DISRUPTED, CANCELLED, DECLINED, ARRIVED, CONSULTATION_STARTED, COMPLETED, NO_SHOW" }
+                  fromState: { type: [string, "null"] }
+                  toState: { type: string }
+                  actorRole: { type: [string, "null"] }
+                  actorPersonId: { type: string, description: Staff only. }
+                  byYou: { type: boolean }
+                  occurredAt: { type: string, format: date-time }
+                  previousStartAt: { type: [string, "null"], format: date-time, description: Where a move took the visit from. }
+                  rescheduledBy: { type: [string, "null"] }
+                  reason: { type: [string, "null"] }
 
     LedgerEntry:
       type: object

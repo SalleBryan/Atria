@@ -365,10 +365,11 @@
   .account-row > :nth-child(2) { display: none; }
   .account-row > :nth-child(3) { grid-column: 1; }
   .account-actions { grid-column: 2; grid-row: 2; }
-  /* A staff account: its role and unit under the name, then status and actions. */
+  /* A staff account: its role and unit under the name, then its status, then
+     its five actions on a row of their own, which squeezed the status out. */
   .staff-row > .account-role { grid-column: 1 / -1; grid-row: 2; }
-  .staff-row > :nth-child(3),
-  .staff-row > .account-actions { grid-row: 3; }
+  .staff-row > :nth-child(3) { grid-column: 1 / -1; grid-row: 3; }
+  .staff-row > .account-actions { grid-column: 1 / -1; grid-row: 4; justify-content: flex-start; }
   /* The audit log: who, then what, then the record and when side by side. */
   .account-row.audit-row { grid-template-columns: minmax(0, 1fr) auto; }
   .audit-row > .audit-action { display: block; grid-column: 1 / -1; }

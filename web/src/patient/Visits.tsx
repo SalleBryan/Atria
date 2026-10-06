@@ -32,7 +32,7 @@ import { BeforeVisit } from "./BeforeVisit";
 import { NewTimeOffer } from "./NewTimeOffer";
 import { RequestDetail, TicketDetail } from "./QueueVisit";
 import { Alert, Bell, Building, Calendar, CheckMark, ChevronLeft, Close, Filter, Info, Mail, Stethoscope, User } from "../components/icons";
-import { Pager, usePages, useRowsThatFit } from "../components/Pager";
+import { PAGE_ROWS, Pager, usePages } from "../components/Pager";
 import { rank, SearchSuggest, type SuggestionGroup } from "../components/SearchSuggest";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { useTier } from "../layout/fit";
@@ -97,7 +97,6 @@ export function Visits() {
   const [clinicId, setClinicId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const filterButton = useRef<HTMLButtonElement>(null);
-  const rowsBox = useRef<HTMLUListElement>(null);
 
   // What this patient's visits have in them, most visited first.
   const joined = useMemo(
@@ -123,8 +122,7 @@ export function Visits() {
     return rank(text, query) > 0;
   });
   const menuFilters = [clinicianId, clinicId].filter(Boolean).length;
-  const size = useRowsThatFit(rowsBox, { row: ".visit-item", pitch: 96, gap: 10 });
-  const pages = usePages(shown, size, `${tab}|${query}|${specialty}|${clinicianId}|${clinicId}`);
+  const pages = usePages(shown, PAGE_ROWS, `${tab}|${query}|${specialty}|${clinicianId}|${clinicId}`);
   const suggestions: SuggestionGroup[] = [
     {
       id: "clinicians",
@@ -254,7 +252,7 @@ export function Visits() {
             setClinicId(null);
           }}
         />
-        <ul ref={rowsBox} className="clinicians visit-list" aria-label={tab === "past" ? "Past visits" : "Upcoming visits"}>
+        <ul className="clinicians visit-list" aria-label={tab === "past" ? "Past visits" : "Upcoming visits"}>
           {pages.shown.map((appointment) => {
             const { clinician, clinic, type } = join(data, appointment);
             const status = stateLabel(appointment.state);

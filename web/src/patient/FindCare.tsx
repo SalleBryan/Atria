@@ -38,7 +38,7 @@ import {
   Users,
 } from "../components/icons";
 import { ChipRow, FilterMenu } from "../components/FilterMenu";
-import { Pager, usePages, useRowsThatFit } from "../components/Pager";
+import { PAGE_ROWS, Pager, usePages } from "../components/Pager";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { rank, SearchSuggest } from "../components/SearchSuggest";
 import { careChoices, careSuggestions } from "./careSearch";
@@ -197,15 +197,12 @@ export function FindCare() {
   const bookable = useMemo(() => specialistTypes(data?.types ?? [], selected?.clinicId), [data, selected?.clinicId]);
   const type: AppointmentType | undefined = bookable.find((t) => t.appointmentTypeId === typeId) ?? bookable[0];
   const minutes = (type?.durationUnits ?? 0) * (data?.gridUnitMinutes ?? 10);
-  // The list is paged to what its box holds, never scrolled without end.
-  const rowsBox = useRef<HTMLUListElement>(null);
-  const size = useRowsThatFit(rowsBox, { row: ".clinician", pitch: 84, gap: 10 });
-  const pages = usePages(listed, size, `${query}|${specialty}|${clinicFilter}|${language}`);
+  const pages = usePages(listed, PAGE_ROWS, `${query}|${specialty}|${clinicFilter}|${language}`);
   const { reveal } = pages;
   const selectedIndex = listed.findIndex((c) => c.clinicianProfileId === selected?.clinicianProfileId);
   useEffect(() => {
     reveal(selectedIndex);
-  }, [selected?.clinicianProfileId, size]);
+  }, [selected?.clinicianProfileId]);
   const clinicOf = (clinician?: Clinician) => data?.clinics.find((c) => c.clinicId === clinician?.clinicId);
   const week = useMemo(() => days(weekStart, WEEK), [weekStart]);
   const today = clock.isoDate(new Date());
@@ -394,7 +391,7 @@ export function FindCare() {
             setLanguage(null);
           }}
         />
-        <ul ref={rowsBox} className="clinicians" aria-label="Clinicians">
+        <ul className="clinicians" aria-label="Clinicians">
           {pages.shown.map((clinician) => {
             const on = clinician === selected;
             return (

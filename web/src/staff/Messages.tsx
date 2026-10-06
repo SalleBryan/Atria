@@ -13,7 +13,7 @@
  * platform's picker and status chips.
  */
 
-import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -22,7 +22,7 @@ import { Notice } from "../components/controls";
 import { LoadingRow } from "../components/LoadingPane";
 import { ChevronLeft, ChevronRight, Mail, Phone, Shield } from "../components/icons";
 import { LoadingPane } from "../components/LoadingPane";
-import { Pager, usePages, useRowsThatFit } from "../components/Pager";
+import { PAGE_ROWS, Pager, usePages } from "../components/Pager";
 import { SelectMenu } from "../components/Pickers";
 import { roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
@@ -98,7 +98,6 @@ const visitTime = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "num
 const dayName = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
 const shortDay = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 const percent = (rate: number | null) => (rate == null ? "None sent" : `${Math.round(rate * 1000) / 10}%`);
-const ROW_PITCH = 76;
 
 /**
  * Spend in US dollars and cents: AWS bills texts in dollars, in fractions of
@@ -192,9 +191,7 @@ function UnitMessages({ admin, clinicId, tabs }: { admin: boolean; clinicId: str
   const [day, setDay] = useState(today);
   const [found, setFound] = useState<UnitLog | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const rowsBox = useRef<HTMLUListElement>(null);
-  const size = useRowsThatFit(rowsBox, { row: ".message-row", pitch: ROW_PITCH });
-  const pages = usePages(found?.messages ?? [], size, `${unit}/${day}`);
+  const pages = usePages(found?.messages ?? [], PAGE_ROWS, `${unit}/${day}`);
 
   useEffect(() => {
     if (!unit) return;
@@ -262,7 +259,7 @@ function UnitMessages({ admin, clinicId, tabs }: { admin: boolean; clinicId: str
           <span>VISIT</span>
           <span>STATUS</span>
         </div>
-        <ul ref={rowsBox} className="accounts-rows">
+        <ul className="accounts-rows">
           {!found
             ? [<LoadingRow key="loading" />]
             : pages.shown.map((m, index) => <MessageRow key={m.messageLogId} message={m} index={index} unit={every} />)}
@@ -412,10 +409,8 @@ function DeliveryFigures({ days }: { days: string }) {
 }
 
 function ByDay({ days }: { days: Delivery["days"] }) {
-  const rowsBox = useRef<HTMLUListElement>(null);
-  const size = useRowsThatFit(rowsBox, { row: ".messages-day-row", pitch: ROW_PITCH });
   const latestFirst = [...days].reverse();
-  const pages = usePages(latestFirst, size, days[0]?.day ?? "");
+  const pages = usePages(latestFirst, PAGE_ROWS, days[0]?.day ?? "");
   return (
     <section className="glass accounts-card" aria-label="By day">
       <div className="accounts-head messages-days-head" aria-hidden="true">
@@ -426,7 +421,7 @@ function ByDay({ days }: { days: Delivery["days"] }) {
         <span>SMS</span>
         <span>SPEND</span>
       </div>
-      <ul ref={rowsBox} className="accounts-rows">
+      <ul className="accounts-rows">
         {pages.shown.map((d, index) => (
           <li key={d.day} className="account-row messages-day-row" style={{ "--i": index } as CSSProperties}>
             <span className="account-name">{shortDay.format(new Date(`${d.day}T12:00:00Z`))}</span>

@@ -179,6 +179,24 @@ class ApiStack(Stack):
         # covers the key; no other function holds either.
         data.care_context_table.grant_read_write_data(self.booking_service)
 
+        # Every hour, visits on a day that has ended are closed: a no-show, or
+        # for a disrupted one with no new time, cancelled by the hospital
+        # (services/booking/closing.py). It writes the visit, its event and
+        # its fee ledger entry, and frees a cancelled visit's units.
+        self.closing_service = self._service(
+            "ClosingService",
+            handler="atria.services.booking.closing.handler",
+            description="Closes visits left open once their day has ended",
+            environment={**common_environment, "DEFAULT_TENANT_ID": settings.default_tenant_id},
+        )
+        grant_table_write(data.main_table, self.closing_service)
+        events.Rule(
+            self,
+            "HourlyClosing",
+            schedule=events.Schedule.rate(Duration.hours(1)),
+            targets=[targets.LambdaFunction(self.closing_service)],
+        )
+
         self.directory_service = self._service(
             "DirectoryService",
             handler="atria.services.directory.clinicians.handler",

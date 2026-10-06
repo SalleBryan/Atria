@@ -20,7 +20,7 @@
  * Times are the clinic's, on the 24-hour clock (NFR-L10N-02).
  */
 
-import { type CSSProperties, type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useSession } from "../auth/session";
@@ -30,7 +30,7 @@ import { LoadingRow } from "../components/LoadingPane";
 import { DatePickerMenu } from "../components/DatePickerMenu";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
 import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Clock, Close, Filter, Info, User } from "../components/icons";
-import { Pager, usePages, useRowsThatFit } from "../components/Pager";
+import { PAGE_ROWS, Pager, usePages } from "../components/Pager";
 import { rank, SearchSuggest, type SuggestionGroup } from "../components/SearchSuggest";
 import { ACTIVE_STATES, type Appointment, clock, initials } from "../patient/data";
 import {
@@ -88,7 +88,6 @@ export function DaySchedule() {
   const [status, setStatus] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const filterButton = useRef<HTMLButtonElement>(null);
-  const rowsBox = useRef<HTMLOListElement>(null);
 
   // One clinician's day, when one is chosen; the figures follow the choice.
   const chosen = own ? null : params.get("clinician");
@@ -113,14 +112,13 @@ export function DaySchedule() {
     found.find((a) => ACTIVE_STATES.includes(a.state) && Date.parse(a.endAt) > Date.now()) ??
     found[0];
 
-  const size = useRowsThatFit(rowsBox, { row: ".day-row", pitch: 75, gap: 9 });
-  const pages = usePages(found, size, `${date}|${chosen}|${status}|${query}`);
+  const pages = usePages(found, PAGE_ROWS, `${date}|${chosen}|${status}|${query}`);
   const { reveal } = pages;
   const selectedIndex = found.findIndex((a) => a.appointmentId === selected?.appointmentId);
   // The selected visit's page is the one shown, so choosing one never leaves it off screen.
   useEffect(() => {
     reveal(selectedIndex);
-  }, [selected?.appointmentId, date, chosen, status, query, size]);
+  }, [selected?.appointmentId, date, chosen, status, query]);
 
   // The busiest clinician first, of those at this clinic and anyone else on the day.
   const clinicianOptions: FilterOption[] = useMemo(() => {
@@ -362,7 +360,6 @@ export function DaySchedule() {
             state={state}
             appointments={pages.shown}
             filtered={theirs.length > 0 && found.length === 0}
-            rowsBox={rowsBox}
             selected={selected}
             own={own}
             onSelect={(visit) =>
@@ -442,7 +439,6 @@ function DayList({
   state,
   appointments,
   filtered,
-  rowsBox,
   selected,
   own,
   onSelect,
@@ -451,7 +447,6 @@ function DayList({
   appointments: Appointment[];
   /** Something is booked, but nothing matches the search or filters. */
   filtered: boolean;
-  rowsBox: RefObject<HTMLOListElement | null>;
   selected: Appointment | undefined;
   own: boolean;
   onSelect: (visit: string) => void;
@@ -460,7 +455,7 @@ function DayList({
 
   if (state.status === "loading") {
     return (
-      <ol ref={rowsBox} className="day-rows" aria-busy="true">
+      <ol className="day-rows" aria-busy="true">
         <LoadingRow label="Loading the day" />
       </ol>
     );
@@ -499,7 +494,7 @@ function DayList({
   }
 
   return (
-    <ol ref={rowsBox} className="day-rows" aria-label="Appointments">
+    <ol className="day-rows" aria-label="Appointments">
       {appointments.map((appointment, index) => {
         const name = patientName(state.data.patients, appointment);
         const joined = joinDirectory(directory.status === "ready" ? directory.data : undefined, appointment);

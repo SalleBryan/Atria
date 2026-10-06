@@ -1,63 +1,16 @@
 /**
- * Long lists are paged, never scrolled without end (feedback 2026-09-25).
- *
- * A page is as many rows as the list's box holds, measured, so the list does
- * not scroll and the pager under it is always in view. On a phone, where the
- * page itself scrolls, a page is a fixed length instead. The box keeps
- * `overflow-y: auto`, so that if even the shortest page cannot fit (a very
- * short window), the rows scroll rather than spill out.
+ * Long lists are paged, never scrolled without end (feedback 2026-09-25), but
+ * only past 50 rows, so a batch selection reaches a whole page of them
+ * (feedback 2026-10-06). The list's box keeps `overflow-y: auto`, so a page
+ * taller than the box scrolls inside it and the pager stays in view.
  */
 
-import { type RefObject, useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { useTier } from "../layout/fit";
 import { ChevronLeft, ChevronRight } from "./icons";
 
-/** A page's length on a phone, and wherever nothing is laid out to measure (a test). */
-export const PHONE_PAGE = 10;
-
-/**
- * How many rows the box holds. `row` finds a row to measure; until one is
- * there, `pitch` (a row's height plus the gap under it) stands in.
- */
-export function useRowsThatFit(
-  box: RefObject<HTMLElement | null>,
-  { row, pitch, gap = 8, least = 2 }: { row: string; pitch: number; gap?: number; least?: number },
-): number {
-  const phone = useTier() === "mobile";
-  const [size, setSize] = useState(PHONE_PAGE);
-  // The box often mounts after the first render (once the list has loaded),
-  // so follow the ref to whatever element it holds now.
-  const [element, setElement] = useState<HTMLElement | null>(null);
-  useLayoutEffect(() => {
-    if (box.current !== element) setElement(box.current);
-  });
-
-  useLayoutEffect(() => {
-    if (phone || !element) {
-      setSize(PHONE_PAGE);
-      return;
-    }
-    const measure = () => {
-      if (!element.clientHeight) {
-        setSize(PHONE_PAGE);
-        return;
-      }
-      const style = getComputedStyle(element);
-      const room = element.clientHeight - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0);
-      const one = element.querySelector<HTMLElement>(row);
-      const step = one ? one.offsetHeight + gap : pitch;
-      setSize(Math.max(least, Math.floor((room + gap) / step)));
-    };
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [element, phone, row, pitch, gap, least]);
-
-  return size;
-}
+/** A page's length everywhere: past this many rows, a list turns pages. */
+export const PAGE_ROWS = 50;
 
 /**
  * One page of a list held in full on the client. `reset` names what the list

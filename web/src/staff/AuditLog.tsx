@@ -24,7 +24,7 @@ import { LoadingRow } from "../components/LoadingPane";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
 import { ChevronLeft, ChevronRight, Download, Shield } from "../components/icons";
-import { Pager, usePages, useRowsThatFit } from "../components/Pager";
+import { PAGE_ROWS, Pager, usePages } from "../components/Pager";
 import { initials } from "../patient/data";
 import { roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
@@ -109,8 +109,6 @@ const KINDS: FilterOption[] = [
   { id: "WRITE", label: "Changes" },
 ];
 
-const ROW_PITCH = 76;
-
 function day(offset: number) {
   const date = new Date(Date.now());
   date.setUTCDate(date.getUTCDate() - offset);
@@ -144,8 +142,6 @@ export function AuditLog() {
   // A unit manager opens on the week's changes (FR-STF-13); an administrator on the log.
   const [view, setView] = useState<"changes" | "log">(role === "CLINIC_MANAGER" ? "changes" : "log");
   const more = useRef<HTMLButtonElement>(null);
-  const rowsBox = useRef<HTMLUListElement>(null);
-  const size = useRowsThatFit(rowsBox, { row: ".audit-row", pitch: ROW_PITCH });
 
   const ask = new URLSearchParams({ from: day(Number(period ?? "1") - 1), to: day(0) });
   if (actor) ask.set("actor", actor);
@@ -153,13 +149,13 @@ export function AuditLog() {
   if (kind) ask.set("kind", kind);
   const filters = ask.toString();
 
-  useEffect(() => setCursors([null]), [filters, size]);
+  useEffect(() => setCursors([null]), [filters]);
 
   useEffect(() => {
     if (!allowed) return;
     let live = true;
     const paged = new URLSearchParams(filters);
-    paged.set("limit", String(size));
+    paged.set("limit", String(PAGE_ROWS));
     const cursor = cursors[cursors.length - 1];
     if (cursor) paged.set("cursor", cursor);
     setLoading(true);
@@ -174,7 +170,7 @@ export function AuditLog() {
     return () => {
       live = false;
     };
-  }, [allowed, filters, cursors, size]);
+  }, [allowed, filters, cursors]);
 
   if (state.status !== "signed-in") return null;
   if (!allowed) return <Navigate to="/console" replace />;
@@ -182,8 +178,8 @@ export function AuditLog() {
   const clinics = directory.status === "ready" ? directory.data.clinics : [];
   const clinicName = (id: string | null) => clinics.find((c) => c.clinicId === id)?.name;
   const entries = page?.entries ?? [];
-  const first = (page?.at ?? 0) * size + 1;
-  const pages = page ? Math.max(1, Math.ceil(page.count / size)) : 1;
+  const first = (page?.at ?? 0) * PAGE_ROWS + 1;
+  const pages = page ? Math.max(1, Math.ceil(page.count / PAGE_ROWS)) : 1;
   const actorOptions: FilterOption[] = (page?.actors ?? []).map((a) => ({ id: a.personId, label: a.name }));
   const actionOptions: FilterOption[] = (page?.actions ?? []).map((id) => ({ id, label: ACTION_LABEL[id] ?? id }));
   const menuFilters = [actor, action, kind].filter(Boolean).length;
@@ -309,7 +305,7 @@ export function AuditLog() {
           <span>RECORD</span>
           <span>WHEN</span>
         </div>
-        <ul ref={rowsBox} className={`accounts-rows${loading && page ? " accounts-rows-loading" : ""}`}>
+        <ul className={`accounts-rows${loading && page ? " accounts-rows-loading" : ""}`}>
           {!page
             ? [<LoadingRow key="loading" />]
             : entries.map((entry, index) => {
@@ -409,10 +405,7 @@ function WeeklyChanges() {
   const [week, setWeek] = useState(thisWeek);
   const [found, setFound] = useState<Week | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const groupsBox = useRef<HTMLUListElement>(null);
-  // A page is as many people as the card holds, never an endless scroll.
-  const size = useRowsThatFit(groupsBox, { row: ".changes-group", pitch: 220, gap: 12, least: 1 });
-  const pages = usePages(found?.actors ?? [], size, week);
+  const pages = usePages(found?.actors ?? [], PAGE_ROWS, week);
 
   useEffect(() => {
     let live = true;
@@ -449,7 +442,7 @@ function WeeklyChanges() {
         </p>
       </div>
       {failure && <Notice tone="error">{failure}</Notice>}
-      <ul ref={groupsBox} className="accounts-rows changes-list">
+      <ul className="accounts-rows changes-list">
         {!found ? (
           <LoadingRow />
         ) : found.actors.length ? (

@@ -19,7 +19,7 @@
  * and the dialogs of Availability. Every change is recorded in the audit log.
  */
 
-import { type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Navigate } from "react-router-dom";
 
@@ -32,7 +32,7 @@ import { Building, Clock, Close, Pencil, Pin, Plus, Shield, Sliders, Trash } fro
 import { PhoneField } from "../components/PhoneField";
 import type { IntakeForm, UnitLocation } from "../patient/data";
 import { FormsTab } from "./IntakeForms";
-import { Pager, usePages, useRowsThatFit } from "../components/Pager";
+import { PAGE_ROWS, Pager, usePages } from "../components/Pager";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { LoadingPane } from "../components/LoadingPane";
 import { type PickerOption, SelectMenu } from "../components/Pickers";
@@ -464,9 +464,7 @@ const today = () => String((new Date().getUTCDay() + 6) % 7);
 function UnitsTab({ found, onSaved }: { found: Overview; onSaved: (message: string) => void }) {
   const [editing, setEditing] = useState<Unit | "new" | null>(null);
   const [deleting, setDeleting] = useState<Unit | null>(null);
-  const box = useRef<HTMLUListElement>(null);
-  const size = useRowsThatFit(box, { row: ".settings-unit-row", pitch: 76 });
-  const pages = usePages(found.clinics, size, "units");
+  const pages = usePages(found.clinics, PAGE_ROWS, "units");
   return (
     <section className="glass accounts-card settings-units-card" aria-label="Units">
       <div className="settings-units-toolbar">
@@ -484,7 +482,7 @@ function UnitsTab({ found, onSaved }: { found: Overview; onSaved: (message: stri
         <span>SERVICES</span>
         <span>TODAY</span>
       </div>
-      <ul ref={box} className="accounts-rows">
+      <ul className="accounts-rows">
         {pages.shown.map((unit, index) => {
           const open = unit.openingHours?.[today()];
           return (
@@ -835,9 +833,7 @@ function TypesTab({ found, onSaved }: { found: Overview; onSaved: (message: stri
   const sorted = [...found.appointmentTypes].sort(
     (a, b) => Number(b.active !== false) - Number(a.active !== false) || a.name.localeCompare(b.name),
   );
-  const box = useRef<HTMLUListElement>(null);
-  const size = useRowsThatFit(box, { row: ".settings-type-row", pitch: 76 });
-  const pages = usePages(sorted, size, "types");
+  const pages = usePages(sorted, PAGE_ROWS, "types");
   return (
     <section className="glass accounts-card" aria-label="Visit types">
       <div className="settings-card-top">
@@ -853,7 +849,7 @@ function TypesTab({ found, onSaved }: { found: Overview; onSaved: (message: stri
         <span>FEE</span>
         <span>OFFERED AT</span>
       </div>
-      <ul ref={box} className="accounts-rows">
+      <ul className="accounts-rows">
         {pages.shown.map((t, index) => {
           const off = t.active === false;
           return (

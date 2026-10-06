@@ -13,7 +13,7 @@
  * card and account rows, and Availability's dialog.
  */
 
-import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
@@ -27,7 +27,7 @@ import { LoadingIndicator } from "../components/LoadingIndicator";
 import { LoadingPane } from "../components/LoadingPane";
 import { LoadingRow } from "../components/LoadingPane";
 import { PhoneField } from "../components/PhoneField";
-import { Pager, usePages, useRowsThatFit } from "../components/Pager";
+import { PAGE_ROWS, Pager, usePages } from "../components/Pager";
 import { SelectMenu } from "../components/Pickers";
 import { MATRIX } from "../generated/permissions";
 import { clock, initials, type Appointment } from "../patient/data";
@@ -152,9 +152,7 @@ export function Patients() {
   const { results, busy, failure } = useRegisterSearch(query, { everyone: true, fresh, sort });
   const [adding, setAdding] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
-  const rowsBox = useRef<HTMLUListElement>(null);
-  const size = useRowsThatFit(rowsBox, { row: ".patient-row", pitch: 76 });
-  const pages = usePages(results ?? [], size, `${query}|${sort}`);
+  const pages = usePages(results ?? [], PAGE_ROWS, `${query}|${sort}`);
   const creates = can(role, "patient.create");
   // An administrator may delete patients' accounts, several at once from the
   // page shown; deleted ones wait out their 30 days and can be restored.
@@ -261,7 +259,7 @@ export function Patients() {
           <span aria-hidden="true">MOBILE</span>
           <span aria-hidden="true">AGE</span>
         </div>
-        <ul ref={rowsBox} className="accounts-rows">
+        <ul className="accounts-rows">
           {results === null && busy ? (
             <LoadingRow label="Loading the register" />
           ) : results === null ? (
@@ -559,9 +557,7 @@ export function PatientRecordPage() {
   const [deleting, setDeleting] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
-  const rowsBox = useRef<HTMLUListElement>(null);
-  const size = useRowsThatFit(rowsBox, { row: ".patient-visit", pitch: 70 });
-  const pages = usePages(record?.appointments ?? [], size, id);
+  const pages = usePages(record?.appointments ?? [], PAGE_ROWS, id);
 
   useEffect(() => {
     let live = true;
@@ -693,7 +689,7 @@ export function PatientRecordPage() {
               <h2 id="visits-title">Visits</h2>
               <span className="accounts-count">{scopeNote[record.visitScope]}</span>
             </div>
-            <ul ref={rowsBox} className="accounts-rows">
+            <ul className="accounts-rows">
               {record.appointments.length ? (
                 pages.shown.map((visit, index) => {
                   const clinician = clinicians.find((c) => c.clinicianProfileId === visit.clinicianProfileId);

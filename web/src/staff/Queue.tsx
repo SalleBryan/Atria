@@ -13,7 +13,7 @@
  * the platform's pickers, and the dialogs of Availability.
  */
 
-import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, Navigate } from "react-router-dom";
 
@@ -23,7 +23,7 @@ import { Notice } from "../components/controls";
 import { Close, Plus, Users } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { LoadingPane, LoadingRow } from "../components/LoadingPane";
-import { Pager, usePages, useRowsThatFit } from "../components/Pager";
+import { PAGE_ROWS, Pager, usePages } from "../components/Pager";
 import { DatePicker, SelectMenu } from "../components/Pickers";
 import { timeOptions } from "../components/WeekHours";
 import { MATRIX } from "../generated/permissions";
@@ -193,9 +193,7 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
   const [doctorId, setDoctorId] = useState<string | null>(null);
 
   const load = useCallback(() => setFresh((n) => n + 1), []);
-  const rowsBox = useRef<HTMLUListElement>(null);
-  const size = useRowsThatFit(rowsBox, { row: ".queue-row", pitch: 76 });
-  const pages = usePages(found?.appointments ?? [], size, sessionId);
+  const pages = usePages(found?.appointments ?? [], PAGE_ROWS, sessionId);
   useEffect(() => {
     let live = true;
     api<LiveQueue>(`/sessions/${encodeURIComponent(sessionId)}/queue`)
@@ -322,7 +320,7 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
           </span>
         )}
       </div>
-      <ul ref={rowsBox} className="accounts-rows queue-rows">
+      <ul className="accounts-rows queue-rows">
         {!found ? (
           <LoadingRow label="Loading the queue" />
         ) : found.appointments.length ? (
@@ -550,9 +548,7 @@ function SessionsCard({
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const rowsBox = useRef<HTMLUListElement>(null);
-  const size = useRowsThatFit(rowsBox, { row: ".session-row", pitch: 76 });
-  const pages = usePages(sessions ?? [], size, "sessions");
+  const pages = usePages(sessions ?? [], PAGE_ROWS, "sessions");
   async function close(session: Session) {
     setBusy(session.sessionId);
     try {
@@ -573,7 +569,7 @@ function SessionsCard({
         <span>PLACES</span>
         <span>PACE</span>
       </div>
-      <ul ref={rowsBox} className="accounts-rows">
+      <ul className="accounts-rows">
         {!sessions ? (
           <LoadingRow label="Loading sessions" />
         ) : sessions.length ? (

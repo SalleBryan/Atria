@@ -351,9 +351,9 @@ export function Patients() {
       {batch && (
         <DeleteAccountDialog
           title={`Delete ${selectedPatients.filter((p) => !p.deletionPurgeAt).length} ${selectedPatients.filter((p) => !p.deletionPurgeAt).length === 1 ? "patient's account" : "patients' accounts"}?`}
-          lede="Each is signed out and cannot sign in, and the front desk no longer finds them."
+          lede="Each is signed out and cannot sign in, and receptionists no longer find them."
           points={[
-            "Their upcoming visits are cancelled by the institution, so they keep their full entitlement.",
+            "Their upcoming visits are cancelled by the institution, so they keep a full refund.",
             "Each can be restored from their record for 30 days.",
             "After 30 days their details and sign-ins are erased; past visits stay without their names.",
           ]}
@@ -620,9 +620,9 @@ export function PatientRecordPage() {
       {deleting && record && (
         <DeleteAccountDialog
           title={`Delete ${fullName(record)}'s account?`}
-          lede="They are signed out and cannot sign in, and the front desk no longer finds them."
+          lede="They are signed out and cannot sign in, and receptionists no longer find them."
           points={[
-            "Their upcoming visits are cancelled by the institution, so they keep their full entitlement.",
+            "Their upcoming visits are cancelled by the institution, so they keep a full refund.",
             "You can restore the account here for 30 days.",
             "After 30 days their details and sign-in are erased; past visits stay without their name.",
           ]}

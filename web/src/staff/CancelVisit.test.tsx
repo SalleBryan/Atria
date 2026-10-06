@@ -65,7 +65,7 @@ describe("Cancelling from the desk", () => {
   it("fr_vis_03: a clinic reason cancels as the clinic, and says the entitlement is kept", async () => {
     const { dialog, onCancelled, user } = open();
     await user.click(within(dialog).getByRole("radio", { name: "Clinician unavailable" }));
-    expect(dialog).toHaveTextContent("the patient keeps their full entitlement");
+    expect(dialog).toHaveTextContent("the patient keeps a full refund");
     await user.click(within(dialog).getByRole("button", { name: "Cancel visit" }));
     expect(api).toHaveBeenCalledWith("/appointments/a-1", {
       method: "DELETE",

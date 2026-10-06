@@ -62,7 +62,7 @@ interface HospitalReport {
   }[];
 }
 
-const rateShown = (rate: number | null) => (rate == null ? "–" : `${Math.round(rate * 100)}%`);
+const rateShown = (rate: number | null) => (rate == null ? "Not yet" : `${Math.round(rate * 100)}%`);
 const DAY = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" });
 const SHORT = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
 
@@ -207,7 +207,7 @@ export function AdminOverview() {
                     <strong>
                       {attention} {attention === 1 ? "message" : "messages"} did not arrive this week.
                     </strong>{" "}
-                    The visits are still booked, so the front desk should phone those patients.{" "}
+                    The visits are still booked, so a receptionist should phone those patients.{" "}
                     <Link to="/console/messages">See which</Link>
                   </p>
                 </div>

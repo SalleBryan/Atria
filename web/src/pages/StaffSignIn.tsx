@@ -17,7 +17,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { configureFor, setStaffTrust, TRUST_HOURS } from "../auth/config";
 import { messageFor } from "../auth/errors";
-import { firstSignIn, useSession } from "../auth/session";
+import { firstSignIn, forgetLandings, useSession } from "../auth/session";
 import { AuthLayout, StaffBrand } from "../components/AuthLayout";
 import { Button, Checkbox, Field, Notice, StatusPill } from "../components/controls";
 import { Lock, Mail } from "../components/icons";
@@ -67,6 +67,7 @@ export function StaffSignIn() {
       }
       const state = await refresh("staff");
       if (state.status === "signed-in" && state.me.staffId) {
+        forgetLandings();
         navigate("/console", { replace: true });
       } else if (state.status === "signed-in") {
         // A patient account signed in through the staff client: it has no

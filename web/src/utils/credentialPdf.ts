@@ -154,7 +154,7 @@ export function downloadSingleStaffPdf(credential: StaffCredential, hospitalName
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.8);
   doc.setTextColor(...COLORS.ink);
-  doc.text("1. This temporary password expires in 3 days.", cardX + 13, noticeY + 17);
+  doc.text("1. This temporary password expires in 7 days.", cardX + 13, noticeY + 17);
   doc.text("2. Go to the Atria staff console sign-in screen.", cardX + 13, noticeY + 23);
   doc.text("3. Enter your identifier above and this temporary password.", cardX + 13, noticeY + 29);
   doc.text("4. You will be prompted to create your private permanent password.", cardX + 13, noticeY + 35);
@@ -319,7 +319,7 @@ export function downloadBatchStaffPdf(credentials: StaffCredential[], hospitalNa
     doc.setFontSize(6.8);
     doc.setTextColor(...COLORS.inkLight);
     doc.text(
-      "Temporary password expires in 3 days. Staff member selects permanent password upon first sign-in.",
+      "Temporary password expires in 7 days. Staff member selects permanent password upon first sign-in.",
       margin + 8,
       y + 44.5,
     );

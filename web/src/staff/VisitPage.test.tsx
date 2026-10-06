@@ -83,7 +83,7 @@ describe("One visit, from the desk", () => {
     expect(await screen.findByRole("heading", { name: "Ama Darko", level: 1 }, { timeout: 5000 })).toBeInTheDocument();
     expect(api).toHaveBeenCalledWith(`/clinics/c-akwa/day?date=${clock.isoDate(VISIT.startAt)}`);
     const hero = screen.getByRole("region", { name: "Visit" });
-    expect(hero).toHaveTextContent("Follow-up consultation · 30 minutes · booked by the front desk");
+    expect(hero).toHaveTextContent("Follow-up consultation · 30 minutes · booked by a receptionist");
     expect(hero).toHaveTextContent(clock.time(VISIT.startAt));
   });
 

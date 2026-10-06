@@ -9,7 +9,7 @@
  * their own; the row's name is their accessible name.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { CheckMark, Close, Trash, Undo } from "./icons";
 
@@ -82,12 +82,15 @@ export function SelectionBar({
   onDelete,
   onRestore,
   onClear,
+  children,
 }: {
   count: number;
   noun: [string, string];
   onDelete?: () => void;
   onRestore?: () => void;
   onClear: () => void;
+  /** A page's own batch action, before Restore and Delete. */
+  children?: ReactNode;
 }) {
   if (!count) return null;
   return (
@@ -95,6 +98,7 @@ export function SelectionBar({
       <span className="selection-count" aria-live="polite">
         {count} {count === 1 ? noun[0] : noun[1]} selected
       </span>
+      {children}
       {onRestore && (
         <button type="button" className="selection-restore" onClick={onRestore}>
           <Undo size={15} />

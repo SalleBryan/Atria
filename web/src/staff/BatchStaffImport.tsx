@@ -369,7 +369,7 @@ export function BatchStaffImport({
             <div className="batch-body">
               <div className="batch-done-actions">
                 <Notice tone="info">
-                  The temporary passwords work for 3 days. At first sign-in they choose their own password on the staff
+                  The temporary passwords work for 7 days. At first sign-in they choose their own password on the staff
                   sign-in page.
                 </Notice>
                 {successes.length > 0 && (

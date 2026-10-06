@@ -179,7 +179,7 @@ export function CancelVisit({
               {by === "PATIENT" && late ? <Alert size={15} /> : <Info size={15} />}
               <p>
                 {by === "CLINIC"
-                  ? "Recorded as cancelled by the institution, so the patient keeps their full entitlement."
+                  ? "Recorded as cancelled by the institution, so the patient keeps a full refund."
                   : late
                     ? `Recorded as cancelled by the patient inside the ${windowHours} hour window, so it counts as a late cancellation.`
                     : `Recorded as cancelled by the patient, more than ${windowHours} hours ahead, so nothing is flagged.`}

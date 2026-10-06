@@ -95,7 +95,7 @@ describe("Weekly report", () => {
 
   it("shows the ledger as a record and claims no saving (FR-MSR-04, FR-MSR-07)", async () => {
     renderAt(MANAGER);
-    expect(await screen.findByText("Partial entitlement")).toBeInTheDocument();
+    expect(await screen.findByText("Partial refund")).toBeInTheDocument();
     expect(screen.getByText(/No money moves through Atria/)).toBeInTheDocument();
     expect(document.body.textContent?.toLowerCase()).not.toMatch(/sav(ed|ing)/);
   });

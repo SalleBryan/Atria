@@ -26,6 +26,12 @@ export function messageFor(error: unknown): string {
   if (name === "NotAuthorizedException" && error instanceof Error && /disabled/i.test(error.message)) {
     return "This account has been closed by the hospital. Contact the front desk: it can be restored within 30 days of closing.";
   }
+  // Cognito: "Temporary password has expired and must be reset by an
+  // administrator." The password was right but too old; saying it did not
+  // match sent people round in circles (user, 2026-10-06).
+  if (name === "NotAuthorizedException" && error instanceof Error && /temporary password has expired/i.test(error.message)) {
+    return "This temporary password has expired. Ask your administrator to issue a new one; it is valid for 7 days.";
+  }
   if (name in MESSAGES) return MESSAGES[name] as string;
   // The library's own wiring ("No AmplifyContext available", a pool not
   // configured) means nothing to the person reading it (audit 2026-10-05).

@@ -25,6 +25,7 @@ import { api } from "../api/client";
 import { Notice } from "../components/controls";
 import { LoadingPane } from "../components/LoadingPane";
 import { byPopularity, ChipRow, FilterMenu } from "../components/FilterMenu";
+import { VisitHistory } from "../components/VisitHistory";
 import { FeeRecord } from "../components/FeeRecord";
 import { MoveVisit } from "../components/MoveVisit";
 import { BeforeVisit } from "./BeforeVisit";
@@ -59,7 +60,7 @@ const BOOKED_VIA: Record<string, string> = {
 
 /** Who booked a visit for the patient, and how: a specialist books their own follow-ups. */
 function bookedVia({ channel, bookedByRole }: Pick<Appointment, "channel" | "bookedByRole">): string {
-  const who = bookedByRole === "CLINICIAN" ? "Your clinician" : "Front desk";
+  const who = bookedByRole === "CLINICIAN" ? "Your clinician" : "Receptionist";
   if (channel === "PHONE") return `${who}, by phone`;
   if (channel === "WALK_IN") return bookedByRole === "CLINICIAN" ? `${who}, in person` : who;
   if (channel === "REFERRAL") return `${who}, from your referral`;
@@ -582,7 +583,12 @@ function VisitDetail({
 
         <section className="panel inner-card" aria-labelledby="activity-title">
           <h3 id="activity-title">Activity</h3>
-          <ol className="timeline">
+          <VisitHistory
+            appointmentId={appointment.appointmentId}
+            audience="patient"
+            refresh={`${appointment.state}-${appointment.startAt}`}
+            fallback={
+              <>
             <li>
               <span className="timeline-dot dot-done">
                 <CheckMark size={11} />
@@ -625,7 +631,11 @@ function VisitDetail({
                   <span className="timeline-sub">The clinician is no longer available; the reminder was removed</span>
                 </span>
               </li>
-            ) : (
+            ) : null}
+              </>
+            }
+          >
+            {!appointment.state.endsWith("CANCELLED") && appointment.state !== "DISRUPTED" && (
               <li>
                 <span className="timeline-dot dot-amber-tint">
                   <Bell size={11} />
@@ -646,7 +656,7 @@ function VisitDetail({
                 </span>
               </li>
             )}
-          </ol>
+          </VisitHistory>
           {!tablet && actions}
         </section>
       </div>
@@ -666,9 +676,9 @@ interface CancellationPreview {
 
 /** The entitlement bands (FR-MSR-06), in the patient's words. A record, never money moved (FR-MSR-07). */
 export const ENTITLEMENT: Record<"FULL" | "PARTIAL" | "NONE", { label: string; tone: string; note: string }> = {
-  FULL: { label: "Full", tone: "confirmed", note: "The whole visit fee is recorded as not owed." },
-  PARTIAL: { label: "Partial", tone: "awaiting", note: "Cancelling this late, part of the visit fee is recorded as owed." },
-  NONE: { label: "None", tone: "neutral", note: "The visit fee is recorded as owed." },
+  FULL: { label: "Full refund", tone: "confirmed", note: "The whole visit fee is recorded as not owed." },
+  PARTIAL: { label: "Partial refund", tone: "awaiting", note: "Cancelling this late, part of the visit fee is recorded as owed." },
+  NONE: { label: "No refund", tone: "neutral", note: "The visit fee is recorded as owed." },
 };
 
 export const fee = (amount: number, currency: string | null) => `${new Intl.NumberFormat("en-GB").format(amount)} ${currency ?? "XAF"}`;
@@ -807,7 +817,7 @@ function CancelDialog({
           </div>
           <dl className="fee-band" aria-label="What cancelling now records">
             <div>
-              <dt>Entitlement</dt>
+              <dt>Refund</dt>
               <dd>
                 <span className={`chip chip-${ENTITLEMENT[preview?.entitlement ?? (late ? "PARTIAL" : "FULL")].tone}`}>
                   {ENTITLEMENT[preview?.entitlement ?? (late ? "PARTIAL" : "FULL")].label}

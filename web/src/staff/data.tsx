@@ -103,7 +103,7 @@ export type StaffRole = "RECEPTIONIST" | "CLINICIAN" | "CLINIC_MANAGER" | "TENAN
 
 /** How the sidebar names each role, as the Rev A frames do ("Front desk · Staff"). */
 export const ROLE_LABEL: Record<StaffRole, string> = {
-  RECEPTIONIST: "Front desk",
+  RECEPTIONIST: "Receptionist",
   CLINICIAN: "Clinician",
   CLINIC_MANAGER: "Unit manager",
   TENANT_ADMIN: "Administrator",

@@ -33,7 +33,7 @@ from atria.data.ledger import Ledger, entry_view
 from atria.data.repository import Repository
 from atria.http import audit, paging, requests, responses
 from atria.http.handler import api
-from atria.http.views import appointment_view
+from atria.http.views import appointment_view, event_view
 
 logger = Logger(service="atria-booking")
 
@@ -212,6 +212,12 @@ def one(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     permissions.require(caller, "appointment.read", subject)
     shown = appointment_view(appointment)
     data = booking()
+    # What happened to the visit, for its timeline: moves, cancellations and
+    # arrivals as they were, not read back from the state it is in now.
+    shown["history"] = [
+        event_view(e, staff=caller.is_staff, person_id=caller.person_id)
+        for e in data.events(principal.tenant_id, appointment_id)
+    ]
     ledger = Ledger(data.repository)
     if permissions.allows(caller, "fee_ledger.read", subject):
         shown["ledger"] = entry_view(ledger.entry(principal.tenant_id, appointment_id))

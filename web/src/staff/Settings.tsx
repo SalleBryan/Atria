@@ -1284,7 +1284,7 @@ function BandDialog({ band, onClose, onDone }: { band: FeeBand; onClose: () => v
 const ROLES = ["PATIENT", "RECEPTIONIST", "CLINICIAN", "CLINIC_MANAGER", "TENANT_ADMIN"] as const;
 const ROLE_NAME: Record<(typeof ROLES)[number], string> = {
   PATIENT: "Patient",
-  RECEPTIONIST: "Front desk",
+  RECEPTIONIST: "Receptionist",
   CLINICIAN: "Clinician",
   CLINIC_MANAGER: "Unit manager",
   TENANT_ADMIN: "Administrator",

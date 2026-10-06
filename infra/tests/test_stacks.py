@@ -161,6 +161,13 @@ class TestIdentityStack:
         policy = pool["Properties"]["Policies"]["PasswordPolicy"]
         assert policy["MinimumLength"] >= 12
 
+    def test_a_temporary_password_lasts_a_week(self, synthesised):
+        """Three days lost a whole imported batch over a weekend (2026-10-04)."""
+        template = template_for(synthesised, "identity")
+        pool = next(iter(template.find_resources("AWS::Cognito::UserPool").values()))
+        policy = pool["Properties"]["Policies"]["PasswordPolicy"]
+        assert policy["TemporaryPasswordValidityDays"] == 7
+
     def test_the_pre_token_trigger_can_read_the_main_table(self, synthesised):
         """Regression: without this, every sign-in silently used the token
         attribute fallback, which a provisioned staff account has none of, so
@@ -207,8 +214,8 @@ class TestIdentityStack:
         pool = next(iter(template.find_resources("AWS::Cognito::UserPool").values()))
         assert "CustomMessage" in pool["Properties"]["LambdaConfig"]
 
-    def test_the_custom_message_trigger_touches_no_table(self, synthesised):
-        """Everything it writes arrives in the event, so it is given nothing."""
+    def test_the_custom_message_trigger_only_reads(self, synthesised):
+        """It reads the person record for their current name (f971d46), and writes nothing."""
         template = template_for(synthesised, "identity")
         role = next(
             f["Properties"]["Role"]["Fn::GetAtt"][0]
@@ -219,8 +226,9 @@ class TestIdentityStack:
             if role not in str(policy["Properties"].get("Roles")):
                 continue
             for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
-                assert "dynamodb" not in str(statement.get("Action"))
-                assert "kms" not in str(statement.get("Action"))
+                actions = str(statement.get("Action"))
+                for write in ("PutItem", "UpdateItem", "DeleteItem", "BatchWriteItem", "kms:Encrypt"):
+                    assert write not in actions
 
     def test_only_the_post_confirmation_trigger_writes(self, synthesised):
         """The pre-token trigger must stay read only: it resolves a caller and
@@ -370,9 +378,15 @@ class TestApiStack:
         # ListUsers only finds one account's username by its subject, to
         # disable, enable or delete it (deletion.py); it lists nobody.
         assert "cognito-idp:AdminDisableUser" in actions
-        # The identity service (GET /me) must not carry these: it never
-        # touches the pool, only the token it was handed.
-        assert "cognito-idp:AdminSetUserPassword" not in actions
+        # Only the staff service sets a password, a temporary one an
+        # administrator issues (2026-10-06). The identity service (GET /me)
+        # never touches the pool, only the token it was handed.
+        setters = [
+            p
+            for p in policies.values()
+            if "cognito-idp:AdminSetUserPassword" in json.dumps(p["Properties"]["PolicyDocument"])
+        ]
+        assert len(setters) == 1 and "StaffService" in json.dumps(setters[0]["Properties"]["Roles"])
 
     def test_the_staff_service_knows_its_pool(self, synthesised):
         template = template_for(synthesised, "api")

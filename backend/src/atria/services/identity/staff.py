@@ -394,9 +394,65 @@ def suspend(principal: Principal, staff_id: str) -> dict[str, Any]:
     return {**account_view(updated, person), "note": "Sessions revoked."}
 
 
+# Accounts that can be given a new temporary password: not one suspended or
+# being deleted, which must be restored first.
+RESETTABLE = ("INVITED", "ACTIVE")
+
+
+def issue_password(principal: Principal, staff_id: str) -> dict[str, Any]:
+    """Give an account a fresh temporary password, shown once.
+
+    For an imported or created account whose temporary password expired
+    before its first sign-in (the pool refuses it for good after that), and
+    for a colleague who has forgotten theirs. The account must set its own
+    password at its next sign-in, as at creation, and any session it holds is
+    ended: whoever held the old password no longer gets in.
+    """
+    membership = people().staff(principal.tenant_id, staff_id)
+    permissions.require(
+        principal,
+        "staff.reset_password",
+        Subject(tenant_id=membership["tenantId"], clinic_id=membership.get("clinicId")),
+    )
+    if membership.get("status") not in RESETTABLE:
+        raise Conflict(
+            "restore the account before giving it a new password",
+            detail={"status": membership.get("status")},
+        )
+    person = people().person_record(membership["personId"])
+    username = str(person.get("email") or person.get("phoneE164") or "")
+    if not username:  # pragma: no cover  every account is created with one
+        raise Conflict("the account has no sign-in name")
+
+    password = temporary_password()
+    client = cognito()
+    # Not permanent: the pool marks the account FORCE_CHANGE_PASSWORD with a
+    # new validity window, so the first sign-in asks for its own password.
+    client.admin_set_user_password(
+        UserPoolId=USER_POOL_ID, Username=username, Password=password, Permanent=False
+    )
+    try:
+        client.admin_user_global_sign_out(UserPoolId=USER_POOL_ID, Username=username)
+    except Exception:
+        logger.exception("could not revoke sessions", extra={"staffId": staff_id})
+    updated = (
+        people().set_status(tenant_id=principal.tenant_id, staff_id=staff_id, status="INVITED")
+        if membership.get("status") != "INVITED"
+        else membership
+    )
+    logger.info("temporary password issued", extra={"staffId": staff_id})
+    return {
+        **account_view(updated, person),
+        "signInName": username,
+        "temporaryPassword": password,
+        "note": "The account signs in with the temporary password and must change it.",
+    }
+
+
 @api
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
-    """GET and POST /admin/staff, PATCH /admin/staff/{id}/roles, POST /admin/staff/{id}/suspend"""
+    """GET and POST /admin/staff, PATCH /admin/staff/{id}/roles, POST /admin/staff/{id}/suspend
+    and /admin/staff/{id}/temporary-password"""
     principal = requests.principal_from(event)
     method = str(event.get("httpMethod", "")).upper()
     resource = str(event.get("resource", ""))
@@ -417,6 +473,8 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         return responses.ok(set_priority(principal, staff_id, requests.json_body(event)))
     if method == "POST" and resource.endswith("/suspend"):
         return responses.ok(suspend(principal, requests.path_parameter(event, "id")))
+    if method == "POST" and resource.endswith("/temporary-password"):
+        return responses.ok(issue_password(principal, requests.path_parameter(event, "id")))
     # Deleting and restoring accounts, with 30 days' grace (deletion.py).
     now = dt.datetime.now(tz=dt.UTC)
     if method == "DELETE" and resource.endswith("/admin/staff/{id}"):

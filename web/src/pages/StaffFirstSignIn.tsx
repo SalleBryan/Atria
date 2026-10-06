@@ -18,7 +18,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 
 import { messageFor } from "../auth/errors";
 import { allMet, passwordRules } from "../auth/passwordRules";
-import { firstSignIn, useSession } from "../auth/session";
+import { firstSignIn, forgetLandings, useSession } from "../auth/session";
 import { AuthLayout, StepsBrand } from "../components/AuthLayout";
 import { Button, Notice, StatusPill } from "../components/controls";
 import { Info } from "../components/icons";
@@ -53,6 +53,7 @@ export function StaffFirstSignIn() {
         return;
       }
       const state = await refresh("staff");
+      forgetLandings();
       navigate(state.status === "signed-in" ? "/console" : "/staff/sign-in", { replace: true });
     } catch (caught) {
       setError(messageFor(caught));

@@ -48,6 +48,21 @@ async function resolve(audience: Audience): Promise<State> {
   }
 }
 
+/**
+ * The landing screens a sign-in opens on once (the administrator's Overview,
+ * a general practitioner's Queue) remember being seen for the tab. A new
+ * sign-in starts afresh, or the next account in the same tab opened on the
+ * schedule instead (audit 2026-10-06).
+ */
+export function forgetLandings(): void {
+  try {
+    sessionStorage.removeItem("atria.overview");
+    sessionStorage.removeItem("atria.queue");
+  } catch {
+    // Without storage there is nothing to forget.
+  }
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>({ status: "loading" });
 
@@ -76,6 +91,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       await amplifySignOut();
     }
     untrust();
+    forgetLandings();
     setState({ status: "signed-out" });
   }, []);
 

@@ -21,7 +21,7 @@
  * never kept by the console.
  */
 
-import { type CSSProperties, type FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Navigate, useLocation } from "react-router-dom";
 
@@ -31,7 +31,7 @@ import { useSession } from "../auth/session";
 import { Field, Notice } from "../components/controls";
 import { LoadingRow } from "../components/LoadingPane";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
-import { Building, CheckMark, Clipboard, Close, Download, Filter, Info, Lock, Plus, Repeat, Shield, Star, Trash, Undo, Upload, User } from "../components/icons";
+import { Building, CheckMark, Clipboard, Close, Download, Filter, Info, Key, Lock, Plus, Repeat, Shield, Star, Trash, Undo, Upload, User } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { Pager } from "../components/Pager";
 import { SelectMenu } from "../components/Pickers";
@@ -47,7 +47,7 @@ import { sentence } from "./labels";
 import { Snackbar } from "./Snackbar";
 import { forEach, SelectBox, SelectionBar, useSelection } from "../components/Selection";
 import { BatchStaffImport } from "./BatchStaffImport";
-import { downloadSingleStaffPdf } from "../utils/credentialPdf";
+import { downloadBatchStaffPdf, downloadSingleStaffPdf, type StaffCredential } from "../utils/credentialPdf";
 
 type StaffRole = Exclude<Role, "PATIENT">;
 
@@ -131,7 +131,7 @@ const byCount = (counts: Record<string, number>, label: (id: string) => string):
     .map(([id, count]) => ({ id, label: label(id), count }));
 
 const ROLE_NAME: Record<StaffRole, string> = {
-  RECEPTIONIST: "Front desk",
+  RECEPTIONIST: "Receptionist",
   CLINICIAN: "Clinician",
   CLINIC_MANAGER: "Unit manager",
   TENANT_ADMIN: "Administrator",
@@ -166,6 +166,8 @@ export function StaffAccounts() {
   const [deleting, setDeleting] = useState<Listed | null>(null);
   const [restoring, setRestoring] = useState<Listed | null>(null);
   const [granting, setGranting] = useState<Listed | null>(null);
+  // Accounts being given a new temporary password: one from its row, or a selection.
+  const [issuing, setIssuing] = useState<Listed[] | null>(null);
   const [said, setSaid] = useState<string | null>(null);
   const admin = state.status === "signed-in" && roleOf(state.me) === "TENANT_ADMIN";
   const phone = useTier() === "mobile";
@@ -254,6 +256,9 @@ export function StaffAccounts() {
   const hasNonDeleted = chosenAccounts.some((a) => a.status !== "DELETION_PENDING");
   const canBatchDelete = selection.count > 0 && hasNonDeleted && !hasDeleted;
   const canBatchRestore = selection.count > 0 && hasDeleted && !hasNonDeleted;
+  // A new temporary password is for an account that can sign in: not one
+  // suspended or being deleted.
+  const passwordable = chosenAccounts.filter((a) => a.status === "INVITED" || a.status === "ACTIVE");
   const size = pageSize ?? PAGE_SIZE;
   const first = (page?.at ?? 0) * size + 1;
   const pages = page ? Math.max(1, Math.ceil(page.count / size)) : 1;
@@ -405,7 +410,14 @@ export function StaffAccounts() {
               onDelete={canBatchDelete ? () => setBatch(true) : undefined}
               onRestore={canBatchRestore ? () => setBatchRestore(true) : undefined}
               onClear={selection.clear}
-            />
+            >
+              {passwordable.length > 0 && (
+                <button type="button" className="selection-restore" onClick={() => setIssuing(passwordable)}>
+                  <Key size={15} />
+                  New passwords
+                </button>
+              )}
+            </SelectionBar>
           ) : (
             <span className="accounts-count" aria-live="polite">
               {page ? (page.count === page.total ? `${page.total} users` : `${page.count} of ${page.total} users`) : ""}
@@ -534,6 +546,16 @@ export function StaffAccounts() {
                       <button
                         type="button"
                         className="square-button"
+                        aria-label={`New temporary password for ${name}`}
+                        title="New temporary password"
+                        disabled={off || self}
+                        onClick={() => setIssuing([account])}
+                      >
+                        <Key size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        className="square-button"
                         aria-label={`Change ${name}'s role`}
                         title="Change role"
                         disabled={off || self}
@@ -616,6 +638,18 @@ export function StaffAccounts() {
           onClose={() => setGranting(null)}
           onDone={(message) => {
             setGranting(null);
+            done(message);
+          }}
+        />
+      )}
+      {issuing && (
+        <IssuePasswords
+          accounts={issuing}
+          clinics={clinics}
+          onClose={() => setIssuing(null)}
+          onDone={(message) => {
+            setIssuing(null);
+            selection.clear();
             done(message);
           }}
         />
@@ -973,7 +1007,7 @@ function CreateStaff({ onClose, onDone }: { onClose: () => void; onDone: (name: 
               <Secret label="Sign-in name" value={created.signInName} />
               <Secret label="Temporary password" value={created.temporaryPassword} mono />
               <Notice>
-                The temporary password works for 3 days. At first sign-in they choose their own, on the staff sign-in
+                The temporary password works for 7 days. At first sign-in they choose their own, on the staff sign-in
                 page.
               </Notice>
             </div>
@@ -1130,6 +1164,148 @@ function CreateStaff({ onClose, onDone }: { onClose: () => void; onDone: (name: 
               </button>
             </footer>
           </form>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/**
+ * A fresh temporary password for one account or a selection: for a first one
+ * that expired before it was used (the pool then refuses it for good), or a
+ * colleague who forgot theirs (2026-10-06). Each is shown once, here, with the
+ * same credentials sheet as a new account.
+ */
+function IssuePasswords({
+  accounts,
+  clinics,
+  onClose,
+  onDone,
+}: {
+  accounts: Listed[];
+  clinics: { clinicId: string; name: string }[];
+  onClose: () => void;
+  onDone: (message: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [issued, setIssued] = useState<StaffCredential[] | null>(null);
+  const [missed, setMissed] = useState(0);
+  const nameOf = (a: Pick<Listed, "givenName" | "familyName">) => [a.givenName, a.familyName].filter(Boolean).join(" ") || "Unnamed account";
+  const one = accounts.length === 1 ? accounts[0] : undefined;
+
+  async function issue() {
+    setBusy(true);
+    setFailure(null);
+    const made: StaffCredential[] = [];
+    let failed = 0;
+    for (const account of accounts) {
+      try {
+        const got = await api<Created & { email: string | null; phoneE164: string | null }>(
+          `/admin/staff/${account.staffId}/temporary-password`,
+          { method: "POST" },
+        );
+        made.push({
+          name: nameOf(account),
+          role: account.roles.map((r) => ROLE_NAME[r] ?? r).join(", "),
+          unit: clinics.find((c) => c.clinicId === account.clinicId)?.name ?? "All units",
+          signInName: got.signInName,
+          temporaryPassword: got.temporaryPassword,
+          email: got.email,
+          phone: got.phoneE164,
+        });
+      } catch (caught) {
+        failed += 1;
+        if (one) setFailure(`${sentence(caught instanceof Error ? caught.message : "No new password was issued")} Nothing was changed.`);
+      }
+    }
+    setBusy(false);
+    if (!made.length) {
+      if (!one) setFailure("No new passwords were issued. Check the connection and try again.");
+      return;
+    }
+    setMissed(failed);
+    setIssued(made);
+  }
+
+  return createPortal(
+    <div className="scrim" onClick={() => !busy && !issued && onClose()}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="issue-title" onClick={(e) => e.stopPropagation()}>
+        <header className="sheet-head">
+          <span className="sheet-icon" aria-hidden="true">
+            <Key size={22} />
+          </span>
+          <span>
+            <h2 id="issue-title">{one ? `New temporary password for ${nameOf(one)}` : `New temporary passwords for ${accounts.length} accounts`}</h2>
+            <p>
+              {issued
+                ? "Shown once. Pass each on in person or by a trusted channel."
+                : "The current password stops working and any open session ends. At the next sign-in they choose their own."}
+            </p>
+          </span>
+          {!issued && (
+            <button type="button" className="square-button" aria-label="Close" onClick={onClose} disabled={busy}>
+              <Close size={16} />
+            </button>
+          )}
+        </header>
+        {issued ? (
+          <>
+            <div className="sheet-body">
+              {issued.map((c) => (
+                <Fragment key={c.signInName}>
+                  {!one && <p className="dialog-label">{c.name.toUpperCase()}</p>}
+                  <Secret label="Sign-in name" value={c.signInName} />
+                  <Secret label="Temporary password" value={c.temporaryPassword} mono />
+                </Fragment>
+              ))}
+              {missed > 0 && (
+                <Notice tone="error">
+                  {missed === 1 ? "1 account was" : `${missed} accounts were`} not given a new password. Try those again from the list.
+                </Notice>
+              )}
+              <Notice>The temporary password works for 7 days.</Notice>
+            </div>
+            <footer className="sheet-foot">
+              <span>Issuing passwords was logged against your admin user.</span>
+              <button
+                type="button"
+                className="outline-button"
+                onClick={() => (issued.length === 1 ? downloadSingleStaffPdf(issued[0]!) : downloadBatchStaffPdf(issued))}
+              >
+                <Download size={16} />
+                Download credentials (PDF)
+              </button>
+              <button
+                type="button"
+                className="staff-primary sheet-primary"
+                onClick={() =>
+                  onDone(issued.length === 1 ? `${issued[0]!.name} has a new temporary password.` : `${issued.length} accounts have new temporary passwords.`)
+                }
+              >
+                Done
+              </button>
+            </footer>
+          </>
+        ) : (
+          <>
+            {failure && (
+              <div className="sheet-body">
+                <Notice tone="error">{failure}</Notice>
+              </div>
+            )}
+            <footer className="sheet-foot">
+              <span>{one ? one.signInName : `${accounts.length} accounts`}</span>
+              <button type="button" className="outline-button" onClick={onClose} disabled={busy}>
+                Cancel
+              </button>
+              <button type="button" className="staff-primary sheet-primary" onClick={() => void issue()} disabled={busy} aria-busy={busy || undefined}>
+                {busy ? <LoadingIndicator size={20} label="Issuing" /> : null}
+                {busy ? "Issuing" : one ? "Issue password" : "Issue passwords"}
+              </button>
+            </footer>
+          </>
         )}
       </div>
     </div>,

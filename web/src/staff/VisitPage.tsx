@@ -29,6 +29,7 @@ import { ArrowLeft, Bell, CheckMark, ChevronLeft, Clock, Close, Lock } from "../
 import { useTier } from "../layout/fit";
 import { AnswerList } from "../patient/BeforeVisit";
 import { ACTIVE_STATES, type Appointment, type CareContext, clock, initials } from "../patient/data";
+import { VisitHistory } from "../components/VisitHistory";
 import { CancelVisit } from "./CancelVisit";
 import {
   can,
@@ -337,7 +338,13 @@ export function VisitPage() {
 
         <section className="glass visit-page-side" aria-labelledby="visit-activity">
           <h2 id="visit-activity">Activity</h2>
-          <ol className="timeline visit-page-timeline">
+          <VisitHistory
+            appointmentId={appointment.appointmentId}
+            audience="staff"
+            className="timeline visit-page-timeline"
+            refresh={`${appointment.state}-${appointment.startAt}-${appointment.version}`}
+            fallback={
+              <>
             <li>
               <span className="timeline-dot dot-done" aria-hidden="true">
                 <CheckMark size={10} />
@@ -360,7 +367,11 @@ export function VisitPage() {
                   <span className="timeline-sub">The time was freed and the patient emailed</span>
                 </span>
               </li>
-            ) : reminder ? (
+            ) : null}
+              </>
+            }
+          >
+            {!cancelled && (reminder ? (
               <li>
                 <span className="timeline-dot dot-amber-tint" aria-hidden="true">
                   <Clock size={10} />
@@ -382,8 +393,8 @@ export function VisitPage() {
                   <span className="timeline-sub">Booked inside 24 hours, so no reminder</span>
                 </span>
               </li>
-            )}
-          </ol>
+            ))}
+          </VisitHistory>
           {!phone && actions}
         </section>
       </div>

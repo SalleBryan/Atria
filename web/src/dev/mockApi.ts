@@ -434,6 +434,67 @@ function freeStarts(clinicianId: string, date: string, typeId: string) {
   return slots;
 }
 
+/**
+ * Each visit's history, as services/booking/appointments.one returns it: the
+ * booking, then every step the preview takes (a move, an arrival, a cancel).
+ * A visit's first read derives a believable past from its state.
+ */
+const histories = new Map<string, Record<string, unknown>[]>();
+function historyOf(found: Record<string, unknown>): Record<string, unknown>[] {
+  const id = String(found.appointmentId);
+  const known = histories.get(id);
+  if (known) return known;
+  const created = String(found.createdAt ?? found.startAt);
+  const later = (minutes: number) => new Date(Date.parse(created) + minutes * 60000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const byPatient = !found.bookedByRole || found.bookedByRole === "PATIENT";
+  const step = (kind: string, at: string, extra: Record<string, unknown> = {}) => ({
+    appointmentEventId: `ae-${id}-${kind.toLowerCase()}`,
+    kind,
+    fromState: null,
+    toState: kind,
+    actorRole: null,
+    byYou: false,
+    occurredAt: at,
+    previousStartAt: null,
+    rescheduledBy: null,
+    reason: null,
+    ...extra,
+  });
+  const made = [
+    found.state === "REQUESTED" || found.state === "DECLINED"
+      ? step("REQUESTED", created, { byYou: true })
+      : step("BOOKED", created, { byYou: byPatient, actorRole: byPatient ? null : found.bookedByRole }),
+  ];
+  const state = String(found.state);
+  if (state === "PATIENT_CANCELLED") made.push(step("CANCELLED", later(90), { toState: state, byYou: true }));
+  if (state === "CLINIC_CANCELLED") made.push(step("CANCELLED", later(240), { toState: state, actorRole: "RECEPTIONIST" }));
+  if (state === "DISRUPTED") made.push(step("DISRUPTED", later(300), { actorRole: "CLINIC_MANAGER" }));
+  if (state === "CONFIRMED") made.push(step("CONFIRMED", later(600), { byYou: true }));
+  if (state === "DECLINED") made.push(step("DECLINED", later(600), { actorRole: "CLINIC_MANAGER" }));
+  if (["ARRIVED", "IN_CONSULTATION", "COMPLETED", "AWAITING_FEEDBACK"].includes(state)) {
+    made.push(step("ARRIVED", String(found.startAt), { actorRole: "RECEPTIONIST" }));
+  }
+  if (["COMPLETED", "AWAITING_FEEDBACK"].includes(state)) made.push(step("COMPLETED", String(found.endAt), { actorRole: "CLINICIAN" }));
+  if (state === "NO_SHOW") made.push(step("NO_SHOW", String(found.endAt), { actorRole: "RECEPTIONIST" }));
+  histories.set(id, made);
+  return made;
+}
+function recordStep(found: Record<string, unknown>, kind: string, extra: Record<string, unknown> = {}) {
+  historyOf(found).push({
+    appointmentEventId: `ae-${Math.random().toString(16).slice(2, 10)}`,
+    kind,
+    fromState: null,
+    toState: String(found.state),
+    actorRole: callerRole === "PATIENT" ? null : callerRole,
+    byYou: true,
+    occurredAt: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    previousStartAt: null,
+    rescheduledBy: null,
+    reason: null,
+    ...extra,
+  });
+}
+
 function json(status: number, body: unknown, delay = 420): Promise<Response> {
   return new Promise((resolve) =>
     window.setTimeout(
@@ -574,6 +635,12 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       const late = hoursAway < 24;
       return json(200, {
         ...found,
+        // "By you" is the caller's own step, as the API compares it: a
+        // patient's booking reads "by the patient" to the receptionist.
+        history: historyOf(found).map((e) => ({
+          ...e,
+          byYou: Boolean(e.byYou) && (callerRole === "PATIENT" ? !e.actorRole : e.actorRole === callerRole),
+        })),
         ledger: closedStates.includes(String(found.state))
           ? {
               feeBandId: band?.feeBandId ?? null,
@@ -599,8 +666,10 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     if (method === "DELETE") {
       const late = new Date(String(found.startAt)).getTime() - Date.now() < DAY_MS;
       const byClinic = String((body as { cancelledBy?: string } | undefined)?.cancelledBy ?? "").toUpperCase() === "CLINIC";
+      historyOf(found);
       found.state = byClinic ? "CLINIC_CANCELLED" : "PATIENT_CANCELLED";
       found.version = Number(found.version) + 1;
+      recordStep(found, "CANCELLED");
       return json(200, {
         ...found,
         outcome: byClinic ? "CLINIC_CANCELLED" : late ? "CANCELLED_LATE" : "CANCELLED_IN_WINDOW",
@@ -675,6 +744,9 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       complete: "COMPLETED",
       "no-show": "NO_SHOW",
     };
+    // The visit's past is read before the step, and the move keeps where it was.
+    historyOf(found);
+    const was = String(found.startAt);
     if (acted[2] === "reschedule") {
       const startAt = String((body as { startAt?: string } | undefined)?.startAt ?? "");
       const length = new Date(String(found.endAt)).getTime() - new Date(String(found.startAt)).getTime();
@@ -683,6 +755,15 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     }
     found.state = next[acted[2] as string] as string;
     found.version = Number(found.version) + 1;
+    const kinds: Record<string, string> = {
+      reschedule: "RESCHEDULED",
+      confirm: "CONFIRMED",
+      arrive: "ARRIVED",
+      start: "CONSULTATION_STARTED",
+      complete: "COMPLETED",
+      "no-show": "NO_SHOW",
+    };
+    recordStep(found, kinds[acted[2] as string] as string, acted[2] === "reschedule" ? { previousStartAt: was } : {});
     return json(200, found, 500);
   }
   const unitSessions = path.match(/^\/clinics\/([^/]+)\/sessions$/);
@@ -1410,6 +1491,19 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     if (!found) return json(404, { code: "not_found", message: "no such staff account" });
     found.status = "SUSPENDED";
     return json(200, { ...found, note: "Sessions revoked." });
+  }
+  // A fresh temporary password (services/identity/staff.issue_password).
+  const reissue = path.match(/^\/admin\/staff\/([^/]+)\/temporary-password$/);
+  if (method === "POST" && reissue) {
+    const found = staffAccounts.find((a) => a.staffId === reissue[1]);
+    if (!found) return json(404, { code: "not_found", message: "no such staff account" });
+    if (found.status !== "INVITED" && found.status !== "ACTIVE") {
+      return json(409, { code: "conflict", message: "restore the account before giving it a new password" });
+    }
+    found.status = "INVITED";
+    found.mustSetPassword = true;
+    const password = `Tp${Math.random().toString(36).slice(2, 12)}7!`;
+    return json(200, { ...found, temporaryPassword: password, note: "The account signs in with the temporary password and must change it." }, 600);
   }
   if (method === "POST" && path === "/admin/staff") {
     const request = body as {

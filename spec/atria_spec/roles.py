@@ -89,6 +89,10 @@ MATRIX = {
                              "CLINIC_MANAGER":"none","TENANT_ADMIN":"tenant"},
  "staff.suspend":           {"PATIENT":"none","RECEPTIONIST":"none","CLINICIAN":"none",
                              "CLINIC_MANAGER":"none","TENANT_ADMIN":"tenant"},
+ # A fresh temporary password for an account whose first one expired, or a
+ # colleague who forgot theirs. Shown once to the administrator (2026-10-06).
+ "staff.reset_password":    {"PATIENT":"none","RECEPTIONIST":"none","CLINICIAN":"none",
+                             "CLINIC_MANAGER":"none","TENANT_ADMIN":"tenant"},
  "priority_allowance.grant":{"PATIENT":"none","RECEPTIONIST":"none","CLINICIAN":"none",
                              "CLINIC_MANAGER":"none","TENANT_ADMIN":"tenant"},
 

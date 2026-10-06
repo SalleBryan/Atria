@@ -79,7 +79,10 @@ class IdentityStack(Stack):
                 require_uppercase=True,
                 require_digits=True,
                 require_symbols=False,
-                temp_password_validity=Duration.days(3),
+                # A week: a batch of accounts handed out before a weekend or a
+                # holiday outlived three days, and an expired temporary
+                # password can only be replaced by an administrator.
+                temp_password_validity=Duration.days(7),
             ),
             mfa=cognito.Mfa.OPTIONAL,
             mfa_second_factor=cognito.MfaSecondFactor(sms=True, otp=True),
@@ -264,10 +267,9 @@ class IdentityStack(Stack):
         )
 
         # Cognito's own emails, the codes and the invitation, written in the
-        # same layout as every booking email (ADR 0020). It reads nothing and
-        # Cognito's own emails, the codes and the invitation, written in the
-        # same layout as every booking email (ADR 0020). Reads person record
-        # if available to ensure updated name is delivered.
+        # same layout as every booking email (ADR 0020). It reads the person
+        # record, when there is one, so the email greets them by their current
+        # name; it writes nothing.
         self.custom_message = service_function(
             self,
             "CustomMessage",

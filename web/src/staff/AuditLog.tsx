@@ -88,7 +88,7 @@ const SUBJECT_LABEL: Record<string, string> = {
 };
 
 const ROLE_NAME: Record<string, string> = {
-  RECEPTIONIST: "Front desk",
+  RECEPTIONIST: "Receptionist",
   CLINICIAN: "Clinician",
   CLINIC_MANAGER: "Unit manager",
   TENANT_ADMIN: "Administrator",

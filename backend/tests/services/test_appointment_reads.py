@@ -262,3 +262,82 @@ class TestOneAppointment:
 
     def test_an_appointment_in_another_tenant_is_not_found(self, seeded):
         assert self.one("a-soon", tenantId="t-other")["statusCode"] == 404
+
+
+def put_event(
+    repository, appointment_id: str, at: str, kind: str, *, actor="p-1", role=None, **extra
+):
+    item = {
+        "type": "APPOINTMENT_EVENT",
+        "appointmentEventId": f"ae-{kind.lower()}",
+        "appointmentId": appointment_id,
+        "tenantId": TENANT,
+        "kind": kind,
+        "fromState": extra.pop("from_state", None),
+        "toState": extra.pop("to_state", kind),
+        "actorPersonId": actor,
+        "actorRole": role,
+        "reason": extra.pop("reason", None),
+        "occurredAt": at,
+        **extra,
+    }
+    repository.put(
+        keys.appointment_event(TENANT, appointment_id, at, item["appointmentEventId"]), item
+    )
+
+
+class TestHistory:
+    """What happened to a visit, read from its events, not its current state."""
+
+    def one(self, appointment_id: str, **context):
+        return service.handler(
+            event("/appointments/{id}", path={"id": appointment_id}, **context), None
+        )
+
+    @pytest.fixture
+    def moved(self, seeded):
+        put_event(seeded, "a-soon", "2026-03-01T09:00:00Z", "BOOKED")
+        put_event(
+            seeded,
+            "a-soon",
+            "2026-03-02T10:00:00Z",
+            "RESCHEDULED",
+            actor="p-rec",
+            role="RECEPTIONIST",
+            from_state="BOOKED",
+            reason="Clinician called away",
+            previousStartAt="2026-03-05T08:00:00Z",
+            rescheduledBy="CLINIC",
+        )
+        return seeded
+
+    def test_the_history_is_oldest_first(self, moved):
+        history = body_of(self.one("a-soon"))["history"]
+        assert [h["kind"] for h in history] == ["BOOKED", "RESCHEDULED"]
+
+    def test_a_move_keeps_where_the_visit_was(self, moved):
+        move = body_of(self.one("a-soon"))["history"][1]
+        assert move["previousStartAt"] == "2026-03-05T08:00:00Z"
+        assert move["rescheduledBy"] == "CLINIC"
+
+    def test_a_patient_reads_the_role_not_the_person_nor_staff_reasons(self, moved):
+        booked, move = body_of(self.one("a-soon"))["history"]
+        assert booked["byYou"] is True
+        assert move["actorRole"] == "RECEPTIONIST"
+        assert "actorPersonId" not in move
+        assert move["reason"] is None
+
+    def test_staff_read_who_acted_and_why(self, moved):
+        context = {
+            "roles": "RECEPTIONIST",
+            "staffId": "s-rec-1",
+            "clinicId": DOUALA,
+            "patientProfileId": "",
+            "personId": "p-rec",
+        }
+        move = body_of(self.one("a-soon", **context))["history"][1]
+        assert move["actorPersonId"] == "p-rec"
+        assert move["reason"] == "Clinician called away"
+
+    def test_a_visit_with_no_events_has_an_empty_history(self, seeded):
+        assert body_of(self.one("a-later"))["history"] == []

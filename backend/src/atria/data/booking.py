@@ -186,6 +186,12 @@ class Booking:
     def appointment(self, tenant_id: str, appointment_id: str) -> Item:
         return self._repo.require(keys.appointment(tenant_id, appointment_id), what="appointment")
 
+    def events(self, tenant_id: str, appointment_id: str) -> list[Item]:
+        """Every transition the visit has been through, oldest first."""
+        pk = keys.appointment(tenant_id, appointment_id).pk
+        found = self._repo.query_partition(pk, sk_prefix="EVENT#")
+        return sorted(found, key=lambda e: str(e.get("occurredAt") or ""))
+
     def appointments_for_patient(
         self, tenant_id: str, patient_profile_id: str, *, since: str, until: str
     ) -> list[Item]:

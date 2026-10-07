@@ -30,6 +30,11 @@ POTENTIAL_SELF_BENEFIT = "POTENTIAL_SELF_BENEFIT"
 READ = "READ"
 WRITE = "WRITE"
 
+# A screen that refreshes itself (the live queue, every 30 seconds) is one
+# viewing while its reads keep coming at least this often. A longer gap, such
+# as leaving the screen and coming back, starts a new viewing.
+VIEWING_GAP = dt.timedelta(minutes=2)
+
 
 def entry_item(
     *,
@@ -93,6 +98,41 @@ class AuditLog:
         )
         return self._repo.put_new(key, item, what="audit entry")
 
+    def continues_viewing(self, item: Item) -> bool:
+        """Whether a refreshed read only continues a viewing already recorded.
+
+        It does when the same person read the same record within VIEWING_GAP
+        and everyone on it was on a recorded read of this viewing. A new
+        patient on the screen never continues one: that read is recorded.
+        """
+        last = self._repo.get(_viewing_key(item), consistent=True)
+        if (
+            last is None
+            or _instant(str(item["occurredAt"])) - _instant(str(last["lastReadAt"])) > VIEWING_GAP
+        ):
+            return False
+        return set(item["patientProfileIds"]) <= set(last.get("patientProfileIds") or [])
+
+    def remember_viewing(self, item: Item, *, recorded: bool) -> None:
+        """Extend the viewing to this read. Its patients join only once `recorded`."""
+        key = _viewing_key(item)
+        now = _instant(str(item["occurredAt"]))
+        last = self._repo.get(key, consistent=True)
+        known: set[str] = set()
+        if last is not None and now - _instant(str(last["lastReadAt"])) <= VIEWING_GAP:
+            known = set(last.get("patientProfileIds") or [])
+        if recorded:
+            known |= set(item["patientProfileIds"])
+        self._repo.put(
+            key,
+            {
+                "type": "AUDIT_VIEWING",
+                "lastReadAt": item["occurredAt"],
+                "patientProfileIds": sorted(known),
+                "expiresAt": int((now + dt.timedelta(days=1)).timestamp()),
+            },
+        )
+
     def entries(self, tenant_id: str, first: dt.date, last: dt.date) -> list[Item]:
         """Every entry from `first` to `last` (UTC days, both included), newest first."""
         if last < first:
@@ -112,3 +152,16 @@ class AuditLog:
             )
             day -= dt.timedelta(days=1)
         return found
+
+
+def _instant(text: str) -> dt.datetime:
+    return dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
+def _viewing_key(item: Item) -> keys.Key:
+    return keys.audit_view(
+        str(item["tenantId"]),
+        str(item["actorPersonId"]),
+        str(item["action"]),
+        str(item["subjectId"]),
+    )

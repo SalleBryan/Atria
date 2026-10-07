@@ -137,9 +137,23 @@ def audit_log(request):
     audit.use(None)
 
 
+class _MemoryItems:
+    """Just enough of a repository for the log's viewing marks."""
+
+    def __init__(self) -> None:
+        self.items: dict[tuple[str, str], dict] = {}
+
+    def get(self, key, *, consistent=False):
+        return self.items.get((key.pk, key.sk))
+
+    def put(self, key, item):
+        self.items[(key.pk, key.sk)] = item
+        return item
+
+
 class MemoryAuditLog(AuditLog):
     def __init__(self) -> None:
-        super().__init__(repository=None)  # type: ignore[arg-type]
+        super().__init__(repository=_MemoryItems())  # type: ignore[arg-type]
         self.written: list[dict] = []
 
     def record(self, item):

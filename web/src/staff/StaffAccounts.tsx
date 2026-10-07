@@ -31,7 +31,7 @@ import { useSession } from "../auth/session";
 import { Field, Notice } from "../components/controls";
 import { LoadingRow } from "../components/LoadingPane";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
-import { Building, CheckMark, Clipboard, Close, Download, Filter, Info, Key, Lock, Plus, Repeat, Shield, Star, Trash, Undo, Upload, User } from "../components/icons";
+import { Building, CheckMark, Clipboard, Close, Download, Filter, Info, Key, Lock, Plus, Repeat, Shield, Star, Stethoscope, Trash, Undo, Upload, User } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { Pager } from "../components/Pager";
 import { RowActions } from "../components/RowActions";
@@ -47,6 +47,7 @@ import { sentence } from "./labels";
 import { Snackbar } from "./Snackbar";
 import { forEach, SelectBox, SelectionBar, useSelection } from "../components/Selection";
 import { BatchStaffImport } from "./BatchStaffImport";
+import { ClinicianDetails } from "./ClinicianDetails";
 import { downloadBatchStaffPdf, downloadSingleStaffPdf, type StaffCredential } from "../utils/credentialPdf";
 
 type StaffRole = Exclude<Role, "PATIENT">;
@@ -164,6 +165,7 @@ export function StaffAccounts() {
   const [deleting, setDeleting] = useState<Listed | null>(null);
   const [restoring, setRestoring] = useState<Listed | null>(null);
   const [granting, setGranting] = useState<Listed | null>(null);
+  const [correcting, setCorrecting] = useState<Listed | null>(null);
   // Accounts being given a new temporary password: one from its row, or a selection.
   const [issuing, setIssuing] = useState<Listed[] | null>(null);
   const [said, setSaid] = useState<string | null>(null);
@@ -518,6 +520,16 @@ export function StaffAccounts() {
                               pick: () => setIssuing([account]),
                               unavailable: off ? "The account is suspended" : self ? "Not for your own account" : null,
                             },
+                            ...(account.roles.includes("CLINICIAN")
+                              ? [
+                                  {
+                                    key: "details",
+                                    label: "Edit clinician details",
+                                    icon: Stethoscope,
+                                    pick: () => setCorrecting(account),
+                                  },
+                                ]
+                              : []),
                             {
                               key: "role",
                               label: "Change role",
@@ -578,6 +590,17 @@ export function StaffAccounts() {
           onDone={(name) => {
             setCreating(false);
             done(`Account created for ${name}.`);
+          }}
+        />
+      )}
+      {correcting && (
+        <ClinicianDetails
+          staffId={correcting.staffId}
+          name={[correcting.givenName, correcting.familyName].filter(Boolean).join(" ")}
+          onClose={() => setCorrecting(null)}
+          onDone={(message) => {
+            setCorrecting(null);
+            done(message);
           }}
         />
       )}

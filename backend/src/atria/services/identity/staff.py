@@ -394,6 +394,51 @@ def suspend(principal: Principal, staff_id: str) -> dict[str, Any]:
     return {**account_view(updated, person), "note": "Sessions revoked."}
 
 
+def clinician_view(staff_id: str, profile: dict[str, Any]) -> dict[str, Any]:
+    """A clinician's professional details, as the correction form shows them."""
+    return {
+        "staffId": staff_id,
+        "specialty": profile.get("specialty"),
+        "registrationYear": profile.get("registrationYear"),
+        "ordreNumber": profile.get("ordreNumber"),
+        "languages": list(profile.get("languages") or []),
+        "qualifications": list(profile.get("qualifications") or []),
+    }
+
+
+def _clinician_of(principal: Principal, staff_id: str) -> dict[str, Any]:
+    membership = people().staff(principal.tenant_id, staff_id)
+    permissions.require(
+        principal,
+        "staff.update_profile",
+        Subject(tenant_id=membership["tenantId"], clinic_id=membership.get("clinicId")),
+    )
+    return people().clinician(principal.tenant_id, staff_id)
+
+
+def clinician_details(principal: Principal, staff_id: str) -> dict[str, Any]:
+    """GET /admin/staff/{id}/clinician: what the correction form starts from."""
+    return clinician_view(staff_id, _clinician_of(principal, staff_id))
+
+
+def correct_clinician(principal: Principal, staff_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    """Correct a clinician's specialty, Order registration or languages (2026-10-07).
+
+    A typo made at creation, or in an import, was on the directory for good:
+    nothing could change it short of a new account. Patients see the change
+    at once; the clinician's name, mobile and unit are not changed here.
+    """
+    _clinician_of(principal, staff_id)
+    changes = rules.validate_profile_change(body, current_year=people().current_year)
+    updated = people().correct_clinician(
+        tenant_id=principal.tenant_id, staff_id=staff_id, changes=changes
+    )
+    logger.info(
+        "clinician details corrected", extra={"staffId": staff_id, "fields": sorted(changes)}
+    )
+    return clinician_view(staff_id, updated)
+
+
 # Accounts that can be given a new temporary password: not one suspended or
 # being deleted, which must be restored first.
 RESETTABLE = ("INVITED", "ACTIVE")
@@ -452,7 +497,7 @@ def issue_password(principal: Principal, staff_id: str) -> dict[str, Any]:
 @api
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     """GET and POST /admin/staff, PATCH /admin/staff/{id}/roles, POST /admin/staff/{id}/suspend
-    and /admin/staff/{id}/temporary-password"""
+    and /admin/staff/{id}/temporary-password, GET and PATCH /admin/staff/{id}/clinician"""
     principal = requests.principal_from(event)
     method = str(event.get("httpMethod", "")).upper()
     resource = str(event.get("resource", ""))
@@ -473,6 +518,12 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         return responses.ok(set_priority(principal, staff_id, requests.json_body(event)))
     if method == "POST" and resource.endswith("/suspend"):
         return responses.ok(suspend(principal, requests.path_parameter(event, "id")))
+    if resource.endswith("/clinician"):
+        staff_id = requests.path_parameter(event, "id")
+        if method == "GET":
+            return responses.ok(clinician_details(principal, staff_id))
+        if method == "PATCH":
+            return responses.ok(correct_clinician(principal, staff_id, requests.json_body(event)))
     if method == "POST" and resource.endswith("/temporary-password"):
         return responses.ok(issue_password(principal, requests.path_parameter(event, "id")))
     # Deleting and restoring accounts, with 30 days' grace (deletion.py).

@@ -93,6 +93,11 @@ MATRIX = {
  # colleague who forgot theirs. Shown once to the administrator (2026-10-06).
  "staff.reset_password":    {"PATIENT":"none","RECEPTIONIST":"none","CLINICIAN":"none",
                              "CLINIC_MANAGER":"none","TENANT_ADMIN":"tenant"},
+ # A clinician's professional details (specialty, Order registration,
+ # languages), corrected after creation: a typo stayed on the directory for
+ # good (2026-10-07).
+ "staff.update_profile":    {"PATIENT":"none","RECEPTIONIST":"none","CLINICIAN":"none",
+                             "CLINIC_MANAGER":"none","TENANT_ADMIN":"tenant"},
  "priority_allowance.grant":{"PATIENT":"none","RECEPTIONIST":"none","CLINICIAN":"none",
                              "CLINIC_MANAGER":"none","TENANT_ADMIN":"tenant"},
 

@@ -19,6 +19,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * What API Gateway says for a route it does not have, which is what a screen
+ * newer than the deployed API meets (2026-10-07): an administrator read
+ * "check the connection" when the server simply lacked the feature.
+ */
+const UNKNOWN_ROUTE = "Missing Authentication Token";
+
+function messageOf(status: number, data: unknown): string {
+  const message = (data as { message?: string } | undefined)?.message;
+  if (status === 403 && message === UNKNOWN_ROUTE) {
+    return "The server does not offer this yet. It arrives with the next update of the system.";
+  }
+  return message ?? `The request failed (${status}).`;
+}
+
 export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
   // No session, or none that can be read, sends the request without a token:
   // the authoriser then refuses it, which is the honest answer.
@@ -35,8 +50,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
   const text = await response.text();
   const data: unknown = text ? JSON.parse(text) : undefined;
   if (!response.ok) {
-    const message = (data as { message?: string } | undefined)?.message ?? `The request failed (${response.status}).`;
-    throw new ApiError(response.status, message, (data as { detail?: unknown } | undefined)?.detail);
+    throw new ApiError(response.status, messageOf(response.status, data), (data as { detail?: unknown } | undefined)?.detail);
   }
   return data as T;
 }
@@ -53,7 +67,7 @@ export async function apiFile(path: string): Promise<{ blob: Blob; name: string 
   const response = await fetch(`/api${path}`, { headers });
   if (!response.ok) {
     const data = (await response.json().catch(() => undefined)) as { message?: string; detail?: unknown } | undefined;
-    throw new ApiError(response.status, data?.message ?? `The request failed (${response.status}).`, data?.detail);
+    throw new ApiError(response.status, messageOf(response.status, data), data?.detail);
   }
   const disposition = response.headers.get("Content-Disposition") ?? "";
   return { blob: await response.blob(), name: /filename="([^"]+)"/.exec(disposition)?.[1] ?? null };

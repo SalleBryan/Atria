@@ -1,4 +1,4 @@
-import { apiAll } from "./client";
+import { api, apiAll } from "./client";
 
 vi.mock("aws-amplify/auth", () => ({ fetchAuthSession: vi.fn(async () => ({ tokens: undefined })) }));
 
@@ -32,5 +32,19 @@ describe("apiAll", () => {
     expect(all.appointments.map((a) => a.appointmentId)).toEqual(["a-1", "a-2", "a-3"]);
     expect(Object.keys(all.patients)).toEqual(["pp-1", "pp-2"]);
     expect(all.nextCursor).toBeNull();
+  });
+});
+
+describe("api", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("says a route the deployed server lacks is not there yet, not that the connection failed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ message: "Missing Authentication Token" }), { status: 403 })),
+    );
+    await expect(api("/admin/staff/s-1/temporary-password", { method: "POST" })).rejects.toThrow(
+      "The server does not offer this yet.",
+    );
   });
 });

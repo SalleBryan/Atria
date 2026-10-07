@@ -361,9 +361,16 @@ class Pill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[AtriaIcon(icon!, size: 12, color: ink), const SizedBox(width: 5)],
+          // Status reads in capitals across the platform; a screen reader reads it as written.
           Text(
-            text,
-            style: AtriaType.body(size: 11.5, weight: FontWeight.w700, color: ink, height: 1.2),
+            text.toUpperCase(),
+            semanticsLabel: text,
+            style: AtriaType.body(
+              size: 11.5,
+              weight: FontWeight.w700,
+              color: ink,
+              height: 1.2,
+            ).copyWith(letterSpacing: .46),
           ),
         ],
       ),

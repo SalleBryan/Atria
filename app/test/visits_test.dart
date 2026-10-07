@@ -1,4 +1,5 @@
 import 'package:atria/patient/data.dart';
+import 'package:atria/screens/visits.dart' show refundWords;
 import 'package:flutter_test/flutter_test.dart';
 
 Appointment visit(String id, {String? sessionId, String state = 'BOOKED'}) => Appointment({
@@ -22,5 +23,14 @@ void main() {
   test('a place given up is not ahead', () {
     final list = [visit('place', sessionId: 'se-1', state: 'PATIENT_CANCELLED')];
     expect(upcoming(list, now), isEmpty);
+  });
+
+  test('cancelling says the refund, never "entitlement"', () {
+    expect(refundWords('FULL', 5000), 'Full refund: the visit fee of 5,000 XAF is recorded as not owed.');
+    expect(
+      refundWords('PARTIAL', 25000),
+      'Partial refund: cancelling this late, part of the visit fee of 25,000 XAF is recorded as owed.',
+    );
+    expect(refundWords('NONE', null), 'No refund: the visit fee is recorded as owed.');
   });
 }

@@ -406,8 +406,14 @@ class Pill extends StatelessWidget {
         children: [
           if (icon != null) ...[AtriaIcon(icon!, size: 12, color: colour), const SizedBox(width: 5)],
           Text(
-            text,
-            style: AtriaType.body(size: 11.5, weight: FontWeight.w600, color: colour, height: 1.2),
+            text.toUpperCase(),
+            semanticsLabel: text,
+            style: AtriaType.body(
+              size: 11.5,
+              weight: FontWeight.w600,
+              color: colour,
+              height: 1.2,
+            ).copyWith(letterSpacing: .46),
           ),
         ],
       ),
@@ -1508,8 +1514,7 @@ class _CancelSheetState extends State<_CancelSheet> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Entitlement recorded: ${{'FULL': 'full', 'PARTIAL': 'partial', 'NONE': 'none'}[entitlement]}'
-              '${amount != null ? ' of $amount XAF' : ''}. Nothing is charged or paid through Atria.',
+              '${refundWords(entitlement, amount)} Nothing is charged or paid through Atria.',
               style: AtriaType.body(size: 12, color: AtriaColors.inkMuted, height: 1.4),
             ),
             if (failure != null) ...[const SizedBox(height: 12), Notice(failure!, tone: NoticeTone.error)],
@@ -1611,5 +1616,20 @@ class _RequestCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// What cancelling records, in the patient's words, as the web says it (FR-MSR-06).
+/// A record, never money moved (FR-MSR-07).
+String refundWords(String? entitlement, int? amount) {
+  final grouped = amount?.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+  final fee = grouped != null ? 'the visit fee of $grouped XAF' : 'the visit fee';
+  switch (entitlement) {
+    case 'PARTIAL':
+      return 'Partial refund: cancelling this late, part of $fee is recorded as owed.';
+    case 'NONE':
+      return 'No refund: $fee is recorded as owed.';
+    default:
+      return 'Full refund: $fee is recorded as not owed.';
   }
 }

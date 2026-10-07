@@ -370,6 +370,15 @@ class ApiStack(Stack):
                 authorizer=self.request_authoriser,
                 authorization_type=apigateway.AuthorizationType.CUSTOM,
             )
+        # A clinician's professional details, read and corrected.
+        clinician_details = staff_member.add_resource("clinician")
+        for method in ("GET", "PATCH"):
+            clinician_details.add_method(
+                method,
+                staff_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
 
         # /appointments. A patient reaches this as well as staff, so the route
         # is not under /admin; appointment.create and its scope are what decide

@@ -193,6 +193,50 @@ def validate_roles_change(body: dict[str, object]) -> tuple[str, ...]:
     return roles
 
 
+# What an administrator may correct on a clinician after creation. The name,
+# mobile and email are the person's own (their account page), and the unit is
+# fixed at creation.
+PROFILE_FIELDS = ("specialty", "registrationYear", "ordreNumber", "languages", "qualifications")
+
+
+def validate_profile_change(body: dict[str, object], *, current_year: int) -> dict[str, object]:
+    """The clinician details being corrected, by their record names.
+
+    Only the fields sent change. A specialty and a registration year cannot be
+    cleared: the directory lists by both.
+    """
+    unknown = sorted(set(body) - set(PROFILE_FIELDS))
+    if unknown:
+        raise Invalid("those fields cannot be changed here", detail={"fields": unknown})
+    if not body:
+        raise Invalid("nothing to change")
+    changes: dict[str, object] = {}
+    if "specialty" in body:
+        specialty = _text(body, "specialty")
+        if specialty is None:
+            raise Invalid("specialty cannot be empty")
+        if len(specialty) > 80:
+            raise Invalid("specialty is longer than 80 characters")
+        changes["specialty"] = specialty
+    if "registrationYear" in body:
+        year = body["registrationYear"]
+        if isinstance(year, bool) or not isinstance(year, int):
+            raise Invalid("registrationYear must be a whole number")
+        if not EARLIEST_REGISTRATION_YEAR <= year <= current_year:
+            raise Invalid(
+                "registrationYear is out of range",
+                detail={"earliest": EARLIEST_REGISTRATION_YEAR, "latest": current_year},
+            )
+        changes["registrationYear"] = year
+    if "ordreNumber" in body:
+        changes["ordreNumber"] = _text(body, "ordreNumber")
+    if "languages" in body:
+        changes["languages"] = list(_list(body, "languages"))
+    if "qualifications" in body:
+        changes["qualifications"] = list(_list(body, "qualifications"))
+    return changes
+
+
 def seniority_band(registration_year: int, *, current_year: int) -> str:
     """The band a clinician's listing sorts by.
 

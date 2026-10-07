@@ -318,6 +318,97 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /admin/staff/{id}/temporary-password:
+    post:
+      tags: [Identity and accounts]
+      operationId: issueStaffTemporaryPassword
+      summary: Give an account a new temporary password, shown once
+      description: |
+        Permission staff.reset_password. For an account whose first temporary
+        password expired before it was used (they last 7 days), or a colleague
+        who forgot theirs. The account must set its own password at its next
+        sign-in, and any session it holds is ended. A suspended or deleted
+        account is restored first (409).
+      parameters:
+        - $ref: "#/components/parameters/StaffId"
+      responses:
+        "200":
+          description: The account, with the sign-in name and a one-time temporary password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAccount"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /admin/staff/{id}/clinician:
+    get:
+      tags: [Identity and accounts]
+      operationId: getClinicianDetails
+      summary: A clinician's professional details, for correcting them
+      description: Permission staff.update_profile. 404 when the account is not a clinician's.
+      parameters:
+        - $ref: "#/components/parameters/StaffId"
+      responses:
+        "200":
+          description: The details as recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicianDetails"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Identity and accounts]
+      operationId: correctClinicianDetails
+      summary: Correct a clinician's specialty, Order registration or languages
+      description: |
+        Permission staff.update_profile. Only the fields sent change; a
+        specialty and a registration year cannot be cleared. A new
+        registration year moves the seniority band and the directory order.
+        The name, mobile and unit are not changed here.
+      parameters:
+        - $ref: "#/components/parameters/StaffId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              minProperties: 1
+              properties:
+                specialty: { type: string, maxLength: 80 }
+                registrationYear: { type: integer }
+                ordreNumber: { type: [string, "null"] }
+                languages: { type: array, items: { type: string } }
+                qualifications: { type: array, items: { type: string } }
+      responses:
+        "200":
+          description: The details as now recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicianDetails"
+        "400":
+          $ref: "#/components/responses/Invalid"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /clinicians:
     get:
       tags: [Directory]
@@ -2530,6 +2621,16 @@ components:
           type: array
           items: { type: string }
 
+    ClinicianDetails:
+      type: object
+      required: [staffId, specialty, registrationYear, languages, qualifications]
+      properties:
+        staffId: { type: string }
+        specialty: { type: string }
+        registrationYear: { type: integer }
+        ordreNumber: { type: [string, "null"] }
+        languages: { type: array, items: { type: string } }
+        qualifications: { type: array, items: { type: string } }
     StaffAccount:
       type: object
       additionalProperties: false

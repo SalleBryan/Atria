@@ -15,6 +15,7 @@ import json
 import boto3
 import pytest
 
+from atria.data import keys
 from atria.data.people import People
 from atria.data.repository import Repository
 from atria.http import paging
@@ -272,6 +273,66 @@ class TestTemporaryPassword:
     def test_a_clinic_manager_cannot_issue_one(self, wired):
         created = body_of(service.handler(admin_event("POST", "/admin/staff", BODY), None))
         assert self.reset(str(created["staffId"]), role="CLINIC_MANAGER")["statusCode"] == 403
+
+
+class TestCorrectingAClinician:
+    """A clinician's specialty, registration and languages, corrected after creation."""
+
+    CLINICIAN = {
+        **BODY,
+        "roles": ["CLINICIAN"],
+        "clinicId": "c-douala-01",
+        "specialty": "General Practioner",
+        "registrationYear": 2015,
+        "ordreNumber": "CM-ONMC-7",
+        "languages": ["en"],
+    }
+
+    def clinician(self) -> str:
+        result = service.handler(admin_event("POST", "/admin/staff", self.CLINICIAN), None)
+        assert result["statusCode"] == 201, result["body"]
+        return str(body_of(result)["staffId"])
+
+    def correct(self, staff_id: str, body: object, role: str = "TENANT_ADMIN"):
+        event = admin_event("PATCH", "/admin/staff/{id}/clinician", body, id=staff_id)
+        event["requestContext"]["authorizer"]["roles"] = role  # type: ignore[index]
+        return service.handler(event, None)
+
+    def test_a_typo_in_the_specialty_is_corrected(self, wired):
+        staff_id = self.clinician()
+        result = self.correct(staff_id, {"specialty": "General Practitioner"})
+        assert result["statusCode"] == 200, result["body"]
+        profile = wired.get(keys.clinician_profile(TENANT, staff_id))
+        assert profile["specialty"] == "General Practitioner"
+        assert profile["ordreNumber"] == "CM-ONMC-7"
+
+    def test_the_form_reads_what_is_there(self, wired):
+        staff_id = self.clinician()
+        read = admin_event("GET", "/admin/staff/{id}/clinician", id=staff_id)
+        shown = body_of(service.handler(read, None))
+        assert (shown["specialty"], shown["registrationYear"]) == ("General Practioner", 2015)
+
+    def test_a_new_registration_year_moves_the_seniority_band(self, wired):
+        staff_id = self.clinician()
+        before = wired.get(keys.clinician_profile(TENANT, staff_id))
+        self.correct(staff_id, {"registrationYear": 1995})
+        after = wired.get(keys.clinician_profile(TENANT, staff_id))
+        assert after["seniorityBand"] != before["seniorityBand"]
+        assert after["directorySort"] != before["directorySort"]
+
+    def test_the_name_and_unit_are_not_changed_here(self, wired):
+        staff_id = self.clinician()
+        assert self.correct(staff_id, {"givenName": "Someone"})["statusCode"] == 400
+        assert self.correct(staff_id, {"specialty": "  "})["statusCode"] == 400
+
+    def test_an_account_that_is_not_a_clinician_has_nothing_to_correct(self, wired):
+        created = body_of(service.handler(admin_event("POST", "/admin/staff", BODY), None))
+        assert self.correct(str(created["staffId"]), {"specialty": "X"})["statusCode"] == 404
+
+    def test_a_clinic_manager_cannot_correct_one(self, wired):
+        staff_id = self.clinician()
+        refused = self.correct(staff_id, {"specialty": "X"}, role="CLINIC_MANAGER")
+        assert refused["statusCode"] == 403
 
 
 class TestListingAccounts:

@@ -549,6 +549,26 @@ class People:
         """
         return self.by_cognito_sub(cognito_sub)
 
+    def correct_clinician(self, *, tenant_id: str, staff_id: str, changes: Item) -> Item:
+        """Correct a clinician's professional details (core.staff.validate_profile_change).
+
+        A new registration year moves the clinician's seniority band and, if
+        they are listed, their place in the directory, which sorts by it.
+        """
+        key = keys.clinician_profile(tenant_id, staff_id)
+        profile = self._repo.require(key, what="clinician")
+        values: Item = dict(changes)
+        year = changes.get("registrationYear")
+        if isinstance(year, int):
+            values["seniorityBand"] = rules.seniority_band(year, current_year=self.current_year)
+            if profile.get("directoryKey"):
+                values["directorySort"] = directory_sort(
+                    registration_year=year,
+                    family_name=str(profile.get("familyName", "")),
+                    staff_id=staff_id,
+                )
+        return self._repo.update_existing(key, set_values=values, what="clinician")
+
     def set_roles(self, *, tenant_id: str, staff_id: str, roles: tuple[str, ...]) -> Item:
         """Change the roles on an account. Effective at its next sign-in."""
         membership = self.staff(tenant_id, staff_id)

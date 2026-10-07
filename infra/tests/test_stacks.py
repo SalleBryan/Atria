@@ -309,6 +309,10 @@ class TestApiStack:
         assert ("/admin/staff", "GET") in served
         assert ("/admin/staff/{id}/roles", "PATCH") in served
         assert ("/admin/staff/{id}/suspend", "POST") in served
+        assert ("/admin/staff/{id}/temporary-password", "POST") in served
+        # A clinician's professional details, read and corrected.
+        assert ("/admin/staff/{id}/clinician", "GET") in served
+        assert ("/admin/staff/{id}/clinician", "PATCH") in served
         # Deleted with 30 days to restore it (services/identity/deletion.py).
         assert ("/admin/staff/{id}", "DELETE") in served
         assert ("/admin/staff/{id}/restore", "POST") in served

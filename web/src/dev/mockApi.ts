@@ -58,6 +58,9 @@ const clinicians = CLINICIANS.map((c) => ({
   languages: [...c.languages],
 }));
 
+/** Corrections made in the preview to a clinician's details, by staff ID. */
+const clinicianDetails = new Map<string, Record<string, unknown>>();
+
 interface MockType {
   appointmentTypeId: string;
   code: string | null;
@@ -1491,6 +1494,28 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     if (!found) return json(404, { code: "not_found", message: "no such staff account" });
     found.status = "SUSPENDED";
     return json(200, { ...found, note: "Sessions revoked." });
+  }
+  // A clinician's professional details (services/identity/staff.correct_clinician).
+  const details = path.match(/^\/admin\/staff\/([^/]+)\/clinician$/);
+  if (details && (method === "GET" || method === "PATCH")) {
+    const id = details[1] as string;
+    const account = staffAccounts.find((a) => a.staffId === id);
+    if (!account || !(account.roles as string[]).includes("CLINICIAN")) return json(404, { code: "not_found", message: "no such clinician" });
+    const known = clinicianDetails.get(id) ?? {
+      staffId: id,
+      specialty: clinicians.find((c) => c.familyName === account.familyName)?.specialty ?? "General Practioner",
+      registrationYear: clinicians.find((c) => c.familyName === account.familyName)?.registrationYear ?? 2015,
+      ordreNumber: "CM-ONMC-1042",
+      languages: ["en", "fr"],
+      qualifications: [],
+    };
+    if (method === "PATCH") {
+      const change = body as Record<string, unknown>;
+      if ("specialty" in change && !String(change.specialty ?? "").trim()) return json(400, { code: "invalid", message: "specialty cannot be empty" });
+      Object.assign(known, change);
+    }
+    clinicianDetails.set(id, known);
+    return json(200, known, method === "PATCH" ? 500 : 300);
   }
   // A fresh temporary password (services/identity/staff.issue_password).
   const reissue = path.match(/^\/admin\/staff\/([^/]+)\/temporary-password$/);

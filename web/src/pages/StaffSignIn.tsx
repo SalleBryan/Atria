@@ -129,8 +129,8 @@ export function StaffSignIn() {
         </Button>
       </form>
       <Notice>
-        Signing in for the first time? You will be asked to replace the temporary password your administrator sent
-        you before the console opens. Administrators are never kept signed in: their session ends with the tab.
+        Signing in for the first time? You will be asked to replace the temporary password your administrator sent you before the console
+        opens. Administrators are never kept signed in: their session ends with the tab.
       </Notice>
     </AuthLayout>
   );

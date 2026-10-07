@@ -15,20 +15,7 @@ import { createPortal } from "react-dom";
 import { useMenu } from "./FilterMenu";
 import { Calendar, ChevronLeft, ChevronRight } from "./icons";
 
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 const WEEK_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
 
@@ -146,13 +133,7 @@ export function DatePickerMenu({
         createPortal(
           <div className="menu-layer">
             <div className="menu-scrim menu-scrim-clear" onClick={close} aria-hidden="true" />
-            <div
-              ref={panel}
-              className="suggest date-picker birth-picker"
-              role="dialog"
-              aria-label={label}
-              style={place}
-            >
+            <div ref={panel} className="suggest date-picker birth-picker" role="dialog" aria-label={label} style={place}>
               <div className="date-picker-head">
                 <button
                   type="button"

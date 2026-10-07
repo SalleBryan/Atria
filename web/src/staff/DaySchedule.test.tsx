@@ -35,7 +35,14 @@ const DESK: Me = {
   permissions: {},
   landing: [],
 };
-const CLINICIAN: Me = { ...DESK, personId: "p-mbarga", givenName: "Esther", familyName: "Mbarga", roles: ["CLINICIAN"], staffId: "s-mbarga" };
+const CLINICIAN: Me = {
+  ...DESK,
+  personId: "p-mbarga",
+  givenName: "Esther",
+  familyName: "Mbarga",
+  roles: ["CLINICIAN"],
+  staffId: "s-mbarga",
+};
 
 function visit(id: string, hoursAhead: number, patient: string, state = "BOOKED", clinician = "s-mbarga") {
   return {
@@ -57,11 +64,7 @@ function visit(id: string, hoursAhead: number, patient: string, state = "BOOKED"
 
 // Mid-day ahead, so every visit falls on today's clinic date whatever the hour of the run.
 const SCHEDULE = {
-  appointments: [
-    visit("b", 0.2, "pp-ama", "PATIENT_CANCELLED", "s-nkoulou"),
-    visit("a", 0.1, "pp-brice"),
-    visit("c", 0.3, "pp-unnamed"),
-  ],
+  appointments: [visit("b", 0.2, "pp-ama", "PATIENT_CANCELLED", "s-nkoulou"), visit("a", 0.1, "pp-brice"), visit("c", 0.3, "pp-unnamed")],
   patients: {
     "pp-ama": { givenName: "Ama", familyName: "Darko" },
     "pp-brice": { givenName: "Brice", familyName: "Tagne" },
@@ -79,7 +82,8 @@ function respond(schedule: { appointments: unknown[]; patients: Record<string, u
         ],
       };
     }
-    if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit", address: null, phone: null, openingHours: null }] };
+    if (path === "/clinics")
+      return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit", address: null, phone: null, openingHours: null }] };
     if (path === "/appointment-types") return { appointmentTypes: [{ appointmentTypeId: "at-follow", name: "Follow-up consultation" }] };
     if (path.startsWith("/clinics/c-akwa/day") || path.startsWith("/clinicians/s-mbarga/calendar")) return schedule;
     throw new Error(`unexpected ${path}`);

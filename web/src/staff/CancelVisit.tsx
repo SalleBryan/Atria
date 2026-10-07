@@ -104,8 +104,8 @@ export function CancelVisit({
         </span>
         <h2 id="staff-cancel-title">Cancel this visit?</h2>
         <p className="dialog-lede">
-          The time returns to the unit's calendar straight away and the patient's reminder is removed. This is recorded
-          against your account.
+          The time returns to the unit's calendar straight away and the patient's reminder is removed. This is recorded against your
+          account.
         </p>
         <div className="dialog-visit">
           <span className="clinician-avatar" style={{ background: "var(--gradient-primary)" }} aria-hidden="true">

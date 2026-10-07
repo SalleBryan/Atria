@@ -1,0 +1,5 @@
+# Written by spec/generate.py, which CI checks byte for byte.
+src/generated/
+dist/
+public/
+coverage/

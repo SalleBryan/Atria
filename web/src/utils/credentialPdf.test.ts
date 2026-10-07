@@ -45,7 +45,10 @@ const MARIE: StaffCredential = {
 describe("credentialPdf", () => {
   // The fonts are not served in a test; the PDF falls back to its own faces.
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 404 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 404 })),
+    );
     caught.written.length = 0;
     caught.saved.length = 0;
   });

@@ -85,13 +85,23 @@ function tables(f: ReportFigures) {
     ["Cancelled", f.cancelled, share(f.cancelled, f.booked)],
     ["Late cancelled", f.lateCancelled, share(f.lateCancelled, f.booked)],
   ] as const;
-  const channels = (f.byChannel ?? []).map((c) => [CHANNEL_LABEL[c.channel] ?? c.channel, c.booked, c.attended, c.noShow, c.attendance] as const);
-  const bookers = (f.byBookedBy ?? []).map((b) => [BOOKED_BY_LABEL[b.bookedBy] ?? b.bookedBy, b.booked, b.attended, b.noShow, b.attendance] as const);
-  const reminders = (f.byReminder ?? []).map((r) => [REMINDER_LABEL[r.reminder] ?? r.reminder, r.booked, r.attended, r.noShow, r.attendance] as const);
+  const channels = (f.byChannel ?? []).map(
+    (c) => [CHANNEL_LABEL[c.channel] ?? c.channel, c.booked, c.attended, c.noShow, c.attendance] as const,
+  );
+  const bookers = (f.byBookedBy ?? []).map(
+    (b) => [BOOKED_BY_LABEL[b.bookedBy] ?? b.bookedBy, b.booked, b.attended, b.noShow, b.attendance] as const,
+  );
+  const reminders = (f.byReminder ?? []).map(
+    (r) => [REMINDER_LABEL[r.reminder] ?? r.reminder, r.booked, r.attended, r.noShow, r.attendance] as const,
+  );
   const currency = f.ledger?.currency ?? "XAF";
-  const refunds = (f.ledger?.byEntitlement ?? []).map((e) => [REFUND_LABEL[e.entitlement] ?? e.entitlement, e.entries, e.amountMinor] as const);
+  const refunds = (f.ledger?.byEntitlement ?? []).map(
+    (e) => [REFUND_LABEL[e.entitlement] ?? e.entitlement, e.entries, e.amountMinor] as const,
+  );
   const bands = (f.ledger?.byBand ?? []).map((b) => [b.practice, b.entries, b.amountMinor] as const);
-  const units = (f.units ?? []).map((u) => [u.clinicName || "Unnamed unit", u.booked, u.attended, u.noShow, u.cancelled, attendanceOf(u)] as const);
+  const units = (f.units ?? []).map(
+    (u) => [u.clinicName || "Unnamed unit", u.booked, u.attended, u.noShow, u.cancelled, attendanceOf(u)] as const,
+  );
   return { outcomes, channels, bookers, reminders, currency, refunds, bands, units };
 }
 
@@ -133,7 +143,14 @@ export async function exportReportPdf(f: ReportFigures, context: ReportContext) 
         { label: "Cancelled", width: 1.1, align: "right" },
         { label: "Attendance", width: 1.3, align: "right" },
       ],
-      t.units.map(([name, booked, attended, noShow, cancelled, rate]) => [name, count(booked), count(attended), count(noShow), count(cancelled), tone(rate)]),
+      t.units.map(([name, booked, attended, noShow, cancelled, rate]) => [
+        name,
+        count(booked),
+        count(attended),
+        count(noShow),
+        count(cancelled),
+        tone(rate),
+      ]),
     );
   }
   pdf.heading(next(), "How visits ended", "Attended, missed or cancelled, as a share of the visits booked.");
@@ -223,7 +240,9 @@ export async function exportReportExcel(f: ReportFigures, context: ReportContext
     { label: "Attended", value: f.attended, tone: "ok" },
     { label: "No-show", value: f.noShow, tone: f.noShow ? "bad" : undefined },
     { label: "Cancelled", value: f.cancelled + f.lateCancelled },
-    attendance == null ? { label: "Attendance", value: "Not yet", accent: true } : { label: "Attendance", value: attendance, accent: true, percent: true },
+    attendance == null
+      ? { label: "Attendance", value: "Not yet", accent: true }
+      : { label: "Attendance", value: attendance, accent: true, percent: true },
   ]);
   summary.heading("01", "How visits ended", "Attended, missed or cancelled, as a share of the visits booked.");
   summary.table(
@@ -278,8 +297,16 @@ export async function exportReportExcel(f: ReportFigures, context: ReportContext
       { label: "Visits", width: 13, kind: "number" },
       { label: `Amount (${t.currency})`, width: 20, kind: "number" },
     ] as const;
-  fees.table([...feeColumns("Refund")], t.refunds.map(([l, v, a]) => [l, v, a]), { filter: false });
-  fees.table([...feeColumns("Fee band")], t.bands.map(([l, v, a]) => [l, v, a]), { filter: false });
+  fees.table(
+    [...feeColumns("Refund")],
+    t.refunds.map(([l, v, a]) => [l, v, a]),
+    { filter: false },
+  );
+  fees.table(
+    [...feeColumns("Fee band")],
+    t.bands.map(([l, v, a]) => [l, v, a]),
+    { filter: false },
+  );
 
   await book.save(fileName([context.title, context.unit, context.period], "xlsx"));
 }
@@ -288,7 +315,16 @@ export async function exportReportExcel(f: ReportFigures, context: ReportContext
 export function reportCsv(f: ReportFigures): { head: string[]; rows: (string | number)[][] } {
   const t = tables(f);
   const rows: (string | number)[][] = [
-    ...t.units.map(([name, booked, attended, noShow, cancelled, r]) => ["Hospital units", name, booked, attended, noShow, cancelled, "", percent(r)]),
+    ...t.units.map(([name, booked, attended, noShow, cancelled, r]) => [
+      "Hospital units",
+      name,
+      booked,
+      attended,
+      noShow,
+      cancelled,
+      "",
+      percent(r),
+    ]),
     ...t.outcomes.map(([label, visits, part]) => ["How visits ended", label, visits, "", "", "", "", part]),
     ...t.channels.map(([label, booked, came, missed, r]) => ["How patients booked", label, booked, came, missed, "", "", percent(r)]),
     ...t.bookers.map(([label, booked, came, missed, r]) => ["Who booked", label, booked, came, missed, "", "", percent(r)]),

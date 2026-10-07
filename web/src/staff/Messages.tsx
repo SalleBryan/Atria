@@ -95,7 +95,13 @@ const STATE: Record<LoggedMessage["deliveryState"], { label: string; tone: strin
 };
 
 const time = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" });
-const visitTime = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const visitTime = new Intl.DateTimeFormat("en-GB", {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 const dayName = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
 const shortDay = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 const percent = (rate: number | null) => (rate == null ? "None sent" : `${Math.round(rate * 1000) / 10}%`);
@@ -237,7 +243,13 @@ function UnitMessages({ admin, clinicId, tabs }: { admin: boolean; clinicId: str
             </button>
             {/* One width for every day, so stepping back never moves the controls. */}
             <span className="day-step-label">{day === today ? "Today" : dayName.format(new Date(`${day}T12:00:00Z`))}</span>
-            <button type="button" className="square-button" aria-label="Next day" disabled={day >= today} onClick={() => setDay(shift(day, 1))}>
+            <button
+              type="button"
+              className="square-button"
+              aria-label="Next day"
+              disabled={day >= today}
+              onClick={() => setDay(shift(day, 1))}
+            >
               <ChevronRight size={16} />
             </button>
           </div>
@@ -249,7 +261,8 @@ function UnitMessages({ admin, clinicId, tabs }: { admin: boolean; clinicId: str
       {found && failed > 0 && (
         <p className="accounts-banner messages-banner">
           <Phone size={18} />
-          {failed === 1 ? "1 message" : `${failed} messages`} did not reach the patient. Their numbers are below; a call makes sure they know.
+          {failed === 1 ? "1 message" : `${failed} messages`} did not reach the patient. Their numbers are below; a call makes sure they
+          know.
         </p>
       )}
 
@@ -265,7 +278,9 @@ function UnitMessages({ admin, clinicId, tabs }: { admin: boolean; clinicId: str
             ? [<LoadingRow key="loading" />]
             : pages.shown.map((m, index) => <MessageRow key={m.messageLogId} message={m} index={index} unit={every} />)}
           {found && !found.messages.length && (
-            <li className="today-empty">{every ? "Nothing went out from any unit on this day." : "Nothing went out for this unit on this day."}</li>
+            <li className="today-empty">
+              {every ? "Nothing went out from any unit on this day." : "Nothing went out for this unit on this day."}
+            </li>
           )}
         </ul>
         <Pager
@@ -289,7 +304,10 @@ function MessageRow({ message: m, index, unit = false }: { message: LoggedMessag
   const why = m.feedback === "BOUNCE" ? "Bounced" : m.feedback === "COMPLAINT" ? "Marked as spam" : plainReason(m.failureReason, m.channel);
   const Channel = m.channel === "SMS" ? Phone : Mail;
   return (
-    <li className={`account-row message-row${m.deliveryState === "FAILED" ? " message-row-failed" : ""}`} style={{ "--i": index } as CSSProperties}>
+    <li
+      className={`account-row message-row${m.deliveryState === "FAILED" ? " message-row-failed" : ""}`}
+      style={{ "--i": index } as CSSProperties}
+    >
       <span className="account-text">
         <span className="account-name">{m.person.name ?? "Unknown patient"}</span>
         {m.person.phoneE164 ? (
@@ -306,7 +324,9 @@ function MessageRow({ message: m, index, unit = false }: { message: LoggedMessag
           {KIND_LABEL[m.kind] ?? m.kind}
         </span>
         <span className="account-sub">
-          {[m.channel === "SMS" ? "SMS" : "Email", time.format(new Date(m.settledAt)), unit ? m.clinicName : null].filter(Boolean).join(" · ")}
+          {[m.channel === "SMS" ? "SMS" : "Email", time.format(new Date(m.settledAt)), unit ? m.clinicName : null]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
       </span>
       <span className="account-role">

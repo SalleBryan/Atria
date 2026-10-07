@@ -124,8 +124,8 @@ export function IntakeFields({
       })}
       <div className="intake-consent">
         <Checkbox checked={consent} onChange={onConsent}>
-          Share these answers with {clinician} only. The front desk and the hospital's administrators cannot read them, and they are
-          deleted 90 days after the visit.
+          Share these answers with {clinician} only. The front desk and the hospital's administrators cannot read them, and they are deleted
+          90 days after the visit.
         </Checkbox>
       </div>
     </div>

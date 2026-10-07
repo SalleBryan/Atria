@@ -22,16 +22,7 @@ import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
 import { LoadingPane } from "../components/LoadingPane";
 import { SearchSuggest } from "../components/SearchSuggest";
-import {
-  Bell,
-  Calendar,
-  CheckMark,
-  Clipboard,
-  Mail,
-  Pin,
-  Plus,
-  Repeat,
-} from "../components/icons";
+import { Bell, Calendar, CheckMark, Clipboard, Mail, Pin, Plus, Repeat } from "../components/icons";
 import {
   type Appointment,
   type Clinic,
@@ -108,9 +99,7 @@ export function PatientHome() {
   // Book again suggests the clinician last seen, or else the one booked
   // next; never one whose visit was cancelled.
   const lastSeen = behind.find((a) => !a.state.endsWith("CANCELLED")) ?? next;
-  const lastClinician = data
-    ? data.clinicians.find((c) => c.clinicianProfileId === lastSeen?.clinicianProfileId)
-    : undefined;
+  const lastClinician = data ? data.clinicians.find((c) => c.clinicianProfileId === lastSeen?.clinicianProfileId) : undefined;
 
   const summary = data
     ? [
@@ -185,11 +174,7 @@ export function PatientHome() {
                   </span>
                   {/* A queue place reads as the web's other lists put it: the queue and the place. */}
                   <h2>{next.sessionId ? `Outpatient queue, place ${next.position ?? ""}` : clinicianName(nextJoined.clinician)}</h2>
-                  <p>
-                    {[nextJoined.clinician?.specialty, nextJoined.clinic?.name, nextJoined.type?.name]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
+                  <p>{[nextJoined.clinician?.specialty, nextJoined.clinic?.name, nextJoined.type?.name].filter(Boolean).join(" · ")}</p>
                 </div>
                 <dl className="hero-when">
                   <div>
@@ -275,9 +260,7 @@ export function PatientHome() {
                     <Clipboard size={20} />
                   </span>
                   <span className="quick-title">My visits</span>
-                  <span className="quick-sub">
-                    {behind.length === 1 ? "1 past visit" : `${behind.length} past visits`}
-                  </span>
+                  <span className="quick-sub">{behind.length === 1 ? "1 past visit" : `${behind.length} past visits`}</span>
                 </Link>
                 <Link className="quick glass-tile" to="/account">
                   <span className="quick-icon tone-amber">
@@ -364,15 +347,7 @@ export function VisitRow({ appointment, action = "Manage" }: { appointment: Appo
   );
 }
 
-function Activity({
-  appointments,
-  next,
-  reminderAt,
-}: {
-  appointments: Appointment[];
-  next?: Appointment;
-  reminderAt?: Date;
-}) {
+function Activity({ appointments, next, reminderAt }: { appointments: Appointment[]; next?: Appointment; reminderAt?: Date }) {
   const items: { key: string; tone: string; icon: ReactElement; title: string; body: string; foot: string }[] = [];
   if (next && reminderAt) {
     items.push({
@@ -438,9 +413,7 @@ function ClinicCard({ clinic }: { clinic?: Clinic }) {
       </div>
       <p className="clinic-name">{clinic.name}</p>
       <p className="clinic-sub">
-        {[clinic.address, today ? `open ${today.start} to ${today.end} today` : "closed today"]
-          .filter(Boolean)
-          .join(" · ")}
+        {[clinic.address, today ? `open ${today.start} to ${today.end} today` : "closed today"].filter(Boolean).join(" · ")}
       </p>
       <a className="outline-button" href={directions} target="_blank" rel="noreferrer">
         Get directions

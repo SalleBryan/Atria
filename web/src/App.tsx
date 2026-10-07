@@ -42,14 +42,49 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<Front />} />
-      <Route path="/sign-in" element={<SignedOutOnly><PatientSignIn /></SignedOutOnly>} />
-      <Route path="/create-account" element={<SignedOutOnly><CreateAccount /></SignedOutOnly>} />
+      <Route
+        path="/sign-in"
+        element={
+          <SignedOutOnly>
+            <PatientSignIn />
+          </SignedOutOnly>
+        }
+      />
+      <Route
+        path="/create-account"
+        element={
+          <SignedOutOnly>
+            <CreateAccount />
+          </SignedOutOnly>
+        }
+      />
       <Route path="/verify-email" element={<VerifyEmail />} />
-      <Route path="/reset-password" element={<SignedOutOnly><ResetPassword /></SignedOutOnly>} />
-      <Route path="/staff/sign-in" element={<SignedOutOnly><StaffSignIn /></SignedOutOnly>} />
+      <Route
+        path="/reset-password"
+        element={
+          <SignedOutOnly>
+            <ResetPassword />
+          </SignedOutOnly>
+        }
+      />
+      <Route
+        path="/staff/sign-in"
+        element={
+          <SignedOutOnly>
+            <StaffSignIn />
+          </SignedOutOnly>
+        }
+      />
       <Route path="/staff/first-sign-in" element={<StaffFirstSignIn />} />
       <Route path="/staff/authenticator" element={<StaffAuthenticatorCode />} />
-      <Route path="/staff/reset-password" element={<SignedOutOnly><ResetPassword audience="staff" /></SignedOutOnly>} />
+      <Route
+        path="/staff/reset-password"
+        element={
+          <SignedOutOnly>
+            <ResetPassword audience="staff" />
+          </SignedOutOnly>
+        }
+      />
       <Route path="/auth/callback" element={<AuthCallback />} />
       {staffRoutes}
       {patientRoutes}

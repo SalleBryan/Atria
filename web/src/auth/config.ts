@@ -87,8 +87,7 @@ export function configureFor(audience: Audience): void {
       },
     },
   });
-  const persist =
-    audience === "patient" ? remembered(PERSIST_KEY, "yes", ["yes", "no"]) === "yes" : trusted();
+  const persist = audience === "patient" ? remembered(PERSIST_KEY, "yes", ["yes", "no"]) === "yes" : trusted();
   cognitoUserPoolsTokenProvider.setKeyValueStorage(persist ? defaultStorage : sessionStorage);
   current = audience;
   remember(AUDIENCE_KEY, audience);

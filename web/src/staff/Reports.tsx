@@ -174,7 +174,7 @@ export function Reports() {
   if (role !== "TENANT_ADMIN" && role !== "CLINIC_MANAGER") return <Navigate to="/console" replace />;
 
   const clinics = directory.status === "ready" ? directory.data.clinics : [];
-  const unitName = unit === EVERY ? "All hospital units" : clinics.find((c) => c.clinicId === unit)?.name ?? unit;
+  const unitName = unit === EVERY ? "All hospital units" : (clinics.find((c) => c.clinicId === unit)?.name ?? unit);
   const periodLabel = formatPeriod(date, granularity);
   const reportTitle = { day: "Daily report", week: "Weekly report", month: "Monthly report", year: "Annual report" }[granularity];
   // A file outlives the screen it came from, so its period always names the year.
@@ -210,7 +210,12 @@ export function Reports() {
               admin={admin}
               formats={[
                 { id: "pdf", label: "PDF", hint: "To print or share", pick: () => void exportReportPdf(found, exportContext) },
-                { id: "xlsx", label: "Excel", hint: "Summary, units, channels, fees", pick: () => void exportReportExcel(found, exportContext) },
+                {
+                  id: "xlsx",
+                  label: "Excel",
+                  hint: "Summary, units, channels, fees",
+                  pick: () => void exportReportExcel(found, exportContext),
+                },
                 { id: "csv", label: "CSV", hint: "Plain rows for any spreadsheet", pick: () => exportReportCsv(found, exportContext) },
               ]}
             />
@@ -252,23 +257,11 @@ export function Reports() {
         )}
 
         <div className="changes-week">
-          <button
-            type="button"
-            className="square-button"
-            aria-label="Previous period"
-            disabled={isAtStart}
-            onClick={() => step(-1)}
-          >
+          <button type="button" className="square-button" aria-label="Previous period" disabled={isAtStart} onClick={() => step(-1)}>
             <ChevronLeft size={16} />
           </button>
           <span>{periodLabel}</span>
-          <button
-            type="button"
-            className="square-button"
-            aria-label="Next period"
-            disabled={isAtEnd}
-            onClick={() => step(1)}
-          >
+          <button type="button" className="square-button" aria-label="Next period" disabled={isAtEnd} onClick={() => step(1)}>
             <ChevronRight size={16} />
           </button>
           <DatePickerMenu
@@ -325,7 +318,9 @@ export function Reports() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))", gap: 24, marginTop: 12 }}>
+            <div
+              style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))", gap: 24, marginTop: 12 }}
+            >
               <DonutChart
                 title="How visits ended"
                 subtitle="Attended, missed or cancelled, as a share of the visits booked."

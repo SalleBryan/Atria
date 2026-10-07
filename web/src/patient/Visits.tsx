@@ -99,10 +99,7 @@ export function Visits() {
   const filterButton = useRef<HTMLButtonElement>(null);
 
   // What this patient's visits have in them, most visited first.
-  const joined = useMemo(
-    () => (data ? data.appointments.map((a) => ({ a, ...join(data, a) })) : []),
-    [data],
-  );
+  const joined = useMemo(() => (data ? data.appointments.map((a) => ({ a, ...join(data, a) })) : []), [data]);
   const specialties = byPopularity(joined, (j) => j.clinician?.specialty);
   const clinicianOptions = byPopularity(joined, (j) => j.clinician?.clinicianProfileId).map((o) => ({
     ...o,
@@ -197,7 +194,11 @@ export function Visits() {
           </p>
         </header>
         <div className="visits-tabs" role="tablist" aria-label="Visits">
-          <span className="visits-pill" aria-hidden="true" style={{ transform: tab === "past" ? "translateX(calc(100% + 5px))" : "none" }} />
+          <span
+            className="visits-pill"
+            aria-hidden="true"
+            style={{ transform: tab === "past" ? "translateX(calc(100% + 5px))" : "none" }}
+          />
           <button type="button" role="tab" aria-selected={tab === "upcoming"} onClick={() => choose("upcoming")}>
             Upcoming
           </button>
@@ -242,7 +243,14 @@ export function Visits() {
           title="Filter your visits"
           sections={[
             { id: "specialty", label: "Specialty", options: specialties, value: specialty, onChange: setSpecialty },
-            { id: "clinician", label: "Clinician", options: clinicianOptions, value: clinicianId, onChange: setClinicianId, allLabel: "Any clinician" },
+            {
+              id: "clinician",
+              label: "Clinician",
+              options: clinicianOptions,
+              value: clinicianId,
+              onChange: setClinicianId,
+              allLabel: "Any clinician",
+            },
             { id: "clinic", label: "Unit", options: clinicOptions, value: clinicId, onChange: setClinicId, allLabel: "Any unit" },
           ]}
           results={shown.length === 1 ? "Show 1 visit" : `Show ${shown.length} visits`}
@@ -370,7 +378,9 @@ export function Visits() {
           onMoved={async (moved) => {
             await reload();
             setParams({});
-            setDone(`Moved to ${clock.day(moved.startAt)} at ${clock.time(moved.startAt)}. Your reference stays ${moved.reference}, and we have emailed you.`);
+            setDone(
+              `Moved to ${clock.day(moved.startAt)} at ${clock.time(moved.startAt)}. Your reference stays ${moved.reference}, and we have emailed you.`,
+            );
           }}
         />
       )}
@@ -587,49 +597,49 @@ function VisitDetail({
             refresh={`${appointment.state}-${appointment.startAt}`}
             fallback={
               <>
-            <li>
-              <span className="timeline-dot dot-done">
-                <CheckMark size={11} />
-              </span>
-              <span>
-                <span className="timeline-title">Booked in Atria</span>
-                <span className="timeline-sub">
-                  {clock.day(appointment.createdAt)}, {clock.time(appointment.createdAt)}
-                </span>
-              </span>
-            </li>
-            <li>
-              <span className="timeline-dot dot-blue-tint">
-                <Mail size={11} />
-              </span>
-              <span>
-                <span className="timeline-title">Confirmation email sent</span>
-                <span className="timeline-sub">
-                  {clock.day(appointment.createdAt)}, {clock.time(appointment.createdAt)}
-                </span>
-              </span>
-            </li>
-            {appointment.state.endsWith("CANCELLED") ? (
-              <li>
-                <span className="timeline-dot dot-red">
-                  <Close size={11} />
-                </span>
-                <span>
-                  <span className="timeline-title">{status.label}</span>
-                  <span className="timeline-sub">The time went back on the calendar and the reminder was removed</span>
-                </span>
-              </li>
-            ) : appointment.state === "DISRUPTED" ? (
-              <li>
-                <span className="timeline-dot dot-amber-tint">
-                  <Alert size={11} />
-                </span>
-                <span>
-                  <span className="timeline-title">New time needed</span>
-                  <span className="timeline-sub">The clinician is no longer available; the reminder was removed</span>
-                </span>
-              </li>
-            ) : null}
+                <li>
+                  <span className="timeline-dot dot-done">
+                    <CheckMark size={11} />
+                  </span>
+                  <span>
+                    <span className="timeline-title">Booked in Atria</span>
+                    <span className="timeline-sub">
+                      {clock.day(appointment.createdAt)}, {clock.time(appointment.createdAt)}
+                    </span>
+                  </span>
+                </li>
+                <li>
+                  <span className="timeline-dot dot-blue-tint">
+                    <Mail size={11} />
+                  </span>
+                  <span>
+                    <span className="timeline-title">Confirmation email sent</span>
+                    <span className="timeline-sub">
+                      {clock.day(appointment.createdAt)}, {clock.time(appointment.createdAt)}
+                    </span>
+                  </span>
+                </li>
+                {appointment.state.endsWith("CANCELLED") ? (
+                  <li>
+                    <span className="timeline-dot dot-red">
+                      <Close size={11} />
+                    </span>
+                    <span>
+                      <span className="timeline-title">{status.label}</span>
+                      <span className="timeline-sub">The time went back on the calendar and the reminder was removed</span>
+                    </span>
+                  </li>
+                ) : appointment.state === "DISRUPTED" ? (
+                  <li>
+                    <span className="timeline-dot dot-amber-tint">
+                      <Alert size={11} />
+                    </span>
+                    <span>
+                      <span className="timeline-title">New time needed</span>
+                      <span className="timeline-sub">The clinician is no longer available; the reminder was removed</span>
+                    </span>
+                  </li>
+                ) : null}
               </>
             }
           >
@@ -758,8 +768,7 @@ function CancelDialog({
         </span>
         <h2 id="cancel-title">Cancel this visit?</h2>
         <p className="dialog-lede">
-          The time goes back on the calendar straight away, your reminder is removed, and a cancellation notice is emailed to
-          you.
+          The time goes back on the calendar straight away, your reminder is removed, and a cancellation notice is emailed to you.
         </p>
         <div className="dialog-visit">
           <span className="clinician-avatar" style={{ background: "var(--gradient-primary)" }} aria-hidden="true">
@@ -829,7 +838,9 @@ function CancelDialog({
               </div>
             )}
           </dl>
-          <p className="fee-band-note">{ENTITLEMENT[preview?.entitlement ?? (late ? "PARTIAL" : "FULL")].note} Nothing is charged or paid through Atria.</p>
+          <p className="fee-band-note">
+            {ENTITLEMENT[preview?.entitlement ?? (late ? "PARTIAL" : "FULL")].note} Nothing is charged or paid through Atria.
+          </p>
           {failure && <Notice tone="error">{failure}</Notice>}
           <div className="dialog-actions">
             <button type="button" className="outline-button keep" onClick={onClose} disabled={busy}>

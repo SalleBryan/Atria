@@ -145,7 +145,9 @@ textarea {
 
 /* No native controls: the browser's resize grip is one. A text box keeps the
    height its design gives it and scrolls inside (audit 2026-10-05). */
-textarea { resize: none; }
+textarea {
+  resize: none;
+}
 
 :focus-visible {
   outline: 3px solid rgba(74, 131, 240, 0.45);
@@ -158,18 +160,41 @@ textarea { resize: none; }
    draws its own, arrows included. Firefox, which has no ::-webkit-scrollbar,
    gets the standard properties instead. A list that hides its bar
    (scrollbar-width: none) still does. */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
-::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 /* Inset from the ends, so a bar in a rounded card or dialog stays inside
    its corners rather than running past them (2026-09-28). */
-::-webkit-scrollbar-track:vertical { margin: 18px 0; }
-::-webkit-scrollbar-track:horizontal { margin: 0 18px; }
-::-webkit-scrollbar-corner { background: transparent; }
-::-webkit-scrollbar-thumb { border-radius: 99px; background: rgba(20, 45, 95, 0.22); }
-::-webkit-scrollbar-thumb:hover { background: rgba(20, 45, 95, 0.36); }
+::-webkit-scrollbar-track:vertical {
+  margin: 18px 0;
+}
+::-webkit-scrollbar-track:horizontal {
+  margin: 0 18px;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 99px;
+  background: rgba(20, 45, 95, 0.22);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(20, 45, 95, 0.36);
+}
 @supports not selector(::-webkit-scrollbar) {
-  * { scrollbar-width: thin; scrollbar-color: rgba(20, 45, 95, 0.22) transparent; }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(20, 45, 95, 0.22) transparent;
+  }
 }
 
 /* Loading (LoadingPane.tsx): the indicator centred in what it stands for. */
@@ -183,5 +208,12 @@ textarea { resize: none; }
   list-style: none;
   animation: fade-in var(--fade) both;
 }
-.loading-row { flex: 1; border: 0; background: none; }
-.loading-pane.compact { min-height: 120px; padding: 12px; }
+.loading-row {
+  flex: 1;
+  border: 0;
+  background: none;
+}
+.loading-pane.compact {
+  min-height: 120px;
+  padding: 12px;
+}

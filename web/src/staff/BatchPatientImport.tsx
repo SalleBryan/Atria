@@ -24,13 +24,7 @@ interface FailedPatient {
   reason: string;
 }
 
-export function BatchPatientImport({
-  onClose,
-  onDone,
-}: {
-  onClose: () => void;
-  onDone: (createdCount: number) => void;
-}) {
+export function BatchPatientImport({ onClose, onDone }: { onClose: () => void; onDone: (createdCount: number) => void }) {
   const [step, setStep] = useState<"upload" | "preview" | "running" | "done">("upload");
   const [file, setFile] = useState<File | null>(null);
   const [rows, setRows] = useState<ParsedPatientRow[]>([]);
@@ -166,8 +160,8 @@ export function BatchPatientImport({
                 <div>
                   <h3>Excel template</h3>
                   <p>
-                    Download our formatted template with columns for given name, family name, mobile, date of birth,
-                    and language preference.
+                    Download our formatted template with columns for given name, family name, mobile, date of birth, and language
+                    preference.
                   </p>
                 </div>
                 <button type="button" className="outline-button" onClick={() => void downloadPatientTemplate()}>
@@ -186,13 +180,7 @@ export function BatchPatientImport({
                 onDrop={onDrop}
                 onClick={() => fileInputRef.current?.click()}
               >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx, .xls"
-                  style={{ display: "none" }}
-                  onChange={onFileChange}
-                />
+                <input ref={fileInputRef} type="file" accept=".xlsx, .xls" style={{ display: "none" }} onChange={onFileChange} />
                 <span className="dropzone-icon" aria-hidden="true">
                   <Upload size={28} />
                 </span>
@@ -230,11 +218,7 @@ export function BatchPatientImport({
                 {file && <span className="batch-file-name">{file.name}</span>}
               </div>
 
-              {errorCount > 0 && (
-                <Notice tone="info">
-                  Rows with invalid mobile numbers or missing names will be skipped.
-                </Notice>
-              )}
+              {errorCount > 0 && <Notice tone="info">Rows with invalid mobile numbers or missing names will be skipped.</Notice>}
 
               <div className="batch-table-container">
                 <table className="batch-table">
@@ -252,7 +236,9 @@ export function BatchPatientImport({
                       <tr key={row.rowNumber} className={row.valid ? "row-valid" : "row-invalid"}>
                         <td className="row-num">{row.rowNumber}</td>
                         <td className="row-name">
-                          <strong>{row.givenName} {row.familyName}</strong>
+                          <strong>
+                            {row.givenName} {row.familyName}
+                          </strong>
                         </td>
                         <td className="row-mobile">{row.phoneRaw}</td>
                         <td className="row-dob">{row.dateOfBirth ?? "Not given"}</td>
@@ -262,7 +248,9 @@ export function BatchPatientImport({
                           ) : (
                             <div className="row-errors">
                               {row.errors.map((err, i) => (
-                                <span key={i} className="row-error-item">{err}</span>
+                                <span key={i} className="row-error-item">
+                                  {err}
+                                </span>
                               ))}
                             </div>
                           )}
@@ -287,12 +275,7 @@ export function BatchPatientImport({
               >
                 Back
               </button>
-              <button
-                type="button"
-                className="staff-primary sheet-primary"
-                disabled={validCount === 0}
-                onClick={() => void executeBatch()}
-              >
+              <button type="button" className="staff-primary sheet-primary" disabled={validCount === 0} onClick={() => void executeBatch()}>
                 Register {validCount} {validCount === 1 ? "patient" : "patients"}
               </button>
             </footer>
@@ -307,10 +290,7 @@ export function BatchPatientImport({
               Processing patient {progress.current} of {progress.total}...
             </p>
             <div className="batch-progress-bar">
-              <div
-                className="batch-progress-fill"
-                style={{ width: `${(progress.current / Math.max(1, progress.total)) * 100}%` }}
-              />
+              <div className="batch-progress-fill" style={{ width: `${(progress.current / Math.max(1, progress.total)) * 100}%` }} />
             </div>
           </div>
         )}
@@ -349,7 +329,9 @@ export function BatchPatientImport({
                     {successes.map((item, idx) => (
                       <tr key={idx}>
                         <td>
-                          <strong>{item.row.givenName} {item.row.familyName}</strong>
+                          <strong>
+                            {item.row.givenName} {item.row.familyName}
+                          </strong>
                         </td>
                         <td>{item.row.phoneE164}</td>
                         <td>
@@ -367,11 +349,7 @@ export function BatchPatientImport({
 
             <footer className="sheet-foot">
               <span>Each patient can be booked as soon as they are added.</span>
-              <button
-                type="button"
-                className="staff-primary sheet-primary"
-                onClick={() => onDone(successes.length)}
-              >
+              <button type="button" className="staff-primary sheet-primary" onClick={() => onDone(successes.length)}>
                 Done
               </button>
             </footer>

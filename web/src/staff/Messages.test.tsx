@@ -154,9 +154,9 @@ describe("plainReason", () => {
     expect(plainReason("Sandboxed account unable to send to number.", "SMS")).toBe(
       "Not sent: the test system only reaches approved numbers and addresses.",
     );
-    expect(
-      plainReason("ClientError: An error occurred (AccessDeniedException) when calling the SendEmail operation", "EMAIL"),
-    ).toBe("The system could not send it. Tell your administrator.");
+    expect(plainReason("ClientError: An error occurred (AccessDeniedException) when calling the SendEmail operation", "EMAIL")).toBe(
+      "The system could not send it. Tell your administrator.",
+    );
     expect(plainReason("no email address at send time", "EMAIL")).toBe("No email address on file.");
     expect(plainReason("the appointment is NO_SHOW", "SMS")).toBe("Not sent: the visit was already no show.");
     expect(plainReason("rejected by SES: Bad content", "EMAIL")).toBe("The email address refused it.");

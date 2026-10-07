@@ -215,7 +215,15 @@ export class AtriaPdf {
     const s = (size * 0.5) / 24;
     const ox = x + size * 0.25;
     const oy = y + size * 0.25;
-    const points: [number, number][] = [[3, 12], [7, 12], [9, 7], [12, 17], [14.5, 11], [16.3, 14], [21, 14]];
+    const points: [number, number][] = [
+      [3, 12],
+      [7, 12],
+      [9, 7],
+      [12, 17],
+      [14.5, 11],
+      [16.3, 14],
+      [21, 14],
+    ];
     this.stroke("#FFFFFF", size * 0.045);
     this.doc.setLineCap("round");
     this.doc.setLineJoin("round");
@@ -370,7 +378,11 @@ export class AtriaPdf {
   }
 
   /** A white table sheet: a tinted small-caps head, hairlines between rows, the head repeated on a new page. */
-  table(columns: Column[], rows: Cell[][], { caption, empty = "Nothing to show for this period." }: { caption?: string; empty?: string } = {}) {
+  table(
+    columns: Column[],
+    rows: Cell[][],
+    { caption, empty = "Nothing to show for this period." }: { caption?: string; empty?: string } = {},
+  ) {
     const total = columns.reduce((sum, c) => sum + c.width, 0);
     const widths = columns.map((c) => (c.width / total) * CONTENT);
     const padX = 3.6;

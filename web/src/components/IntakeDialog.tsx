@@ -41,11 +41,8 @@ export function IntakeDialog({
   const dialog = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    dialog.current
-      ?.querySelector<HTMLElement>("textarea, input, button")
-      ?.focus();
-    const onKey = (event: KeyboardEvent) =>
-      event.key === "Escape" && !busy && onClose();
+    dialog.current?.querySelector<HTMLElement>("textarea, input, button")?.focus();
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && !busy && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [busy, onClose]);
@@ -56,11 +53,7 @@ export function IntakeDialog({
   async function share(event: FormEvent) {
     event.preventDefault();
     if (!ready) {
-      setFailure(
-        missing
-          ? `Please answer: ${missing}`
-          : "Tick the box to share your answers.",
-      );
+      setFailure(missing ? `Please answer: ${missing}` : "Tick the box to share your answers.");
       return;
     }
     setBusy("share");
@@ -68,11 +61,7 @@ export function IntakeDialog({
     try {
       await onSubmit(answered(answers));
     } catch (caught) {
-      setFailure(
-        caught instanceof Error
-          ? caught.message
-          : "That did not go through. Try again.",
-      );
+      setFailure(caught instanceof Error ? caught.message : "That did not go through. Try again.");
       setBusy(null);
     }
   }
@@ -84,11 +73,7 @@ export function IntakeDialog({
     try {
       await onSkip();
     } catch (caught) {
-      setFailure(
-        caught instanceof Error
-          ? caught.message
-          : "That did not go through. Try again.",
-      );
+      setFailure(caught instanceof Error ? caught.message : "That did not go through. Try again.");
       setBusy(null);
     }
   }
@@ -113,8 +98,7 @@ export function IntakeDialog({
             </span>
             <h2 id="intake-title">Before your visit</h2>
             <p className="dialog-lede">
-              A few questions from {clinician}, so your visit starts where it
-              should.{" "}
+              A few questions from {clinician}, so your visit starts where it should.{" "}
               {mode === "book"
                 ? "Answer what you like, or book now and add them later from your visit."
                 : "You can change them until the visit starts."}
@@ -137,47 +121,19 @@ export function IntakeDialog({
           {failure && <Notice tone="error">{failure}</Notice>}
           <div className="dialog-actions move-actions">
             {mode === "book" ? (
-              <button
-                type="button"
-                className="outline-button keep"
-                onClick={() => void skip()}
-                disabled={Boolean(busy)}
-              >
-                {busy === "skip" ? (
-                  <LoadingIndicator size={18} label="Booking" />
-                ) : null}
+              <button type="button" className="outline-button keep" onClick={() => void skip()} disabled={Boolean(busy)}>
+                {busy === "skip" ? <LoadingIndicator size={18} label="Booking" /> : null}
                 {busy === "skip" ? "Booking" : "Book without answers"}
               </button>
             ) : (
-              <button
-                type="button"
-                className="outline-button keep"
-                onClick={onClose}
-                disabled={Boolean(busy)}
-              >
+              <button type="button" className="outline-button keep" onClick={onClose} disabled={Boolean(busy)}>
                 Not now
               </button>
             )}
-            <button
-              type="submit"
-              className="dock-button"
-              disabled={Boolean(busy)}
-              aria-busy={busy === "share" || undefined}
-            >
-              {busy === "share" ? (
-                <LoadingIndicator
-                  size={20}
-                  label={mode === "book" ? "Booking" : "Saving"}
-                />
-              ) : null}
+            <button type="submit" className="dock-button" disabled={Boolean(busy)} aria-busy={busy === "share" || undefined}>
+              {busy === "share" ? <LoadingIndicator size={20} label={mode === "book" ? "Booking" : "Saving"} /> : null}
               <span>
-                {busy === "share"
-                  ? mode === "book"
-                    ? "Booking"
-                    : "Saving"
-                  : mode === "book"
-                    ? "Share and book"
-                    : "Save answers"}
+                {busy === "share" ? (mode === "book" ? "Booking" : "Saving") : mode === "book" ? "Share and book" : "Save answers"}
               </span>
             </button>
           </div>

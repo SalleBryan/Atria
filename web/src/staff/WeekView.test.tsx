@@ -55,7 +55,9 @@ const WEEK = [
   visit("c", 2, 11, "s-mbarga"),
   visit("d", 4, 14, "s-nkoulou", "CLINIC_CANCELLED"),
 ];
-const NAMES = Object.fromEntries(WEEK.map((a) => [a.patientProfileId, { givenName: "Patient", familyName: a.appointmentId.toUpperCase() }]));
+const NAMES = Object.fromEntries(
+  WEEK.map((a) => [a.patientProfileId, { givenName: "Patient", familyName: a.appointmentId.toUpperCase() }]),
+);
 
 function respond() {
   api.mockImplementation(async (path: string) => {

@@ -188,13 +188,32 @@ export async function downloadStaffTemplate(clinics: ClinicRef[]) {
     { label: "Consults in", width: 20 },
     { label: "Employee number", width: 18 },
   ];
-  const accounts = book.sheet("Staff accounts", columns.map((c) => c.width));
-  accounts.heading("01", "Accounts to create", "One row per account. Replace the four samples with your own; the guidance is on the next sheet.");
+  const accounts = book.sheet(
+    "Staff accounts",
+    columns.map((c) => c.width),
+  );
+  accounts.heading(
+    "01",
+    "Accounts to create",
+    "One row per account. Replace the four samples with your own; the guidance is on the next sheet.",
+  );
   const head = accounts.table(
     columns,
     [
       ["Receptionist", "Marie", "Fotso", "+237 6 70 11 22 33", "", unit, "", "", "", "", "REC-001"],
-      ["Clinician", "Samuel", "Eto'o", "+237 6 77 44 55 66", "samuel.etoo@example.cm", unit, "General Practitioner", "2014", "MED-7821", "English, French", "DOC-004"],
+      [
+        "Clinician",
+        "Samuel",
+        "Eto'o",
+        "+237 6 77 44 55 66",
+        "samuel.etoo@example.cm",
+        unit,
+        "General Practitioner",
+        "2014",
+        "MED-7821",
+        "English, French",
+        "DOC-004",
+      ],
       ["Unit manager", "Jeanne", "Ngo", "+237 6 99 88 77 66", "jeanne.ngo@example.cm", unit, "", "", "", "", "MGR-002"],
       ["Administrator", "Alain", "Mboma", "+237 6 55 44 33 22", "alain.mboma@example.cm", "", "", "", "", "", "ADM-001"],
     ],
@@ -266,7 +285,10 @@ export async function downloadPatientTemplate() {
     { label: "Mobile", width: 24 },
     { label: "Date of birth", width: 18 },
   ];
-  const patients = book.sheet("Patients", columns.map((c) => c.width));
+  const patients = book.sheet(
+    "Patients",
+    columns.map((c) => c.width),
+  );
   patients.heading("01", "Patients to register", "One row per patient. Replace the three samples with your own.");
   const head = patients.table(
     columns,
@@ -332,15 +354,9 @@ export async function parseStaffExcel(
   const currentYear = new Date().getFullYear();
   const parsedRows: ParsedStaffRow[] = [];
 
-  const existingPhones = new Set(
-    existingAccounts
-      .map((a) => a.phoneE164)
-      .filter((p): p is string => Boolean(p)),
-  );
+  const existingPhones = new Set(existingAccounts.map((a) => a.phoneE164).filter((p): p is string => Boolean(p)));
   const existingEmails = new Set(
-    existingAccounts
-      .map((a) => (a.email || a.signInName)?.trim().toLowerCase())
-      .filter((e): e is string => Boolean(e)),
+    existingAccounts.map((a) => (a.email || a.signInName)?.trim().toLowerCase()).filter((e): e is string => Boolean(e)),
   );
 
   const seenPhonesInSheet = new Map<string, number>();
@@ -535,11 +551,7 @@ export async function parsePatientExcel(
   }
 
   const parsedRows: ParsedPatientRow[] = [];
-  const existingPhones = new Set(
-    existingPatients
-      .map((p) => p.phoneE164)
-      .filter((p): p is string => Boolean(p)),
-  );
+  const existingPhones = new Set(existingPatients.map((p) => p.phoneE164).filter((p): p is string => Boolean(p)));
   const seenPhonesInSheet = new Map<string, number>();
 
   for (let i = 0; i < rawData.length; i++) {
@@ -550,7 +562,8 @@ export async function parsePatientExcel(
     const givenName = getVal(raw, ["Given Name", "First Name", "Prenom", "Prénom"]);
     const familyName = getVal(raw, ["Family Name", "Last Name", "Surname", "Nom"]);
     const phoneRaw = getVal(raw, ["Mobile", "Phone", "Telephone", "Téléphone", "PhoneE164"]);
-    const dobRaw = raw[Object.keys(raw).find((k) => cleanKey(k).includes("birth") || cleanKey(k).includes("naissance") || cleanKey(k) === "dob") ?? ""];
+    const dobRaw =
+      raw[Object.keys(raw).find((k) => cleanKey(k).includes("birth") || cleanKey(k).includes("naissance") || cleanKey(k) === "dob") ?? ""];
     const langRaw = getVal(raw, ["Language", "Langue", "Preferred Language"]);
 
     // Skip empty rows

@@ -6,16 +6,7 @@
  * check mark that draws itself, and errors that arrive rather than appear.
  */
 
-import {
-  type ComponentType,
-  type InputHTMLAttributes,
-  type PointerEvent,
-  type ReactNode,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { type ComponentType, type InputHTMLAttributes, type PointerEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 
 import { Alert, CheckMark, Eye, EyeOff, Info } from "./icons";
 import { LoadingIndicator } from "./LoadingIndicator";

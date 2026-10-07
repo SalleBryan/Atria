@@ -118,7 +118,7 @@ export function WeekView() {
   const sunday = shiftDate(monday, 6);
   const clinicId = me?.clinicId ?? params.get("clinic") ?? (role === "TENANT_ADMIN" ? "all" : data?.clinics[0]?.clinicId);
   const clinic = data?.clinics.find((c) => c.clinicId === clinicId);
-  const chosen = own ? me?.staffId ?? null : params.get("clinician");
+  const chosen = own ? (me?.staffId ?? null) : params.get("clinician");
 
   const urls = me
     ? own
@@ -148,7 +148,12 @@ export function WeekView() {
     return [...listed, ...extra];
   }, [data, everyone, clinicId, own, me?.staffId]);
   const colourOf = (id: string | null): string =>
-    PALETTE[Math.max(0, clinicians.findIndex((c) => c.clinicianProfileId === id)) % PALETTE.length] ?? "blue";
+    PALETTE[
+      Math.max(
+        0,
+        clinicians.findIndex((c) => c.clinicianProfileId === id),
+      ) % PALETTE.length
+    ] ?? "blue";
   // Busiest first, so the chips that fit are the clinicians the desk is likeliest to want.
   const clinicianOptions: FilterOption[] = clinicians
     .map((c) => ({
@@ -211,11 +216,7 @@ export function WeekView() {
             <button type="button" className="today-button" disabled={thisWeek} onClick={() => go({ date: null })}>
               This week
             </button>
-            <DatePickerMenu
-              value={monday}
-              label="Pick week"
-              onChange={(nextDate) => go({ date: nextDate })}
-            />
+            <DatePickerMenu value={monday} label="Pick week" onChange={(nextDate) => go({ date: nextDate })} />
           </div>
           <div className="staff-title">
             <h1>{weekTitle(monday, days[days.length - 1] ?? shiftDate(monday, 5))}</h1>
@@ -236,10 +237,7 @@ export function WeekView() {
               label="Unit"
               value={clinicId ?? null}
               width={300}
-              options={[
-                { id: "all", label: "All units" },
-                ...data.clinics.map((c) => ({ id: c.clinicId, label: c.name })),
-              ]}
+              options={[{ id: "all", label: "All units" }, ...data.clinics.map((c) => ({ id: c.clinicId, label: c.name }))]}
               onChange={(id) => go({ clinic: id, clinician: null })}
             />
           )}
@@ -250,9 +248,7 @@ export function WeekView() {
               aria-selected="false"
               className="segment"
               onClick={() =>
-                navigate(
-                  `/console?date=${anchor}${clinicId ? `&clinic=${clinicId}` : ""}${chosen && !own ? `&clinician=${chosen}` : ""}`,
-                )
+                navigate(`/console?date=${anchor}${clinicId ? `&clinic=${clinicId}` : ""}${chosen && !own ? `&clinician=${chosen}` : ""}`)
               }
             >
               Day
@@ -496,7 +492,9 @@ function WeekList({
                   <span className={`day-bar bar-${tone}`} aria-hidden="true" />
                   <span className="day-text">
                     <span className="day-name">{schedule ? fullName(patientName(schedule.patients, appointment)) : ""}</span>
-                    <span className="day-sub">{[joined.type?.name, own ? null : doctor(joined.clinician, "")].filter(Boolean).join(" · ")}</span>
+                    <span className="day-sub">
+                      {[joined.type?.name, own ? null : doctor(joined.clinician, "")].filter(Boolean).join(" · ")}
+                    </span>
                   </span>
                   <span className={`chip chip-${tone}`}>{label}</span>
                 </Link>
@@ -540,7 +538,10 @@ function Load({
             <span className="week-load-name">{doctor(c, "Clinician")}</span>
             <span className="week-load-value">{open ? `${share}%` : `${Math.round(booked / 60)} h`}</span>
             <span className="week-load-track" aria-hidden="true">
-              <span className={`week-load-bar block-${colourOf(c.clinicianProfileId)}`} style={{ width: `${Math.max(share, booked ? 3 : 0)}%` }} />
+              <span
+                className={`week-load-bar block-${colourOf(c.clinicianProfileId)}`}
+                style={{ width: `${Math.max(share, booked ? 3 : 0)}%` }}
+              />
             </span>
           </li>
         );

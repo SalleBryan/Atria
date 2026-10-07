@@ -15,14 +15,7 @@
  * crest shows; neither stands for anyone at the hospital.
  */
 
-import {
-  type CSSProperties,
-  Fragment,
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type CSSProperties, Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import appleCalendar from "../assets/apple.svg";
@@ -92,37 +85,21 @@ function Reveal({
 }) {
   const [ref, seen] = useSeen<HTMLDivElement>(0.15);
   return (
-    <Tag
-      ref={ref as never}
-      className={`reveal ${seen ? "reveal-in" : ""} ${className}`}
-      style={{ "--i": index } as CSSProperties}
-    >
+    <Tag ref={ref as never} className={`reveal ${seen ? "reveal-in" : ""} ${className}`} style={{ "--i": index } as CSSProperties}>
       {children}
     </Tag>
   );
 }
 
 /** Headline words that rise one after another, on the expressive spring. */
-export function Rise({
-  text,
-  className,
-}: {
-  text: string;
-  className?: string;
-}) {
+export function Rise({ text, className }: { text: string; className?: string }) {
   const [ref, seen] = useSeen<HTMLSpanElement>(0.3);
   return (
-    <span
-      ref={ref}
-      className={`rise ${seen ? "rise-in" : ""} ${className ?? ""}`}
-    >
+    <span ref={ref} className={`rise ${seen ? "rise-in" : ""} ${className ?? ""}`}>
       {text.split(" ").map((word, index) => (
         <Fragment key={index}>
           <span className="rise-mask">
-            <span
-              className="rise-word"
-              style={{ "--w": index } as CSSProperties}
-            >
+            <span className="rise-word" style={{ "--w": index } as CSSProperties}>
               {word}
             </span>
           </span>{" "}
@@ -224,11 +201,7 @@ function WayScene({ way }: { way: string }) {
       <span className="way-scene">
         <span className="way-slots">
           {["09:30", "10:15", "11:00", "14:00"].map((t, i) => (
-            <span
-              key={t}
-              className={`way-slot ${i === 1 ? "on" : ""}`}
-              style={{ "--i": i } as CSSProperties}
-            >
+            <span key={t} className={`way-slot ${i === 1 ? "on" : ""}`} style={{ "--i": i } as CSSProperties}>
               {t}
             </span>
           ))}
@@ -254,14 +227,8 @@ function WayScene({ way }: { way: string }) {
   return (
     <span className="way-scene way-request">
       {["Sent", "Sized by the unit", "Time offered"].map((s, i) => (
-        <span
-          key={s}
-          className={`way-state ${i < 2 ? "done" : ""}`}
-          style={{ "--i": i } as CSSProperties}
-        >
-          <span className="way-state-dot">
-            {i < 2 ? <Check size={11} /> : null}
-          </span>
+        <span key={s} className={`way-state ${i < 2 ? "done" : ""}`} style={{ "--i": i } as CSSProperties}>
+          <span className="way-state-dot">{i < 2 ? <Check size={11} /> : null}</span>
           {s}
         </span>
       ))}
@@ -275,10 +242,7 @@ function WaysStage() {
   // Plays through the three ways until someone chooses one.
   useEffect(() => {
     if (held) return;
-    const timer = window.setInterval(
-      () => setActive((a) => (a + 1) % WAYS.length),
-      5200,
-    );
+    const timer = window.setInterval(() => setActive((a) => (a + 1) % WAYS.length), 5200);
     return () => window.clearInterval(timer);
   }, [held]);
   const way = WAYS[active]!;
@@ -286,13 +250,7 @@ function WaysStage() {
   return (
     <section className="stage" id="about" aria-labelledby="about-title">
       <div className="stage-photo" aria-hidden="true">
-        <img
-          src={doctorPhone}
-          alt=""
-          width="1600"
-          height="1067"
-          loading="lazy"
-        />
+        <img src={doctorPhone} alt="" width="1600" height="1067" loading="lazy" />
       </div>
       <div className="stage-copy">
         <p className="more-eyebrow on-dark">WHAT ATRIA IS</p>
@@ -301,9 +259,8 @@ function WaysStage() {
           <span className="stage-title-small">at {TENANT.name}.</span>
         </h2>
         <p className="stage-lede">
-          Atria is the hospital's own booking service. It keeps one calendar for
-          every unit, so the time you see is the time you get, and the hospital
-          knows you are coming.
+          Atria is the hospital's own booking service. It keeps one calendar for every unit, so the time you see is the time you get, and
+          the hospital knows you are coming.
         </p>
       </div>
 
@@ -397,11 +354,7 @@ function Screen({ step }: { step: number }) {
             <span>French</span>
           </span>
           {[esther, "Dr Jean-Paul Nkoulou", "Dr Aicha Bello"].map((n, i) => (
-            <span
-              key={n}
-              className="scr-row"
-              style={{ "--i": i } as CSSProperties}
-            >
+            <span key={n} className="scr-row" style={{ "--i": i } as CSSProperties}>
               <span className="scr-avatar">
                 {n.split(" ")[1]![0]}
                 {n.split(" ").pop()![0]}
@@ -476,13 +429,9 @@ function Story() {
       frame = 0;
       // The pinned phone's centre, in the same units as the steps' boxes
       // (the window's own height is not, under the canvas zoom).
-      const pin = items.current[0]
-        ?.closest(".story-body")
-        ?.querySelector(".story-pin");
+      const pin = items.current[0]?.closest(".story-body")?.querySelector(".story-pin");
       const frameBox = pin?.getBoundingClientRect();
-      const middle = frameBox
-        ? frameBox.top + frameBox.height / 2
-        : window.innerHeight / 2;
+      const middle = frameBox ? frameBox.top + frameBox.height / 2 : window.innerHeight / 2;
       let best = 0;
       let nearest = Infinity;
       items.current.forEach((el, i) => {
@@ -525,19 +474,13 @@ function Story() {
             <span className="phone-notch" />
             <div className="phone-screen">
               {STEPS.map((_, i) => (
-                <div
-                  key={i}
-                  className={`phone-page ${i === step ? "on" : i < step ? "past" : ""}`}
-                >
+                <div key={i} className={`phone-page ${i === step ? "on" : i < step ? "past" : ""}`}>
                   <Screen step={i} />
                 </div>
               ))}
             </div>
           </div>
-          <span
-            className="story-glow"
-            style={{ "--s": step } as CSSProperties}
-          />
+          <span className="story-glow" style={{ "--s": step } as CSSProperties} />
           <span className="story-dots">
             {STEPS.map((_, i) => (
               <span key={i} className={i === step ? "on" : ""} />
@@ -618,24 +561,10 @@ function Bento() {
       </div>
       <div className="bento">
         <Reveal className="tile tile-map">
-          <svg
-            className="map-art"
-            viewBox="0 0 560 400"
-            preserveAspectRatio="xMidYMid slice"
-            aria-hidden="true"
-          >
+          <svg className="map-art" viewBox="0 0 560 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
             <defs>
-              <pattern
-                id="map-grid"
-                width="28"
-                height="28"
-                patternUnits="userSpaceOnUse"
-              >
-                <path
-                  d="M28 0H0V28"
-                  fill="none"
-                  stroke="rgba(47,107,228,.10)"
-                />
+              <pattern id="map-grid" width="28" height="28" patternUnits="userSpaceOnUse">
+                <path d="M28 0H0V28" fill="none" stroke="rgba(47,107,228,.10)" />
               </pattern>
             </defs>
             <rect width="560" height="400" fill="url(#map-grid)" />
@@ -650,20 +579,9 @@ function Bento() {
               [60, 300, 150, 60],
               [250, 290, 120, 80],
             ].map(([x, y, w, h], i) => (
-              <rect
-                key={i}
-                x={x}
-                y={y}
-                width={w}
-                height={h}
-                rx="14"
-                className="map-block"
-              />
+              <rect key={i} x={x} y={y} width={w} height={h} rx="14" className="map-block" />
             ))}
-            <path
-              className="map-route"
-              d="M24 372 C 150 372, 160 280, 230 280 S 330 190, 330 150 S 380 125, 432 118"
-            />
+            <path className="map-route" d="M24 372 C 150 372, 160 280, 230 280 S 330 190, 330 150 S 380 125, 432 118" />
             <circle cx="24" cy="372" r="8" className="map-start" />
             <g className="map-gate" transform="translate(40 336)">
               <rect width="56" height="26" rx="10" />
@@ -680,10 +598,7 @@ function Bento() {
           </svg>
           <div className="tile-text">
             <h3>The way to the right door</h3>
-            <p>
-              Every unit of {TENANT.name} is on the hospital map, with the
-              building, the floor and walking directions from the gate.
-            </p>
+            <p>Every unit of {TENANT.name} is on the hospital map, with the building, the floor and walking directions from the gate.</p>
           </div>
         </Reveal>
 
@@ -695,10 +610,7 @@ function Bento() {
           </span>
           <div className="tile-text">
             <h3>In your own calendar</h3>
-            <p>
-              Add a visit to Google Calendar, Outlook or your phone's calendar
-              in one tap.
-            </p>
+            <p>Add a visit to Google Calendar, Outlook or your phone's calendar in one tap.</p>
           </div>
         </Reveal>
 
@@ -712,10 +624,7 @@ function Bento() {
           </span>
           <div className="tile-text">
             <h3>Move, cancel or book again</h3>
-            <p>
-              Move or cancel a visit without calling the hospital, and book the
-              same clinician again from your history.
-            </p>
+            <p>Move or cancel a visit without calling the hospital, and book the same clinician again from your history.</p>
           </div>
         </Reveal>
 
@@ -741,8 +650,7 @@ function Bento() {
           <div className="tile-text">
             <h3>When plans change on our side</h3>
             <p>
-              If your clinician becomes unavailable you are told at once and
-              offered the nearest new times; nothing is moved without you.
+              If your clinician becomes unavailable you are told at once and offered the nearest new times; nothing is moved without you.
             </p>
           </div>
         </Reveal>
@@ -803,17 +711,11 @@ function Questions() {
         <h2 id="faq-title" className="big-title">
           <Rise text="What people ask first." />
         </h2>
-        <p className="more-lede">
-          Anything else, the front desk at {TENANT.name} can help with.
-        </p>
+        <p className="more-lede">Anything else, the front desk at {TENANT.name} can help with.</p>
       </div>
       <div className="faq-list">
         {QUESTIONS.map(({ q, a }, i) => (
-          <Reveal
-            key={q}
-            index={i}
-            className={`faq-item ${open === i ? "open" : ""}`}
-          >
+          <Reveal key={q} index={i} className={`faq-item ${open === i ? "open" : ""}`}>
             <button
               type="button"
               className="faq-q"
@@ -856,8 +758,7 @@ export function LandingMore() {
           <span className="staff-text">
             <h2 id="staff-title">Working at {TENANT.name}?</h2>
             <p>
-              The front desk, clinicians and unit managers use the same
-              calendar: today's list, the week, the queue, the patient register,
+              The front desk, clinicians and unit managers use the same calendar: today's list, the week, the queue, the patient register,
               hours and leave, and the unit's messages.
             </p>
           </span>

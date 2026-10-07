@@ -116,8 +116,8 @@ export function StaffFirstSignIn() {
         </Button>
       </form>
       <Notice>
-        Nobody at Atria or {TENANT.name} can see this password, including the administrator who created your account. If
-        you lose it, they can only issue a new temporary one.
+        Nobody at Atria or {TENANT.name} can see this password, including the administrator who created your account. If you lose it, they
+        can only issue a new temporary one.
       </Notice>
     </AuthLayout>
   );

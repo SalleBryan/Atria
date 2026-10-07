@@ -118,21 +118,25 @@ export function useRegisterSearch(
     let live = true;
     setBusy(true);
     const sortParam = `sort=${encodeURIComponent(sort)}`;
-    const later = window.setTimeout(() => {
-      (listing
-        ? apiAll<{ results: RegisterEntry[]; nextCursor?: string | null }>(`/patients?${sortParam}`, "results")
-        : api<{ results: RegisterEntry[] }>(`/patients?q=${encodeURIComponent(words)}&${sortParam}`)
-      )
-        .then((found) => {
-          if (!live) return;
-          setResults(found.results);
-          setFailure(null);
-        })
-        .catch(
-          (error: unknown) => live && setFailure(error instanceof Error ? sentence(error.message) : "The register could not be searched."),
+    const later = window.setTimeout(
+      () => {
+        (listing
+          ? apiAll<{ results: RegisterEntry[]; nextCursor?: string | null }>(`/patients?${sortParam}`, "results")
+          : api<{ results: RegisterEntry[] }>(`/patients?q=${encodeURIComponent(words)}&${sortParam}`)
         )
-        .finally(() => live && setBusy(false));
-    }, listing ? 0 : 250);
+          .then((found) => {
+            if (!live) return;
+            setResults(found.results);
+            setFailure(null);
+          })
+          .catch(
+            (error: unknown) =>
+              live && setFailure(error instanceof Error ? sentence(error.message) : "The register could not be searched."),
+          )
+          .finally(() => live && setBusy(false));
+      },
+      listing ? 0 : 250,
+    );
     return () => {
       live = false;
       window.clearTimeout(later);
@@ -276,7 +280,11 @@ export function Patients() {
               >
                 {deletes &&
                   (selectable.includes(p.patientProfileId) ? (
-                    <SelectBox checked={selection.has(p.patientProfileId)} label={`Select ${fullName(p)}`} onChange={() => selection.toggle(p.patientProfileId)} />
+                    <SelectBox
+                      checked={selection.has(p.patientProfileId)}
+                      label={`Select ${fullName(p)}`}
+                      onChange={() => selection.toggle(p.patientProfileId)}
+                    />
                   ) : (
                     <span className="select-box-space" aria-hidden="true" />
                   ))}
@@ -289,7 +297,9 @@ export function Patients() {
                       <span className="account-name">{fullName(p)}</span>
                       <span className="account-sub">
                         {p.patientNumber ?? "No patient number"}
-                        {p.deletionPurgeAt && <span className="chip chip-cancelled patient-deleted">Deleted · {daysLeft(p.deletionPurgeAt)} days</span>}
+                        {p.deletionPurgeAt && (
+                          <span className="chip chip-cancelled patient-deleted">Deleted · {daysLeft(p.deletionPurgeAt)} days</span>
+                        )}
                       </span>
                     </span>
                   </span>
@@ -359,9 +369,7 @@ export function Patients() {
           onClose={() => setBatch(false)}
           onConfirm={async () => {
             const activeIds = selectedPatients.filter((p) => !p.deletionPurgeAt).map((p) => p.patientProfileId);
-            const result = await forEach(activeIds, (id) =>
-              api(`/admin/patients/${encodeURIComponent(id)}`, { method: "DELETE" }),
-            );
+            const result = await forEach(activeIds, (id) => api(`/admin/patients/${encodeURIComponent(id)}`, { method: "DELETE" }));
             setBatch(false);
             selection.clear();
             setFresh((n) => n + 1);
@@ -380,9 +388,7 @@ export function Patients() {
           onClose={() => setBatchRestore(false)}
           onConfirm={async () => {
             const deletedIds = selectedPatients.filter((p) => p.deletionPurgeAt).map((p) => p.patientProfileId);
-            const result = await forEach(deletedIds, (id) =>
-              api(`/admin/patients/${encodeURIComponent(id)}/restore`, { method: "POST" }),
-            );
+            const result = await forEach(deletedIds, (id) => api(`/admin/patients/${encodeURIComponent(id)}/restore`, { method: "POST" }));
             setBatchRestore(false);
             selection.clear();
             setFresh((n) => n + 1);
@@ -593,8 +599,9 @@ export function PatientRecordPage() {
             Book a visit
           </Link>
         )}
-        {role === "TENANT_ADMIN" && record && (
-          record.deletionPurgeAt ? (
+        {role === "TENANT_ADMIN" &&
+          record &&
+          (record.deletionPurgeAt ? (
             <button type="button" className="staff-primary accounts-new" onClick={() => setRestoring(true)}>
               <Undo size={16} />
               Restore account
@@ -604,8 +611,7 @@ export function PatientRecordPage() {
               <Trash size={16} />
               Delete account
             </button>
-          )
-        )}
+          ))}
       </header>
       {record?.deletionPurgeAt && (
         <Notice tone="error">
@@ -625,7 +631,9 @@ export function PatientRecordPage() {
           confirmLabel="Delete account"
           onClose={() => setDeleting(false)}
           onConfirm={async () => {
-            const done = await api<{ purgeAt: string }>(`/admin/patients/${encodeURIComponent(record.patientProfileId)}`, { method: "DELETE" });
+            const done = await api<{ purgeAt: string }>(`/admin/patients/${encodeURIComponent(record.patientProfileId)}`, {
+              method: "DELETE",
+            });
             setDeleting(false);
             setRecord({ ...record, deletionPurgeAt: done.purgeAt });
             setSaid("Account deleted. Upcoming visits were cancelled.");

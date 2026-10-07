@@ -31,25 +31,40 @@ function visit(id: string, hoursAhead: number, state = "BOOKED") {
   };
 }
 
-function respond(
-  appointments: unknown[],
-  cancel = vi.fn((_path: string, _body: unknown) => ({ outcome: "CANCELLED_IN_WINDOW" })),
-) {
+function respond(appointments: unknown[], cancel = vi.fn((_path: string, _body: unknown) => ({ outcome: "CANCELLED_IN_WINDOW" }))) {
   api.mockImplementation(async (path: string, init: RequestInit & { json?: unknown } = {}) => {
     if (path.startsWith("/patients/me/appointments")) return { appointments };
     if (path === "/clinicians") {
       return {
         clinicians: [
-          { clinicianProfileId: "s-mbarga", clinicId: "c-akwa", givenName: "Esther", familyName: "Mbarga", specialty: "Paediatrics", languages: [], qualifications: [], registrationYear: 2008, seniorityBand: "EXPERIENCED" },
+          {
+            clinicianProfileId: "s-mbarga",
+            clinicId: "c-akwa",
+            givenName: "Esther",
+            familyName: "Mbarga",
+            specialty: "Paediatrics",
+            languages: [],
+            qualifications: [],
+            registrationYear: 2008,
+            seniorityBand: "EXPERIENCED",
+          },
         ],
       };
     }
-    if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit", address: "Buea", phone: null, openingHours: null }] };
+    if (path === "/clinics")
+      return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit", address: "Buea", phone: null, openingHours: null }] };
     if (path === "/appointment-types") {
       return {
         gridUnitMinutes: 10,
         appointmentTypes: [
-          { appointmentTypeId: "at-spec", name: "First specialist consultation", serviceLine: "SPECIALIST", durationUnits: 3, bookableBy: "BOTH", cancellationWindowMinutes: 1440 },
+          {
+            appointmentTypeId: "at-spec",
+            name: "First specialist consultation",
+            serviceLine: "SPECIALIST",
+            durationUnits: 3,
+            bookableBy: "BOTH",
+            cancellationWindowMinutes: 1440,
+          },
         ],
       };
     }
@@ -131,7 +146,9 @@ describe("Visits after booking (wave 2)", () => {
 
   it("the patient confirms a booked visit, once", async () => {
     const booked = visit("soon", 60);
-    respondAlso([booked], (path, init) => (path === "/appointments/soon/confirm" && init.method === "POST" ? { ...booked, state: "CONFIRMED" } : undefined));
+    respondAlso([booked], (path, init) =>
+      path === "/appointments/soon/confirm" && init.method === "POST" ? { ...booked, state: "CONFIRMED" } : undefined,
+    );
     renderVisits("/visits/soon");
     await userEvent.click(await screen.findByRole("button", { name: "I'll be there" }));
     expect(api).toHaveBeenCalledWith("/appointments/soon/confirm", { method: "POST" });
@@ -148,7 +165,8 @@ describe("Visits after booking (wave 2)", () => {
         days[tomorrow] = [slot];
         return { days };
       }
-      if (path === "/appointments/soon/reschedule" && init.method === "POST") return { ...booked, state: "RESCHEDULED", startAt: slot.startAt };
+      if (path === "/appointments/soon/reschedule" && init.method === "POST")
+        return { ...booked, state: "RESCHEDULED", startAt: slot.startAt };
       return undefined;
     });
     renderVisits("/visits/soon?move=1");

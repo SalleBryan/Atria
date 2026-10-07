@@ -42,7 +42,6 @@ const SECTIONS: { id: Section; label: string; icon: ComponentType<{ size?: numbe
   { id: "session", label: "Session & security", icon: Lock },
 ];
 
-
 function EditLink({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button type="button" className="link-button" aria-label={label} onClick={onClick}>
@@ -95,14 +94,9 @@ export function StaffAccount() {
 
   const role = roleOf(me);
   const name = [me.givenName, me.familyName].filter(Boolean).join(" ") || "Your account";
-  const clinic =
-    directory.status === "ready"
-      ? directory.data.clinics.find((c) => c.clinicId === me.clinicId)
-      : undefined;
+  const clinic = directory.status === "ready" ? directory.data.clinics.find((c) => c.clinicId === me.clinicId) : undefined;
   const clinicianRecord =
-    directory.status === "ready"
-      ? directory.data.clinicians.find((c) => c.clinicianProfileId === me.staffId)
-      : undefined;
+    directory.status === "ready" ? directory.data.clinicians.find((c) => c.clinicianProfileId === me.staffId) : undefined;
 
   const start = (what: Exclude<Editing, null>) => {
     setSaid(null);
@@ -131,11 +125,7 @@ export function StaffAccount() {
         </div>
 
         <nav className="account-nav" aria-label="Account sections">
-          <span
-            className="side-pill account-pill"
-            aria-hidden="true"
-            style={{ transform: `translateY(calc(${index} * 52px))` }}
-          />
+          <span className="side-pill account-pill" aria-hidden="true" style={{ transform: `translateY(calc(${index} * 52px))` }} />
           {SECTIONS.map(({ id, label, icon: IconComponent }) => (
             <button
               key={id}
@@ -158,12 +148,7 @@ export function StaffAccount() {
 
       <section className="find-detail glass account-detail" aria-labelledby="section-title" key={section}>
         <div className="phone-bar">
-          <button
-            type="button"
-            className="square-button"
-            aria-label="Back to your account"
-            onClick={() => setOpened(false)}
-          >
+          <button type="button" className="square-button" aria-label="Back to your account" onClick={() => setOpened(false)}>
             <ChevronLeft size={18} />
           </button>
           <span>Account</span>
@@ -174,8 +159,8 @@ export function StaffAccount() {
             <header className="section-head">
               <h1 id="section-title">Personal details</h1>
               <p>
-                What Atria holds about you. Change your name, mobile and date of birth here.
-                Your work email is your sign-in identifier and is managed by an administrator.
+                What Atria holds about you. Change your name, mobile and date of birth here. Your work email is your sign-in identifier and
+                is managed by an administrator.
               </p>
             </header>
 
@@ -200,12 +185,7 @@ export function StaffAccount() {
                 sub={name}
                 end={<EditLink label="Change your name" onClick={() => start("name")} />}
               />
-              <Row
-                icon={Mail}
-                tone="tone-green"
-                title="Work email"
-                sub={me.email ?? "Not given (signs in with mobile)"}
-              />
+              <Row icon={Mail} tone="tone-green" title="Work email" sub={me.email ?? "Not given (signs in with mobile)"} />
               <Row
                 icon={Phone}
                 tone="tone-amber"
@@ -232,38 +212,23 @@ export function StaffAccount() {
             </header>
 
             <div className="inner-card settings-card">
-              <Row
-                icon={Shield}
-                tone="tone-violet"
-                title="Access level"
-                sub={ROLE_LABEL[role] ?? role}
-              />
+              <Row icon={Shield} tone="tone-violet" title="Access level" sub={ROLE_LABEL[role] ?? role} />
               <Row
                 icon={Building}
                 tone="tone-blue"
                 title="Assigned unit"
-                sub={
-                  clinic?.name ??
-                  (role === "TENANT_ADMIN" ? "Every unit (System-wide administration)" : "No unit assigned")
-                }
+                sub={clinic?.name ?? (role === "TENANT_ADMIN" ? "Every unit (System-wide administration)" : "No unit assigned")}
               />
               {role === "CLINICIAN" && clinicianRecord && (
                 <>
-                  <Row
-                    icon={Stethoscope}
-                    tone="tone-amber"
-                    title="Specialty"
-                    sub={clinicianRecord.specialty || "General practice"}
-                  />
+                  <Row icon={Stethoscope} tone="tone-amber" title="Specialty" sub={clinicianRecord.specialty || "General practice"} />
                   {clinicianRecord.registrationYear && (
                     <Row
                       icon={Shield}
                       tone="tone-green"
                       title="Ordre registration"
                       sub={`Registered in ${clinicianRecord.registrationYear}${
-                        clinicianRecord.qualifications.length
-                          ? ` (${clinicianRecord.qualifications.join(", ")})`
-                          : ""
+                        clinicianRecord.qualifications.length ? ` (${clinicianRecord.qualifications.join(", ")})` : ""
                       }`}
                     />
                   )}
@@ -289,12 +254,7 @@ export function StaffAccount() {
             </header>
 
             <div className="inner-card settings-card">
-              <Row
-                icon={User}
-                tone="tone-blue"
-                title="Current console session"
-                sub="Signed in on this workstation browser."
-              />
+              <Row icon={User} tone="tone-blue" title="Current console session" sub="Signed in on this workstation browser." />
               <Row
                 icon={Lock}
                 tone="tone-red"

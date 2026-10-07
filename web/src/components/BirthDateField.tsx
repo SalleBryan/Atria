@@ -151,10 +151,18 @@ export function BirthDateField({
                   <ChevronLeft size={16} />
                 </button>
                 <span className="birth-heading">
-                  <button type="button" className={`birth-switch${view === "months" ? " birth-switch-on" : ""}`} onClick={() => setView(view === "months" ? "days" : "months")}>
+                  <button
+                    type="button"
+                    className={`birth-switch${view === "months" ? " birth-switch-on" : ""}`}
+                    onClick={() => setView(view === "months" ? "days" : "months")}
+                  >
                     {MONTHS[shown.month]}
                   </button>
-                  <button type="button" className={`birth-switch${view === "years" ? " birth-switch-on" : ""}`} onClick={() => setView(view === "years" ? "days" : "years")}>
+                  <button
+                    type="button"
+                    className={`birth-switch${view === "years" ? " birth-switch-on" : ""}`}
+                    onClick={() => setView(view === "years" ? "days" : "years")}
+                  >
                     {shown.year}
                   </button>
                 </span>

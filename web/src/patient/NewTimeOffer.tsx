@@ -77,7 +77,8 @@ export function NewTimeOffer({
     <section className="new-time" aria-labelledby="new-time-title">
       <p className="new-time-head" id="new-time-title">
         <Alert size={16} />
-        Your clinician can no longer see you at {clock.time(appointment.startAt)}. Choose a new time below; please don't come in at the old one.
+        Your clinician can no longer see you at {clock.time(appointment.startAt)}. Choose a new time below; please don't come in at the old
+        one.
       </p>
       {offers === null ? (
         <LoadingPane className="compact" label="Finding the next free times" />

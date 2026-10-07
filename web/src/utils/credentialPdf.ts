@@ -61,7 +61,10 @@ async function credentialsPdf(credentials: StaffCredential[], name: string) {
       [[credential.signInName, credential.temporaryPassword]],
     );
   });
-  pdf.callout("At the first sign-in", STEPS.map((step, i) => `${i + 1}. ${step}`));
+  pdf.callout(
+    "At the first sign-in",
+    STEPS.map((step, i) => `${i + 1}. ${step}`),
+  );
   pdf.save(name);
 }
 
@@ -70,5 +73,8 @@ export function downloadSingleStaffPdf(credential: StaffCredential) {
 }
 
 export function downloadBatchStaffPdf(credentials: StaffCredential[]) {
-  return credentialsPdf(credentials, fileName(["Staff credentials", `${credentials.length} accounts`, new Date().toISOString().slice(0, 10)], "pdf"));
+  return credentialsPdf(
+    credentials,
+    fileName(["Staff credentials", `${credentials.length} accounts`, new Date().toISOString().slice(0, 10)], "pdf"),
+  );
 }

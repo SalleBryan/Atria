@@ -10,13 +10,7 @@
  * both are accepted, and the stored form is E.164.
  */
 
-import {
-  AsYouType,
-  type CountryCode,
-  getCountries,
-  getCountryCallingCode,
-  parsePhoneNumberFromString,
-} from "libphonenumber-js/min";
+import { AsYouType, type CountryCode, getCountries, getCountryCallingCode, parsePhoneNumberFromString } from "libphonenumber-js/min";
 
 import { REGION_PACKS, type RegionPack } from "../generated/regionPacks";
 
@@ -53,8 +47,7 @@ export function countries(): { code: CountryCode; name: string; dial: string }[]
   return all;
 }
 
-export const countryName = (country: CountryCode): string =>
-  new Intl.DisplayNames(["en"], { type: "region" }).of(country) ?? country;
+export const countryName = (country: CountryCode): string => new Intl.DisplayNames(["en"], { type: "region" }).of(country) ?? country;
 
 /**
  * The country a number written with its code (+237..., 00237...) belongs to,

@@ -90,8 +90,8 @@ export function ResetPassword({ audience = "patient" }: { audience?: Audience })
           </span>
           <h2 className="recovery-title">Only you can reset your password.</h2>
           <p className="recovery-text">
-            Atria never sends your password by email, and neither the staff of {TENANT.name} nor your administrator can read it. A
-            code sent to your email is the only route back in.
+            Atria never sends your password by email, and neither the staff of {TENANT.name} nor your administrator can read it. A code sent
+            to your email is the only route back in.
           </p>
         </div>
       }
@@ -102,9 +102,7 @@ export function ResetPassword({ audience = "patient" }: { audience?: Audience })
       {step === "request" ? (
         <>
           <h1 className="title title-reset">Reset your password.</h1>
-          <p className="lede lede-large">
-            Enter the email on your Atria account and we will send a code to set a new password.
-          </p>
+          <p className="lede lede-large">Enter the email on your Atria account and we will send a code to set a new password.</p>
           <form className="form-card" onSubmit={request} noValidate>
             {error && <Notice tone="error">{error}</Notice>}
             <Field

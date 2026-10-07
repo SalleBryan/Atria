@@ -92,8 +92,7 @@ const FALLBACK = {
  * --spring-<spatial|effects>-<fast|default|slow> and the same with -duration.
  */
 export function installMotion(root: HTMLElement = document.documentElement): void {
-  const supported =
-    typeof CSS !== "undefined" && CSS.supports?.("transition-timing-function", "linear(0, 1)");
+  const supported = typeof CSS !== "undefined" && CSS.supports?.("transition-timing-function", "linear(0, 1)");
   for (const [family, speeds] of Object.entries(EXPRESSIVE)) {
     for (const [speed, spring] of Object.entries(speeds)) {
       const { linear, durationMs } = easing(spring);

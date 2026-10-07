@@ -76,6 +76,31 @@ export const ACTION_LABEL: Record<string, string> = {
   "staff.create": "Created a staff account",
   "staff.update_roles": "Changed a role",
   "staff.suspend": "Suspended an account",
+  "appointment.place": "Set a procedure's time",
+  "appointment.decline": "Declined a procedure request",
+  "care_context.read": "Read intake answers",
+  "care_context.write": "Wrote intake answers",
+  "patient.create": "Registered a patient",
+  "patient.read": "Opened a patient's record",
+  "patient.search": "Searched for a patient",
+  "queue.read": "Viewed the queue",
+  "queue.ticket": "Gave a queue place",
+  "queue.call_next": "Called the next patient",
+  "request.inbox": "Viewed procedure requests",
+  "session.publish": "Published a session",
+  "session.close": "Closed a session",
+  "settings.tenant": "Changed hospital settings",
+  "settings.unit": "Changed a unit",
+  "settings.unit_create": "Added a unit",
+  "settings.unit_delete": "Removed a unit",
+  "settings.type_create": "Added a visit type",
+  "settings.type_change": "Changed a visit type",
+  "settings.form_create": "Added an intake form",
+  "settings.form_change": "Changed an intake form",
+  "settings.fee_band": "Changed a fee",
+  "staff.priority_allowance": "Changed a priority allowance",
+  "staff.reset_password": "Issued a temporary password",
+  "staff.update_profile": "Corrected clinician details",
   "audit.export": "Exported the audit log",
 };
 
@@ -85,6 +110,13 @@ const SUBJECT_LABEL: Record<string, string> = {
   CLINICIAN: "Clinician",
   STAFF: "Staff account",
   AUDIT_LOG: "Audit log",
+  PATIENT: "Patient record",
+  REGISTER: "Patient register",
+  SESSION: "Queue session",
+  TENANT: "Hospital settings",
+  APPOINTMENT_TYPE: "Visit type",
+  FEE_BAND: "Fee",
+  INTAKE_FORM: "Intake form",
 };
 
 const ROLE_NAME: Record<string, string> = {
@@ -191,7 +223,7 @@ export function AuditLog() {
       const file = await apiFile(`/audit/export?${filters}`);
       const link = document.createElement("a");
       link.href = URL.createObjectURL(file.blob);
-      link.download = file.name ?? "atria-audit.csv";
+      link.download = file.name ?? "Atria Audit log.csv";
       link.click();
       URL.revokeObjectURL(link.href);
       setSaid("Export downloaded. The export is recorded in the log.");
@@ -289,7 +321,8 @@ export function AuditLog() {
           { id: "actor", label: "Who", options: actorOptions, value: actor, onChange: setActor, allLabel: "Anyone" },
           { id: "action", label: "Action", options: actionOptions, value: action, onChange: setAction, allLabel: "Any action" },
         ]}
-        results={page ? (page.count === 1 ? "Show 1 entry" : `Show ${page.count} entries`) : "Show entries"}
+        // While a new filter is being counted, no number: the last one was for the old filter.
+        results={page && !loading ? (page.count === 1 ? "Show 1 entry" : `Show ${page.count} entries`) : "Show entries"}
         onClear={() => {
           setKind(null);
           setActor(null);

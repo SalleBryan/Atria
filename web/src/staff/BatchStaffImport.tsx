@@ -208,7 +208,7 @@ export function BatchStaffImport({
                 <button
                   type="button"
                   className="outline-button"
-                  onClick={() => downloadStaffTemplate(clinics)}
+                  onClick={() => void downloadStaffTemplate(clinics)}
                 >
                   <Download size={16} />
                   Download template

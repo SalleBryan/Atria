@@ -9,6 +9,9 @@ import * as XLSX from "xlsx";
 import { type CountryCode, HOME_COUNTRY, isMobile, normalisePhone } from "../auth/phone";
 import { birthDate } from "../components/BirthDateField";
 import type { Role } from "../generated/permissions";
+import { TENANT } from "../tenant";
+import { AtriaWorkbook } from "./export/sheet";
+import { fileName } from "./export/tokens";
 
 export type StaffRole = Exclude<Role, "PATIENT">;
 
@@ -139,172 +142,112 @@ function normalizeRole(text: string): StaffRole | null {
   return null;
 }
 
+/** What the import calls each role, as the console does; normalizeRole reads these. */
+const ROLE_WORDS = ["Receptionist", "Clinician", "Unit manager", "Administrator"];
+
 /**
- * Generates and triggers download of the Staff accounts Excel template.
+ * The staff import template, in the documents' style (utils/export): the head
+ * on row one of the first sheet, where the import reads it; a list of roles
+ * and of the hospital's units on the columns that take one; the guidance and
+ * the units on sheets of their own.
  */
-export function downloadStaffTemplate(clinics: ClinicRef[]) {
-  const wb = XLSX.utils.book_new();
-
-  const primaryClinicName = clinics[0]?.name ?? "Central Outpatient Clinic";
-
-  // Sheet 1: Staff accounts template
-  const headers = [
-    "Role",
-    "Given Name",
-    "Family Name",
-    "Mobile",
-    "Work Email",
-    "Unit",
-    "Specialty",
-    "Registration Year",
-    "Ordre Number",
-    "Consults In",
-    "Employee Number",
-  ];
-
-  const sampleRows = [
-    [
-      "RECEPTIONIST",
-      "Marie",
-      "Fotso",
-      "+237 6 70 11 22 33",
-      "",
-      primaryClinicName,
-      "",
-      "",
-      "",
-      "",
-      "REC-001",
+export async function downloadStaffTemplate(clinics: ClinicRef[]) {
+  const book = await AtriaWorkbook.create();
+  const unit = clinics[0]?.name ?? "General Outpatient Department";
+  book.template({
+    name: "Staff accounts",
+    columns: [
+      { label: "Role", width: 18 },
+      { label: "Given name", width: 18 },
+      { label: "Family name", width: 18 },
+      { label: "Mobile", width: 22 },
+      { label: "Work email", width: 30 },
+      { label: "Unit", width: 32 },
+      { label: "Specialty", width: 22 },
+      { label: "Registration year", width: 18 },
+      { label: "Ordre number", width: 18 },
+      { label: "Consults in", width: 20 },
+      { label: "Employee number", width: 18 },
     ],
-    [
-      "CLINICIAN",
-      "Samuel",
-      "Eto'o",
-      "+237 6 77 44 55 66",
-      "samuel.etoo@atria.care",
-      primaryClinicName,
-      "General Medicine",
-      "2014",
-      "MED-7821",
-      "English, French",
-      "DOC-004",
+    rows: [
+      ["Receptionist", "Marie", "Fotso", "+237 6 70 11 22 33", "", unit, "", "", "", "", "REC-001"],
+      ["Clinician", "Samuel", "Eto'o", "+237 6 77 44 55 66", "samuel.etoo@example.cm", unit, "General Practitioner", "2014", "MED-7821", "English, French", "DOC-004"],
+      ["Unit manager", "Jeanne", "Ngo", "+237 6 99 88 77 66", "jeanne.ngo@example.cm", unit, "", "", "", "", "MGR-002"],
+      ["Administrator", "Alain", "Mboma", "+237 6 55 44 33 22", "alain.mboma@example.cm", "", "", "", "", "", "ADM-001"],
     ],
-    [
-      "CLINIC_MANAGER",
-      "Jeanne",
-      "Ngo",
-      "+237 6 99 88 77 66",
-      "jeanne.ngo@atria.care",
-      primaryClinicName,
-      "",
-      "",
-      "",
-      "",
-      "MGR-002",
+    choices: clinics.length ? { 0: ROLE_WORDS, 5: `'Units'!$A$2:$A$${clinics.length + 1}` } : { 0: ROLE_WORDS },
+  });
+  book.table({
+    name: "Instructions",
+    title: "Importing staff accounts",
+    lede: "One row per account on the first sheet. Delete the four sample rows before you import.",
+    meta: `${TENANT.name} · Temporary passwords are made on import and work for 7 days`,
+    columns: [
+      { label: "Column", width: 22 },
+      { label: "Required for", width: 40 },
+      { label: "What to enter", width: 90 },
     ],
-    [
-      "TENANT_ADMIN",
-      "Alain",
-      "Mboma",
-      "+237 6 55 44 33 22",
-      "alain.mboma@atria.care",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "ADM-001",
+    rows: [
+      ["Role", "Every account", "Receptionist, Clinician, Unit manager or Administrator (pick from the list)"],
+      ["Given name", "Every account", "As the person writes it, such as Marie"],
+      ["Family name", "Every account", "As the person writes it, such as Fotso"],
+      ["Mobile", "Every account", "With the country code, such as +237 6 70 00 00 00. It is the sign-in name when there is no email."],
+      ["Work email", "Administrators", "Optional for everyone else. When given, it is the sign-in name."],
+      ["Unit", "Receptionists, clinicians, unit managers", "Exactly as on the Units sheet (pick from the list)"],
+      ["Specialty", "Clinicians", "As patients should read it, such as General Practitioner. It shows in the directory."],
+      ["Registration year", "Clinicians", "The year on the Order's roll, such as 2012"],
+      ["Ordre number", "Clinicians", "Such as MED-8942"],
+      ["Consults in", "Clinicians", "English, French, or both"],
+      ["Employee number", "Optional", "The hospital's own staff number"],
     ],
-  ];
-
-  const wsData = [headers, ...sampleRows];
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-  // Set column widths
-  ws["!cols"] = [
-    { wch: 18 }, // Role
-    { wch: 16 }, // Given Name
-    { wch: 16 }, // Family Name
-    { wch: 20 }, // Mobile
-    { wch: 26 }, // Work Email
-    { wch: 26 }, // Unit
-    { wch: 20 }, // Specialty
-    { wch: 18 }, // Registration Year
-    { wch: 16 }, // Ordre Number
-    { wch: 20 }, // Consults In
-    { wch: 16 }, // Employee Number
-  ];
-
-  XLSX.utils.book_append_sheet(wb, ws, "Staff Accounts");
-
-  // Sheet 2: Reference Information & Allowed Units
-  const referenceHeaders = ["Field", "Required For", "Allowed Values / Examples"];
-  const referenceData = [
-    referenceHeaders,
-    ["Role", "All", "RECEPTIONIST, CLINICIAN, CLINIC_MANAGER, TENANT_ADMIN"],
-    ["Given Name", "All", "e.g. Marie, Samuel"],
-    ["Family Name", "All", "e.g. Fotso, Eto'o"],
-    ["Mobile", "All", "International E.164 format, e.g. +237 6 70 00 00 00"],
-    ["Work Email", "TENANT_ADMIN (optional for others)", "Valid email, e.g. doctor@atria.care"],
-    ["Unit", "RECEPTIONIST, CLINICIAN, CLINIC_MANAGER", "Must match a hospital unit name listed below"],
-    ["Specialty", "CLINICIAN only", "e.g. General Medicine, Pediatrics, Cardiology"],
-    ["Registration Year", "CLINICIAN only", "Year on Order's roll (e.g. 2012)"],
-    ["Ordre Number", "CLINICIAN only", "e.g. MED-8942"],
-    ["Consults In", "CLINICIAN only", "English, French (or en, fr)"],
-    ["Employee Number", "Optional for all", "Internal staff badge number"],
-    [],
-    ["AVAILABLE HOSPITAL UNITS", "Unit ID", "Exact Unit Name to use in Unit column"],
-    ...clinics.map((c) => ["Unit", c.clinicId, c.name]),
-  ];
-
-  const refWs = XLSX.utils.aoa_to_sheet(referenceData);
-  refWs["!cols"] = [{ wch: 24 }, { wch: 38 }, { wch: 48 }];
-  XLSX.utils.book_append_sheet(wb, refWs, "Instructions & Units");
-
-  XLSX.writeFile(wb, "atria-staff-import-template.xlsx");
+  });
+  book.table({
+    name: "Units",
+    columns: [
+      { label: "Unit", width: 40 },
+      { label: "Unit ID", width: 22, kind: "mono" },
+    ],
+    rows: clinics.map((c) => [c.name, c.clinicId]),
+  });
+  await book.save(fileName(["Staff import template"], "xlsx"));
 }
 
-/**
- * Generates and triggers download of the Patient records Excel template.
- */
-export function downloadPatientTemplate() {
-  const wb = XLSX.utils.book_new();
-
+/** The patient import template, set like the staff one. */
+export async function downloadPatientTemplate() {
+  const book = await AtriaWorkbook.create();
   // No language column: Atria is English only until Phase 3.
-  const headers = ["Given Name", "Family Name", "Mobile", "Date of Birth"];
-
-  const sampleRows = [
-    ["Paul", "Biya", "+237 6 70 00 11 22", "13/02/1985"],
-    ["Grace", "Ngo", "+237 6 99 12 34 56", "24/11/1992"],
-    ["Jean", "Kamga", "+237 6 77 88 99 00", "05/08/1978"],
-  ];
-
-  const wsData = [headers, ...sampleRows];
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-  ws["!cols"] = [
-    { wch: 18 }, // Given Name
-    { wch: 18 }, // Family Name
-    { wch: 22 }, // Mobile
-    { wch: 18 }, // Date of Birth
-  ];
-
-  XLSX.utils.book_append_sheet(wb, ws, "Patients");
-
-  // Sheet 2: Guidelines
-  const refHeaders = ["Column", "Required", "Format & Instructions"];
-  const refData = [
-    refHeaders,
-    ["Given Name", "Yes", "Patient first name"],
-    ["Family Name", "Yes", "Patient last name"],
-    ["Mobile", "Yes", "Mobile number with country code, e.g. +237 6 70 00 00 00. Reminders go here by SMS."],
-    ["Date of Birth", "Optional", "DD/MM/YYYY or YYYY-MM-DD, e.g. 15/04/1990"],
-  ];
-  const refWs = XLSX.utils.aoa_to_sheet(refData);
-  refWs["!cols"] = [{ wch: 18 }, { wch: 12 }, { wch: 60 }];
-  XLSX.utils.book_append_sheet(wb, refWs, "Instructions");
-
-  XLSX.writeFile(wb, "atria-patient-import-template.xlsx");
+  book.template({
+    name: "Patients",
+    columns: [
+      { label: "Given name", width: 20 },
+      { label: "Family name", width: 20 },
+      { label: "Mobile", width: 24 },
+      { label: "Date of birth", width: 18 },
+    ],
+    rows: [
+      ["Paul", "Biya", "+237 6 70 00 11 22", "13/02/1985"],
+      ["Grace", "Ngo", "+237 6 99 12 34 56", "24/11/1992"],
+      ["Jean", "Kamga", "+237 6 77 88 99 00", "05/08/1978"],
+    ],
+  });
+  book.table({
+    name: "Instructions",
+    title: "Importing patients",
+    lede: "One row per patient on the first sheet. Delete the three sample rows before you import.",
+    meta: TENANT.name,
+    columns: [
+      { label: "Column", width: 20 },
+      { label: "Required", width: 12 },
+      { label: "What to enter", width: 70 },
+    ],
+    rows: [
+      ["Given name", "Yes", "The patient's first name"],
+      ["Family name", "Yes", "The patient's last name"],
+      ["Mobile", "Yes", "With the country code, such as +237 6 70 00 00 00. Reminders go here by SMS."],
+      ["Date of birth", "No", "DD/MM/YYYY or YYYY-MM-DD, such as 15/04/1990"],
+    ],
+  });
+  await book.save(fileName(["Patient import template"], "xlsx"));
 }
 
 export interface ExistingStaffAccount {

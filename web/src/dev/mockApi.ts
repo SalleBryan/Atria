@@ -1068,6 +1068,13 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
           { channel: "PHONE", booked: Math.round(booked * 0.15), attended: Math.round(attended * 0.13), noShow: Math.round(noShow * 0.3), attendance: 0.8 },
           { channel: "REFERRAL", booked: Math.round(booked * 0.05), attended: Math.round(attended * 0.04), noShow: Math.round(noShow * 0.1), attendance: 0.75 },
         ],
+        // Who made the booking (core/report.booked_by_of): mostly the patient, then the desk.
+        byBookedBy: [
+          { bookedBy: "PATIENT", booked: Math.round(booked * 0.55), attended: Math.round(attended * 0.54), noShow: Math.round(noShow * 0.6), attendance: 0.86 },
+          { bookedBy: "RECEPTIONIST", booked: Math.round(booked * 0.35), attended: Math.round(attended * 0.36), noShow: Math.round(noShow * 0.3), attendance: 0.91 },
+          { bookedBy: "CLINICIAN", booked: Math.round(booked * 0.08), attended: Math.round(attended * 0.08), noShow: Math.round(noShow * 0.1), attendance: 0.89 },
+          { bookedBy: "CLINIC_MANAGER", booked: Math.round(booked * 0.02), attended: Math.round(attended * 0.02), noShow: 0, attendance: 1 },
+        ],
         byReminder: [
           { reminder: "SENT", booked: Math.round(booked * 0.7), attended: Math.round(attended * 0.76), noShow: Math.round(noShow * 0.4), attendance: 0.94 },
           { reminder: "FAILED", booked: Math.round(booked * 0.05), attended: Math.round(attended * 0.04), noShow: Math.round(noShow * 0.2), attendance: 0.6 },
@@ -1095,9 +1102,53 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     }
     const units = clinics.map((c, i) => ({ clinicId: c.clinicId, clinicName: c.name, week: rawDate, from: rawDate, to: rawDate, granularity, firstDay: "2026-09-19", ...figures(i) }));
     const sum = (key: "booked" | "attended" | "noShow" | "cancelled" | "lateCancelled") => units.reduce((n, u) => n + u[key], 0);
+    // Each breakdown summed across the units, as core/report.hospital_figures does.
+    const merged = <K extends string>(rows: Record<K | "booked" | "attended" | "noShow", string | number>[][], name: K) => {
+      const totals = new Map<string, { booked: number; attended: number; noShow: number }>();
+      for (const row of rows.flat()) {
+        const t = totals.get(String(row[name])) ?? { booked: 0, attended: 0, noShow: 0 };
+        t.booked += Number(row.booked);
+        t.attended += Number(row.attended);
+        t.noShow += Number(row.noShow);
+        totals.set(String(row[name]), t);
+      }
+      return [...totals].map(([value, t]) => ({ [name]: value, ...t, attendance: t.attended + t.noShow ? Math.round((t.attended / (t.attended + t.noShow)) * 1000) / 1000 : null }));
+    };
+    const ledgerRows = <K extends "entitlement" | "practice">(name: K, pick: (u: (typeof units)[number]) => Record<K | "entries" | "amountMinor", string | number>[]) => {
+      const totals = new Map<string, { entries: number; amountMinor: number }>();
+      for (const row of units.flatMap(pick)) {
+        const t = totals.get(String(row[name])) ?? { entries: 0, amountMinor: 0 };
+        t.entries += Number(row.entries);
+        t.amountMinor += Number(row.amountMinor);
+        totals.set(String(row[name]), t);
+      }
+      return [...totals].map(([value, t]) => ({ [name]: value, ...t }));
+    };
     return json(
       200,
-      { week: rawDate, from: rawDate, to: rawDate, granularity, firstDay: "2026-09-19", units, booked: sum("booked"), attended: sum("attended"), noShow: sum("noShow"), cancelled: sum("cancelled"), lateCancelled: sum("lateCancelled") },
+      {
+        week: rawDate,
+        from: rawDate,
+        to: rawDate,
+        granularity,
+        firstDay: "2026-09-19",
+        units,
+        booked: sum("booked"),
+        attended: sum("attended"),
+        noShow: sum("noShow"),
+        cancelled: sum("cancelled"),
+        lateCancelled: sum("lateCancelled"),
+        attendance: Math.round((sum("attended") / (sum("attended") + sum("noShow"))) * 1000) / 1000,
+        byChannel: merged(units.map((u) => u.byChannel), "channel"),
+        byBookedBy: merged(units.map((u) => u.byBookedBy), "bookedBy"),
+        byReminder: merged(units.map((u) => u.byReminder), "reminder"),
+        ledger: {
+          entries: units.reduce((n, u) => n + u.ledger.entries, 0),
+          currency: "XAF",
+          byEntitlement: ledgerRows("entitlement", (u) => u.ledger.byEntitlement),
+          byBand: ledgerRows("practice", (u) => u.ledger.byBand),
+        },
+      },
       300,
     );
   }

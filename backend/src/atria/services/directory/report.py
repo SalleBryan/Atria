@@ -140,6 +140,8 @@ def every_unit(principal: Principal, event: dict[str, Any], *, data: Booking) ->
         "noShow": sum(int(u["noShow"]) for u in units),
         "cancelled": sum(int(u["cancelled"]) for u in units),
         "lateCancelled": sum(int(u["lateCancelled"]) for u in units),
+        # The breakdowns a unit's report shows, for the whole hospital.
+        **rules.hospital_figures(units),
     }
 
 

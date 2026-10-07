@@ -3029,6 +3029,20 @@ components:
               attended: { type: integer }
               noShow: { type: integer }
               attendance: { type: [number, "null"] }
+        byBookedBy:
+          type: array
+          description: |
+            Who made the booking: the patient, or which staff role on their
+            behalf. Kept apart from the channel, which is how the patient
+            reached the unit. The hospital-wide report sums each unit's.
+          items:
+            type: object
+            properties:
+              bookedBy: { type: string, enum: [PATIENT, RECEPTIONIST, CLINICIAN, CLINIC_MANAGER, TENANT_ADMIN] }
+              booked: { type: integer }
+              attended: { type: integer }
+              noShow: { type: integer }
+              attendance: { type: [number, "null"] }
         byReminder:
           type: array
           description: Shown side by side with attendance, not as cause and effect (FR-MSR-04).

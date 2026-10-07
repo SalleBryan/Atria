@@ -43,6 +43,7 @@ interface Figures {
   open?: number;
   attendance?: number | null;
   byChannel?: (Rate & { channel: string })[];
+  byBookedBy?: (Rate & { bookedBy: string })[];
   byReminder?: (Rate & { reminder: string })[];
   ledger?: {
     entries: number;
@@ -76,6 +77,14 @@ type Granularity = "day" | "week" | "month" | "year";
 const CHANNEL: Record<string, string> = { ONLINE: "Online", WALK_IN: "At the desk", PHONE: "By phone", REFERRAL: "Referred" };
 const REMINDER: Record<string, string> = { SENT: "Reminder sent", FAILED: "Reminder failed", NOT_SENT: "No reminder" };
 const ENTITLEMENT: Record<string, string> = { FULL: "Full refund", PARTIAL: "Partial refund", NONE: "No refund" };
+/** Who made a booking (core/report.booked_by_of), kept apart from the channel (2026-10-07). */
+const BOOKED_BY_LABEL: Record<string, string> = {
+  PATIENT: "The patient",
+  RECEPTIONIST: "A receptionist",
+  CLINICIAN: "A clinician",
+  CLINIC_MANAGER: "A unit manager",
+  TENANT_ADMIN: "An administrator",
+};
 
 const EVERY = "every";
 
@@ -406,7 +415,7 @@ export function Reports() {
             )}
           </section>
 
-          {hospital ? (
+          {hospital && (
             <section className="glass accounts-card" aria-label="Every unit">
               <div className="accounts-head reports-units-head" aria-hidden="true">
                 <span>UNIT</span>
@@ -435,54 +444,56 @@ export function Reports() {
                 </p>
               )}
             </section>
-          ) : (
-            one && (
-              <div className="reports-cols">
-                <RateCard
-                  title="Attendance by how they booked"
-                  rows={(one.byChannel ?? []).map((r) => ({ ...r, label: CHANNEL[r.channel] ?? r.channel }))}
-                />
-                <RateCard
-                  title="Attendance by reminder"
-                  note="Shown side by side, not as cause and effect."
-                  rows={(one.byReminder ?? []).map((r) => ({ ...r, label: REMINDER[r.reminder] ?? r.reminder }))}
-                />
-                <section className="glass availability-card reports-ledger" aria-labelledby="ledger-title">
-                  <h2 id="ledger-title">Fee ledger</h2>
-                  <p className="accounts-banner reports-banner">
-                    <Shield size={16} />A record of each closed visit's fee and refund. No money moves through Atria.
-                  </p>
-                  {one.ledger && one.ledger.entries ? (
-                    <>
-                      <dl className="reports-list">
-                        {one.ledger.byEntitlement.map((row) => (
-                          <div key={row.entitlement}>
-                            <dt>{ENTITLEMENT[row.entitlement] ?? row.entitlement}</dt>
-                            <dd>
-                              {row.entries} {row.entries === 1 ? "visit" : "visits"} · {money(row.amountMinor, one.ledger!.currency)}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                      <p className="settings-label">By fee band</p>
-                      <dl className="reports-list">
-                        {one.ledger.byBand.map((row) => (
-                          <div key={row.practice}>
-                            <dt>{row.practice}</dt>
-                            <dd>
-                              {row.entries} · {money(row.amountMinor, one.ledger!.currency)}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </>
-                  ) : (
-                    <p className="today-empty">No visits closed in this period yet.</p>
-                  )}
-                </section>
-              </div>
-            )
           )}
+          <div className="reports-cols">
+            <RateCard
+              title="Attendance by how they booked"
+              rows={(found.byChannel ?? []).map((r) => ({ ...r, label: CHANNEL[r.channel] ?? r.channel }))}
+            />
+            <RateCard
+              title="Who booked"
+              note="The patient, or staff on their behalf."
+              rows={(found.byBookedBy ?? []).map((r) => ({ ...r, label: BOOKED_BY_LABEL[r.bookedBy] ?? r.bookedBy }))}
+            />
+            <RateCard
+              title="Attendance by reminder"
+              note="Shown side by side, not as cause and effect."
+              rows={(found.byReminder ?? []).map((r) => ({ ...r, label: REMINDER[r.reminder] ?? r.reminder }))}
+            />
+            <section className="glass availability-card reports-ledger" aria-labelledby="ledger-title">
+              <h2 id="ledger-title">Fee ledger</h2>
+              <p className="accounts-banner reports-banner">
+                <Shield size={16} />A record of each closed visit's fee and refund. No money moves through Atria.
+              </p>
+              {found.ledger && found.ledger.entries ? (
+                <>
+                  <dl className="reports-list">
+                    {found.ledger.byEntitlement.map((row) => (
+                      <div key={row.entitlement}>
+                        <dt>{ENTITLEMENT[row.entitlement] ?? row.entitlement}</dt>
+                        <dd>
+                          {row.entries} {row.entries === 1 ? "visit" : "visits"} · {money(row.amountMinor, found.ledger!.currency)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <p className="settings-label">By fee band</p>
+                  <dl className="reports-list">
+                    {found.ledger.byBand.map((row) => (
+                      <div key={row.practice}>
+                        <dt>{row.practice}</dt>
+                        <dd>
+                          {row.entries} · {money(row.amountMinor, found.ledger!.currency)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </>
+              ) : (
+                <p className="today-empty">No visits closed in this period yet.</p>
+              )}
+            </section>
+          </div>
         </>
       )}
     </div>

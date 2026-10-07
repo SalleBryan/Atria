@@ -281,6 +281,24 @@ class TestWeeklyReport:
         by = {row["channel"]: row for row in body_of(report(MANAGER))["byChannel"]}
         assert by["ONLINE"]["booked"] == 4
 
+    def test_attendance_by_who_made_the_booking(self, week, repository):
+        # The attended visit was booked at the desk on the patient's behalf.
+        key = keys.appointment(TENANT, week[0]["appointmentId"])
+        repository.put(key, {**repository.get(key), "bookedByRole": "RECEPTIONIST"})
+        by = {row["bookedBy"]: row for row in body_of(report(MANAGER))["byBookedBy"]}
+        assert (by["RECEPTIONIST"]["booked"], by["RECEPTIONIST"]["attended"]) == (1, 1)
+        assert (by["PATIENT"]["booked"], by["PATIENT"]["noShow"]) == (3, 1)
+        assert "CLINICIAN" not in by
+
+    def test_the_hospital_report_carries_every_breakdown(self, week):
+        found = body_of(report(ADMIN, resource="/reports"))
+        assert found["attendance"] == 0.5
+        assert {r["channel"]: r["booked"] for r in found["byChannel"]} == {"ONLINE": 4}
+        assert {r["bookedBy"]: r["booked"] for r in found["byBookedBy"]} == {"PATIENT": 4}
+        assert {r["reminder"]: r["booked"] for r in found["byReminder"]}["NOT_SENT"] == 2
+        refunds = {r["entitlement"]: r["entries"] for r in found["ledger"]["byEntitlement"]}
+        assert (refunds["NONE"], refunds["PARTIAL"]) == (2, 1)
+
     def test_the_ledger_is_totalled_as_a_record(self, week):
         totals = {
             row["entitlement"]: row for row in body_of(report(MANAGER))["ledger"]["byEntitlement"]

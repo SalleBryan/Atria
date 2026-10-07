@@ -45,6 +45,7 @@ describe("parseExcelDate", () => {
 });
 
 describe("downloadStaffTemplate and downloadPatientTemplate", () => {
+  // The first test pays for loading ExcelJS, which is slow on a busy runner.
   // The workbook the browser is handed, caught instead of saved.
   async function saved(make: () => Promise<void>): Promise<{ file: File; name: string }> {
     let blob: Blob | null = null;
@@ -69,7 +70,7 @@ describe("downloadStaffTemplate and downloadPatientTemplate", () => {
     const parsed = await parseStaffExcel(file, clinics);
     expect(parsed.rows.map((r) => r.role)).toEqual(["RECEPTIONIST", "CLINICIAN", "CLINIC_MANAGER", "TENANT_ADMIN"]);
     expect(parsed.errorCount).toBe(0);
-  });
+  }, 60_000);
 
   it("makes a patient template the import reads back", async () => {
     const { file, name } = await saved(() => downloadPatientTemplate());
@@ -77,7 +78,7 @@ describe("downloadStaffTemplate and downloadPatientTemplate", () => {
     const parsed = await parsePatientExcel(file);
     expect(parsed.rows).toHaveLength(3);
     expect(parsed.errorCount).toBe(0);
-  });
+  }, 60_000);
 });
 
 describe("parseStaffExcel", () => {

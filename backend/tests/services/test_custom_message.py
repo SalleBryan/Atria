@@ -92,6 +92,9 @@ class TestPerson:
                 return {"givenName": "Tracy", "preferredLanguage": "en"}
 
         monkeypatch.setattr("atria.data.people.People", lambda _repo: MockPeople())
+        # No real table either: on a machine with no AWS region set (CI), a
+        # real Repository fails before the stand-in people are asked.
+        monkeypatch.setattr("atria.data.repository.Repository", lambda: None)
         ev = event(given_name="OldName", sub="sub-123")
         res = custom_message.handler(ev, None)
         assert "Hello Tracy," in res["response"]["emailMessage"]

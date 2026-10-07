@@ -32,15 +32,49 @@ function renderAccount(signOut = vi.fn()) {
     if (path.startsWith("/patients/me/appointments")) {
       return {
         appointments: [
-          { appointmentId: "a-1", reference: "APT-1", clinicId: "c-akwa", appointmentTypeId: "at-1", clinicianProfileId: "s-1", startAt: AHEAD, endAt: AHEAD, state: "BOOKED", createdAt: AHEAD },
+          {
+            appointmentId: "a-1",
+            reference: "APT-1",
+            clinicId: "c-akwa",
+            appointmentTypeId: "at-1",
+            clinicianProfileId: "s-1",
+            startAt: AHEAD,
+            endAt: AHEAD,
+            state: "BOOKED",
+            createdAt: AHEAD,
+          },
         ],
       };
     }
     if (path === "/clinicians") {
-      return { clinicians: [{ clinicianProfileId: "s-1", clinicId: "c-akwa", givenName: "Esther", familyName: "Mbarga", specialty: "Paediatrics", languages: [], qualifications: [], registrationYear: 2008, seniorityBand: "EXPERIENCED" }] };
+      return {
+        clinicians: [
+          {
+            clinicianProfileId: "s-1",
+            clinicId: "c-akwa",
+            givenName: "Esther",
+            familyName: "Mbarga",
+            specialty: "Paediatrics",
+            languages: [],
+            qualifications: [],
+            registrationYear: 2008,
+            seniorityBand: "EXPERIENCED",
+          },
+        ],
+      };
     }
     if (path === "/clinics") {
-      return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit", address: "Buea", phone: null, openingHours: { "0": { start: "08:00", end: "17:00" } } }] };
+      return {
+        clinics: [
+          {
+            clinicId: "c-akwa",
+            name: "Medical Outpatient Unit",
+            address: "Buea",
+            phone: null,
+            openingHours: { "0": { start: "08:00", end: "17:00" } },
+          },
+        ],
+      };
     }
     return { gridUnitMinutes: 10, appointmentTypes: [] };
   });
@@ -76,7 +110,9 @@ describe("Account", () => {
     renderAccount();
     await userEvent.setup().click(await screen.findByRole("button", { name: /Notifications/ }));
     expect(
-      await screen.findByText(/^Atria reminder: appointment \d{2}\/\d{2}\/\d{4} at \d{2}:\d{2}, Medical Outpatient Unit, Esther Mbarga\. Ref APT-1\. To cancel: Atria app\.$/),
+      await screen.findByText(
+        /^Atria reminder: appointment \d{2}\/\d{2}\/\d{4} at \d{2}:\d{2}, Medical Outpatient Unit, Esther Mbarga\. Ref APT-1\. To cancel: Atria app\.$/,
+      ),
     ).toBeInTheDocument();
   });
 

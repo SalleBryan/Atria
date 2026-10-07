@@ -73,7 +73,15 @@ function markPng(): string | null {
     // M3 12h4l2-5 3 10 2.5-6 1.8 3H21, in a 24 box drawn at half the tile.
     const s = size / 2 / 24;
     const o = size / 4;
-    const points: [number, number][] = [[3, 12], [7, 12], [9, 7], [12, 17], [14.5, 11], [16.3, 14], [21, 14]];
+    const points: [number, number][] = [
+      [3, 12],
+      [7, 12],
+      [9, 7],
+      [12, 17],
+      [14.5, 11],
+      [16.3, 14],
+      [21, 14],
+    ];
     ctx.beginPath();
     points.forEach(([x, y], i) => (i ? ctx.lineTo(o + x * s, o + y * s) : ctx.moveTo(o + x * s, o + y * s)));
     ctx.strokeStyle = "#FFFFFF";
@@ -212,15 +220,28 @@ export class AtriaSheet {
    * tones as the documents' pills, attendance with an in-cell bar. Returns
    * the head's row, which a template's lists and the frozen pane start from.
    */
-  table(columns: SheetColumn[], rows: SheetCell[][], { empty = "Nothing to show for this period.", filter = true }: { empty?: string; filter?: boolean } = {}): number {
+  table(
+    columns: SheetColumn[],
+    rows: SheetCell[][],
+    { empty = "Nothing to show for this period.", filter = true }: { empty?: string; filter?: boolean } = {},
+  ): number {
     const head = this.row;
     columns.forEach((column, i) => {
       const cell = this.cell(head, i + 2);
       cell.value = column.label.toUpperCase();
       cell.font = font(8, INK.muted, { bold: true });
       cell.fill = solid(INK.tint);
-      cell.border = { top: line(INK.hair), bottom: line(INK.hair), ...(i === 0 ? { left: line(INK.hair) } : {}), ...(i === columns.length - 1 ? { right: line(INK.hair) } : {}) };
-      cell.alignment = { vertical: "middle", horizontal: column.kind === "number" || column.kind === "percent" ? "right" : "left", indent: 1 };
+      cell.border = {
+        top: line(INK.hair),
+        bottom: line(INK.hair),
+        ...(i === 0 ? { left: line(INK.hair) } : {}),
+        ...(i === columns.length - 1 ? { right: line(INK.hair) } : {}),
+      };
+      cell.alignment = {
+        vertical: "middle",
+        horizontal: column.kind === "number" || column.kind === "percent" ? "right" : "left",
+        indent: 1,
+      };
     });
     this.sheet.getRow(head).height = 24;
     const body = rows.length ? rows : [[empty]];

@@ -80,10 +80,7 @@ export function DaySchedule() {
   const [said, setSaid] = useState<string | null>(null);
 
   const schedule = state.status === "ready" ? state.data : undefined;
-  const appointments = useMemo(
-    () => [...(schedule?.appointments ?? [])].sort((a, b) => a.startAt.localeCompare(b.startAt)),
-    [schedule],
-  );
+  const appointments = useMemo(() => [...(schedule?.appointments ?? [])].sort((a, b) => a.startAt.localeCompare(b.startAt)), [schedule]);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -102,9 +99,7 @@ export function DaySchedule() {
       joined.type?.name ?? "",
     ].join(" ");
   };
-  const found = theirs.filter(
-    (a) => (!status || statusOf(a) === status) && (!query.trim() || rank(searchText(a), query) > 0),
-  );
+  const found = theirs.filter((a) => (!status || statusOf(a) === status) && (!query.trim() || rank(searchText(a), query) > 0));
   const figures = tally(theirs);
   const clinicians = new Set(theirs.map((a) => a.clinicianProfileId).filter(Boolean)).size;
   const selected =
@@ -199,8 +194,7 @@ export function DaySchedule() {
     setParams(merged, { replace: true });
   }
 
-  const cancelling =
-    params.get("cancel") === "1" && selected && ACTIVE_STATES.includes(selected.state) ? selected : undefined;
+  const cancelling = params.get("cancel") === "1" && selected && ACTIVE_STATES.includes(selected.state) ? selected : undefined;
   const joinedCancelling = cancelling ? joinDirectory(data, cancelling) : undefined;
 
   const isToday = date === today();
@@ -225,20 +219,26 @@ export function DaySchedule() {
       )}
       <header className="glass staff-top">
         <div className="staff-nav">
-          <button type="button" className="square-button" aria-label="Previous day" onClick={() => go({ date: shiftDate(date, -1), visit: null })}>
+          <button
+            type="button"
+            className="square-button"
+            aria-label="Previous day"
+            onClick={() => go({ date: shiftDate(date, -1), visit: null })}
+          >
             <ChevronLeft size={16} />
           </button>
-          <button type="button" className="square-button" aria-label="Next day" onClick={() => go({ date: shiftDate(date, 1), visit: null })}>
+          <button
+            type="button"
+            className="square-button"
+            aria-label="Next day"
+            onClick={() => go({ date: shiftDate(date, 1), visit: null })}
+          >
             <ChevronRight size={16} />
           </button>
           <button type="button" className="today-button" disabled={isToday} onClick={() => go({ date: null, visit: null })}>
             Today
           </button>
-          <DatePickerMenu
-            value={date}
-            label="Pick date"
-            onChange={(nextDate) => go({ date: nextDate, visit: null })}
-          />
+          <DatePickerMenu value={date} label="Pick date" onChange={(nextDate) => go({ date: nextDate, visit: null })} />
         </div>
         <div className="staff-title">
           <h1>{heading}</h1>
@@ -255,10 +255,7 @@ export function DaySchedule() {
             label="Unit"
             value={clinicId ?? null}
             width={300}
-            options={[
-              { id: "all", label: "All units" },
-              ...data.clinics.map((clinic) => ({ id: clinic.clinicId, label: clinic.name })),
-            ]}
+            options={[{ id: "all", label: "All units" }, ...data.clinics.map((clinic) => ({ id: clinic.clinicId, label: clinic.name }))]}
             onChange={(id) => go({ clinic: id, visit: null })}
           />
         )}
@@ -364,9 +361,7 @@ export function DaySchedule() {
             own={own}
             onSelect={(visit) =>
               // On a phone the panel gives way to the visit's own page, as the mobile frames have it.
-              window.matchMedia("(max-width: 767px)").matches
-                ? navigate(`/console/visits/${visit}?date=${date}`)
-                : go({ visit })
+              window.matchMedia("(max-width: 767px)").matches ? navigate(`/console/visits/${visit}?date=${date}`) : go({ visit })
             }
           />
           {state.status === "ready" && found.length > 0 && (
@@ -499,10 +494,7 @@ function DayList({
         const name = patientName(state.data.patients, appointment);
         const joined = joinDirectory(directory.status === "ready" ? directory.data : undefined, appointment);
         const { label, tone } = staffState(appointment.state);
-        const who = [
-          joined.type?.name ?? "Appointment",
-          !own && joined.clinician ? doctor(joined.clinician) : null,
-        ]
+        const who = [joined.type?.name ?? "Appointment", !own && joined.clinician ? doctor(joined.clinician) : null]
           .filter(Boolean)
           .join(" · ");
         const on = selected?.appointmentId === appointment.appointmentId;
@@ -557,7 +549,8 @@ function VisitPanel({
   const joined = joinDirectory(directory.status === "ready" ? directory.data : undefined, appointment);
   const { label, tone } = staffState(appointment.state);
   const cancelled = CANCELLED_STATES.includes(appointment.state);
-  const canCancel = can(role, "appointment.cancel") && ACTIVE_STATES.includes(appointment.state) && Date.parse(appointment.startAt) > Date.now();
+  const canCancel =
+    can(role, "appointment.cancel") && ACTIVE_STATES.includes(appointment.state) && Date.parse(appointment.startAt) > Date.now();
   const reminder = reminderAt(appointment);
   const clinician = doctor(joined.clinician);
 
@@ -633,8 +626,8 @@ function VisitPanel({
                 <span className="timeline-title">SMS reminder</span>
                 <span className="timeline-sub">
                   {reminder.getTime() > Date.now()
-                      ? `Scheduled for ${clock.day(reminder)}, ${clock.time(reminder)} · 24h ahead`
-                      : `Was due ${clock.day(reminder)}, ${clock.time(reminder)} · nothing on record yet`}
+                    ? `Scheduled for ${clock.day(reminder)}, ${clock.time(reminder)} · 24h ahead`
+                    : `Was due ${clock.day(reminder)}, ${clock.time(reminder)} · nothing on record yet`}
                 </span>
               </span>
             </li>
@@ -650,7 +643,6 @@ function VisitPanel({
             </li>
           )}
         </ol>
-
       </div>
 
       <div className="panel-actions">

@@ -279,8 +279,18 @@ for (let d = 0; d < 7; d += 1) {
   const weekday = (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7;
   // Sundays are closed, except today, so the preview always has a queue to show.
   if (weekday === 6 && d > 0) continue;
-  for (const [start, end, rostered] of weekday === 5 ? [["08:00", "12:00", 2]] : [["07:30", "12:00", 3], ["13:00", "16:30", 2]]) {
-    const hours = (Number(String(end).slice(0, 2)) * 60 + Number(String(end).slice(3)) - Number(String(start).slice(0, 2)) * 60 - Number(String(start).slice(3))) / 60;
+  for (const [start, end, rostered] of weekday === 5
+    ? [["08:00", "12:00", 2]]
+    : [
+        ["07:30", "12:00", 3],
+        ["13:00", "16:30", 2],
+      ]) {
+    const hours =
+      (Number(String(end).slice(0, 2)) * 60 +
+        Number(String(end).slice(3)) -
+        Number(String(start).slice(0, 2)) * 60 -
+        Number(String(start).slice(3))) /
+      60;
     opdSessions.push({
       sessionId: `se-${date}-${String(start).replace(":", "")}`,
       clinicId: "u-rhb-opd",
@@ -604,7 +614,8 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       return json(403, { code: "forbidden", message: "that action is not permitted for this account" });
     }
     const form = formOf(found.appointmentTypeId);
-    const open = ["BOOKED", "CONFIRMED", "RESCHEDULED", "DISRUPTED"].includes(String(found.state)) && Date.parse(String(found.startAt)) > Date.now();
+    const open =
+      ["BOOKED", "CONFIRMED", "RESCHEDULED", "DISRUPTED"].includes(String(found.state)) && Date.parse(String(found.startAt)) > Date.now();
     if (method === "PUT") {
       const given = body as { answers?: Record<string, unknown>; consent?: boolean };
       if (!form) return json(400, { code: "invalid_request", message: "this visit asks no questions" });
@@ -613,17 +624,25 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         (f) => f.required && (given.answers?.[f.id] === undefined || given.answers?.[f.id] === ""),
       );
       if (missing) return json(400, { code: "invalid_request", message: `please answer: ${missing.label}` });
-      careContexts[careOf[1] as string] = { answers: given.answers ?? {}, submittedAt: new Date().toISOString(), formVersion: form.version };
+      careContexts[careOf[1] as string] = {
+        answers: given.answers ?? {},
+        submittedAt: new Date().toISOString(),
+        formVersion: form.version,
+      };
     }
     const held = careContexts[careOf[1] as string];
-    return json(200, {
-      appointmentId: careOf[1],
-      patientProfileId: found.patientProfileId,
-      form,
-      answers: held?.answers ?? null,
-      submittedAt: held?.submittedAt ?? null,
-      editable: !staffSide && open && Boolean(form),
-    }, 350);
+    return json(
+      200,
+      {
+        appointmentId: careOf[1],
+        patientProfileId: found.patientProfileId,
+        form,
+        answers: held?.answers ?? null,
+        submittedAt: held?.submittedAt ?? null,
+        editable: !staffSide && open && Boolean(form),
+      },
+      350,
+    );
   }
   // A visit's reminders as the message log would have them: one SMS a day
   // ahead, once that time has passed and the visit was booked before it.
@@ -636,7 +655,9 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     const failed = Number(String(a.appointmentId).replace(/\D/g, "").slice(-2) || 0) % 5 === 0;
     const state = cancelled ? "CANCELLED" : failed ? "FAILED" : "DELIVERED";
     const reason = cancelled ? "the appointment was cancelled before the reminder was due" : failed ? "Phone is unreachable" : null;
-    return [{ channel: "SMS", deliveryState: state, sentAt: at, settledAt: at, feedback: null, ...(staff ? { failureReason: reason } : {}) }];
+    return [
+      { channel: "SMS", deliveryState: state, sentAt: at, settledAt: at, feedback: null, ...(staff ? { failureReason: reason } : {}) },
+    ];
   };
   const one = path.match(/^\/appointments\/([^/]+)$/);
   if (one) {
@@ -664,7 +685,14 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
               practice: band?.practice ?? null,
               amountMinor: band?.baseAmountMinor ?? null,
               currency: "XAF",
-              outcome: found.state === "COMPLETED" ? "ATTENDED" : found.state === "NO_SHOW" ? "NO_SHOW" : found.state === "CLINIC_CANCELLED" ? "CLINIC_CANCELLED" : "CANCELLED_IN_WINDOW",
+              outcome:
+                found.state === "COMPLETED"
+                  ? "ATTENDED"
+                  : found.state === "NO_SHOW"
+                    ? "NO_SHOW"
+                    : found.state === "CLINIC_CANCELLED"
+                      ? "CLINIC_CANCELLED"
+                      : "CANCELLED_IN_WINDOW",
               entitlement: found.state === "COMPLETED" || found.state === "NO_SHOW" ? "NONE" : "FULL",
               settledAt: null,
             }
@@ -789,11 +817,20 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     const hospitalNow = new Date(Date.now() + OFFSET_MS).toISOString();
     const patient = !window.location.pathname.startsWith("/console");
     const open = (s: MockSession) => !patient || `${s.sessionDate}T${s.endTime}` > hospitalNow.slice(0, 16);
-    return json(200, { clinicId: unitSessions[1], sessions: opdSessions.filter((s) => s.clinicId === unitSessions[1] && open(s)).map(sessionView) }, 300);
+    return json(
+      200,
+      { clinicId: unitSessions[1], sessions: opdSessions.filter((s) => s.clinicId === unitSessions[1] && open(s)).map(sessionView) },
+      300,
+    );
   }
   if (unitSessions && method === "POST") {
     const made = body as { date: string; startTime: string; endTime: string; rosteredClinicianCount: number };
-    const hours = (Number(made.endTime.slice(0, 2)) * 60 + Number(made.endTime.slice(3)) - Number(made.startTime.slice(0, 2)) * 60 - Number(made.startTime.slice(3))) / 60;
+    const hours =
+      (Number(made.endTime.slice(0, 2)) * 60 +
+        Number(made.endTime.slice(3)) -
+        Number(made.startTime.slice(0, 2)) * 60 -
+        Number(made.startTime.slice(3))) /
+      60;
     const created: MockSession = {
       sessionId: `se-${made.date}-${made.startTime.replace(":", "")}-${Math.random().toString(16).slice(2, 6)}`,
       clinicId: unitSessions[1] as string,
@@ -845,7 +882,9 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       const request = (body ?? {}) as { patientProfileId?: string; channel?: string };
       session.issuedTickets += 1;
       const n = session.issuedTickets;
-      const window = new Date(Date.parse(`${session.sessionDate}T${session.startTime}:00Z`) - OFFSET_MS + (n - 1) * 13 * 60000 - 10 * 60000);
+      const window = new Date(
+        Date.parse(`${session.sessionDate}T${session.startTime}:00Z`) - OFFSET_MS + (n - 1) * 13 * 60000 - 10 * 60000,
+      );
       const made = {
         appointmentId: `a-t${Math.random().toString(16).slice(2, 8)}`,
         reference: `APT-T${3000 + n}`,
@@ -920,7 +959,12 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       Object.assign(found, { state: "DECLINED", declineReason: reason });
     } else {
       const placed = body as { clinicianProfileId: string; startAt: string };
-      Object.assign(found, { state: "BOOKED", clinicianProfileId: placed.clinicianProfileId, startAt: placed.startAt, endAt: placed.startAt });
+      Object.assign(found, {
+        state: "BOOKED",
+        clinicianProfileId: placed.clinicianProfileId,
+        startAt: placed.startAt,
+        endAt: placed.startAt,
+      });
     }
     return json(200, found, 500);
   }
@@ -961,7 +1005,9 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
           visit: { startAt: a.startAt, state: a.state, patientProfileId: a.patientProfileId },
         };
       })
-      .sort((x, y) => Number(y.deliveryState === "FAILED") - Number(x.deliveryState === "FAILED") || y.settledAt.localeCompare(x.settledAt));
+      .sort(
+        (x, y) => Number(y.deliveryState === "FAILED") - Number(x.deliveryState === "FAILED") || y.settledAt.localeCompare(x.settledAt),
+      );
     const counts: Record<string, number> = {};
     for (const r of rows) counts[r.deliveryState] = (counts[r.deliveryState] ?? 0) + 1;
     const unit = clinics.find((c) => c.clinicId === only);
@@ -979,7 +1025,16 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         from: iso(0),
         to: iso(6),
         cliniciansOnShift: 12,
-        leave: [{ clinicianProfileId: "s-tabi", clinicianName: "Ernest Tabi", clinicId: "u-rhb-medicine", clinicName: "Medical Unit", ...leaveWeek(), booked: 14 }],
+        leave: [
+          {
+            clinicianProfileId: "s-tabi",
+            clinicianName: "Ernest Tabi",
+            clinicId: "u-rhb-medicine",
+            clinicName: "Medical Unit",
+            ...leaveWeek(),
+            booked: 14,
+          },
+        ],
         uncovered: [{ clinicId: "u-rhb-eye", clinicName: "Eye Unit", days: ["Fri"], dates: [iso(4)] }],
         covered: [
           { clinicId: "u-rhb-paeds", clinicName: "Paediatrics Unit", clinicians: 2, freeHours: 62 },
@@ -1077,22 +1132,82 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         open: booked - attended - noShow - cancelled - late,
         attendance: Math.round((attended / (attended + noShow)) * 1000) / 1000,
         byChannel: [
-          { channel: "ONLINE", booked: Math.round(booked * 0.55), attended: Math.round(attended * 0.56), noShow: Math.round(noShow * 0.6), attendance: 0.87 },
+          {
+            channel: "ONLINE",
+            booked: Math.round(booked * 0.55),
+            attended: Math.round(attended * 0.56),
+            noShow: Math.round(noShow * 0.6),
+            attendance: 0.87,
+          },
           { channel: "WALK_IN", booked: Math.round(booked * 0.25), attended: Math.round(attended * 0.27), noShow: 0, attendance: 1 },
-          { channel: "PHONE", booked: Math.round(booked * 0.15), attended: Math.round(attended * 0.13), noShow: Math.round(noShow * 0.3), attendance: 0.8 },
-          { channel: "REFERRAL", booked: Math.round(booked * 0.05), attended: Math.round(attended * 0.04), noShow: Math.round(noShow * 0.1), attendance: 0.75 },
+          {
+            channel: "PHONE",
+            booked: Math.round(booked * 0.15),
+            attended: Math.round(attended * 0.13),
+            noShow: Math.round(noShow * 0.3),
+            attendance: 0.8,
+          },
+          {
+            channel: "REFERRAL",
+            booked: Math.round(booked * 0.05),
+            attended: Math.round(attended * 0.04),
+            noShow: Math.round(noShow * 0.1),
+            attendance: 0.75,
+          },
         ],
         // Who made the booking (core/report.booked_by_of): mostly the patient, then the desk.
         byBookedBy: [
-          { bookedBy: "PATIENT", booked: Math.round(booked * 0.55), attended: Math.round(attended * 0.54), noShow: Math.round(noShow * 0.6), attendance: 0.86 },
-          { bookedBy: "RECEPTIONIST", booked: Math.round(booked * 0.35), attended: Math.round(attended * 0.36), noShow: Math.round(noShow * 0.3), attendance: 0.91 },
-          { bookedBy: "CLINICIAN", booked: Math.round(booked * 0.08), attended: Math.round(attended * 0.08), noShow: Math.round(noShow * 0.1), attendance: 0.89 },
-          { bookedBy: "CLINIC_MANAGER", booked: Math.round(booked * 0.02), attended: Math.round(attended * 0.02), noShow: 0, attendance: 1 },
+          {
+            bookedBy: "PATIENT",
+            booked: Math.round(booked * 0.55),
+            attended: Math.round(attended * 0.54),
+            noShow: Math.round(noShow * 0.6),
+            attendance: 0.86,
+          },
+          {
+            bookedBy: "RECEPTIONIST",
+            booked: Math.round(booked * 0.35),
+            attended: Math.round(attended * 0.36),
+            noShow: Math.round(noShow * 0.3),
+            attendance: 0.91,
+          },
+          {
+            bookedBy: "CLINICIAN",
+            booked: Math.round(booked * 0.08),
+            attended: Math.round(attended * 0.08),
+            noShow: Math.round(noShow * 0.1),
+            attendance: 0.89,
+          },
+          {
+            bookedBy: "CLINIC_MANAGER",
+            booked: Math.round(booked * 0.02),
+            attended: Math.round(attended * 0.02),
+            noShow: 0,
+            attendance: 1,
+          },
         ],
         byReminder: [
-          { reminder: "SENT", booked: Math.round(booked * 0.7), attended: Math.round(attended * 0.76), noShow: Math.round(noShow * 0.4), attendance: 0.94 },
-          { reminder: "FAILED", booked: Math.round(booked * 0.05), attended: Math.round(attended * 0.04), noShow: Math.round(noShow * 0.2), attendance: 0.6 },
-          { reminder: "NOT_SENT", booked: Math.round(booked * 0.25), attended: Math.round(attended * 0.2), noShow: Math.round(noShow * 0.4), attendance: 0.78 },
+          {
+            reminder: "SENT",
+            booked: Math.round(booked * 0.7),
+            attended: Math.round(attended * 0.76),
+            noShow: Math.round(noShow * 0.4),
+            attendance: 0.94,
+          },
+          {
+            reminder: "FAILED",
+            booked: Math.round(booked * 0.05),
+            attended: Math.round(attended * 0.04),
+            noShow: Math.round(noShow * 0.2),
+            attendance: 0.6,
+          },
+          {
+            reminder: "NOT_SENT",
+            booked: Math.round(booked * 0.25),
+            attended: Math.round(attended * 0.2),
+            noShow: Math.round(noShow * 0.4),
+            attendance: 0.78,
+          },
         ],
         ledger: {
           entries: attended + noShow + cancelled + late,
@@ -1112,9 +1227,31 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     };
     if (unitReport) {
       const unit = clinics.find((c) => c.clinicId === unitReport[1]);
-      return json(200, { clinicId: unitReport[1], clinicName: unit?.name ?? null, week: rawDate, from: rawDate, to: rawDate, granularity, firstDay: "2026-09-19", ...figures(clinics.indexOf(unit!)) }, 300);
+      return json(
+        200,
+        {
+          clinicId: unitReport[1],
+          clinicName: unit?.name ?? null,
+          week: rawDate,
+          from: rawDate,
+          to: rawDate,
+          granularity,
+          firstDay: "2026-09-19",
+          ...figures(clinics.indexOf(unit!)),
+        },
+        300,
+      );
     }
-    const units = clinics.map((c, i) => ({ clinicId: c.clinicId, clinicName: c.name, week: rawDate, from: rawDate, to: rawDate, granularity, firstDay: "2026-09-19", ...figures(i) }));
+    const units = clinics.map((c, i) => ({
+      clinicId: c.clinicId,
+      clinicName: c.name,
+      week: rawDate,
+      from: rawDate,
+      to: rawDate,
+      granularity,
+      firstDay: "2026-09-19",
+      ...figures(i),
+    }));
     const sum = (key: "booked" | "attended" | "noShow" | "cancelled" | "lateCancelled") => units.reduce((n, u) => n + u[key], 0);
     // Each breakdown summed across the units, as core/report.hospital_figures does.
     const merged = <K extends string>(rows: Record<K | "booked" | "attended" | "noShow", string | number>[][], name: K) => {
@@ -1126,9 +1263,16 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         t.noShow += Number(row.noShow);
         totals.set(String(row[name]), t);
       }
-      return [...totals].map(([value, t]) => ({ [name]: value, ...t, attendance: t.attended + t.noShow ? Math.round((t.attended / (t.attended + t.noShow)) * 1000) / 1000 : null }));
+      return [...totals].map(([value, t]) => ({
+        [name]: value,
+        ...t,
+        attendance: t.attended + t.noShow ? Math.round((t.attended / (t.attended + t.noShow)) * 1000) / 1000 : null,
+      }));
     };
-    const ledgerRows = <K extends "entitlement" | "practice">(name: K, pick: (u: (typeof units)[number]) => Record<K | "entries" | "amountMinor", string | number>[]) => {
+    const ledgerRows = <K extends "entitlement" | "practice">(
+      name: K,
+      pick: (u: (typeof units)[number]) => Record<K | "entries" | "amountMinor", string | number>[],
+    ) => {
       const totals = new Map<string, { entries: number; amountMinor: number }>();
       for (const row of units.flatMap(pick)) {
         const t = totals.get(String(row[name])) ?? { entries: 0, amountMinor: 0 };
@@ -1153,9 +1297,18 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         cancelled: sum("cancelled"),
         lateCancelled: sum("lateCancelled"),
         attendance: Math.round((sum("attended") / (sum("attended") + sum("noShow"))) * 1000) / 1000,
-        byChannel: merged(units.map((u) => u.byChannel), "channel"),
-        byBookedBy: merged(units.map((u) => u.byBookedBy), "bookedBy"),
-        byReminder: merged(units.map((u) => u.byReminder), "reminder"),
+        byChannel: merged(
+          units.map((u) => u.byChannel),
+          "channel",
+        ),
+        byBookedBy: merged(
+          units.map((u) => u.byBookedBy),
+          "bookedBy",
+        ),
+        byReminder: merged(
+          units.map((u) => u.byReminder),
+          "reminder",
+        ),
         ledger: {
           entries: units.reduce((n, u) => n + u.ledger.entries, 0),
           currency: "XAF",
@@ -1273,9 +1426,12 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     const rows = clinicians
       .filter((c) => c.clinicId === roster[1])
       .map((c, i) => {
-        const visits = appointments.filter(
-          (a) => a.clinicianProfileId === c.clinicianProfileId && String(a.startAt).slice(0, 10) === date && a.state !== "PATIENT_CANCELLED",
-        ).length + (i * 3) % 7;
+        const visits =
+          appointments.filter(
+            (a) =>
+              a.clinicianProfileId === c.clinicianProfileId && String(a.startAt).slice(0, 10) === date && a.state !== "PATIENT_CANCELLED",
+          ).length +
+          ((i * 3) % 7);
         const leave = Boolean(hours) && onLeave(c.clinicianProfileId, date);
         const status = !hours
           ? "OFF"
@@ -1297,7 +1453,13 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
           status,
           startsAt: hours?.start ?? null,
           endsAt: hours?.end ?? null,
-          timeOff: !hours ? [] : leave ? [{ kind: "LEAVE", startTime: null, endTime: null }] : i === 1 ? [{ kind: "BLOCK", startTime: "12:00", endTime: "13:00" }] : [],
+          timeOff: !hours
+            ? []
+            : leave
+              ? [{ kind: "LEAVE", startTime: null, endTime: null }]
+              : i === 1
+                ? [{ kind: "BLOCK", startTime: "12:00", endTime: "13:00" }]
+                : [],
           visits: leave || !hours ? 0 : visits,
           bookedMinutes: leave || !hours ? 0 : visits * 30,
           workingMinutes: leave ? 0 : working,
@@ -1325,7 +1487,14 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       if (e.action === "appointment.cancel") g.cancellations = Number(g.cancellations) + 1;
       else g.reschedules = Number(g.reschedules) + 1;
       if (e.flags.length) g.flagged = Number(g.flagged) + 1;
-      g.changes.push({ auditEntryId: e.auditEntryId, occurredAt: e.occurredAt, action: e.action, appointmentId: "a-4958", reason: e.reason, flags: e.flags });
+      g.changes.push({
+        auditEntryId: e.auditEntryId,
+        occurredAt: e.occurredAt,
+        action: e.action,
+        appointmentId: "a-4958",
+        reason: e.reason,
+        flags: e.flags,
+      });
       groups.set(e.actorPersonId, g);
     }
     const actors = [...groups.values()].sort((a, b) => Number(b.flagged) - Number(a.flagged));
@@ -1385,7 +1554,11 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   }
   // Intake forms (services/admin/settings.py): each save publishes a new version.
   if (method === "POST" && path === "/admin/intake-forms") {
-    const made = { ...(body as { name: string; fields: unknown[] }), intakeFormId: `if-${Math.random().toString(16).slice(2, 8)}`, version: 1 };
+    const made = {
+      ...(body as { name: string; fields: unknown[] }),
+      intakeFormId: `if-${Math.random().toString(16).slice(2, 8)}`,
+      version: 1,
+    };
     intakeForms.push(made);
     return json(201, made, 500);
   }
@@ -1549,7 +1722,11 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     const entry = register.find((p) => p.patientProfileId === patientGone[1]) as Record<string, unknown> | undefined;
     if (!entry) return json(404, { code: "not_found", message: "no such patient" });
     entry.deletionPurgeAt = method === "DELETE" ? purgeIn30() : null;
-    return json(200, method === "DELETE" ? { purgeAt: entry.deletionPurgeAt, by: "ADMIN", graceDays: 30, cancelledVisits: 1 } : { restored: true }, 500);
+    return json(
+      200,
+      method === "DELETE" ? { purgeAt: entry.deletionPurgeAt, by: "ADMIN", graceDays: 30, cancelledVisits: 1 } : { restored: true },
+      500,
+    );
   }
   if (method === "DELETE" && path === "/me") return json(200, { purgeAt: purgeIn30(), by: "SELF", graceDays: 30, cancelledVisits: 2 }, 500);
   if (method === "POST" && path === "/me/restore") return json(200, { restored: true }, 500);
@@ -1565,7 +1742,8 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   if (details && (method === "GET" || method === "PATCH")) {
     const id = details[1] as string;
     const account = staffAccounts.find((a) => a.staffId === id);
-    if (!account || !(account.roles as string[]).includes("CLINICIAN")) return json(404, { code: "not_found", message: "no such clinician" });
+    if (!account || !(account.roles as string[]).includes("CLINICIAN"))
+      return json(404, { code: "not_found", message: "no such clinician" });
     const known = clinicianDetails.get(id) ?? {
       staffId: id,
       specialty: clinicians.find((c) => c.familyName === account.familyName)?.specialty ?? "General Practioner",
@@ -1576,7 +1754,8 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     };
     if (method === "PATCH") {
       const change = body as Record<string, unknown>;
-      if ("specialty" in change && !String(change.specialty ?? "").trim()) return json(400, { code: "invalid", message: "specialty cannot be empty" });
+      if ("specialty" in change && !String(change.specialty ?? "").trim())
+        return json(400, { code: "invalid", message: "specialty cannot be empty" });
       Object.assign(known, change);
     }
     clinicianDetails.set(id, known);
@@ -1593,7 +1772,11 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     found.status = "INVITED";
     found.mustSetPassword = true;
     const password = `Tp${Math.random().toString(36).slice(2, 12)}7!`;
-    return json(200, { ...found, temporaryPassword: password, note: "The account signs in with the temporary password and must change it." }, 600);
+    return json(
+      200,
+      { ...found, temporaryPassword: password, note: "The account signs in with the temporary password and must change it." },
+      600,
+    );
   }
   if (method === "POST" && path === "/admin/staff") {
     const request = body as {

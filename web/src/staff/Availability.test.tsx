@@ -14,7 +14,16 @@ vi.mock("../api/client", async (original) => ({
 }));
 
 function person(roles: string[], staffId: string): Me {
-  return { personId: "p-1", givenName: "Ada", familyName: "Nkeng", tenantId: "t-1", roles, patientProfileId: null, staffId, clinicId: "c-med" } as unknown as Me;
+  return {
+    personId: "p-1",
+    givenName: "Ada",
+    familyName: "Nkeng",
+    tenantId: "t-1",
+    roles,
+    patientProfileId: null,
+    staffId,
+    clinicId: "c-med",
+  } as unknown as Me;
 }
 
 const CLINICIANS = [
@@ -30,7 +39,13 @@ function respond(extra: (path: string, init?: { method?: string; json?: unknown 
     if (path === "/clinics") return { clinics: [{ clinicId: "c-med", name: "Medical Outpatient Unit" }] };
     if (path === "/appointment-types") return { appointmentTypes: [] };
     if (path.endsWith("/availability")) {
-      return { clinicianProfileId: "s-tabi", usesUnitHours: true, hours: {}, unitHours: { "0": { start: "08:00", end: "16:00" } }, timeOff: [] };
+      return {
+        clinicianProfileId: "s-tabi",
+        usesUnitHours: true,
+        hours: {},
+        unitHours: { "0": { start: "08:00", end: "16:00" } },
+        timeOff: [],
+      };
     }
     throw new Error(`unexpected ${path}`);
   });

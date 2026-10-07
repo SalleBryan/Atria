@@ -19,21 +19,55 @@ const START = new Date(Math.ceil((Date.now() + 2 * DAY) / 600000) * 600000).toIS
 const END = new Date(Date.parse(START) + 30 * 60000).toISOString().replace(/\.\d{3}Z$/, "Z");
 
 const CLINICIANS = [
-  { clinicianProfileId: "s-mbarga", clinicId: "c-akwa", givenName: "Esther", familyName: "Mbarga", specialty: "Paediatrics", languages: ["fr", "en"], qualifications: [], registrationYear: 2008, seniorityBand: "EXPERIENCED" },
-  { clinicianProfileId: "s-nkoulou", clinicId: "c-akwa", givenName: "Jean-Paul", familyName: "Nkoulou", specialty: "Cardiology", languages: ["fr"], qualifications: [], registrationYear: 1999, seniorityBand: "SENIOR" },
+  {
+    clinicianProfileId: "s-mbarga",
+    clinicId: "c-akwa",
+    givenName: "Esther",
+    familyName: "Mbarga",
+    specialty: "Paediatrics",
+    languages: ["fr", "en"],
+    qualifications: [],
+    registrationYear: 2008,
+    seniorityBand: "EXPERIENCED",
+  },
+  {
+    clinicianProfileId: "s-nkoulou",
+    clinicId: "c-akwa",
+    givenName: "Jean-Paul",
+    familyName: "Nkoulou",
+    specialty: "Cardiology",
+    languages: ["fr"],
+    qualifications: [],
+    registrationYear: 1999,
+    seniorityBand: "SENIOR",
+  },
 ];
 
 function respond(book: (body: unknown, init: RequestInit) => unknown) {
   api.mockImplementation(async (path: string, init: RequestInit & { json?: unknown } = {}) => {
     if (path.startsWith("/patients/me/appointments")) return { appointments: [] };
     if (path === "/clinicians") return { clinicians: CLINICIANS };
-    if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit", address: "Buea", phone: null, openingHours: null }] };
+    if (path === "/clinics")
+      return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit", address: "Buea", phone: null, openingHours: null }] };
     if (path === "/appointment-types") {
       return {
         gridUnitMinutes: 10,
         appointmentTypes: [
-          { appointmentTypeId: "at-spec", name: "First specialist consultation", serviceLine: "SPECIALIST", durationUnits: 3, bookableBy: "BOTH", maxAdvanceDays: 60 },
-          { appointmentTypeId: "at-general", name: "General consultation", serviceLine: "GENERAL", durationUnits: null, bookableBy: "BOTH" },
+          {
+            appointmentTypeId: "at-spec",
+            name: "First specialist consultation",
+            serviceLine: "SPECIALIST",
+            durationUnits: 3,
+            bookableBy: "BOTH",
+            maxAdvanceDays: 60,
+          },
+          {
+            appointmentTypeId: "at-general",
+            name: "General consultation",
+            serviceLine: "GENERAL",
+            durationUnits: null,
+            bookableBy: "BOTH",
+          },
         ],
       };
     }
@@ -127,6 +161,8 @@ describe("FindCare", () => {
     respond(() => ({}));
     renderFindCare();
     expect(await screen.findByRole("button", { name: "Book appointment" })).toBeDisabled();
-    expect(screen.getByText((_, element) => element?.className === "dock-title" && element.textContent === "Pick a time above to continue")).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) => element?.className === "dock-title" && element.textContent === "Pick a time above to continue"),
+    ).toBeInTheDocument();
   });
 });

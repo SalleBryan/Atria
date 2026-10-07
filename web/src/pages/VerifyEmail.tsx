@@ -105,8 +105,8 @@ export function VerifyEmail() {
           <div className="aside-card">
             <p className="aside-title">Why we verify</p>
             <p className="aside-text">
-              Your confirmation and cancellation receipts are the only written record of a booking. A wrong address
-              means they go nowhere, and the front desk cannot resend them for you.
+              Your confirmation and cancellation receipts are the only written record of a booking. A wrong address means they go nowhere,
+              and the front desk cannot resend them for you.
             </p>
           </div>
         </>
@@ -131,8 +131,7 @@ export function VerifyEmail() {
           <button type="button" className="action" disabled={left > 0} onClick={() => void resend()}>
             {left > 0 ? (
               <>
-                Resend in {minutes}:
-                {/* Keyed by the second, so each new second rolls in. */}
+                Resend in {minutes}:{/* Keyed by the second, so each new second rolls in. */}
                 <span key={left} className="tick">
                   {seconds}
                 </span>
@@ -149,8 +148,8 @@ export function VerifyEmail() {
       <div className="help">
         <Info size={19} />
         <p>
-          Codes sometimes land in <strong>spam or promotions</strong>. If nothing arrives after a minute, resend it,
-          then check the address is spelled correctly.
+          Codes sometimes land in <strong>spam or promotions</strong>. If nothing arrives after a minute, resend it, then check the address
+          is spelled correctly.
         </p>
       </div>
     </AuthLayout>

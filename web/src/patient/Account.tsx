@@ -34,7 +34,6 @@ const SECTIONS: { id: Section; label: string; icon: ComponentType<{ size?: numbe
   { id: "clinics", label: "Units", icon: Pin },
 ];
 
-
 /**
  * The SMS reminder, word for word as atria.core.notices writes it: English
  * until a patient can choose a language, the date as dd/mm/yyyy on the
@@ -50,7 +49,6 @@ const SMS_DATE = new Intl.DateTimeFormat("en-GB", {
   month: "2-digit",
   year: "numeric",
 });
-
 
 export function Account() {
   const { state: session, signOut } = useSession();
@@ -121,9 +119,7 @@ export function Account() {
             >
               <IconComponent size={17} />
               <span>{label}</span>
-              <span className="account-hint">
-                {id === "notifications" ? "24h" : id === "clinics" ? data?.clinics.length ?? "" : ""}
-              </span>
+              <span className="account-hint">{id === "notifications" ? "24h" : id === "clinics" ? (data?.clinics.length ?? "") : ""}</span>
               {phone && <ChevronRight size={16} />}
             </button>
           ))}
@@ -142,7 +138,10 @@ export function Account() {
           <>
             <header className="section-head">
               <h1 id="section-title">Personal details</h1>
-              <p>What Atria holds about you. Change your name and date of birth here; your email is how you sign in, and the front desk at {TENANT.name} can help with it.</p>
+              <p>
+                What Atria holds about you. Change your name and date of birth here; your email is how you sign in, and the front desk at{" "}
+                {TENANT.name} can help with it.
+              </p>
             </header>
             {said && <Notice tone="success">{said}</Notice>}
             {editing ? (
@@ -155,7 +154,13 @@ export function Account() {
               />
             ) : null}
             <div className="inner-card settings-card">
-              <Row icon={User} tone="tone-blue" title="Name" sub={name} end={<EditLink label="Change your name" onClick={() => start("name")} />} />
+              <Row
+                icon={User}
+                tone="tone-blue"
+                title="Name"
+                sub={name}
+                end={<EditLink label="Change your name" onClick={() => start("name")} />}
+              />
               <Row icon={Mail} tone="tone-green" title="Email" sub={me?.email ?? "Not given"} />
               <Row
                 icon={Phone}
@@ -288,8 +293,8 @@ function Notifications() {
       <header className="section-head">
         <h1 id="section-title">Notifications</h1>
         <p>
-          How Atria reaches you. Confirmations always go to email, because they are your record of the booking. Choosing
-          other channels and lead times arrives in a later release.
+          How Atria reaches you. Confirmations always go to email, because they are your record of the booking. Choosing other channels and
+          lead times arrives in a later release.
         </p>
       </header>
       <div className="inner-card settings-card">
@@ -377,9 +382,5 @@ function PushRow() {
 }
 
 function On() {
-  return (
-    <span className="chip chip-confirmed">
-      On
-    </span>
-  );
+  return <span className="chip chip-confirmed">On</span>;
 }

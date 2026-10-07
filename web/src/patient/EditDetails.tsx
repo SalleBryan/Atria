@@ -75,10 +75,7 @@ export function EditDetails({
     event.preventDefault();
     setError(undefined);
     if (editing === "name") {
-      const msg =
-        aud === "staff"
-          ? "Your name is saved across the console."
-          : "Your name is saved. The front desk sees it too.";
+      const msg = aud === "staff" ? "Your name is saved across the console." : "Your name is saved. The front desk sees it too.";
       await run({ givenName: given.trim(), familyName: family.trim() }, msg);
     } else if (editing === "phone") {
       const number = normalisePhone(phone, country);
@@ -90,10 +87,7 @@ export function EditDetails({
         );
         return;
       }
-      const msg =
-        aud === "staff"
-          ? "Your mobile number is saved."
-          : "Your mobile is saved. Reminders are texted there from now on.";
+      const msg = aud === "staff" ? "Your mobile number is saved." : "Your mobile is saved. Reminders are texted there from now on.";
       await run({ phoneE164: number }, msg);
     } else {
       const date = birthDate(born);

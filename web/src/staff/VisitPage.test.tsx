@@ -48,12 +48,19 @@ const VISIT = {
 function respond(visit: Record<string, unknown> | Error = VISIT) {
   api.mockImplementation(async (path: string, init?: { method?: string; json?: unknown }) => {
     if (path === "/clinicians") {
-      return { clinicians: [{ clinicianProfileId: "s-mbarga", clinicId: "c-akwa", givenName: "Esther", familyName: "Mbarga", specialty: "Paediatrics" }] };
+      return {
+        clinicians: [
+          { clinicianProfileId: "s-mbarga", clinicId: "c-akwa", givenName: "Esther", familyName: "Mbarga", specialty: "Paediatrics" },
+        ],
+      };
     }
     if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit" }] };
-    if (path === "/appointment-types") return { appointmentTypes: [{ appointmentTypeId: "at-follow", name: "Follow-up consultation", cancellationWindowMinutes: 1440 }] };
-    if (path.startsWith("/clinics/c-akwa/day")) return { appointments: [VISIT], patients: { "pp-ama": { givenName: "Ama", familyName: "Darko" } } };
-    if (path === "/appointments/a-1" && init?.method === "DELETE") return { ...VISIT, state: "CLINIC_CANCELLED", outcome: "CLINIC_CANCELLED" };
+    if (path === "/appointment-types")
+      return { appointmentTypes: [{ appointmentTypeId: "at-follow", name: "Follow-up consultation", cancellationWindowMinutes: 1440 }] };
+    if (path.startsWith("/clinics/c-akwa/day"))
+      return { appointments: [VISIT], patients: { "pp-ama": { givenName: "Ama", familyName: "Darko" } } };
+    if (path === "/appointments/a-1" && init?.method === "DELETE")
+      return { ...VISIT, state: "CLINIC_CANCELLED", outcome: "CLINIC_CANCELLED" };
     if (path === "/appointments/a-1") {
       if (visit instanceof Error) throw visit;
       return visit;

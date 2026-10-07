@@ -55,9 +55,7 @@ export function HospitalUnits({ clinics, hospital }: { clinics: Clinic[]; hospit
                   <span className="unit-row-text">
                     <span className="unit-row-name">{clinic.name}</span>
                     <span className="unit-row-sub">
-                      {[whereInside(clinic), today ? `open ${today.start} to ${today.end}` : "closed today"]
-                        .filter(Boolean)
-                        .join(" · ")}
+                      {[whereInside(clinic), today ? `open ${today.start} to ${today.end}` : "closed today"].filter(Boolean).join(" · ")}
                     </span>
                   </span>
                   <ChevronRight size={16} />
@@ -128,7 +126,10 @@ function SiteMap({
       <svg viewBox={`0 0 ${MAP.width} ${MAP.height}`} role="group" aria-label={`Map of ${hospital}`}>
         <rect width={MAP.width} height={MAP.height} className="map-ground" />
         <rect x={10} y={10} width={MAP.width - 20} height={MAP.height - 20} rx={18} className="site-grounds" />
-        <path className="map-road map-road-thin" d={`M0 ${MAP.height - 16} H${MAP.width} M${MAP.width / 2} ${MAP.height} V${MAP.height - 16}`} />
+        <path
+          className="map-road map-road-thin"
+          d={`M0 ${MAP.height - 16} H${MAP.width} M${MAP.width / 2} ${MAP.height} V${MAP.height - 16}`}
+        />
         {chosen && (
           <path
             key={chosen.clinic.clinicId}

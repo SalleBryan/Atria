@@ -29,13 +29,7 @@ interface FailedAccount {
   reason: string;
 }
 
-export function BatchStaffImport({
-  onClose,
-  onDone,
-}: {
-  onClose: () => void;
-  onDone: (createdCount: number) => void;
-}) {
+export function BatchStaffImport({ onClose, onDone }: { onClose: () => void; onDone: (createdCount: number) => void }) {
   const { state: directory } = useStaffData();
   const clinics = directory.status === "ready" ? directory.data.clinics : [];
 
@@ -201,15 +195,11 @@ export function BatchStaffImport({
                 <div>
                   <h3>Excel template</h3>
                   <p>
-                    Download our formatted template with sample rows for Receptionists, Clinicians, Unit Managers, and
-                    Administrators, including your hospital units.
+                    Download our formatted template with sample rows for Receptionists, Clinicians, Unit Managers, and Administrators,
+                    including your hospital units.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  className="outline-button"
-                  onClick={() => void downloadStaffTemplate(clinics)}
-                >
+                <button type="button" className="outline-button" onClick={() => void downloadStaffTemplate(clinics)}>
                   <Download size={16} />
                   Download template
                 </button>
@@ -225,13 +215,7 @@ export function BatchStaffImport({
                 onDrop={onDrop}
                 onClick={() => fileInputRef.current?.click()}
               >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx, .xls"
-                  style={{ display: "none" }}
-                  onChange={onFileChange}
-                />
+                <input ref={fileInputRef} type="file" accept=".xlsx, .xls" style={{ display: "none" }} onChange={onFileChange} />
                 <span className="dropzone-icon" aria-hidden="true">
                   <Upload size={28} />
                 </span>
@@ -271,8 +255,8 @@ export function BatchStaffImport({
 
               {errorCount > 0 && (
                 <Notice tone="info">
-                  Rows with errors will be skipped during account creation. You can fix your spreadsheet and upload
-                  again, or proceed with the valid rows.
+                  Rows with errors will be skipped during account creation. You can fix your spreadsheet and upload again, or proceed with
+                  the valid rows.
                 </Notice>
               )}
 
@@ -296,22 +280,22 @@ export function BatchStaffImport({
                           <span className="chip chip-neutral">{row.roleLabel}</span>
                         </td>
                         <td className="row-name">
-                          <strong>{row.givenName} {row.familyName}</strong>
-                          {row.role === "CLINICIAN" && row.specialty && (
-                            <span className="row-subtext">{row.specialty}</span>
-                          )}
+                          <strong>
+                            {row.givenName} {row.familyName}
+                          </strong>
+                          {row.role === "CLINICIAN" && row.specialty && <span className="row-subtext">{row.specialty}</span>}
                         </td>
                         <td className="row-mobile">{row.phoneRaw}</td>
-                        <td className="row-unit">
-                          {row.clinicName ?? row.email ?? "None"}
-                        </td>
+                        <td className="row-unit">{row.clinicName ?? row.email ?? "None"}</td>
                         <td className="row-status">
                           {row.valid ? (
                             <span className="badge-valid">Ready</span>
                           ) : (
                             <div className="row-errors">
                               {row.errors.map((err, i) => (
-                                <span key={i} className="row-error-item">{err}</span>
+                                <span key={i} className="row-error-item">
+                                  {err}
+                                </span>
                               ))}
                             </div>
                           )}
@@ -336,12 +320,7 @@ export function BatchStaffImport({
               >
                 Back
               </button>
-              <button
-                type="button"
-                className="staff-primary sheet-primary"
-                disabled={validCount === 0}
-                onClick={() => void executeBatch()}
-              >
+              <button type="button" className="staff-primary sheet-primary" disabled={validCount === 0} onClick={() => void executeBatch()}>
                 Create {validCount} {validCount === 1 ? "account" : "accounts"}
               </button>
             </footer>
@@ -356,10 +335,7 @@ export function BatchStaffImport({
               Processing account {progress.current} of {progress.total}...
             </p>
             <div className="batch-progress-bar">
-              <div
-                className="batch-progress-fill"
-                style={{ width: `${(progress.current / Math.max(1, progress.total)) * 100}%` }}
-              />
+              <div className="batch-progress-fill" style={{ width: `${(progress.current / Math.max(1, progress.total)) * 100}%` }} />
             </div>
           </div>
         )}
@@ -369,15 +345,10 @@ export function BatchStaffImport({
             <div className="batch-body">
               <div className="batch-done-actions">
                 <Notice tone="info">
-                  The temporary passwords work for 7 days. At first sign-in they choose their own password on the staff
-                  sign-in page.
+                  The temporary passwords work for 7 days. At first sign-in they choose their own password on the staff sign-in page.
                 </Notice>
                 {successes.length > 0 && (
-                  <button
-                    type="button"
-                    className="staff-primary batch-download-pdf-btn"
-                    onClick={downloadCredentials}
-                  >
+                  <button type="button" className="staff-primary batch-download-pdf-btn" onClick={downloadCredentials}>
                     <Download size={16} />
                     Download credentials (PDF)
                   </button>
@@ -421,11 +392,7 @@ export function BatchStaffImport({
 
             <footer className="sheet-foot">
               <span>Creating accounts was logged against your admin user.</span>
-              <button
-                type="button"
-                className="staff-primary sheet-primary"
-                onClick={() => onDone(successes.length)}
-              >
+              <button type="button" className="staff-primary sheet-primary" onClick={() => onDone(successes.length)}>
                 Done
               </button>
             </footer>

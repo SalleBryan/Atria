@@ -28,9 +28,21 @@ export function MoreMenu({ items, active }: { items: Item[]; active: boolean }) 
   const { place } = useMenu({ open, onClose: close, anchor: button, panel, width: 300, align: "end", roomNeeded: 320 });
 
   const choices = [
-    ...items.map((item) => ({ key: item.to, label: item.label, hint: null as string | null, icon: item.icon, run: () => navigate(item.to) })),
+    ...items.map((item) => ({
+      key: item.to,
+      label: item.label,
+      hint: null as string | null,
+      icon: item.icon,
+      run: () => navigate(item.to),
+    })),
     { key: "out-here", label: "Sign out", hint: "Of this device", icon: SignOut, run: () => void signOut({ everywhere: false }) },
-    { key: "out-all", label: "Sign out everywhere", hint: "Others lose access within the hour", icon: Globe, run: () => void signOut({ everywhere: true }) },
+    {
+      key: "out-all",
+      label: "Sign out everywhere",
+      hint: "Others lose access within the hour",
+      icon: Globe,
+      run: () => void signOut({ everywhere: true }),
+    },
   ];
 
   return (

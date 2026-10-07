@@ -67,9 +67,7 @@ function ReminderStep({ reminder, audience }: { reminder: VisitReminder; audienc
       : null;
   return (
     <li>
-      <span className={`timeline-dot ${shown.tone}`}>
-        {reminder.deliveryState === "FAILED" ? <Close size={11} /> : <Bell size={11} />}
-      </span>
+      <span className={`timeline-dot ${shown.tone}`}>{reminder.deliveryState === "FAILED" ? <Close size={11} /> : <Bell size={11} />}</span>
       <span>
         <span className="timeline-title">
           {channel} reminder {shown.word}
@@ -140,7 +138,11 @@ function step(event: VisitEvent, audience: Audience): { title: string; tone: str
         icon: <User size={11} />,
       };
     default:
-      return { title: event.kind.charAt(0) + event.kind.slice(1).toLowerCase().replace(/_/g, " "), tone: "dot-blue-tint", icon: <Bell size={11} /> };
+      return {
+        title: event.kind.charAt(0) + event.kind.slice(1).toLowerCase().replace(/_/g, " "),
+        tone: "dot-blue-tint",
+        icon: <Bell size={11} />,
+      };
   }
 }
 
@@ -181,7 +183,9 @@ export function VisitHistory({
 
   // What is still to come gives way to what happened, once it is on record.
   const after = reminders.length
-    ? reminders.map((reminder, i) => <ReminderStep key={`${reminder.channel}-${reminder.sentAt}-${i}`} reminder={reminder} audience={audience} />)
+    ? reminders.map((reminder, i) => (
+        <ReminderStep key={`${reminder.channel}-${reminder.sentAt}-${i}`} reminder={reminder} audience={audience} />
+      ))
     : children;
   if (!events || !events.length) {
     return (

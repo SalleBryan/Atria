@@ -184,10 +184,16 @@ export function AdminOverview() {
             </div>
             <span>
               {metricView === "delivery"
-                ? email && sms ? `${email.all + sms.all} sent` : ""
+                ? email && sms
+                  ? `${email.all + sms.all} sent`
+                  : ""
                 : metricView === "visits"
-                  ? report.found ? `${report.found.booked} visits recorded` : ""
-                  : report.found?.units ? `${report.found.units.length} units active` : ""}
+                  ? report.found
+                    ? `${report.found.booked} visits recorded`
+                    : ""
+                  : report.found?.units
+                    ? `${report.found.units.length} units active`
+                    : ""}
             </span>
           </div>
 
@@ -340,7 +346,11 @@ function DeliveryChart({ days }: { days: Delivery["days"] }) {
   const top = Math.max(1, ...rows.map((r) => r.ok + r.bad));
   return (
     <figure className="overview-chart">
-      <div className="overview-plot" role="img" aria-label={rows.map((r) => `${DAY.format(new Date(`${r.day}T12:00:00Z`))}: ${r.ok} delivered, ${r.bad} failed`).join("; ")}>
+      <div
+        className="overview-plot"
+        role="img"
+        aria-label={rows.map((r) => `${DAY.format(new Date(`${r.day}T12:00:00Z`))}: ${r.ok} delivered, ${r.bad} failed`).join("; ")}
+      >
         {rows.map((r, i) => (
           <div key={r.day} className="overview-bar" style={{ "--i": i } as CSSProperties}>
             {r.bad > 0 && <span className="overview-bar-bad" style={{ height: `${Math.min(96, Math.max(4, (r.bad / top) * 100))}%` }} />}

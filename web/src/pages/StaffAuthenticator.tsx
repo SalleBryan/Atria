@@ -44,10 +44,7 @@ function WhyBrand({ current }: { current: "setup" | "code" }) {
           { title: "Password", text: "The one you chose for the console", state: "done" },
           {
             title: current === "setup" ? "Set up an authenticator" : "Authenticator code",
-            text:
-              current === "setup"
-                ? "Once, on a phone you keep with you"
-                : "Six digits from the app you set up, new every 30 seconds",
+            text: current === "setup" ? "Once, on a phone you keep with you" : "Six digits from the app you set up, new every 30 seconds",
             state: "current",
           },
           { title: "Administration", text: "Staff accounts, settings, reports and the audit log", state: "upcoming" },
@@ -56,8 +53,8 @@ function WhyBrand({ current }: { current: "setup" | "code" }) {
       <div className="aside-card">
         <p className="aside-title">Why administrators</p>
         <p className="aside-text">
-          An administrator can create staff accounts and change what every unit offers. A stolen password alone must not
-          be enough to do either.
+          An administrator can create staff accounts and change what every unit offers. A stolen password alone must not be enough to do
+          either.
         </p>
       </div>
     </>
@@ -124,8 +121,8 @@ export function StaffAuthenticatorCode() {
       <div className="help">
         <Info size={19} />
         <p>
-          Lost the phone with your authenticator? The authenticator has to be reset on your account before you can sign in
-          again, so contact whoever runs Atria for your hospital.
+          Lost the phone with your authenticator? The authenticator has to be reset on your account before you can sign in again, so contact
+          whoever runs Atria for your hospital.
         </p>
       </div>
     </AuthLayout>
@@ -176,14 +173,21 @@ export function StaffAuthenticatorSetup({ me }: { me: Me }) {
   }
 
   return (
-    <AuthLayout product="STAFF CONSOLE" brandKey="authenticator-setup" paneWidth={600} boxWidth={520} footer={STAFF_FOOTER} brand={<WhyBrand current="setup" />}>
+    <AuthLayout
+      product="STAFF CONSOLE"
+      brandKey="authenticator-setup"
+      paneWidth={600}
+      boxWidth={520}
+      footer={STAFF_FOOTER}
+      brand={<WhyBrand current="setup" />}
+    >
       <span className="icon-tile" aria-hidden="true">
         <Key size={32} />
       </span>
       <h1 className="title title-large">Set up your authenticator.</h1>
       <p className="lede lede-large">
-        Administrators sign in with a password and a code from an authenticator app. Scan this with Google
-        Authenticator, Microsoft Authenticator or any app like them, then type the code it shows.
+        Administrators sign in with a password and a code from an authenticator app. Scan this with Google Authenticator, Microsoft
+        Authenticator or any app like them, then type the code it shows.
       </p>
       {setup.status === "loading" && <LoadingPane label="Preparing your authenticator" />}
       {setup.status === "failed" && <Notice tone="error">{setup.message}</Notice>}
@@ -217,9 +221,7 @@ export function StaffAuthenticatorSetup({ me }: { me: Me }) {
       </form>
       <div className="help">
         <Info size={19} />
-        <p>
-          From now on the console asks for a code at every sign-in. Keep the app on a phone you have with you at work.
-        </p>
+        <p>From now on the console asks for a code at every sign-in. Keep the app on a phone you have with you at work.</p>
       </div>
     </AuthLayout>
   );

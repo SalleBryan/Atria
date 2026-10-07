@@ -708,7 +708,9 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit | null; onClose: () 
         onDone(`${name.trim()} saved. Patients see the change now.`);
       }
     } catch (caught) {
-      setFailure(`${sentence(caught instanceof Error ? caught.message : isNew ? "The unit could not be created" : "The unit could not be saved")} Nothing was changed.`);
+      setFailure(
+        `${sentence(caught instanceof Error ? caught.message : isNew ? "The unit could not be created" : "The unit could not be saved")} Nothing was changed.`,
+      );
       setBusy(false);
     }
   }
@@ -716,7 +718,11 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit | null; onClose: () 
   return (
     <Dialog
       title={isNew ? "Add hospital unit" : unit.name}
-      lede={isNew ? "A department or service patients can be seen in. Its visit types are added under Visit types." : "What patients read about the unit, and when it is open. Changes are recorded in the audit log."}
+      lede={
+        isNew
+          ? "A department or service patients can be seen in. Its visit types are added under Visit types."
+          : "What patients read about the unit, and when it is open. Changes are recorded in the audit log."
+      }
       icon={<Building size={22} />}
       busy={busy}
       onClose={onClose}
@@ -726,13 +732,7 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit | null; onClose: () 
       canSubmit={Boolean(name.trim()) && pointOk}
     >
       <Field label="Name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
-      <PhoneField
-        label="Phone number"
-        value={phone}
-        onChange={setPhone}
-        country={country}
-        onCountry={setCountry}
-      />
+      <PhoneField label="Phone number" value={phone} onChange={setPhone} country={country} onCountry={setCountry} />
       <label className="settings-label" htmlFor="unit-description">
         Description
       </label>
@@ -800,7 +800,14 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit | null; onClose: () 
         onChange={(e) => setWay(e.target.value)}
       />
       <div className="settings-coords-row">
-        <Field label="Entrance latitude" className="settings-grow" inputMode="decimal" value={lat} placeholder="4.1532" onChange={(e) => setLat(e.target.value)} />
+        <Field
+          label="Entrance latitude"
+          className="settings-grow"
+          inputMode="decimal"
+          value={lat}
+          placeholder="4.1532"
+          onChange={(e) => setLat(e.target.value)}
+        />
         <Field
           label="Entrance longitude"
           className="settings-grow"
@@ -811,8 +818,7 @@ function UnitDialog({ unit, onClose, onDone }: { unit: Unit | null; onClose: () 
           onChange={(e) => setLng(e.target.value)}
         />
         <button type="button" className="tonal-button" onClick={here} disabled={locating} aria-busy={locating || undefined}>
-          {locating ? <LoadingIndicator size={18} label="Finding where you are" /> : <Pin size={15} />}
-          I am at the door
+          {locating ? <LoadingIndicator size={18} label="Finding where you are" /> : <Pin size={15} />}I am at the door
         </button>
       </div>
       {failure && <Notice tone="error">{failure}</Notice>}
@@ -1154,8 +1160,7 @@ function FeesTab({ found, onSaved }: { found: Overview; onSaved: (message: strin
     <section className="glass accounts-card" aria-label="Fee bands">
       <p className="accounts-banner settings-banner">
         <Shield size={18} />
-        Amounts are recorded in the fee ledger at every visit's close. No money moves through Atria yet, and a rating never changes a
-        fee.
+        Amounts are recorded in the fee ledger at every visit's close. No money moves through Atria yet, and a rating never changes a fee.
       </p>
       <div className="accounts-head settings-fees-head" aria-hidden="true">
         <span>FEE BAND</span>
@@ -1220,7 +1225,10 @@ function BandDialog({ band, onClose, onDone }: { band: FeeBand; onClose: () => v
   // The API's bounds (core/settings.fee_band_fields): whole francs, at most ten million.
   const valid = typed !== "" && Number.isInteger(value) && value >= 0 && value <= MAX_FEE;
   // Allowed, but worth a second look before every later visit is charged it.
-  const unusual = valid && value !== band.baseAmountMinor && (value === 0 || (band.baseAmountMinor > 0 && (value >= band.baseAmountMinor * 3 || value * 3 <= band.baseAmountMinor)));
+  const unusual =
+    valid &&
+    value !== band.baseAmountMinor &&
+    (value === 0 || (band.baseAmountMinor > 0 && (value >= band.baseAmountMinor * 3 || value * 3 <= band.baseAmountMinor)));
 
   async function submit(event: FormEvent) {
     event.preventDefault();

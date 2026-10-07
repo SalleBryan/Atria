@@ -89,7 +89,9 @@
 .input-reveal:active::before {
   opacity: 0.1;
 }
-.mode-switch a[aria-current="page"]::before { display: none; }
+.mode-switch a[aria-current="page"]::before {
+  display: none;
+}
 
 /* Focus outlines settle in rather than snapping on. */
 :focus-visible {
@@ -171,8 +173,20 @@
     ripple-grow var(--move-slow) forwards,
     ripple-fade 650ms var(--spring-effects-slow) forwards;
 }
-@keyframes ripple-grow { to { transform: scale(1); } }
-@keyframes ripple-fade { 0%, 45% { opacity: 0.2; } 100% { opacity: 0; } }
+@keyframes ripple-grow {
+  to {
+    transform: scale(1);
+  }
+}
+@keyframes ripple-fade {
+  0%,
+  45% {
+    opacity: 0.2;
+  }
+  100% {
+    opacity: 0;
+  }
+}
 
 .button .loading-indicator,
 .action .loading-indicator {
@@ -217,7 +231,9 @@
   border-color: var(--line-soft);
 }
 .input-icon {
-  transition: color var(--fade), transform var(--move-fast);
+  transition:
+    color var(--fade),
+    transform var(--move-fast);
 }
 .input:focus-within .input-icon {
   transform: scale(1.1);
@@ -235,7 +251,10 @@
   animation: turn-in var(--move-fast) both;
 }
 @keyframes turn-in {
-  from { transform: rotate(-90deg) scale(0.4); opacity: 0; }
+  from {
+    transform: rotate(-90deg) scale(0.4);
+    opacity: 0;
+  }
 }
 
 /* A new error nudges its field (controls.tsx restarts this). */
@@ -244,12 +263,24 @@
   animation: nudge 420ms var(--spring-effects-default);
 }
 @keyframes nudge {
-  0% { transform: translateX(0); }
-  18% { transform: translateX(-7px); }
-  38% { transform: translateX(6px); }
-  58% { transform: translateX(-4px); }
-  78% { transform: translateX(2px); }
-  100% { transform: translateX(0); }
+  0% {
+    transform: translateX(0);
+  }
+  18% {
+    transform: translateX(-7px);
+  }
+  38% {
+    transform: translateX(6px);
+  }
+  58% {
+    transform: translateX(-4px);
+  }
+  78% {
+    transform: translateX(2px);
+  }
+  100% {
+    transform: translateX(0);
+  }
 }
 
 /* ==================================================================== links */
@@ -321,7 +352,9 @@
   animation-delay: 420ms;
 }
 @keyframes draw {
-  from { stroke-dashoffset: 1; }
+  from {
+    stroke-dashoffset: 1;
+  }
 }
 
 /* =========================================================== strength bar */
@@ -374,7 +407,10 @@
   animation: roll-in var(--move-fast) both;
 }
 @keyframes roll-in {
-  from { transform: translateY(60%); opacity: 0; }
+  from {
+    transform: translateY(60%);
+    opacity: 0;
+  }
 }
 
 /* ========================================================= notices, errors */
@@ -398,7 +434,9 @@
   }
 }
 @keyframes fade-in {
-  from { opacity: 0; }
+  from {
+    opacity: 0;
+  }
 }
 .notice,
 .note {
@@ -408,12 +446,21 @@
 /* ================================================================ one-offs */
 
 @keyframes pop {
-  0% { transform: scale(1); }
-  40% { transform: scale(1.14); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.14);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 @keyframes pop-in {
-  from { transform: scale(0.4); opacity: 0; }
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
 }
 
 /* =================================================================== loading */
@@ -456,17 +503,31 @@
     var(--enter-move, rise) var(--move-slow) both,
     fade-in var(--fade-slow) both;
 }
-.auth-box[data-enter="forward"] { --enter-move: from-right; }
-.auth-box[data-enter="back"] { --enter-move: from-left; }
+.auth-box[data-enter="forward"] {
+  --enter-move: from-right;
+}
+.auth-box[data-enter="back"] {
+  --enter-move: from-left;
+}
 .auth-box[data-enter="forward"] > .mode-switch,
 .auth-box[data-enter="back"] > .mode-switch {
   animation: none;
 }
-.auth-box[data-enter] > :nth-child(2) { animation-delay: 45ms, 45ms; }
-.auth-box[data-enter] > :nth-child(3) { animation-delay: 90ms, 90ms; }
-.auth-box[data-enter] > :nth-child(4) { animation-delay: 135ms, 135ms; }
-.auth-box[data-enter] > :nth-child(5) { animation-delay: 180ms, 180ms; }
-.auth-box[data-enter] > :nth-child(n + 6) { animation-delay: 225ms, 225ms; }
+.auth-box[data-enter] > :nth-child(2) {
+  animation-delay: 45ms, 45ms;
+}
+.auth-box[data-enter] > :nth-child(3) {
+  animation-delay: 90ms, 90ms;
+}
+.auth-box[data-enter] > :nth-child(4) {
+  animation-delay: 135ms, 135ms;
+}
+.auth-box[data-enter] > :nth-child(5) {
+  animation-delay: 180ms, 180ms;
+}
+.auth-box[data-enter] > :nth-child(n + 6) {
+  animation-delay: 225ms, 225ms;
+}
 
 /* Tiles and pills arrive with a bounce, not a slide. */
 .auth-box[data-enter] > .icon-tile,
@@ -479,17 +540,25 @@
   animation: tilt-in var(--move-slow) both 120ms;
 }
 @keyframes tilt-in {
-  from { transform: rotate(-24deg) scale(0.6); }
+  from {
+    transform: rotate(-24deg) scale(0.6);
+  }
 }
 
 @keyframes rise {
-  from { transform: translateY(22px); }
+  from {
+    transform: translateY(22px);
+  }
 }
 @keyframes from-right {
-  from { transform: translateX(56px); }
+  from {
+    transform: translateX(56px);
+  }
 }
 @keyframes from-left {
-  from { transform: translateX(-56px); }
+  from {
+    transform: translateX(-56px);
+  }
 }
 
 /* The brand pane, only when what it shows has changed: the logo pops, then
@@ -508,18 +577,36 @@
     rise var(--move-slow) both,
     fade-in var(--fade-slow) both;
 }
-.brand-pane[data-enter] .logo-text { animation-delay: 60ms, 60ms; }
-.brand-pane[data-enter] .brand-body > :nth-child(1) { animation-delay: 110ms, 110ms; }
-.brand-pane[data-enter] .brand-body > :nth-child(2) { animation-delay: 170ms, 170ms; }
-.brand-pane[data-enter] .brand-body > :nth-child(3) { animation-delay: 230ms, 230ms; }
-.brand-pane[data-enter] .brand-body > :nth-child(4) { animation-delay: 290ms, 290ms; }
+.brand-pane[data-enter] .logo-text {
+  animation-delay: 60ms, 60ms;
+}
+.brand-pane[data-enter] .brand-body > :nth-child(1) {
+  animation-delay: 110ms, 110ms;
+}
+.brand-pane[data-enter] .brand-body > :nth-child(2) {
+  animation-delay: 170ms, 170ms;
+}
+.brand-pane[data-enter] .brand-body > :nth-child(3) {
+  animation-delay: 230ms, 230ms;
+}
+.brand-pane[data-enter] .brand-body > :nth-child(4) {
+  animation-delay: 290ms, 290ms;
+}
 .brand-pane[data-enter] .props > li:nth-child(1),
-.brand-pane[data-enter] .steps > li:nth-child(1) { animation-delay: 260ms, 260ms; }
+.brand-pane[data-enter] .steps > li:nth-child(1) {
+  animation-delay: 260ms, 260ms;
+}
 .brand-pane[data-enter] .props > li:nth-child(2),
-.brand-pane[data-enter] .steps > li:nth-child(2) { animation-delay: 330ms, 330ms; }
+.brand-pane[data-enter] .steps > li:nth-child(2) {
+  animation-delay: 330ms, 330ms;
+}
 .brand-pane[data-enter] .props > li:nth-child(3),
-.brand-pane[data-enter] .steps > li:nth-child(3) { animation-delay: 400ms, 400ms; }
-.brand-pane[data-enter] .brand-footer { animation-delay: 460ms, 460ms; }
+.brand-pane[data-enter] .steps > li:nth-child(3) {
+  animation-delay: 400ms, 400ms;
+}
+.brand-pane[data-enter] .brand-footer {
+  animation-delay: 460ms, 460ms;
+}
 /* The lists move as their items, not as one block. */
 .brand-pane[data-enter] .brand-body > .props,
 .brand-pane[data-enter] .brand-body > .steps {
@@ -533,7 +620,9 @@
   animation-delay: 520ms;
 }
 @keyframes draw-down {
-  from { transform: scaleY(0); }
+  from {
+    transform: scaleY(0);
+  }
 }
 
 /* The current step breathes, so the eye finds where it is. */
@@ -541,8 +630,13 @@
   animation: breathe 2600ms var(--spring-effects-slow) infinite;
 }
 @keyframes breathe {
-  0%, 100% { box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.18); }
-  50% { box-shadow: 0 0 0 11px rgba(255, 255, 255, 0.08); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 11px rgba(255, 255, 255, 0.08);
+  }
 }
 
 /* Light sweeps once across the glass cards after they land. */
@@ -558,11 +652,19 @@
   transform: translateX(-120%);
   animation: sheen 1100ms var(--spring-effects-slow) both;
 }
-.brand-pane[data-enter] .props > li:nth-child(1)::after { animation-delay: 700ms; }
-.brand-pane[data-enter] .props > li:nth-child(2)::after { animation-delay: 800ms; }
-.brand-pane[data-enter] .props > li:nth-child(3)::after { animation-delay: 900ms; }
+.brand-pane[data-enter] .props > li:nth-child(1)::after {
+  animation-delay: 700ms;
+}
+.brand-pane[data-enter] .props > li:nth-child(2)::after {
+  animation-delay: 800ms;
+}
+.brand-pane[data-enter] .props > li:nth-child(3)::after {
+  animation-delay: 900ms;
+}
 @keyframes sheen {
-  to { transform: translateX(120%); }
+  to {
+    transform: translateX(120%);
+  }
 }
 
 /* ===================================================== ambient background */
@@ -570,19 +672,39 @@
 /* The blurred lights behind the glass drift, slowly and out of step, so the
    page is never quite still. Long, gentle loops, not springs: nothing here
    responds to anything. */
-.orb-white { animation: drift-a 22s ease-in-out infinite alternate; }
-.orb-blue { animation: drift-b 26s ease-in-out infinite alternate; }
-.orb-form-top { animation: drift-b 24s ease-in-out infinite alternate-reverse; }
-.orb-form-bottom { animation: drift-a 28s ease-in-out infinite alternate-reverse; }
+.orb-white {
+  animation: drift-a 22s ease-in-out infinite alternate;
+}
+.orb-blue {
+  animation: drift-b 26s ease-in-out infinite alternate;
+}
+.orb-form-top {
+  animation: drift-b 24s ease-in-out infinite alternate-reverse;
+}
+.orb-form-bottom {
+  animation: drift-a 28s ease-in-out infinite alternate-reverse;
+}
 @keyframes drift-a {
-  0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-36px, 28px) scale(1.08); }
-  100% { transform: translate(24px, -18px) scale(0.96); }
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-36px, 28px) scale(1.08);
+  }
+  100% {
+    transform: translate(24px, -18px) scale(0.96);
+  }
 }
 @keyframes drift-b {
-  0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(30px, -24px) scale(0.94); }
-  100% { transform: translate(-22px, 20px) scale(1.06); }
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(30px, -24px) scale(0.94);
+  }
+  100% {
+    transform: translate(-22px, 20px) scale(1.06);
+  }
 }
 
 /* ============================================================ less motion */

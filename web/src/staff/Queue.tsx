@@ -371,7 +371,9 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
                           ...queue,
                           waiting: Math.max(0, queue.waiting - 1),
                           arrived: queue.arrived + 1,
-                          appointments: queue.appointments.map((a) => (a.appointmentId === t.appointmentId ? { ...a, state: "ARRIVED" } : a)),
+                          appointments: queue.appointments.map((a) =>
+                            a.appointmentId === t.appointmentId ? { ...a, state: "ARRIVED" } : a,
+                          ),
                         }))
                       }
                     >

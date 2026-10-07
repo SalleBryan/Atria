@@ -99,19 +99,13 @@ export function VisitPage() {
   const me = session.status === "signed-in" ? session.me : undefined;
   const role = me ? roleOf(me) : "RECEPTIONIST";
   const appointment = visit.status === "ready" ? visit.data : undefined;
-  const date = isDate(params.get("date"))
-    ? (params.get("date") as string)
-    : appointment
-      ? clock.isoDate(appointment.startAt)
-      : undefined;
-  const { state: day } = useSchedule(me && date ? scheduleUrl(role, me, appointment?.clinicId ?? me.clinicId ?? undefined, date) : undefined);
+  const date = isDate(params.get("date")) ? (params.get("date") as string) : appointment ? clock.isoDate(appointment.startAt) : undefined;
+  const { state: day } = useSchedule(
+    me && date ? scheduleUrl(role, me, appointment?.clinicId ?? me.clinicId ?? undefined, date) : undefined,
+  );
 
   const back = `/console${date ? `?date=${date}` : ""}`;
-  const crumb = [
-    "Schedule",
-    date ? CRUMB_DATE.format(noonOf(date)).replace(",", "") : null,
-    appointment?.reference,
-  ]
+  const crumb = ["Schedule", date ? CRUMB_DATE.format(noonOf(date)).replace(",", "") : null, appointment?.reference]
     .filter(Boolean)
     .join(" · ");
 
@@ -143,7 +137,8 @@ export function VisitPage() {
   const cancelled = CANCELLED_STATES.includes(appointment.state);
   // Each action as the matrix allows it: an administrator reads every visit
   // but books, moves, cancels and checks in none (audit 2026-10-05).
-  const canCancel = can(role, "appointment.cancel") && ACTIVE_STATES.includes(appointment.state) && Date.parse(appointment.startAt) > Date.now();
+  const canCancel =
+    can(role, "appointment.cancel") && ACTIVE_STATES.includes(appointment.state) && Date.parse(appointment.startAt) > Date.now();
   const scheduled = SCHEDULED.includes(appointment.state);
   const consults = Boolean(me?.roles.some((r) => r === "CLINICIAN" || r === "CLINIC_MANAGER"));
   const canArrive = can(role, "appointment.check_in") && scheduled && clock.isoDate(appointment.startAt) === clock.isoDate(new Date());
@@ -181,20 +176,37 @@ export function VisitPage() {
     <div className="visit-page-actions">
       {failed && <Notice tone="error">{failed}</Notice>}
       {step && (
-        <button type="button" className="staff-primary" disabled={acting !== null} aria-busy={acting === step.action || undefined} onClick={() => act(step.action, step.done)}>
+        <button
+          type="button"
+          className="staff-primary"
+          disabled={acting !== null}
+          aria-busy={acting === step.action || undefined}
+          onClick={() => act(step.action, step.done)}
+        >
           {step.label}
         </button>
       )}
       {noShowDue && (
         <div className="no-show-ask">
           <p>
-            Still not checked in, {clock.time(appointment.endAt)} has passed. Did {patientLabel === "Patient" ? "the patient" : patientLabel} come?
+            Still not checked in, {clock.time(appointment.endAt)} has passed. Did{" "}
+            {patientLabel === "Patient" ? "the patient" : patientLabel} come?
           </p>
           <div className="no-show-choices">
-            <button type="button" className="outline-button" disabled={acting !== null} onClick={() => act("arrive", `Arrival recorded for ${patientLabel}.`)}>
+            <button
+              type="button"
+              className="outline-button"
+              disabled={acting !== null}
+              onClick={() => act("arrive", `Arrival recorded for ${patientLabel}.`)}
+            >
               They came
             </button>
-            <button type="button" className="outline-danger" disabled={acting !== null} onClick={() => act("no-show", `${appointment.reference} recorded as a no-show.`)}>
+            <button
+              type="button"
+              className="outline-danger"
+              disabled={acting !== null}
+              onClick={() => act("no-show", `${appointment.reference} recorded as a no-show.`)}
+            >
               Mark no-show
             </button>
           </div>
@@ -204,12 +216,20 @@ export function VisitPage() {
         Back to the day
       </Link>
       {canMove && (
-        <button type="button" className="outline-button" onClick={() => setParams({ ...(date ? { date } : {}), move: "1" }, { replace: true })}>
+        <button
+          type="button"
+          className="outline-button"
+          onClick={() => setParams({ ...(date ? { date } : {}), move: "1" }, { replace: true })}
+        >
           Move visit
         </button>
       )}
       {canCancel && (
-        <button type="button" className="outline-danger" onClick={() => setParams({ ...(date ? { date } : {}), cancel: "1" }, { replace: true })}>
+        <button
+          type="button"
+          className="outline-danger"
+          onClick={() => setParams({ ...(date ? { date } : {}), cancel: "1" }, { replace: true })}
+        >
           Cancel visit
         </button>
       )}
@@ -235,9 +255,7 @@ export function VisitPage() {
           <span className="hero-tag">{label.toUpperCase()}</span>
           <h1>{day.status === "loading" ? "Loading" : fullName(name)}</h1>
           <p>
-            {[joined.type?.name ?? "Appointment", `${minutesOf(appointment)} minutes`, booked.replace(/^Booked/, "booked")].join(
-              " · ",
-            )}
+            {[joined.type?.name ?? "Appointment", `${minutesOf(appointment)} minutes`, booked.replace(/^Booked/, "booked")].join(" · ")}
           </p>
         </div>
         <dl className="visit-cells staff-hero-cells">
@@ -305,7 +323,10 @@ export function VisitPage() {
                   <span className="person-sub">{[joined.clinician?.specialty, joined.clinic?.name].filter(Boolean).join(" · ")}</span>
                 </span>
                 {appointment.clinicianProfileId && (
-                  <Link className="person-link" to={`/console/week?date=${clock.isoDate(appointment.startAt)}${own ? "" : `&clinician=${appointment.clinicianProfileId}`}`}>
+                  <Link
+                    className="person-link"
+                    to={`/console/week?date=${clock.isoDate(appointment.startAt)}${own ? "" : `&clinician=${appointment.clinicianProfileId}`}`}
+                  >
                     {own ? "Your week" : "View schedule"}
                   </Link>
                 )}
@@ -345,57 +366,58 @@ export function VisitPage() {
             refresh={`${appointment.state}-${appointment.startAt}-${appointment.version}`}
             fallback={
               <>
-            <li>
-              <span className="timeline-dot dot-done" aria-hidden="true">
-                <CheckMark size={10} />
-              </span>
-              <span>
-                <span className="timeline-title">{booked}</span>
-                <span className="timeline-sub">
-                  {appointment.channel ? `${CHANNEL[appointment.channel] ?? appointment.channel} · ` : ""}
-                  {clock.day(appointment.createdAt)}, {clock.time(appointment.createdAt)}
-                </span>
-              </span>
-            </li>
-            {cancelled ? (
-              <li>
-                <span className="timeline-dot dot-red" aria-hidden="true">
-                  <Close size={10} />
-                </span>
-                <span>
-                  <span className="timeline-title">{label}</span>
-                  <span className="timeline-sub">The time was freed and the patient emailed</span>
-                </span>
-              </li>
-            ) : null}
+                <li>
+                  <span className="timeline-dot dot-done" aria-hidden="true">
+                    <CheckMark size={10} />
+                  </span>
+                  <span>
+                    <span className="timeline-title">{booked}</span>
+                    <span className="timeline-sub">
+                      {appointment.channel ? `${CHANNEL[appointment.channel] ?? appointment.channel} · ` : ""}
+                      {clock.day(appointment.createdAt)}, {clock.time(appointment.createdAt)}
+                    </span>
+                  </span>
+                </li>
+                {cancelled ? (
+                  <li>
+                    <span className="timeline-dot dot-red" aria-hidden="true">
+                      <Close size={10} />
+                    </span>
+                    <span>
+                      <span className="timeline-title">{label}</span>
+                      <span className="timeline-sub">The time was freed and the patient emailed</span>
+                    </span>
+                  </li>
+                ) : null}
               </>
             }
           >
-            {!cancelled && (reminder ? (
-              <li>
-                <span className="timeline-dot dot-amber-tint" aria-hidden="true">
-                  <Clock size={10} />
-                </span>
-                <span>
-                  <span className="timeline-title">SMS reminder</span>
-                  <span className="timeline-sub">
-                    {reminder.getTime() > Date.now()
-                      ? `Scheduled for ${clock.day(reminder)}, ${clock.time(reminder)} · 24h ahead`
-                      : `Was due ${clock.day(reminder)}, ${clock.time(reminder)} · nothing on record yet`}
+            {!cancelled &&
+              (reminder ? (
+                <li>
+                  <span className="timeline-dot dot-amber-tint" aria-hidden="true">
+                    <Clock size={10} />
                   </span>
-                </span>
-              </li>
-            ) : (
-              <li>
-                <span className="timeline-dot dot-amber-tint" aria-hidden="true">
-                  <Bell size={10} />
-                </span>
-                <span>
-                  <span className="timeline-title">Confirmed by SMS</span>
-                  <span className="timeline-sub">Booked inside 24 hours, so no reminder</span>
-                </span>
-              </li>
-            ))}
+                  <span>
+                    <span className="timeline-title">SMS reminder</span>
+                    <span className="timeline-sub">
+                      {reminder.getTime() > Date.now()
+                        ? `Scheduled for ${clock.day(reminder)}, ${clock.time(reminder)} · 24h ahead`
+                        : `Was due ${clock.day(reminder)}, ${clock.time(reminder)} · nothing on record yet`}
+                    </span>
+                  </span>
+                </li>
+              ) : (
+                <li>
+                  <span className="timeline-dot dot-amber-tint" aria-hidden="true">
+                    <Bell size={10} />
+                  </span>
+                  <span>
+                    <span className="timeline-title">Confirmed by SMS</span>
+                    <span className="timeline-sub">Booked inside 24 hours, so no reminder</span>
+                  </span>
+                </li>
+              ))}
           </VisitHistory>
           {!phone && actions}
         </section>
@@ -412,7 +434,9 @@ export function VisitPage() {
           onClose={() => setParams(date ? { date } : {}, { replace: true })}
           onMoved={(moved) => {
             setParams({ date: clock.isoDate(moved.startAt) }, { replace: true });
-            setSaid(`${moved.reference} moved to ${clock.day(moved.startAt)}, ${clock.time(moved.startAt)}. ${patientLabel} has been emailed.`);
+            setSaid(
+              `${moved.reference} moved to ${clock.day(moved.startAt)}, ${clock.time(moved.startAt)}. ${patientLabel} has been emailed.`,
+            );
             setFresh((n) => n + 1);
           }}
         />

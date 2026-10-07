@@ -98,12 +98,7 @@ function Shell({ me }: { me: Me }) {
           <div className="side-scroll">
             <p className="side-label">YOUR CARE</p>
             <nav className="side-nav" aria-label="Patient">
-              <span
-                ref={pill}
-                className="side-pill"
-                aria-hidden="true"
-                style={{ "--at": at } as CSSProperties}
-              />
+              <span ref={pill} className="side-pill" aria-hidden="true" style={{ "--at": at } as CSSProperties} />
               {destinations.map(({ to, label, icon: IconComponent, count }) => (
                 <NavLink key={to} to={to} className="side-item">
                   {/* Material 3's large badge, pinned to the icon as on a navigation rail. */}

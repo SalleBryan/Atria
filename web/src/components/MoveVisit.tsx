@@ -25,7 +25,6 @@ import { type Slot, WeekSlots } from "./WeekSlots";
 
 type MovedBy = "PATIENT" | "CLINIC";
 
-
 /** What the desk can say; every option names whose move it is, "Other" asks. */
 const REASONS: { label: string; by: MovedBy | null }[] = [
   { label: "Patient asked to move it", by: "PATIENT" },
@@ -86,11 +85,7 @@ export function MoveVisit({
     if (!slot || !ready) return;
     setBusy(true);
     setFailure(null);
-    const written = reason
-      ? reason.by === null && note.trim()
-        ? `${reason.label}: ${note.trim()}`
-        : reason.label
-      : note.trim();
+    const written = reason ? (reason.by === null && note.trim() ? `${reason.label}: ${note.trim()}` : reason.label) : note.trim();
     try {
       const moved = await api<Appointment>(`/appointments/${appointment.appointmentId}/reschedule`, {
         method: "POST",

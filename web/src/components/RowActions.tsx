@@ -28,7 +28,15 @@ export function RowActions({ label, actions }: { label: string; actions: RowActi
   const panel = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
-  const { place, admin } = useMenu({ open, onClose: close, anchor: button, panel, width: 290, align: "end", roomNeeded: 60 + actions.length * 56 });
+  const { place, admin } = useMenu({
+    open,
+    onClose: close,
+    anchor: button,
+    panel,
+    width: 290,
+    align: "end",
+    roomNeeded: 60 + actions.length * 56,
+  });
 
   return (
     <>

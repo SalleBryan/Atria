@@ -25,13 +25,57 @@ const ADMIN = {
   clinicId: null,
 } as unknown as Me;
 
-
 const LISTED = [
-  { staffId: "s-admin", givenName: "Sandrine", familyName: "Eyenga", signInName: "s@x.cm", clinicId: null, roles: ["TENANT_ADMIN"], status: "ACTIVE", mustSetPassword: false },
-  { staffId: "s-desk", givenName: "Nadine", familyName: "Fotso", signInName: "n@x.cm", clinicId: "c-akwa", roles: ["RECEPTIONIST"], status: "ACTIVE", mustSetPassword: false },
-  { staffId: "s-doc", givenName: "Esther", familyName: "Mbarga", signInName: "e@x.cm", clinicId: "c-akwa", roles: ["CLINICIAN"], status: "ACTIVE", mustSetPassword: false },
-  { staffId: "s-new", givenName: "Kofi", familyName: "Ngassa", signInName: "+12025550163", clinicId: "c-akwa", roles: ["RECEPTIONIST"], status: "INVITED", mustSetPassword: true },
-  { staffId: "s-gone", givenName: "Joyce", familyName: "Ebolo", signInName: "j@x.cm", clinicId: "c-akwa", roles: ["RECEPTIONIST"], status: "SUSPENDED", mustSetPassword: false },
+  {
+    staffId: "s-admin",
+    givenName: "Sandrine",
+    familyName: "Eyenga",
+    signInName: "s@x.cm",
+    clinicId: null,
+    roles: ["TENANT_ADMIN"],
+    status: "ACTIVE",
+    mustSetPassword: false,
+  },
+  {
+    staffId: "s-desk",
+    givenName: "Nadine",
+    familyName: "Fotso",
+    signInName: "n@x.cm",
+    clinicId: "c-akwa",
+    roles: ["RECEPTIONIST"],
+    status: "ACTIVE",
+    mustSetPassword: false,
+  },
+  {
+    staffId: "s-doc",
+    givenName: "Esther",
+    familyName: "Mbarga",
+    signInName: "e@x.cm",
+    clinicId: "c-akwa",
+    roles: ["CLINICIAN"],
+    status: "ACTIVE",
+    mustSetPassword: false,
+  },
+  {
+    staffId: "s-new",
+    givenName: "Kofi",
+    familyName: "Ngassa",
+    signInName: "+12025550163",
+    clinicId: "c-akwa",
+    roles: ["RECEPTIONIST"],
+    status: "INVITED",
+    mustSetPassword: true,
+  },
+  {
+    staffId: "s-gone",
+    givenName: "Joyce",
+    familyName: "Ebolo",
+    signInName: "j@x.cm",
+    clinicId: "c-akwa",
+    roles: ["RECEPTIONIST"],
+    status: "SUSPENDED",
+    mustSetPassword: false,
+  },
 ];
 
 const change = vi.fn((_path: string, _body: unknown) => ({}));
@@ -62,7 +106,14 @@ function listing(path: string) {
   };
 }
 
-function respond(create: (body: unknown) => unknown = () => ({ givenName: "Kofi", familyName: "Boateng", signInName: "+12025550177", temporaryPassword: "Tmp-abcd-efgh" })) {
+function respond(
+  create: (body: unknown) => unknown = () => ({
+    givenName: "Kofi",
+    familyName: "Boateng",
+    signInName: "+12025550177",
+    temporaryPassword: "Tmp-abcd-efgh",
+  }),
+) {
   api.mockImplementation(async (path: string, init?: { method?: string; json?: unknown }) => {
     if (path === "/clinicians") return { clinicians: [] };
     if (path === "/clinics") return { clinics: [{ clinicId: "c-akwa", name: "Medical Outpatient Unit" }] };
@@ -123,7 +174,12 @@ describe("Staff accounts", () => {
   });
 
   it("fr_acc_04: creates a receptionist at a clinic, and shows the password once", async () => {
-    const create = vi.fn(() => ({ givenName: "Kofi", familyName: "Boateng", signInName: "+12025550177", temporaryPassword: "Tmp-abcd-efgh" }));
+    const create = vi.fn(() => ({
+      givenName: "Kofi",
+      familyName: "Boateng",
+      signInName: "+12025550177",
+      temporaryPassword: "Tmp-abcd-efgh",
+    }));
     respond(create);
     renderAccounts();
     const { user, sheet } = await openForm();
@@ -161,7 +217,13 @@ describe("Staff accounts", () => {
     await user.click(within(sheet).getByRole("button", { name: "French" }));
     await user.click(within(sheet).getByRole("button", { name: "Create account" }));
     expect(create).toHaveBeenCalledWith(
-      expect.objectContaining({ roles: ["CLINICIAN"], specialty: "Paediatrics", registrationYear: 2012, ordreNumber: "CM-ONMC-00123", languages: ["fr"] }),
+      expect.objectContaining({
+        roles: ["CLINICIAN"],
+        specialty: "Paediatrics",
+        registrationYear: 2012,
+        ordreNumber: "CM-ONMC-00123",
+        languages: ["fr"],
+      }),
     );
   });
 

@@ -30,16 +30,7 @@ export interface DonutChartProps {
   className?: string;
 }
 
-export function DonutChart({
-  title,
-  subtitle,
-  segments,
-  centerValue,
-  centerSub,
-  size = 230,
-  ariaLabel,
-  className = "",
-}: DonutChartProps) {
+export function DonutChart({ title, subtitle, segments, centerValue, centerSub, size = 230, ariaLabel, className = "" }: DonutChartProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const total = segments.reduce((sum, s) => sum + Math.max(0, s.value), 0);
@@ -53,17 +44,11 @@ export function DonutChart({
 
   let currentOffset = 0;
 
-  const displayCenterValue = activeSegment
-    ? String(activeSegment.value)
-    : centerValue ?? String(total);
+  const displayCenterValue = activeSegment ? String(activeSegment.value) : (centerValue ?? String(total));
 
-  const displayCenterSub = activeSegment
-    ? activeSegment.label
-    : centerSub ?? "Total";
+  const displayCenterSub = activeSegment ? activeSegment.label : (centerSub ?? "Total");
 
-  const displayCenterPct = activeSegment && total > 0
-    ? `${Math.round((activeSegment.value / total) * 100)}%`
-    : null;
+  const displayCenterPct = activeSegment && total > 0 ? `${Math.round((activeSegment.value / total) * 100)}%` : null;
 
   return (
     <div className={`m3-expressive-chart-wrap ${className}`} aria-label={ariaLabel}>
@@ -81,11 +66,7 @@ export function DonutChart({
           role="img"
           aria-label={ariaLabel || "Visual donut distribution"}
         >
-          <svg
-            viewBox="0 0 220 220"
-            className="m3-donut-svg"
-            onMouseLeave={() => setHoveredId(null)}
-          >
+          <svg viewBox="0 0 220 220" className="m3-donut-svg" onMouseLeave={() => setHoveredId(null)}>
             {/* Background Track */}
             <circle
               cx={center}
@@ -139,9 +120,7 @@ export function DonutChart({
           <div className="m3-donut-center" aria-hidden="true">
             <span className="m3-donut-center-val">{displayCenterValue}</span>
             <span className="m3-donut-center-sub">{displayCenterSub}</span>
-            {displayCenterPct && (
-              <span className="m3-donut-center-pct">{displayCenterPct}</span>
-            )}
+            {displayCenterPct && <span className="m3-donut-center-pct">{displayCenterPct}</span>}
           </div>
         </div>
 
@@ -159,10 +138,7 @@ export function DonutChart({
                 onMouseLeave={() => setHoveredId(null)}
               >
                 <div className="m3-legend-left">
-                  <span
-                    className="m3-legend-dot"
-                    style={{ backgroundColor: seg.color }}
-                  />
+                  <span className="m3-legend-dot" style={{ backgroundColor: seg.color }} />
                   <span className="m3-legend-label">{seg.label}</span>
                 </div>
                 <div className="m3-legend-right">
@@ -212,13 +188,7 @@ function shortUnit(name: string): string {
   return name.replace(/\s+Unit|\s+Centre|\s+Department/gi, "").slice(0, 7);
 }
 
-export function MultiUnitBarChart({
-  title,
-  subtitle,
-  units,
-  onSelectUnit,
-  className = "",
-}: MultiUnitBarChartProps) {
+export function MultiUnitBarChart({ title, subtitle, units, onSelectUnit, className = "" }: MultiUnitBarChartProps) {
   const [hoveredUnitId, setHoveredUnitId] = useState<string | null>(null);
   const maxTotal = Math.max(1, ...units.map((u) => u.total));
   const activeUnit = units.find((u) => u.unitId === hoveredUnitId);
@@ -236,13 +206,12 @@ export function MultiUnitBarChart({
       <div className="m3-column-inspect-bar" aria-live="polite">
         {activeUnit ? (
           <span className="m3-column-inspect-active">
-            <strong>{activeUnit.name}</strong>: {activeUnit.total} {activeUnit.total === 1 ? "visit" : "visits"} · {activeUnit.attended} attended, {activeUnit.noShow} no-show, {activeUnit.cancelled} cancelled
+            <strong>{activeUnit.name}</strong>: {activeUnit.total} {activeUnit.total === 1 ? "visit" : "visits"} · {activeUnit.attended}{" "}
+            attended, {activeUnit.noShow} no-show, {activeUnit.cancelled} cancelled
             {activeUnit.rate != null && <span> ({Math.round(activeUnit.rate * 100)}% attendance)</span>}
           </span>
         ) : (
-          <span className="m3-column-inspect-idle">
-            Hover over any hospital unit column below to inspect operational volume
-          </span>
+          <span className="m3-column-inspect-idle">Hover over any hospital unit column below to inspect operational volume</span>
         )}
       </div>
 
@@ -268,28 +237,10 @@ export function MultiUnitBarChart({
                 tabIndex={0}
                 aria-label={`${u.name}: ${u.total} visits`}
               >
-                <div
-                  className="m3-column-stack"
-                  style={{ height: `${colHeight}%` }}
-                >
-                  {cancelledPct > 0 && (
-                    <span
-                      className="m3-col-seg cancelled"
-                      style={{ height: `${cancelledPct}%` }}
-                    />
-                  )}
-                  {noShowPct > 0 && (
-                    <span
-                      className="m3-col-seg noshow"
-                      style={{ height: `${noShowPct}%` }}
-                    />
-                  )}
-                  {attendedPct > 0 && (
-                    <span
-                      className="m3-col-seg attended"
-                      style={{ height: `${attendedPct}%` }}
-                    />
-                  )}
+                <div className="m3-column-stack" style={{ height: `${colHeight}%` }}>
+                  {cancelledPct > 0 && <span className="m3-col-seg cancelled" style={{ height: `${cancelledPct}%` }} />}
+                  {noShowPct > 0 && <span className="m3-col-seg noshow" style={{ height: `${noShowPct}%` }} />}
+                  {attendedPct > 0 && <span className="m3-col-seg attended" style={{ height: `${attendedPct}%` }} />}
                   {!hasVisits && <span className="m3-col-seg empty" />}
                 </div>
               </div>
@@ -322,9 +273,7 @@ export function MultiUnitBarChart({
         <span>
           <i style={{ backgroundColor: "#f59e0b" }} /> Cancelled
         </span>
-        {onSelectUnit && (
-          <span className="overview-legend-note">Click a unit to focus its report</span>
-        )}
+        {onSelectUnit && <span className="overview-legend-note">Click a unit to focus its report</span>}
       </figcaption>
     </figure>
   );

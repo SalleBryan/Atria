@@ -5,13 +5,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import * as XLSX from "xlsx";
-import {
-  downloadPatientTemplate,
-  downloadStaffTemplate,
-  parseExcelDate,
-  parsePatientExcel,
-  parseStaffExcel,
-} from "./excelImport";
+import { downloadPatientTemplate, downloadStaffTemplate, parseExcelDate, parsePatientExcel, parseStaffExcel } from "./excelImport";
 
 function createMockFile(workbook: XLSX.WorkBook, filename: string): File {
   const binary = XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
@@ -103,19 +97,7 @@ describe("parseStaffExcel", () => {
         "Consults In",
         "Employee Number",
       ],
-      [
-        "Receptionist",
-        "Marie",
-        "Fotso",
-        "+237 6 70 11 22 33",
-        "",
-        "Central Outpatient Clinic",
-        "",
-        "",
-        "",
-        "",
-        "REC-001",
-      ],
+      ["Receptionist", "Marie", "Fotso", "+237 6 70 11 22 33", "", "Central Outpatient Clinic", "", "", "", "", "REC-001"],
       [
         "Clinician",
         "Samuel",
@@ -129,32 +111,8 @@ describe("parseStaffExcel", () => {
         "English, French",
         "DOC-002",
       ],
-      [
-        "Unit Manager",
-        "Jeanne",
-        "Ngo",
-        "+237 6 99 88 77 66",
-        "",
-        "Central Outpatient Clinic",
-        "",
-        "",
-        "",
-        "",
-        "MGR-003",
-      ],
-      [
-        "Tenant Administrator",
-        "Alain",
-        "Mboma",
-        "+237 6 55 44 33 22",
-        "admin@atria.care",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "ADM-001",
-      ],
+      ["Unit Manager", "Jeanne", "Ngo", "+237 6 99 88 77 66", "", "Central Outpatient Clinic", "", "", "", "", "MGR-003"],
+      ["Tenant Administrator", "Alain", "Mboma", "+237 6 55 44 33 22", "admin@atria.care", "", "", "", "", "", "ADM-001"],
     ];
     const ws = XLSX.utils.aoa_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, "Staff");

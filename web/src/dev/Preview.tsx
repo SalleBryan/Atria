@@ -138,7 +138,12 @@ const PEOPLE: Record<string, Me> = {
 PEOPLE["admin-new"] = { ...PEOPLE.admin!, secondFactorRequired: true };
 PEOPLE["patient-deleted"] = {
   ...PEOPLE.patient!,
-  deletion: { purgeAt: new Date(Date.now() + 23 * 86400000).toISOString(), requestedAt: new Date(Date.now() - 7 * 86400000).toISOString(), by: "SELF", graceDays: 30 },
+  deletion: {
+    purgeAt: new Date(Date.now() + 23 * 86400000).toISOString(),
+    requestedAt: new Date(Date.now() - 7 * 86400000).toISOString(),
+    by: "SELF",
+    graceDays: 30,
+  },
 };
 PEOPLE["patient-google"] = { ...PEOPLE.patient!, phoneE164: null, phoneVerified: false, missing: ["phone", "dateOfBirth", "terms"] };
 

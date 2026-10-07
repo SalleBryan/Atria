@@ -36,8 +36,7 @@ export interface PatientName {
 /** Still holding its time 30 minutes after its end: staff are asked whether the patient came (FR-STF-05). */
 export function noShowDue(appointment: Appointment, now = Date.now()): boolean {
   return (
-    ["BOOKED", "CONFIRMED", "RESCHEDULED", "DISRUPTED"].includes(appointment.state) &&
-    now >= Date.parse(appointment.endAt) + 30 * 60 * 1000
+    ["BOOKED", "CONFIRMED", "RESCHEDULED", "DISRUPTED"].includes(appointment.state) && now >= Date.parse(appointment.endAt) + 30 * 60 * 1000
   );
 }
 

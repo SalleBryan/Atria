@@ -129,7 +129,13 @@ export function ClinicianDetails({
           ) : (
             <form id="clinician-details-form" onSubmit={save} noValidate>
               <div className="sheet-grid clinician-fields">
-                <Field label="Specialty" value={specialty} onChange={(e) => setSpecialty(e.target.value)} error={errors.specialty} autoComplete="off" />
+                <Field
+                  label="Specialty"
+                  value={specialty}
+                  onChange={(e) => setSpecialty(e.target.value)}
+                  error={errors.specialty}
+                  autoComplete="off"
+                />
                 <Field
                   label="Year on the Order's roll"
                   inputMode="numeric"
@@ -167,7 +173,13 @@ export function ClinicianDetails({
           <button type="button" className="outline-button keep" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button type="submit" form="clinician-details-form" className="staff-primary" disabled={busy || !found} aria-busy={busy || undefined}>
+          <button
+            type="submit"
+            form="clinician-details-form"
+            className="staff-primary"
+            disabled={busy || !found}
+            aria-busy={busy || undefined}
+          >
             {busy ? <LoadingIndicator size={20} label="Saving" /> : null}
             {busy ? "Saving" : "Save details"}
           </button>

@@ -31,7 +31,26 @@ import { useSession } from "../auth/session";
 import { Field, Notice } from "../components/controls";
 import { LoadingRow } from "../components/LoadingPane";
 import { ChipRow, FilterMenu, type FilterOption } from "../components/FilterMenu";
-import { Building, CheckMark, Clipboard, Close, Download, Filter, Info, Key, Lock, Plus, Repeat, Shield, Star, Stethoscope, Trash, Undo, Upload, User } from "../components/icons";
+import {
+  Building,
+  CheckMark,
+  Clipboard,
+  Close,
+  Download,
+  Filter,
+  Info,
+  Key,
+  Lock,
+  Plus,
+  Repeat,
+  Shield,
+  Star,
+  Stethoscope,
+  Trash,
+  Undo,
+  Upload,
+  User,
+} from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { Pager } from "../components/Pager";
 import { RowActions } from "../components/RowActions";
@@ -64,10 +83,18 @@ function allowances(role: StaffRole): { text: string; yes: boolean }[] {
   const read = MATRIX["appointment.read"][role];
   return [
     {
-      text: read === "own" ? "View their own calendar" : read === "tenant" ? "View every unit's schedule" : "View and manage the unit's schedule",
+      text:
+        read === "own"
+          ? "View their own calendar"
+          : read === "tenant"
+            ? "View every unit's schedule"
+            : "View and manage the unit's schedule",
       yes: read !== "none",
     },
-    { text: "Book, reschedule and cancel for patients", yes: MATRIX["appointment.create"][role] !== "none" && MATRIX["appointment.cancel"][role] !== "none" },
+    {
+      text: "Book, reschedule and cancel for patients",
+      yes: MATRIX["appointment.create"][role] !== "none" && MATRIX["appointment.cancel"][role] !== "none",
+    },
     { text: "Check patients in and mark no-shows", yes: MATRIX["appointment.check_in"][role] !== "none" },
     { text: "Read intake answers or care context", yes: MATRIX["care_context.read"][role] !== "none" },
     { text: "Create and manage staff accounts", yes: MATRIX["staff.create"][role] !== "none" },
@@ -249,18 +276,19 @@ export function StaffAccounts() {
       id: "people",
       label: "People",
       icon: User,
-      items: words && words === query.trim()
-        ? accounts.slice(0, 4).map((a) => {
-            const name = [a.givenName, a.familyName].filter(Boolean).join(" ") || "Unnamed account";
-            return {
-              id: a.staffId,
-              label: name,
-              hint: [a.roles.map((r) => ROLE_NAME[r] ?? r).join(", "), a.signInName].filter(Boolean).join(" · "),
-              also: [a.signInName ?? ""],
-              onPick: () => setQuery(name),
-            };
-          })
-        : [],
+      items:
+        words && words === query.trim()
+          ? accounts.slice(0, 4).map((a) => {
+              const name = [a.givenName, a.familyName].filter(Boolean).join(" ") || "Unnamed account";
+              return {
+                id: a.staffId,
+                label: name,
+                hint: [a.roles.map((r) => ROLE_NAME[r] ?? r).join(", "), a.signInName].filter(Boolean).join(" · "),
+                also: [a.signInName ?? ""],
+                onPick: () => setQuery(name),
+              };
+            })
+          : [],
     },
     {
       id: "roles",
@@ -457,10 +485,10 @@ export function StaffAccounts() {
                 const shownStatus = deleted
                   ? { label: `Deleted · ${left} ${left === 1 ? "day" : "days"} to restore`, tone: "cancelled" }
                   : off
-                  ? { label: "Suspended", tone: "neutral" }
-                  : account.mustSetPassword
-                    ? { label: STATUS_NAME.awaiting, tone: "awaiting" }
-                    : { label: "Active", tone: "confirmed" };
+                    ? { label: "Suspended", tone: "neutral" }
+                    : account.mustSetPassword
+                      ? { label: STATUS_NAME.awaiting, tone: "awaiting" }
+                      : { label: "Active", tone: "confirmed" };
                 const name = [account.givenName, account.familyName].filter(Boolean).join(" ") || "Unnamed account";
                 return (
                   <li
@@ -470,7 +498,11 @@ export function StaffAccounts() {
                   >
                     <span className="account-who">
                       {selectable.includes(account.staffId) ? (
-                        <SelectBox checked={selection.has(account.staffId)} label={`Select ${name}`} onChange={() => selection.toggle(account.staffId)} />
+                        <SelectBox
+                          checked={selection.has(account.staffId)}
+                          label={`Select ${name}`}
+                          onChange={() => selection.toggle(account.staffId)}
+                        />
                       ) : (
                         <span className="select-box-space" aria-hidden="true" />
                       )}
@@ -479,7 +511,13 @@ export function StaffAccounts() {
                       </span>
                       <span className="account-text">
                         <span className="account-name">{name}</span>
-                        <span className="account-sub">{account.signInName ? (account.signInName.startsWith("+") ? phoneShown(account.signInName) : account.signInName) : "No sign-in name"}</span>
+                        <span className="account-sub">
+                          {account.signInName
+                            ? account.signInName.startsWith("+")
+                              ? phoneShown(account.signInName)
+                              : account.signInName
+                            : "No sign-in name"}
+                        </span>
                       </span>
                     </span>
                     <span>
@@ -804,8 +842,8 @@ function ChangeRole({ account, onClose, onDone }: { account: Listed; onClose: ()
         ) : (
           <>
             <Notice>
-              A clinician needs their roll details and an administrator an email and no clinic, so moving into or out of
-              either is a new account. Create one for the new role, then suspend this one.
+              A clinician needs their roll details and an administrator an email and no clinic, so moving into or out of either is a new
+              account. Create one for the new role, then suspend this one.
             </Notice>
             <div className="dialog-actions">
               <button type="button" className="outline-button keep" onClick={onClose}>
@@ -845,8 +883,8 @@ function Suspend({ account, onClose, onDone }: { account: Listed; onClose: () =>
         </span>
         <h2 id="suspend-title">Suspend {name}?</h2>
         <p className="dialog-lede">
-          Their sessions end now and they cannot sign in again. Their past bookings stay on record. A suspended account is
-          not deleted, and stays on this list.
+          Their sessions end now and they cannot sign in again. Their past bookings stay on record. A suspended account is not deleted, and
+          stays on this list.
         </p>
         {failure && <Notice tone="error">{failure}</Notice>}
         <div className="dialog-actions">
@@ -988,10 +1026,7 @@ function CreateStaff({ onClose, onDone }: { onClose: () => void; onDone: (name: 
             <div className="sheet-body">
               <Secret label="Sign-in name" value={created.signInName} />
               <Secret label="Temporary password" value={created.temporaryPassword} mono />
-              <Notice>
-                The temporary password works for 7 days. At first sign-in they choose their own, on the staff sign-in
-                page.
-              </Notice>
+              <Notice>The temporary password works for 7 days. At first sign-in they choose their own, on the staff sign-in page.</Notice>
             </div>
             <footer className="sheet-foot">
               <span>Creating the account was logged against your admin user.</span>
@@ -1024,7 +1059,13 @@ function CreateStaff({ onClose, onDone }: { onClose: () => void; onDone: (name: 
               <p className="dialog-label">PERSON</p>
               <div className="sheet-grid">
                 <Field label="Given name" value={form.givenName} onChange={set("givenName")} error={errors.givenName} autoComplete="off" />
-                <Field label="Family name" value={form.familyName} onChange={set("familyName")} error={errors.familyName} autoComplete="off" />
+                <Field
+                  label="Family name"
+                  value={form.familyName}
+                  onChange={set("familyName")}
+                  error={errors.familyName}
+                  autoComplete="off"
+                />
                 <PhoneField
                   label="Mobile"
                   value={form.phone}
@@ -1097,7 +1138,13 @@ function CreateStaff({ onClose, onDone }: { onClose: () => void; onDone: (name: 
                     error={errors.registrationYear}
                     autoComplete="off"
                   />
-                  <Field label="Ordre number" value={form.ordreNumber} onChange={set("ordreNumber")} error={errors.ordreNumber} autoComplete="off" />
+                  <Field
+                    label="Ordre number"
+                    value={form.ordreNumber}
+                    onChange={set("ordreNumber")}
+                    error={errors.ordreNumber}
+                    autoComplete="off"
+                  />
                   <div className="field">
                     <span className="field-label" id="staff-languages">
                       Consults in
@@ -1174,7 +1221,8 @@ function IssuePasswords({
   const [failure, setFailure] = useState<string | null>(null);
   const [issued, setIssued] = useState<StaffCredential[] | null>(null);
   const [missed, setMissed] = useState(0);
-  const nameOf = (a: Pick<Listed, "givenName" | "familyName">) => [a.givenName, a.familyName].filter(Boolean).join(" ") || "Unnamed account";
+  const nameOf = (a: Pick<Listed, "givenName" | "familyName">) =>
+    [a.givenName, a.familyName].filter(Boolean).join(" ") || "Unnamed account";
   const one = accounts.length === 1 ? accounts[0] : undefined;
 
   async function issue() {
@@ -1221,7 +1269,9 @@ function IssuePasswords({
             <Key size={22} />
           </span>
           <span>
-            <h2 id="issue-title">{one ? `New temporary password for ${nameOf(one)}` : `New temporary passwords for ${accounts.length} accounts`}</h2>
+            <h2 id="issue-title">
+              {one ? `New temporary password for ${nameOf(one)}` : `New temporary passwords for ${accounts.length} accounts`}
+            </h2>
             <p>
               {issued
                 ? "Shown once. Pass each on in person or by a trusted channel."
@@ -1265,7 +1315,11 @@ function IssuePasswords({
                 type="button"
                 className="staff-primary sheet-primary"
                 onClick={() =>
-                  onDone(issued.length === 1 ? `${issued[0]!.name} has a new temporary password.` : `${issued.length} accounts have new temporary passwords.`)
+                  onDone(
+                    issued.length === 1
+                      ? `${issued[0]!.name} has a new temporary password.`
+                      : `${issued.length} accounts have new temporary passwords.`,
+                  )
                 }
               >
                 Done
@@ -1284,7 +1338,13 @@ function IssuePasswords({
               <button type="button" className="outline-button" onClick={onClose} disabled={busy}>
                 Cancel
               </button>
-              <button type="button" className="staff-primary sheet-primary" onClick={() => void issue()} disabled={busy} aria-busy={busy || undefined}>
+              <button
+                type="button"
+                className="staff-primary sheet-primary"
+                onClick={() => void issue()}
+                disabled={busy}
+                aria-busy={busy || undefined}
+              >
                 {busy ? <LoadingIndicator size={20} label="Issuing" /> : null}
                 {busy ? "Issuing" : one ? "Issue password" : "Issue passwords"}
               </button>
@@ -1338,7 +1398,11 @@ function PriorityAllowance({ account, onClose, onDone }: { account: Listed; onCl
     setFailure(null);
     try {
       await api(`/admin/staff/${account.staffId}/priority-allowance`, { method: "PUT", json: { quotaPerMonth: Number(quota) } });
-      onDone(Number(quota) ? `${name} holds ${quota} priority ${Number(quota) === 1 ? "place" : "places"} a month.` : `${name} holds no priority allowance.`);
+      onDone(
+        Number(quota)
+          ? `${name} holds ${quota} priority ${Number(quota) === 1 ? "place" : "places"} a month.`
+          : `${name} holds no priority allowance.`,
+      );
     } catch (caught) {
       setFailure(`${sentence(caught instanceof Error ? caught.message : "The allowance could not be saved")} Nothing was changed.`);
       setBusy(false);
@@ -1347,7 +1411,13 @@ function PriorityAllowance({ account, onClose, onDone }: { account: Listed; onCl
 
   return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
-      <div className="dialog staff-dialog" role="dialog" aria-modal="true" aria-labelledby="priority-title" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="dialog staff-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="priority-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <span className="dialog-icon dialog-icon-blue accounts-dialog-icon" aria-hidden="true">
           <Star size={22} />
         </span>

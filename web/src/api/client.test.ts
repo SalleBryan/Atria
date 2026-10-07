@@ -43,8 +43,6 @@ describe("api", () => {
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ message: "Missing Authentication Token" }), { status: 403 })),
     );
-    await expect(api("/admin/staff/s-1/temporary-password", { method: "POST" })).rejects.toThrow(
-      "The server does not offer this yet.",
-    );
+    await expect(api("/admin/staff/s-1/temporary-password", { method: "POST" })).rejects.toThrow("The server does not offer this yet.");
   });
 });

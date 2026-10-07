@@ -28,15 +28,7 @@ interface AuthLayoutProps {
   brandKey: string;
 }
 
-export function AuthLayout({
-  product,
-  brand,
-  footer,
-  children,
-  paneWidth = 620,
-  boxWidth = 480,
-  brandKey,
-}: AuthLayoutProps) {
+export function AuthLayout({ product, brand, footer, children, paneWidth = 620, boxWidth = 480, brandKey }: AuthLayoutProps) {
   const { pathname } = useLocation();
   const [enter] = useState(() => enterFrom(pathname));
   const [brandEnter] = useState(() => brandEnters(brandKey));
@@ -131,8 +123,8 @@ export function StaffBrand() {
       <p className="eyebrow">Staff console</p>
       <h2 className="pitch pitch-staff">The whole day, on one screen.</h2>
       <p className="pitch-copy">
-        Every booking, cancellation and reminder your healthcare institution sends, in the order it happens. Sign in to pick up
-        today's schedule.
+        Every booking, cancellation and reminder your healthcare institution sends, in the order it happens. Sign in to pick up today's
+        schedule.
       </p>
     </>
   );

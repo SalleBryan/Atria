@@ -16,7 +16,22 @@ import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import type { Me } from "../api/client";
 import { useSession } from "../auth/session";
 import { StaffAuthenticatorSetup } from "../pages/StaffAuthenticator";
-import { Calendar, Chart, More as Grid, Clock, Inbox, ListOrdered, Mail, Pulse, Shield, SignOut, Sliders, Stethoscope, User, Users } from "../components/icons";
+import {
+  Calendar,
+  Chart,
+  More as Grid,
+  Clock,
+  Inbox,
+  ListOrdered,
+  Mail,
+  Pulse,
+  Shield,
+  SignOut,
+  Sliders,
+  Stethoscope,
+  User,
+  Users,
+} from "../components/icons";
 import { offeredAt } from "../patient/data";
 import { runsQueue } from "./Queue";
 import { SignOutMenu } from "../components/SignOutMenu";

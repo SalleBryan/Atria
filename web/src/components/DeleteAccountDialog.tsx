@@ -97,7 +97,13 @@ export function RestoreDialog({ name, onConfirm, onClose }: { name: string; onCo
   const [failure, setFailure] = useState<string | null>(null);
   return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
-      <div className="dialog staff-dialog" role="dialog" aria-modal="true" aria-labelledby="restore-title" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="dialog staff-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="restore-title"
+        onClick={(event) => event.stopPropagation()}
+      >
         <span className="dialog-icon dialog-icon-blue" aria-hidden="true">
           <Undo size={22} />
         </span>
@@ -153,11 +159,19 @@ export function BatchRestoreDialog({
   const label = count === 1 ? noun : `${noun}s`;
   return createPortal(
     <div className="scrim" onClick={() => !busy && onClose()}>
-      <div className="dialog staff-dialog" role="dialog" aria-modal="true" aria-labelledby="restore-title" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="dialog staff-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="restore-title"
+        onClick={(event) => event.stopPropagation()}
+      >
         <span className="dialog-icon dialog-icon-blue" aria-hidden="true">
           <Undo size={22} />
         </span>
-        <h2 id="restore-title">Restore {count} {label}?</h2>
+        <h2 id="restore-title">
+          Restore {count} {label}?
+        </h2>
         <p className="dialog-lede">
           Each account comes back as it was before it was deleted, and can sign in again. Visits cancelled by the deletion stay cancelled.
         </p>

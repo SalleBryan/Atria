@@ -42,8 +42,8 @@ export function FormsTab({
     <section className="glass accounts-card" aria-label="Intake forms">
       <p className="accounts-banner settings-banner">
         <Shield size={18} />
-        You write the questions. The answers are care context: only the patient and their clinician read them, never the front
-        desk, unit managers or administrators, and they are deleted 90 days after the visit.
+        You write the questions. The answers are care context: only the patient and their clinician read them, never the front desk, unit
+        managers or administrators, and they are deleted 90 days after the visit.
       </p>
       <div className="settings-card-top">
         <p>Asked when a visit is booked. Choose a form for each visit type under Visit types.</p>
@@ -132,7 +132,11 @@ function draftOf(field?: IntakeField): Draft {
 /** An id from the question's words, kept once a question has one. */
 function idFor(draft: Draft, taken: Set<string>): string {
   if (draft.id) return draft.id;
-  const words = draft.label.replace(/[^A-Za-z0-9 ]/g, "").trim().split(/\s+/).slice(0, 3);
+  const words = draft.label
+    .replace(/[^A-Za-z0-9 ]/g, "")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 3);
   let base = words.map((w, i) => (i ? w[0]!.toUpperCase() + w.slice(1).toLowerCase() : w.toLowerCase())).join("") || "question";
   if (!/^[A-Za-z]/.test(base)) base = `q${base}`;
   let id = base.slice(0, 32);
@@ -141,7 +145,12 @@ function idFor(draft: Draft, taken: Set<string>): string {
 }
 
 function slug(label: string, taken: Set<string>): string {
-  let base = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || "option";
+  let base =
+    label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 30) || "option";
   if (!/^[a-z]/.test(base)) base = `o-${base}`;
   let id = base;
   for (let n = 2; taken.has(id); n += 1) id = `${base}-${n}`;
@@ -176,7 +185,8 @@ function FormDialog({
 
   const problems = fields.flatMap((f) => {
     if (!f.label.trim()) return ["Every question needs its words."];
-    if (f.kind === "choice" && f.options.split("\n").filter((o) => o.trim()).length < 2) return [`"${f.label}" needs at least two options.`];
+    if (f.kind === "choice" && f.options.split("\n").filter((o) => o.trim()).length < 2)
+      return [`"${f.label}" needs at least two options.`];
     if (f.kind === "number" && !(Number(f.min) <= Number(f.max))) return [`"${f.label}" needs a lowest number below its highest.`];
     return [];
   });
@@ -232,7 +242,11 @@ function FormDialog({
   return (
     <Dialog
       title={form ? form.name : "New intake form"}
-      lede={form ? "Saving publishes a new version. Answers already given keep the questions they answered." : "Questions a patient answers when they book."}
+      lede={
+        form
+          ? "Saving publishes a new version. Answers already given keep the questions they answered."
+          : "Questions a patient answers when they book."
+      }
       icon={<Clipboard size={22} />}
       busy={busy}
       onClose={onClose}
@@ -289,8 +303,18 @@ function FormDialog({
             )}
             {f.kind === "number" && (
               <div className="off-fields">
-                <Field label="Lowest" inputMode="numeric" value={f.min} onChange={(e) => change(f.key, { min: e.target.value.replace(/\D/g, "") })} />
-                <Field label="Highest" inputMode="numeric" value={f.max} onChange={(e) => change(f.key, { max: e.target.value.replace(/\D/g, "") })} />
+                <Field
+                  label="Lowest"
+                  inputMode="numeric"
+                  value={f.min}
+                  onChange={(e) => change(f.key, { min: e.target.value.replace(/\D/g, "") })}
+                />
+                <Field
+                  label="Highest"
+                  inputMode="numeric"
+                  value={f.max}
+                  onChange={(e) => change(f.key, { max: e.target.value.replace(/\D/g, "") })}
+                />
               </div>
             )}
             <Checkbox checked={f.required} onChange={(required) => change(f.key, { required })}>
@@ -299,7 +323,12 @@ function FormDialog({
           </li>
         ))}
       </ol>
-      <button type="button" className="outline-button form-add" disabled={fields.length >= 20} onClick={() => setFields((all) => [...all, draftOf()])}>
+      <button
+        type="button"
+        className="outline-button form-add"
+        disabled={fields.length >= 20}
+        onClick={() => setFields((all) => [...all, draftOf()])}
+      >
         <Plus size={15} />
         Add a question
       </button>

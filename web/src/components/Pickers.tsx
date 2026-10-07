@@ -73,11 +73,17 @@ export function SelectMenu({
     setOpen(false);
     setQuery("");
   }, []);
-  const { place, admin } = useMenu({ open, onClose: close, anchor: button, panel, width, align: "start", roomNeeded: searchable ? 300 : 220 });
+  const { place, admin } = useMenu({
+    open,
+    onClose: close,
+    anchor: button,
+    panel,
+    width,
+    align: "start",
+    roomNeeded: searchable ? 300 : 220,
+  });
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const shown = words.length
-    ? options.filter((o) => words.every((w) => `${o.label} ${o.hint ?? ""}`.toLowerCase().includes(w)))
-    : options;
+  const shown = words.length ? options.filter((o) => words.every((w) => `${o.label} ${o.hint ?? ""}`.toLowerCase().includes(w))) : options;
   const chosen = options.find((o) => o.id === value);
 
   return (
@@ -100,7 +106,13 @@ export function SelectMenu({
         createPortal(
           <div className={`menu-layer${admin ? " menu-admin" : ""}`}>
             <div className="menu-scrim menu-scrim-clear" onClick={close} aria-hidden="true" />
-            <div ref={panel} className={`suggest picker-list${searchable ? " picker-searchable" : ""}`} role="listbox" aria-label={label} style={place}>
+            <div
+              ref={panel}
+              className={`suggest picker-list${searchable ? " picker-searchable" : ""}`}
+              role="listbox"
+              aria-label={label}
+              style={place}
+            >
               {searchable && (
                 <div className="picker-search">
                   <Search size={15} />

@@ -14,16 +14,7 @@
  * never clips it and it is always the size of the chips that opened it.
  */
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-  type RefObject,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Close, Filter } from "./icons";
 
@@ -201,10 +192,7 @@ export function ChipRow({
   );
 
   return (
-    <div
-      ref={row}
-      className={`chip-row ${variant === "week" ? "week-filters" : "chips"}} ${className}`}
-    >
+    <div ref={row} className={`chip-row ${variant === "week" ? "week-filters" : "chips"}} ${className}`}>
       <div className="chip-row-live" role="radiogroup" aria-label={label}>
         {chip(null, "all", true)}
         {shown.map((option) => chip(option, option.id, true))}

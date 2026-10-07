@@ -47,7 +47,9 @@ describe("VisitHistory", () => {
   });
 
   it("says a hospital cancellation was the hospital's, whoever pressed it", async () => {
-    api.mockResolvedValue({ history: [event("CANCELLED", "2026-10-02T09:00:00Z", { toState: "CLINIC_CANCELLED", actorRole: "RECEPTIONIST" })] });
+    api.mockResolvedValue({
+      history: [event("CANCELLED", "2026-10-02T09:00:00Z", { toState: "CLINIC_CANCELLED", actorRole: "RECEPTIONIST" })],
+    });
     show("patient");
     expect(await screen.findByText("Cancelled by the hospital")).toBeInTheDocument();
   });
@@ -70,8 +72,22 @@ describe("VisitHistory", () => {
     api.mockResolvedValue({
       history: [event("BOOKED", "2026-10-01T08:00:00Z")],
       reminders: [
-        { channel: "SMS", deliveryState: "DELIVERED", sentAt: "2026-10-04T07:20:00Z", settledAt: "2026-10-04T07:21:00Z", feedback: null, failureReason: null },
-        { channel: "EMAIL", deliveryState: "FAILED", sentAt: "2026-10-04T07:20:00Z", settledAt: "2026-10-04T07:20:00Z", feedback: null, failureReason: "AccessDeniedException" },
+        {
+          channel: "SMS",
+          deliveryState: "DELIVERED",
+          sentAt: "2026-10-04T07:20:00Z",
+          settledAt: "2026-10-04T07:21:00Z",
+          feedback: null,
+          failureReason: null,
+        },
+        {
+          channel: "EMAIL",
+          deliveryState: "FAILED",
+          sentAt: "2026-10-04T07:20:00Z",
+          settledAt: "2026-10-04T07:20:00Z",
+          feedback: null,
+          failureReason: "AccessDeniedException",
+        },
       ],
     });
     show("staff");

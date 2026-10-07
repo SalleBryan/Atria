@@ -123,8 +123,13 @@ export function JoinQueue() {
           <p className="today-empty">No sessions are published for the next two weeks yet. The desk can add you when you arrive.</p>
         ) : (
           <>
-            <div className="queue-day-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <p className="dialog-label" style={{ margin: 0 }}>DAY</p>
+            <div
+              className="queue-day-head"
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}
+            >
+              <p className="dialog-label" style={{ margin: 0 }}>
+                DAY
+              </p>
               <DatePickerMenu
                 value={day ?? days[0]}
                 label="Pick a date"

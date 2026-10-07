@@ -18,9 +18,9 @@ describe("messageFor", () => {
   });
 
   it("says when a temporary password has expired, not that it did not match", () => {
-    expect(
-      messageFor(refused("NotAuthorizedException", "Temporary password has expired and must be reset by an administrator.")),
-    ).toBe("This temporary password has expired. Ask your administrator to issue a new one; it is valid for 7 days.");
+    expect(messageFor(refused("NotAuthorizedException", "Temporary password has expired and must be reset by an administrator."))).toBe(
+      "This temporary password has expired. Ask your administrator to issue a new one; it is valid for 7 days.",
+    );
   });
 
   it("never shows the sign-in library's own wiring", () => {

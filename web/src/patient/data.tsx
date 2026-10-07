@@ -54,7 +54,7 @@ export interface Clinician {
 
 /** A language code, as a person reads it. Everything a person sees is English in Phase 1. */
 export const languageName = (code: string): string =>
-  ({ en: "English", fr: "French" } as Record<string, string>)[code] ?? code.toUpperCase();
+  (({ en: "English", fr: "French" }) as Record<string, string>)[code] ?? code.toUpperCase();
 
 export interface Clinic {
   clinicId: string;
@@ -267,7 +267,10 @@ function ahead(a: Appointment, now: Date): boolean {
 
 /** Booked and still ahead, soonest first. */
 export function upcoming(appointments: readonly Appointment[], now = new Date()): Appointment[] {
-  return appointments.filter((a) => ACTIVE_STATES.includes(a.state) || a.state === "REQUESTED").filter((a) => ahead(a, now)).sort((a, b) => a.startAt.localeCompare(b.startAt));
+  return appointments
+    .filter((a) => ACTIVE_STATES.includes(a.state) || a.state === "REQUESTED")
+    .filter((a) => ahead(a, now))
+    .sort((a, b) => a.startAt.localeCompare(b.startAt));
 }
 
 /** Everything already behind, most recent first. */
@@ -310,9 +313,7 @@ export const clock = {
 /** "in 2 days", "tomorrow", "in 3 hours", "today". */
 export function until(instant: string, now = new Date()): string {
   const minutes = Math.round((new Date(instant).getTime() - now.getTime()) / 60000);
-  const days = Math.round(
-    (Date.parse(`${clock.isoDate(instant)}T00:00:00Z`) - Date.parse(`${clock.isoDate(now)}T00:00:00Z`)) / 86400000,
-  );
+  const days = Math.round((Date.parse(`${clock.isoDate(instant)}T00:00:00Z`) - Date.parse(`${clock.isoDate(now)}T00:00:00Z`)) / 86400000);
   if (days >= 2) return `${days} days`;
   if (days === 1) return "Tomorrow";
   if (minutes >= 60) return `${Math.round(minutes / 60)} h`;
@@ -329,9 +330,7 @@ export function greeting(now = new Date()): string {
 /** Local opening hours for the weekday of an instant; keys are 0 for Monday. */
 export function hoursOn(clinic: Clinic | undefined, instant: string | Date = new Date()) {
   if (!clinic?.openingHours) return undefined;
-  const index = (["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const).indexOf(
-    clock.weekday(instant) as "Mon",
-  );
+  const index = (["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const).indexOf(clock.weekday(instant) as "Mon");
   return clinic.openingHours[String(index)];
 }
 
@@ -354,10 +353,7 @@ export const SENIORITY: Record<Clinician["seniorityBand"], string> = {
  * specification's lifecycle (typed against it, so a new state fails here).
  * Confirmed is the Rev A wording for a booked visit.
  */
-export const STATE_LABEL: Record<
-  AppointmentState,
-  { label: string; tone: "confirmed" | "awaiting" | "cancelled" | "neutral" }
-> = {
+export const STATE_LABEL: Record<AppointmentState, { label: string; tone: "confirmed" | "awaiting" | "cancelled" | "neutral" }> = {
   REQUESTED: { label: "Requested", tone: "awaiting" },
   DECLINED: { label: "Declined", tone: "cancelled" },
   BOOKED: { label: "Confirmed", tone: "confirmed" },

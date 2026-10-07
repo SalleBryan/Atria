@@ -25,18 +25,7 @@ import { Notice } from "../components/controls";
 import { DatePickerMenu } from "../components/DatePickerMenu";
 import { IntakeDialog } from "../components/IntakeDialog";
 import { LoadingPane } from "../components/LoadingPane";
-import {
-  Alert,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Close,
-  Filter,
-  Lock,
-  Repeat,
-  Stethoscope,
-  Users,
-} from "../components/icons";
+import { Alert, ChevronLeft, ChevronRight, Clock, Close, Filter, Lock, Repeat, Stethoscope, Users } from "../components/icons";
 import { ChipRow, FilterMenu } from "../components/FilterMenu";
 import { PAGE_ROWS, Pager, usePages } from "../components/Pager";
 import { LoadingIndicator } from "../components/LoadingIndicator";
@@ -145,10 +134,11 @@ export function FindCare() {
   const data = state.status === "ready" ? state.data : undefined;
 
   // Most clinicians first: the specialties, clinics and languages people are likeliest to want.
-  const { specialties, clinics: clinicOptions, languages: languageOptions } = useMemo(
-    () => careChoices(data?.bookable ?? [], data?.clinics ?? []),
-    [data],
-  );
+  const {
+    specialties,
+    clinics: clinicOptions,
+    languages: languageOptions,
+  } = useMemo(() => careChoices(data?.bookable ?? [], data?.clinics ?? []), [data]);
   const listed = useMemo(() => {
     const words = query.trim();
     const clinicName = (id: string | null) => data?.clinics.find((k) => k.clinicId === id)?.name ?? "";
@@ -206,9 +196,7 @@ export function FindCare() {
   const clinicOf = (clinician?: Clinician) => data?.clinics.find((c) => c.clinicId === clinician?.clinicId);
   const week = useMemo(() => days(weekStart, WEEK), [weekStart]);
   const today = clock.isoDate(new Date());
-  const lastBookable = type?.maxAdvanceDays
-    ? clock.isoDate(new Date(Date.now() + type.maxAdvanceDays * DAY_MS))
-    : undefined;
+  const lastBookable = type?.maxAdvanceDays ? clock.isoDate(new Date(Date.now() + type.maxAdvanceDays * DAY_MS)) : undefined;
 
   // The free starts for the week shown, in one request for the dates that can be booked.
   useEffect(() => {
@@ -410,9 +398,7 @@ export function FindCare() {
                   </span>
                   <span className="clinician-text">
                     <span className="clinician-name">{clinicianName(clinician)}</span>
-                    <span className="clinician-sub">
-                      {[clinician.specialty, clinicOf(clinician)?.name].filter(Boolean).join(" · ")}
-                    </span>
+                    <span className="clinician-sub">{[clinician.specialty, clinicOf(clinician)?.name].filter(Boolean).join(" · ")}</span>
                   </span>
                   <span className="clinician-band">
                     <Stethoscope size={13} />
@@ -508,7 +494,11 @@ export function FindCare() {
                   >
                     <ChevronLeft size={16} />
                   </button>
-                  <span>{new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(onDate(week[3] ?? weekStart)))}</span>
+                  <span>
+                    {new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }).format(
+                      new Date(onDate(week[3] ?? weekStart)),
+                    )}
+                  </span>
                   <button
                     type="button"
                     className="icon-button"
@@ -548,7 +538,13 @@ export function FindCare() {
                       <span className="day-name">{clock.weekday(onDate(date))}</span>
                       <span className="day-number">{Number(date.slice(8))}</span>
                       <span className="day-free">
-                        {free === undefined ? <LoadingIndicator size={12} label="Checking" /> : free.length ? `${free.length} free` : "None"}
+                        {free === undefined ? (
+                          <LoadingIndicator size={12} label="Checking" />
+                        ) : free.length ? (
+                          `${free.length} free`
+                        ) : (
+                          "None"
+                        )}
                       </span>
                     </button>
                   );
@@ -606,7 +602,9 @@ export function FindCare() {
                   ) : (
                     <>
                       <span className="dock-label">No time selected</span>
-                      <span className="dock-title">Pick a time<span className="wide-only"> above to continue</span></span>
+                      <span className="dock-title">
+                        Pick a time<span className="wide-only"> above to continue</span>
+                      </span>
                     </>
                   )}
                 </div>
@@ -618,7 +616,15 @@ export function FindCare() {
                   aria-label={booking ? "Booking" : "Book appointment"}
                 >
                   {booking ? <LoadingIndicator size={22} label="Booking" /> : null}
-                  <span aria-hidden="true">{booking ? "Booking" : <>Book<span className="wide-only"> appointment</span></>}</span>
+                  <span aria-hidden="true">
+                    {booking ? (
+                      "Booking"
+                    ) : (
+                      <>
+                        Book<span className="wide-only"> appointment</span>
+                      </>
+                    )}
+                  </span>
                 </button>
               </div>
             </form>
@@ -684,7 +690,11 @@ function Conflict({
       const soonest = found
         .flat()
         .filter((o) => o.slot.startAt !== taken.slot.startAt)
-        .sort((a, b) => Math.abs(Date.parse(a.slot.startAt) - Date.parse(taken.slot.startAt)) - Math.abs(Date.parse(b.slot.startAt) - Date.parse(taken.slot.startAt)))
+        .sort(
+          (a, b) =>
+            Math.abs(Date.parse(a.slot.startAt) - Date.parse(taken.slot.startAt)) -
+            Math.abs(Date.parse(b.slot.startAt) - Date.parse(taken.slot.startAt)),
+        )
         .slice(0, 8)
         .sort((a, b) => a.slot.startAt.localeCompare(b.slot.startAt));
       setOpenings(soonest);
@@ -742,8 +752,8 @@ function Conflict({
           </span>
           <h1>Someone took that slot.</h1>
           <p>
-            {clock.time(taken.slot.startAt)} was booked a few seconds before you confirmed, so we did not hold it for you.
-            Nothing was charged and no appointment was created.
+            {clock.time(taken.slot.startAt)} was booked a few seconds before you confirmed, so we did not hold it for you. Nothing was
+            charged and no appointment was created.
           </p>
           <span className="conflict-chip">
             <Close size={11} />

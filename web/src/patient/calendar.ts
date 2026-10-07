@@ -9,7 +9,10 @@ import type { Appointment, Clinic, Clinician, AppointmentType } from "./data";
 import { clinicianName } from "./data";
 
 function stamp(instant: string | Date): string {
-  return new Date(instant).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  return new Date(instant)
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}/, "");
 }
 
 /** Text values escape backslash, semicolon, comma and newline. */

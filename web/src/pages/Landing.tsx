@@ -53,12 +53,7 @@ export function Landing() {
             <Link className="landing-link" to="/sign-in">
               Find a clinician
             </Link>
-            <button
-              type="button"
-              className="landing-link"
-              aria-expanded={help}
-              onClick={() => setHelp((open) => !open)}
-            >
+            <button type="button" className="landing-link" aria-expanded={help} onClick={() => setHelp((open) => !open)}>
               Help
             </button>
           </nav>
@@ -71,19 +66,13 @@ export function Landing() {
           </Link>
           {help && (
             <div className="landing-help" role="dialog" aria-label="Help">
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Close help"
-                onClick={() => setHelp(false)}
-              >
+              <button type="button" className="icon-button" aria-label="Close help" onClick={() => setHelp(false)}>
                 <Close size={15} />
               </button>
               <p className="landing-help-title">Need a hand?</p>
               <p>
-                The front desk at {TENANT.name} can help with your account, your
-                record and your visits. Forgotten your password? Choose "Forgot
-                password?" when you sign in.
+                The front desk at {TENANT.name} can help with your account, your record and your visits. Forgotten your password? Choose
+                "Forgot password?" when you sign in.
               </p>
             </div>
           )}
@@ -91,16 +80,13 @@ export function Landing() {
 
         <main className="landing-main">
           <section className="landing-hero" aria-labelledby="landing-title">
-            <p className="landing-eyebrow">
-              WELCOME TO {TENANT.name.toUpperCase()}
-            </p>
+            <p className="landing-eyebrow">WELCOME TO {TENANT.name.toUpperCase()}</p>
             <h1 id="landing-title">
               <Rise text="Care that keeps time with you." />
             </h1>
             <p className="landing-lede">
-              Find a clinician, join today's queue or book ahead, and let Atria
-              carry the calendar from there. The same account works on your
-              laptop, tablet and phone.
+              Find a clinician, join today's queue or book ahead, and let Atria carry the calendar from there. The same account works on
+              your laptop, tablet and phone.
             </p>
             <div className="landing-cta">
               <Link className="landing-create" to="/create-account">
@@ -127,58 +113,31 @@ export function Landing() {
           </section>
 
           <div className="landing-stage" aria-hidden="true">
-            <img
-              className="landing-pulse"
-              src={pulseLine}
-              width="740"
-              height="78"
-              alt=""
-            />
+            <img className="landing-pulse" src={pulseLine} width="740" height="78" alt="" />
             <span className="hero-ring" />
-            <img
-              className="hero-portrait"
-              src={doctorCoat}
-              width="660"
-              height="800"
-              alt=""
-            />
-            <div
-              className="landing-card landing-card-visit"
-              style={{ "--i": 0 } as CSSProperties}
-            >
+            <img className="hero-portrait" src={doctorCoat} width="660" height="800" alt="" />
+            <div className="landing-card landing-card-visit" style={{ "--i": 0 } as CSSProperties}>
               <span className="landing-card-who">
                 <span className="landing-avatar">EM</span>
                 <span>
                   <span className="landing-card-name">Dr Esther Mbarga</span>
-                  <span className="landing-card-sub">
-                    Paediatrics · Paediatrics Unit
-                  </span>
+                  <span className="landing-card-sub">Paediatrics · Paediatrics Unit</span>
                 </span>
               </span>
               <span className="landing-card-label">NEXT VISIT</span>
               <span className="landing-time">10:00</span>
-              <span className="landing-card-sub landing-card-when">
-                Wednesday · Paediatrics Unit
-              </span>
+              <span className="landing-card-sub landing-card-when">Wednesday · Paediatrics Unit</span>
               <span className="landing-chips">
                 <span className="landing-chip landing-chip-on">Confirmed</span>
                 <span className="landing-chip">Reminder 24h ahead</span>
               </span>
             </div>
-            <div
-              className="landing-card landing-card-reminder"
-              style={{ "--i": 1 } as CSSProperties}
-            >
+            <div className="landing-card landing-card-reminder" style={{ "--i": 1 } as CSSProperties}>
               <span className="landing-card-label">REMINDER</span>
               <span className="landing-big">24h ahead</span>
-              <span className="landing-card-sub landing-card-when">
-                SMS and email on Tuesday, 10:00
-              </span>
+              <span className="landing-card-sub landing-card-when">SMS and email on Tuesday, 10:00</span>
             </div>
-            <div
-              className="landing-card landing-card-week"
-              style={{ "--i": 2 } as CSSProperties}
-            >
+            <div className="landing-card landing-card-week" style={{ "--i": 2 } as CSSProperties}>
               <span className="landing-card-label">THIS WEEK</span>
               <span className="landing-big">4 openings</span>
               <span className="landing-chips">

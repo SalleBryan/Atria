@@ -167,6 +167,14 @@ export function Reports() {
   const clinics = directory.status === "ready" ? directory.data.clinics : [];
   const unitName = unit === EVERY ? "All hospital units" : clinics.find((c) => c.clinicId === unit)?.name ?? unit;
   const periodLabel = formatPeriod(date, granularity);
+  const reportTitle = { day: "Daily report", week: "Weekly report", month: "Monthly report", year: "Annual report" }[granularity];
+  // A file outlives the screen it came from, so its period always names the year.
+  const exportContext = {
+    title: reportTitle,
+    period: /\d{4}/.test(periodLabel) ? periodLabel : `${periodLabel} ${date.slice(0, 4)}`,
+    unit: unitName,
+    hospital: TENANT.name,
+  };
 
   const step = (delta: number) => setDate((curr) => stepDate(curr, granularity, delta));
   const firstDay = found?.firstDay ?? "2026-09-19";
@@ -182,15 +190,7 @@ export function Reports() {
     <div className="accounts-page reports-page">
       <header className="accounts-top reports-header">
         <div>
-          <h1>
-            {granularity === "day"
-              ? "Daily report"
-              : granularity === "month"
-                ? "Monthly report"
-                : granularity === "year"
-                  ? "Annual report"
-                  : "Weekly report"}
-          </h1>
+          <h1>{reportTitle}</h1>
           <p>Visits disposition, attendance rate and fee ledger summary.</p>
         </div>
 
@@ -200,9 +200,9 @@ export function Reports() {
             <ReportDownload
               admin={admin}
               formats={[
-                { id: "pdf", label: "PDF", hint: "To print or share", pick: () => exportReportPdf(found, periodLabel, unitName, TENANT.name) },
-                { id: "xlsx", label: "Excel", hint: "Summary, units, channels, fees", pick: () => exportReportExcel(found, periodLabel, unitName) },
-                { id: "csv", label: "CSV", hint: "Plain rows for any spreadsheet", pick: () => exportReportCsv(found, periodLabel) },
+                { id: "pdf", label: "PDF", hint: "To print or share", pick: () => void exportReportPdf(found, exportContext) },
+                { id: "xlsx", label: "Excel", hint: "Summary, units, channels, fees", pick: () => void exportReportExcel(found, exportContext) },
+                { id: "csv", label: "CSV", hint: "Plain rows for any spreadsheet", pick: () => exportReportCsv(found, exportContext) },
               ]}
             />
           </div>

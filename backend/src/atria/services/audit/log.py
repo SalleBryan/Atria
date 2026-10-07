@@ -37,23 +37,104 @@ DEFAULT_DAYS = 7
 # One file, not a paging protocol. A month of a hospital's entries fits.
 MAX_EXPORT = 10_000
 
+# The export reads as the console does (2026-10-07): headings and labels in
+# words, as the Audit log screen shows them, with the action's code and every
+# identifier kept beside them so the file still answers an audit question.
 EXPORT_COLUMNS = (
-    "occurredAt",
-    "actor",
-    "actorRole",
-    "action",
-    "kind",
-    "subjectType",
-    "subjectId",
-    "clinicId",
-    "patientProfileIds",
-    "reason",
-    "flags",
-    "ip",
-    "userAgent",
-    "requestId",
-    "auditEntryId",
+    "When (UTC)",
+    "Who",
+    "Role",
+    "Action",
+    "Action code",
+    "Kind",
+    "Record",
+    "Record ID",
+    "Unit ID",
+    "Patient IDs",
+    "Reason",
+    "Flags",
+    "IP address",
+    "Device",
+    "Request ID",
+    "Entry ID",
 )
+
+ROLE_LABEL = {
+    "PATIENT": "Patient",
+    "RECEPTIONIST": "Receptionist",
+    "CLINICIAN": "Clinician",
+    "CLINIC_MANAGER": "Unit manager",
+    "TENANT_ADMIN": "Administrator",
+}
+
+KIND_LABEL = {"READ": "Read only", "WRITE": "Change"}
+
+# The Audit log screen's words for each action (web/src/staff/AuditLog.tsx).
+ACTION_LABEL = {
+    "appointment.read": "Opened a visit",
+    "appointment.create": "Booked a visit",
+    "appointment.cancel": "Cancelled a visit",
+    "appointment.reschedule": "Moved a visit",
+    "appointment.confirm": "Confirmed a visit",
+    "appointment.arrive": "Recorded an arrival",
+    "appointment.start": "Started a consultation",
+    "appointment.complete": "Completed a visit",
+    "appointment.no_show": "Marked a no-show",
+    "appointment.place": "Set a procedure's time",
+    "appointment.decline": "Declined a procedure request",
+    "care_context.read": "Read intake answers",
+    "care_context.write": "Wrote intake answers",
+    "patient.create": "Registered a patient",
+    "patient.read": "Opened a patient's record",
+    "patient.search": "Searched for a patient",
+    "queue.read": "Viewed the queue",
+    "queue.ticket": "Gave a queue place",
+    "queue.call_next": "Called the next patient",
+    "request.inbox": "Viewed procedure requests",
+    "schedule.day": "Viewed a unit's day",
+    "schedule.calendar": "Viewed a calendar",
+    "availability.hours": "Changed working hours",
+    "availability.time_off": "Took time off",
+    "availability.give_back": "Gave back time off",
+    "session.publish": "Published a session",
+    "session.close": "Closed a session",
+    "settings.tenant": "Changed hospital settings",
+    "settings.unit": "Changed a unit",
+    "settings.unit_create": "Added a unit",
+    "settings.unit_delete": "Removed a unit",
+    "settings.type_create": "Added a visit type",
+    "settings.type_change": "Changed a visit type",
+    "settings.form_create": "Added an intake form",
+    "settings.form_change": "Changed an intake form",
+    "settings.fee_band": "Changed a fee",
+    "staff.create": "Created a staff account",
+    "staff.update_roles": "Changed a role",
+    "staff.suspend": "Suspended an account",
+    "staff.priority_allowance": "Changed a priority allowance",
+    "staff.reset_password": "Issued a temporary password",
+    "staff.update_profile": "Corrected clinician details",
+    "audit.export": "Exported the audit log",
+}
+
+SUBJECT_LABEL = {
+    "APPOINTMENT": "Visit",
+    "APPOINTMENT_TYPE": "Visit type",
+    "AUDIT_LOG": "Audit log",
+    "CLINIC": "Unit day list",
+    "CLINICIAN": "Clinician",
+    "FEE_BAND": "Fee",
+    "INTAKE_FORM": "Intake form",
+    "PATIENT": "Patient record",
+    "REGISTER": "Patient register",
+    "SESSION": "Queue session",
+    "STAFF": "Staff account",
+    "TENANT": "Hospital settings",
+}
+
+
+def _when(instant: object) -> str:
+    """2026-10-07T14:09:31Z as 2026-10-07 14:09:31: a spreadsheet reads it as a time."""
+    return str(instant or "").replace("T", " ").rstrip("Z")
 
 
 def log() -> AuditLog:
@@ -194,14 +275,16 @@ def export(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     writer.writerow(EXPORT_COLUMNS)
     for e in chosen:
         source = e.get("source") or {}
+        action = str(e.get("action") or "")
         writer.writerow(
             [
-                e.get("occurredAt"),
+                _when(e.get("occurredAt")),
                 named.get(str(e.get("actorPersonId") or ""), "Unknown account"),
-                e.get("actorRole") or "",
-                e.get("action"),
-                e.get("kind"),
-                e.get("subjectType"),
+                ROLE_LABEL.get(str(e.get("actorRole") or ""), e.get("actorRole") or ""),
+                ACTION_LABEL.get(action, action),
+                action,
+                KIND_LABEL.get(str(e.get("kind") or ""), e.get("kind") or ""),
+                SUBJECT_LABEL.get(str(e.get("subjectType") or ""), e.get("subjectType") or ""),
                 e.get("subjectId"),
                 e.get("clinicId") or "",
                 " ".join(e.get("patientProfileIds") or []),
@@ -213,12 +296,13 @@ def export(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
                 e.get("auditEntryId"),
             ]
         )
-    name = f"atria-audit-{window['from']}-to-{window['to']}.csv"
+    name = f"Atria Audit log {window['from']} to {window['to']}.csv"
     csv_response = responses.response(
         200, None, headers={"Content-Disposition": f'attachment; filename="{name}"'}
     )
     csv_response["headers"]["Content-Type"] = "text/csv; charset=utf-8"
-    csv_response["body"] = out.getvalue()
+    # The byte-order mark lets Excel open accented names intact.
+    csv_response["body"] = "﻿" + out.getvalue()
     return csv_response
 
 

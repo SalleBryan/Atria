@@ -170,7 +170,7 @@ export function BatchPatientImport({
                     and language preference.
                   </p>
                 </div>
-                <button type="button" className="outline-button" onClick={() => downloadPatientTemplate()}>
+                <button type="button" className="outline-button" onClick={() => void downloadPatientTemplate()}>
                   <Download size={16} />
                   Download template
                 </button>

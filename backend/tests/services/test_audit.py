@@ -317,8 +317,8 @@ class TestReadingTheLog:
         assert result["statusCode"] == 200
         assert result["headers"]["Content-Type"].startswith("text/csv")
         assert "attachment" in result["headers"]["Content-Disposition"]
-        lines = result["body"].strip().split("\r\n")
-        assert lines[0].startswith("occurredAt,actor,actorRole,action")
+        lines = result["body"].lstrip("﻿").strip().split("\r\n")
+        assert lines[0].startswith("When (UTC),Who,Role,Action,Action code")
         assert len(lines) == 4
         assert PATIENT in result["body"]
         assert written(audit_log)[0]["action"] == "audit.export"

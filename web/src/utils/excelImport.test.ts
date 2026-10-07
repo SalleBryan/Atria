@@ -4,18 +4,6 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-const { mockWriteFile } = vi.hoisted(() => ({
-  mockWriteFile: vi.fn(),
-}));
-
-vi.mock("xlsx", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("xlsx")>();
-  return {
-    ...actual,
-    writeFile: mockWriteFile,
-  };
-});
-
 import * as XLSX from "xlsx";
 import {
   downloadPatientTemplate,
@@ -57,17 +45,38 @@ describe("parseExcelDate", () => {
 });
 
 describe("downloadStaffTemplate and downloadPatientTemplate", () => {
-  it("generates the staff template with clinics sheet", () => {
-    mockWriteFile.mockClear();
+  // The workbook the browser is handed, caught instead of saved.
+  async function saved(make: () => Promise<void>): Promise<{ file: File; name: string }> {
+    let blob: Blob | null = null;
+    let name = "";
+    URL.createObjectURL = vi.fn((b: Blob) => {
+      blob = b;
+      return "blob:template";
+    });
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      name = this.download;
+    });
+    await make();
+    click.mockRestore();
+    return { file: new File([blob!], name), name };
+  }
+
+  it("makes a staff template the import reads back, sample rows and all", async () => {
     const clinics = [{ clinicId: "clinic-1", name: "Central Outpatient Clinic" }];
-    expect(() => downloadStaffTemplate(clinics)).not.toThrow();
-    expect(mockWriteFile).toHaveBeenCalledWith(expect.anything(), "atria-staff-import-template.xlsx");
+    const { file, name } = await saved(() => downloadStaffTemplate(clinics));
+    expect(name).toBe("Atria Staff import template.xlsx");
+    const parsed = await parseStaffExcel(file, clinics);
+    expect(parsed.rows.map((r) => r.role)).toEqual(["RECEPTIONIST", "CLINICIAN", "CLINIC_MANAGER", "TENANT_ADMIN"]);
+    expect(parsed.errorCount).toBe(0);
   });
 
-  it("generates the patient template", () => {
-    mockWriteFile.mockClear();
-    expect(() => downloadPatientTemplate()).not.toThrow();
-    expect(mockWriteFile).toHaveBeenCalledWith(expect.anything(), "atria-patient-import-template.xlsx");
+  it("makes a patient template the import reads back", async () => {
+    const { file, name } = await saved(() => downloadPatientTemplate());
+    expect(name).toBe("Atria Patient import template.xlsx");
+    const parsed = await parsePatientExcel(file);
+    expect(parsed.rows).toHaveLength(3);
+    expect(parsed.errorCount).toBe(0);
   });
 });
 

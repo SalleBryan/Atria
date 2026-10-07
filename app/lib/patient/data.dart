@@ -351,7 +351,7 @@ enum Tone { confirmed, awaiting, cancelled, neutral }
   'ARRIVED' => ('Checked in', Tone.confirmed),
   'IN_CONSULTATION' => ('In consultation', Tone.confirmed),
   'COMPLETED' || 'AWAITING_FEEDBACK' => ('Attended', Tone.neutral),
-  'CLINIC_CANCELLED' => ('Cancelled by the institution', Tone.cancelled),
+  'CLINIC_CANCELLED' => ('Cancelled by the hospital', Tone.cancelled),
   'PATIENT_CANCELLED' => ('Cancelled', Tone.cancelled),
   'NO_SHOW' => ('Missed', Tone.awaiting),
   _ => (state, Tone.neutral),

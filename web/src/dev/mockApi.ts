@@ -719,7 +719,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         ...found,
         outcome: byClinic ? "CLINIC_CANCELLED" : late ? "CANCELLED_LATE" : "CANCELLED_IN_WINDOW",
         entitlement: byClinic || !late ? "FULL" : "PARTIAL",
-        note: "The time is free again. Nothing is settled; the entitlement is a record.",
+        note: "The time is free again. The refund is a record only; nothing is paid through Atria.",
       });
     }
   }

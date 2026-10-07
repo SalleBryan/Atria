@@ -133,7 +133,7 @@ export function Booked() {
         </dl>
         <footer className="ticket-foot">
           <span className="ticket-ref">{appointment.reference}</span>
-          <span className="chip chip-confirmed">{stateLabel(appointment.state).label.toUpperCase()}</span>
+          <span className="chip chip-confirmed">{stateLabel(appointment.state).label}</span>
         </footer>
       </article>
     </div>

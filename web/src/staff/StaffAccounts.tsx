@@ -1182,6 +1182,7 @@ function IssuePasswords({
     setFailure(null);
     const made: StaffCredential[] = [];
     let failed = 0;
+    let reason: string | null = null;
     for (const account of accounts) {
       try {
         const got = await api<Created & { email: string | null; phoneE164: string | null }>(
@@ -1199,12 +1200,13 @@ function IssuePasswords({
         });
       } catch (caught) {
         failed += 1;
+        reason ??= caught instanceof Error ? sentence(caught.message) : null;
         if (one) setFailure(`${sentence(caught instanceof Error ? caught.message : "No new password was issued")} Nothing was changed.`);
       }
     }
     setBusy(false);
     if (!made.length) {
-      if (!one) setFailure("No new passwords were issued. Check the connection and try again.");
+      if (!one) setFailure(`No new passwords were issued. ${reason ?? "Check the connection and try again."}`);
       return;
     }
     setMissed(failed);

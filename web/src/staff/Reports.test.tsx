@@ -38,6 +38,10 @@ const WEEK = {
   open: 0,
   attendance: 0.75,
   byChannel: [{ channel: "PHONE", booked: 4, attended: 3, noShow: 1, attendance: 0.75 }],
+  byBookedBy: [
+    { bookedBy: "PATIENT", booked: 6, attended: 4, noShow: 1, attendance: 0.8 },
+    { bookedBy: "CLINICIAN", booked: 4, attended: 2, noShow: 1, attendance: 0.667 },
+  ],
   byReminder: [{ reminder: "FAILED", booked: 2, attended: 1, noShow: 1, attendance: 0.5 }],
   ledger: {
     entries: 10,
@@ -91,6 +95,14 @@ describe("Weekly report", () => {
     renderAt(MANAGER);
     expect(await screen.findByText("By phone")).toBeInTheDocument();
     expect(screen.getByText("Reminder failed")).toBeInTheDocument();
+  });
+
+  it("says who made the bookings, apart from how patients reached the unit", async () => {
+    renderAt(MANAGER);
+    const card = await screen.findByRole("region", { name: "Who booked" });
+    expect(within(card).getByText("The patient")).toBeInTheDocument();
+    expect(within(card).getByText("A clinician")).toBeInTheDocument();
+    expect(within(card).getByText("4 booked · 2 came · 1 did not")).toBeInTheDocument();
   });
 
   it("shows the ledger as a record and claims no saving (FR-MSR-04, FR-MSR-07)", async () => {

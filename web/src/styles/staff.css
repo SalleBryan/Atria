@@ -1943,7 +1943,8 @@ body:has(.admin-app) .sheet-icon:not(.sheet-icon-done) {
 .reports-tile-accent .reports-tile-label,
 .reports-tile-accent .reports-tile-value { color: #ffffff; }
 .admin-app .reports-tile-accent { background: linear-gradient(140deg, var(--admin-light), var(--admin-base)); }
-.reports-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; flex: 1; min-height: 0; }
+/* Four cards (channel, who booked, reminder, fees): two by two. */
+.reports-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; flex: 1; min-height: 0; }
 .reports-rates { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
 .reports-rates li { display: grid; grid-template-columns: minmax(0, 1fr) 120px; align-items: center; gap: 12px; }
 .reports-rate-name { display: flex; flex-direction: column; min-width: 0; }

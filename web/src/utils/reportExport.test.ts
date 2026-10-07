@@ -16,6 +16,7 @@ const WEEK: ReportFigures = {
   cancelled: 1,
   lateCancelled: 1,
   byChannel: [{ channel: "WALK_IN", booked: 5, attended: 0, noShow: 3, attendance: 0 }],
+  byBookedBy: [{ bookedBy: "RECEPTIONIST", booked: 2, attended: 0, noShow: 1, attendance: 0 }],
   byReminder: [{ reminder: "NOT_SENT", booked: 4, attended: 0, noShow: 2, attendance: 0 }],
   ledger: {
     entries: 5,
@@ -32,6 +33,7 @@ describe("reportCsv", () => {
     const text = rows.flat().join(" ");
     expect(text).toContain("At the desk");
     expect(text).toContain("No reminder");
+    expect(text).toContain("A receptionist");
     expect(text).toContain("No refund");
     expect(text).toContain("4,500 XAF");
     expect(text).not.toMatch(/WALK_IN|NOT_SENT|\bNONE\b/);

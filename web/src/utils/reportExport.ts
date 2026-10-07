@@ -22,6 +22,7 @@ export interface ReportFigures {
   clinicId?: string;
   clinicName?: string | null;
   byChannel?: { channel: string; booked: number; attended: number; noShow: number; attendance: number | null }[];
+  byBookedBy?: { bookedBy: string; booked: number; attended: number; noShow: number; attendance: number | null }[];
   byReminder?: { reminder: string; booked: number; attended: number; noShow: number; attendance: number | null }[];
   ledger?: {
     entries: number;
@@ -56,6 +57,13 @@ export const CHANNEL_LABEL: Record<string, string> = {
   REFERRAL: "Referred",
 };
 export const REMINDER_LABEL: Record<string, string> = { SENT: "Reminder sent", FAILED: "Reminder failed", NOT_SENT: "No reminder" };
+export const BOOKED_BY_LABEL: Record<string, string> = {
+  PATIENT: "The patient",
+  RECEPTIONIST: "A receptionist",
+  CLINICIAN: "A clinician",
+  CLINIC_MANAGER: "A unit manager",
+  TENANT_ADMIN: "An administrator",
+};
 export const REFUND_LABEL: Record<string, string> = { FULL: "Full refund", PARTIAL: "Partial refund", NONE: "No refund" };
 
 const count = (n: number) => new Intl.NumberFormat("en-GB").format(n);
@@ -78,12 +86,13 @@ function tables(f: ReportFigures) {
     ["Late cancelled", f.lateCancelled, share(f.lateCancelled, f.booked)],
   ] as const;
   const channels = (f.byChannel ?? []).map((c) => [CHANNEL_LABEL[c.channel] ?? c.channel, c.booked, c.attended, c.noShow, c.attendance] as const);
+  const bookers = (f.byBookedBy ?? []).map((b) => [BOOKED_BY_LABEL[b.bookedBy] ?? b.bookedBy, b.booked, b.attended, b.noShow, b.attendance] as const);
   const reminders = (f.byReminder ?? []).map((r) => [REMINDER_LABEL[r.reminder] ?? r.reminder, r.booked, r.attended, r.noShow, r.attendance] as const);
   const currency = f.ledger?.currency ?? "XAF";
   const refunds = (f.ledger?.byEntitlement ?? []).map((e) => [REFUND_LABEL[e.entitlement] ?? e.entitlement, e.entries, e.amountMinor] as const);
   const bands = (f.ledger?.byBand ?? []).map((b) => [b.practice, b.entries, b.amountMinor] as const);
   const units = (f.units ?? []).map((u) => [u.clinicName || "Unnamed unit", u.booked, u.attended, u.noShow, u.cancelled, attendanceOf(u)] as const);
-  return { outcomes, channels, reminders, currency, refunds, bands, units };
+  return { outcomes, channels, bookers, reminders, currency, refunds, bands, units };
 }
 
 const tone = (rate: number | null | undefined): Cell =>
@@ -146,6 +155,17 @@ export async function exportReportPdf(f: ReportFigures, context: ReportContext) 
       { label: "Attendance", width: 1.3, align: "right" },
     ],
     t.channels.map(([label, booked, came, missed, rate]) => [label, count(booked), count(came), count(missed), tone(rate)]),
+  );
+  pdf.heading(next(), "Who booked", "The patient, or staff on their behalf.");
+  pdf.table(
+    [
+      { label: "Booked by", width: 2.6 },
+      { label: "Booked", width: 1, align: "right" },
+      { label: "Came", width: 1, align: "right" },
+      { label: "Did not", width: 1, align: "right" },
+      { label: "Attendance", width: 1.3, align: "right" },
+    ],
+    t.bookers.map(([label, booked, came, missed, rate]) => [label, count(booked), count(came), count(missed), tone(rate)]),
   );
   pdf.heading(next(), "Attendance by reminder", "Shown side by side, not as cause and effect.");
   pdf.table(
@@ -234,6 +254,7 @@ export async function exportReportExcel(f: ReportFigures, context: ReportContext
       rows: rows.map(([l, booked, came, missed, r]) => [l, booked, came, missed, rate(r)]),
     });
   byGroup("How patients booked", "Channel", t.channels);
+  byGroup("Who booked", "Booked by", t.bookers);
   byGroup("Attendance by reminder", "Reminder", t.reminders);
   book.table({
     name: "Fee ledger",
@@ -257,6 +278,7 @@ export function reportCsv(f: ReportFigures): { head: string[]; rows: (string | n
     ...t.units.map(([name, booked, attended, noShow, cancelled, r]) => ["Hospital units", name, booked, attended, noShow, cancelled, "", percent(r)]),
     ...t.outcomes.map(([label, visits, part]) => ["How visits ended", label, visits, "", "", "", "", part]),
     ...t.channels.map(([label, booked, came, missed, r]) => ["How patients booked", label, booked, came, missed, "", "", percent(r)]),
+    ...t.bookers.map(([label, booked, came, missed, r]) => ["Who booked", label, booked, came, missed, "", "", percent(r)]),
     ...t.reminders.map(([label, booked, came, missed, r]) => ["Attendance by reminder", label, booked, came, missed, "", "", percent(r)]),
     ...t.refunds.map(([label, visits, amount]) => ["Fee ledger by refund", label, visits, "", "", "", money(amount, t.currency), ""]),
     ...t.bands.map(([label, visits, amount]) => ["Fee ledger by fee band", label, visits, "", "", "", money(amount, t.currency), ""]),

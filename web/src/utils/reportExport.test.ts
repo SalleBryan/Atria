@@ -41,27 +41,38 @@ describe("reportCsv", () => {
 });
 
 describe("AtriaWorkbook", () => {
-  it("sets a table in the documents' style: title block, tinted small-caps head, frozen", async () => {
-    const book = await AtriaWorkbook.create();
-    book.table({
-      name: "Summary",
-      title: "Weekly report, General Outpatient Department",
-      meta: "Regional Hospital Buea",
-      columns: [
+  it("sets a sheet in the documents' style: brand banner, details, tinted small-caps head, frozen", async () => {
+    const book = await AtriaWorkbook.create({
+      kicker: "Weekly report",
+      title: "General Outpatient Department",
+      code: "ATR-RPT · Weekly report",
+      meta: [{ label: "Hospital", value: "Regional Hospital Buea" }],
+    });
+    const page = book.sheet("Summary", [30, 12]);
+    page.heading("01", "How visits ended");
+    const head = page.table(
+      [
         { label: "Figure", width: 30 },
         { label: "Value", width: 12, kind: "number" },
       ],
-      rows: [["Booked", 5]],
-    });
+      [["Booked", 5]],
+    );
+    page.freezeAbove(head);
     const read = new ExcelJS.Workbook();
     await read.xlsx.load(await book.bytes());
     const sheet = read.getWorksheet("Summary")!;
-    expect(sheet.getCell("A2").value).toBe("Weekly report, General Outpatient Department");
-    expect(sheet.getCell("A2").font?.name).toBe("Plus Jakarta Sans");
-    const head = sheet.getCell("A5");
-    expect(head.value).toBe("FIGURE");
-    expect((head.fill as ExcelJS.FillPattern).fgColor?.argb).toBe(`FF${INK.tint.slice(1)}`);
-    expect(sheet.getCell("B6").value).toBe(5);
-    expect(sheet.views[0]).toMatchObject({ state: "frozen", ySplit: 5, showGridLines: false });
+    const banner = sheet.getCell("B2");
+    const words = (banner.value as ExcelJS.CellRichTextValue).richText.map((r) => r.text).join("");
+    expect(words).toContain("ATRIA");
+    expect(words).toContain("General Outpatient Department");
+    expect((banner.fill as ExcelJS.FillPattern).fgColor?.argb).toBe(`FF${INK.p800.slice(1)}`);
+    const details = (sheet.getCell("B5").value as ExcelJS.CellRichTextValue).richText.map((r) => r.text).join("");
+    expect(details).toContain("Regional Hospital Buea");
+    const label = sheet.getCell(head, 2);
+    expect(label.value).toBe("FIGURE");
+    expect((label.fill as ExcelJS.FillPattern).fgColor?.argb).toBe(`FF${INK.tint.slice(1)}`);
+    expect(sheet.getCell(head + 1, 3).value).toBe(5);
+    expect(sheet.views[0]).toMatchObject({ state: "frozen", ySplit: head, showGridLines: false });
+    expect(sheet.headerFooter.oddFooter).toContain("ATR-RPT");
   });
 });

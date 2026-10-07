@@ -60,6 +60,19 @@ function cleanKey(key: string): string {
   return key.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+/**
+ * A sheet's rows keyed by its head, wherever the head sits: on row one of a
+ * plain sheet, or under the banner of an Atria template. The head is the
+ * first row with a "Given name" column (in any case or spacing).
+ */
+function headedRows(ws: XLSX.WorkSheet): Record<string, unknown>[] {
+  const grid = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "", blankrows: true });
+  const at = grid.findIndex((row) => row.some((cell) => cleanKey(String(cell)) === "givenname"));
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "", range: Math.max(at, 0) });
+  // Rows with nothing in them (a template's empty lines) are not people.
+  return rows.filter((row) => Object.values(row).some((v) => String(v).trim()));
+}
+
 /** Finds a cell value from a raw row by checking against possible alias keys. */
 function getVal(row: Record<string, unknown>, aliases: string[]): string {
   const normalizedEntries = Object.entries(row).map(([k, v]) => [cleanKey(k), v] as const);
@@ -146,48 +159,59 @@ function normalizeRole(text: string): StaffRole | null {
 const ROLE_WORDS = ["Receptionist", "Clinician", "Unit manager", "Administrator"];
 
 /**
- * The staff import template, in the documents' style (utils/export): the head
- * on row one of the first sheet, where the import reads it; a list of roles
- * and of the hospital's units on the columns that take one; the guidance and
- * the units on sheets of their own.
+ * The staff import template, in the documents' style (utils/export): the
+ * banner and details, the guidance, then the table to fill in, with a list of
+ * roles and of the hospital's units on the columns that take one. The
+ * importer finds the table's head wherever it sits (headedRows).
  */
 export async function downloadStaffTemplate(clinics: ClinicRef[]) {
-  const book = await AtriaWorkbook.create();
-  const unit = clinics[0]?.name ?? "General Outpatient Department";
-  book.template({
-    name: "Staff accounts",
-    columns: [
-      { label: "Role", width: 18 },
-      { label: "Given name", width: 18 },
-      { label: "Family name", width: 18 },
-      { label: "Mobile", width: 22 },
-      { label: "Work email", width: 30 },
-      { label: "Unit", width: 32 },
-      { label: "Specialty", width: 22 },
-      { label: "Registration year", width: 18 },
-      { label: "Ordre number", width: 18 },
-      { label: "Consults in", width: 20 },
-      { label: "Employee number", width: 18 },
+  const book = await AtriaWorkbook.create({
+    kicker: "Import template",
+    title: "Staff accounts",
+    code: "ATR-IMP · Staff accounts",
+    meta: [
+      { label: "Hospital", value: TENANT.name },
+      { label: "Passwords", value: "Made on import, valid for 7 days" },
     ],
-    rows: [
+  });
+  const unit = clinics[0]?.name ?? "General Outpatient Department";
+  const columns = [
+    { label: "Role", width: 18 },
+    { label: "Given name", width: 18 },
+    { label: "Family name", width: 18 },
+    { label: "Mobile", width: 22 },
+    { label: "Work email", width: 30 },
+    { label: "Unit", width: 32 },
+    { label: "Specialty", width: 22 },
+    { label: "Registration year", width: 18 },
+    { label: "Ordre number", width: 18 },
+    { label: "Consults in", width: 20 },
+    { label: "Employee number", width: 18 },
+  ];
+  const accounts = book.sheet("Staff accounts", columns.map((c) => c.width));
+  accounts.heading("01", "Accounts to create", "One row per account. Replace the four samples with your own; the guidance is on the next sheet.");
+  const head = accounts.table(
+    columns,
+    [
       ["Receptionist", "Marie", "Fotso", "+237 6 70 11 22 33", "", unit, "", "", "", "", "REC-001"],
       ["Clinician", "Samuel", "Eto'o", "+237 6 77 44 55 66", "samuel.etoo@example.cm", unit, "General Practitioner", "2014", "MED-7821", "English, French", "DOC-004"],
       ["Unit manager", "Jeanne", "Ngo", "+237 6 99 88 77 66", "jeanne.ngo@example.cm", unit, "", "", "", "", "MGR-002"],
       ["Administrator", "Alain", "Mboma", "+237 6 55 44 33 22", "alain.mboma@example.cm", "", "", "", "", "", "ADM-001"],
     ],
-    choices: clinics.length ? { 0: ROLE_WORDS, 5: `'Units'!$A$2:$A$${clinics.length + 1}` } : { 0: ROLE_WORDS },
-  });
-  book.table({
-    name: "Instructions",
-    title: "Importing staff accounts",
-    lede: "One row per account on the first sheet. Delete the four sample rows before you import.",
-    meta: `${TENANT.name} · Temporary passwords are made on import and work for 7 days`,
-    columns: [
+    { filter: false },
+  );
+  accounts.choices(head, clinics.length ? { 0: ROLE_WORDS, 5: unitList(clinics.length) } : { 0: ROLE_WORDS });
+  accounts.freezeAbove(head);
+
+  const guide = book.sheet("Instructions", [22, 40, 90]);
+  guide.heading("01", "Importing staff accounts", "Fill in the first sheet, then choose Import Excel on Staff accounts.");
+  guide.table(
+    [
       { label: "Column", width: 22 },
       { label: "Required for", width: 40 },
       { label: "What to enter", width: 90 },
     ],
-    rows: [
+    [
       ["Role", "Every account", "Receptionist, Clinician, Unit manager or Administrator (pick from the list)"],
       ["Given name", "Every account", "As the person writes it, such as Marie"],
       ["Family name", "Every account", "As the person writes it, such as Fotso"],
@@ -200,53 +224,76 @@ export async function downloadStaffTemplate(clinics: ClinicRef[]) {
       ["Consults in", "Clinicians", "English, French, or both"],
       ["Employee number", "Optional", "The hospital's own staff number"],
     ],
-  });
-  book.table({
-    name: "Units",
-    columns: [
+    { filter: false },
+  );
+
+  const units = book.sheet("Units", [40, 24]);
+  units.heading("01", "Hospital units", "The names the Unit column accepts.");
+  units.table(
+    [
       { label: "Unit", width: 40 },
-      { label: "Unit ID", width: 22, kind: "mono" },
+      { label: "Unit ID", width: 24, kind: "mono" },
     ],
-    rows: clinics.map((c) => [c.name, c.clinicId]),
-  });
+    clinics.map((c) => [c.name, c.clinicId]),
+    { filter: false },
+  );
   await book.save(fileName(["Staff import template"], "xlsx"));
 }
 
+/**
+ * Where the Units sheet's names sit, for the Unit column's list. The Units
+ * sheet is built by the same parts every time: the banner and details take
+ * rows 1 to 6, the heading and its line 7 to 9, the table's head row 10.
+ */
+function unitList(count: number): string {
+  const first = UNITS_HEAD_ROW + 1;
+  return `'Units'!$B$${first}:$B$${first + count - 1}`;
+}
+const UNITS_HEAD_ROW = 10;
+
 /** The patient import template, set like the staff one. */
 export async function downloadPatientTemplate() {
-  const book = await AtriaWorkbook.create();
+  const book = await AtriaWorkbook.create({
+    kicker: "Import template",
+    title: "Patients",
+    code: "ATR-IMP · Patients",
+    meta: [{ label: "Hospital", value: TENANT.name }],
+  });
   // No language column: Atria is English only until Phase 3.
-  book.template({
-    name: "Patients",
-    columns: [
-      { label: "Given name", width: 20 },
-      { label: "Family name", width: 20 },
-      { label: "Mobile", width: 24 },
-      { label: "Date of birth", width: 18 },
-    ],
-    rows: [
+  const columns = [
+    { label: "Given name", width: 20 },
+    { label: "Family name", width: 20 },
+    { label: "Mobile", width: 24 },
+    { label: "Date of birth", width: 18 },
+  ];
+  const patients = book.sheet("Patients", columns.map((c) => c.width));
+  patients.heading("01", "Patients to register", "One row per patient. Replace the three samples with your own.");
+  const head = patients.table(
+    columns,
+    [
       ["Paul", "Biya", "+237 6 70 00 11 22", "13/02/1985"],
       ["Grace", "Ngo", "+237 6 99 12 34 56", "24/11/1992"],
       ["Jean", "Kamga", "+237 6 77 88 99 00", "05/08/1978"],
     ],
-  });
-  book.table({
-    name: "Instructions",
-    title: "Importing patients",
-    lede: "One row per patient on the first sheet. Delete the three sample rows before you import.",
-    meta: TENANT.name,
-    columns: [
+    { filter: false },
+  );
+  patients.freezeAbove(head);
+  const guide = book.sheet("Instructions", [20, 12, 80]);
+  guide.heading("01", "Importing patients", "Fill in the first sheet, then choose Import Excel on Patients.");
+  guide.table(
+    [
       { label: "Column", width: 20 },
       { label: "Required", width: 12 },
-      { label: "What to enter", width: 70 },
+      { label: "What to enter", width: 80 },
     ],
-    rows: [
+    [
       ["Given name", "Yes", "The patient's first name"],
       ["Family name", "Yes", "The patient's last name"],
       ["Mobile", "Yes", "With the country code, such as +237 6 70 00 00 00. Reminders go here by SMS."],
       ["Date of birth", "No", "DD/MM/YYYY or YYYY-MM-DD, such as 15/04/1990"],
     ],
-  });
+    { filter: false },
+  );
   await book.save(fileName(["Patient import template"], "xlsx"));
 }
 
@@ -277,7 +324,7 @@ export async function parseStaffExcel(
     throw new Error("Could not read sheet data from Excel file.");
   }
 
-  const rawData = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+  const rawData = headedRows(ws);
   if (rawData.length === 0) {
     throw new Error("The uploaded sheet has no rows of data.");
   }
@@ -482,7 +529,7 @@ export async function parsePatientExcel(
     throw new Error("Could not read sheet data from Excel file.");
   }
 
-  const rawData = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+  const rawData = headedRows(ws);
   if (rawData.length === 0) {
     throw new Error("The uploaded sheet has no rows of data.");
   }

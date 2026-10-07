@@ -295,7 +295,7 @@ class TestEntitlement:
         booked = book(clinician)
         found = body_of(cancel(booked["appointmentId"]))
         assert "settled" not in found
-        assert "Nothing is settled" in found["note"]
+        assert "nothing is paid through Atria" in found["note"]
 
 
 class TestWhoMayCancel:

@@ -167,7 +167,13 @@
   background: var(--gradient-primary);
   box-shadow: 0 8px 18px rgba(36, 97, 219, 0.3);
   transform: translateY(calc(var(--at, 0) * var(--pill-step, 52px)));
-  transition: transform var(--move);
+  transition:
+    transform var(--move),
+    opacity var(--fade-fast);
+}
+/* The page is not one of the list's (Account): nothing is lit. */
+.side-pill-none {
+  opacity: 0;
 }
 .side-item {
   position: relative;
@@ -875,12 +881,16 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* A status reads in capitals across the platform (user, 2026-10-07); the
+   text stays as written, so a screen reader and a search read it plainly. */
 .chip {
   flex: none;
   padding: 5px 10px;
   border-radius: 999px;
   font-size: 10.5px;
   font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .chip-confirmed {
   color: #0b7f56;

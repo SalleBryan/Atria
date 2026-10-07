@@ -356,7 +356,9 @@ def cancel(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
         **appointment_view(cancelled),
         "outcome": decided.outcome,
         "entitlement": decided.entitlement,
-        "note": "The time is free again. Nothing is settled; the entitlement is a record.",
+        "note": (
+            "The time is free again. The refund is a record only; nothing is paid through Atria."
+        ),
     }
 
 

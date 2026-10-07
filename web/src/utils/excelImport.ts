@@ -183,7 +183,7 @@ export async function downloadStaffTemplate(clinics: ClinicRef[]) {
     { label: "Work email", width: 30 },
     { label: "Unit", width: 32 },
     { label: "Specialty", width: 22 },
-    { label: "Registration year", width: 18 },
+    { label: "Year on the Order's roll", width: 22 },
     { label: "Ordre number", width: 18 },
     { label: "Consults in", width: 20 },
     { label: "Employee number", width: 18 },
@@ -238,7 +238,7 @@ export async function downloadStaffTemplate(clinics: ClinicRef[]) {
       ["Work email", "Administrators", "Optional for everyone else. When given, it is the sign-in name."],
       ["Unit", "Receptionists, clinicians, unit managers", "Exactly as on the Units sheet (pick from the list)"],
       ["Specialty", "Clinicians", "As patients should read it, such as General Practitioner. It shows in the directory."],
-      ["Registration year", "Clinicians", "The year on the Order's roll, such as 2012"],
+      ["Year on the Order's roll", "Clinicians", "The year they joined the Order's roll, such as 2012"],
       ["Ordre number", "Clinicians", "Such as MED-8942"],
       ["Consults in", "Clinicians", "English, French, or both"],
       ["Employee number", "Optional", "The hospital's own staff number"],
@@ -282,8 +282,8 @@ export async function downloadPatientTemplate() {
   const columns = [
     { label: "Given name", width: 20 },
     { label: "Family name", width: 20 },
-    { label: "Mobile", width: 24 },
-    { label: "Date of birth", width: 18 },
+    { label: "Mobile number", width: 24 },
+    { label: "Date of birth, if known", width: 22 },
   ];
   const patients = book.sheet(
     "Patients",
@@ -311,8 +311,8 @@ export async function downloadPatientTemplate() {
     [
       ["Given name", "Yes", "The patient's first name"],
       ["Family name", "Yes", "The patient's last name"],
-      ["Mobile", "Yes", "With the country code, such as +237 6 70 00 00 00. Reminders go here by SMS."],
-      ["Date of birth", "No", "DD/MM/YYYY or YYYY-MM-DD, such as 15/04/1990"],
+      ["Mobile number", "Yes", "With the country code, such as +237 6 70 00 00 00. Reminders go here by SMS."],
+      ["Date of birth, if known", "No", "DD/MM/YYYY or YYYY-MM-DD, such as 15/04/1990"],
     ],
     { filter: false },
   );
@@ -374,7 +374,7 @@ export async function parseStaffExcel(
     const emailRaw = getVal(raw, ["Work Email", "Email", "Courriel", "Mail"]);
     const unitRaw = getVal(raw, ["Unit", "Clinic", "ClinicId", "Centre"]);
     const specialtyRaw = getVal(raw, ["Specialty", "Specialite", "Spécialité"]);
-    const regYearRaw = getVal(raw, ["Registration Year", "Roll Year", "Annee", "Année", "Year"]);
+    const regYearRaw = getVal(raw, ["Year on the Order's roll", "Registration Year", "Roll Year", "Annee", "Année", "Year"]);
     const ordreNumRaw = getVal(raw, ["Ordre Number", "Order Number", "Numero Ordre", "Numéro Ordre", "License"]);
     const consultsInRaw = getVal(raw, ["Consults In", "Languages", "Langues", "Consults"]);
     const employeeNumRaw = getVal(raw, ["Employee Number", "Matricule", "Staff ID"]);
@@ -476,7 +476,7 @@ export async function parseStaffExcel(
       if (!regYearRaw) {
         errors.push("Missing required field: Registration Year. Clinicians must have their CNOM registration year.");
       } else if (!Number.isInteger(parsedYear) || parsedYear < EARLIEST_REGISTRATION_YEAR || parsedYear > currentYear) {
-        errors.push(`Registration year '${regYearRaw}' must be a year between ${EARLIEST_REGISTRATION_YEAR} and ${currentYear}.`);
+        errors.push(`Year on the Order's roll '${regYearRaw}' must be a year between ${EARLIEST_REGISTRATION_YEAR} and ${currentYear}.`);
       } else {
         registrationYear = parsedYear;
       }

@@ -187,7 +187,7 @@ export function MoveVisit({
                           className={`segment${other === choice ? " segment-on" : ""}`}
                           onClick={() => setOther(choice)}
                         >
-                          {choice === "PATIENT" ? "The patient's" : "The institution's"}
+                          {choice === "PATIENT" ? "The patient's" : "The hospital's"}
                         </button>
                       ))}
                     </div>

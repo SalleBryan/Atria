@@ -605,7 +605,7 @@ class _CancelSheetState extends State<_CancelSheet> {
             if (late) ...[
               const SizedBox(height: 12),
               Notice(
-                'Inside the ${windowHours.round()}-hour cancellation window. A cancellation by the institution keeps the patient\'s full entitlement.',
+                'Inside the ${windowHours.round()}-hour cancellation window. A cancellation by the hospital keeps the patient\'s full refund.',
               ),
             ],
             const SizedBox(height: 16),

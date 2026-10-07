@@ -174,10 +174,9 @@ function Shell({ me }: { me: Me }) {
     icon: User,
     matches: (path) => path.startsWith("/console/account"),
   });
-  const selected = Math.max(
-    0,
-    destinations.findIndex((d) => d.matches(pathname)),
-  );
+  // -1 when the page is not in the list (Account, or Queue before the unit's
+  // types arrive): no pill then, rather than one on Schedule.
+  const selected = destinations.findIndex((d) => d.matches(pathname));
 
   // A phone's bar holds four destinations and "More" (or "Sign out" when
   // four is all there is). The four stay put and "More" lights for what it
@@ -230,7 +229,12 @@ function Shell({ me }: { me: Me }) {
           <div className="side-scroll">
             <p className="side-label">{role === "TENANT_ADMIN" ? "ADMINISTRATION" : "UNIT"}</p>
             <nav className="side-nav" aria-label="Console">
-              <span ref={pill} className="side-pill" aria-hidden="true" style={{ "--at": at } as CSSProperties} />
+              <span
+                ref={pill}
+                className={`side-pill${at < 0 ? " side-pill-none" : ""}`}
+                aria-hidden="true"
+                style={{ "--at": Math.max(at, 0) } as CSSProperties}
+              />
               {destinations.map(({ to, label, icon: IconComponent, matches }) => (
                 <NavLink
                   key={to}

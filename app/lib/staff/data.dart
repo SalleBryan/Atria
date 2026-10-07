@@ -160,7 +160,7 @@ enum StaffTone { booked, confirmed, awaiting, cancelled, neutral }
   'ARRIVED' => ('Arrived', StaffTone.confirmed),
   'IN_CONSULTATION' => ('In consultation', StaffTone.confirmed),
   'COMPLETED' || 'AWAITING_FEEDBACK' => ('Attended', StaffTone.neutral),
-  'CLINIC_CANCELLED' => ('Cancelled by the institution', StaffTone.cancelled),
+  'CLINIC_CANCELLED' => ('Cancelled by the hospital', StaffTone.cancelled),
   'PATIENT_CANCELLED' => ('Cancelled by patient', StaffTone.cancelled),
   'NO_SHOW' => ('No-show', StaffTone.awaiting),
   _ => (state, StaffTone.neutral),

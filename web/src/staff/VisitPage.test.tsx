@@ -115,7 +115,7 @@ describe("One visit, from the desk", () => {
     respond({ ...VISIT, state: "CLINIC_CANCELLED" });
     await user.click(within(dialog).getByRole("button", { name: "Cancel visit" }));
     expect(await screen.findByText(/APT-4194 cancelled/)).toBeInTheDocument();
-    expect(await screen.findByText("CANCELLED BY THE INSTITUTION")).toBeInTheDocument();
+    expect(await screen.findByText("CANCELLED BY THE HOSPITAL")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel visit" })).not.toBeInTheDocument();
   });
 

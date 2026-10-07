@@ -61,10 +61,9 @@ function Shell({ me }: { me: Me }) {
     { to: "/visits", label: "My visits", icon: Calendar, count: ahead || undefined },
     { to: "/account", label: "Account", icon: User },
   ];
-  const selected = Math.max(
-    0,
-    destinations.findIndex((d) => pathname === d.to || pathname.startsWith(`${d.to}/`)),
-  );
+  // -1 when the page is not in the list (Account, or Queue before the unit's
+  // types arrive): no pill then, rather than one on Schedule.
+  const selected = destinations.findIndex((d) => pathname === d.to || pathname.startsWith(`${d.to}/`));
 
   // The pill springs to the new item: the old position is settled first, then
   // the new one set before paint (as the sign-in segmented control does).
@@ -98,7 +97,12 @@ function Shell({ me }: { me: Me }) {
           <div className="side-scroll">
             <p className="side-label">YOUR CARE</p>
             <nav className="side-nav" aria-label="Patient">
-              <span ref={pill} className="side-pill" aria-hidden="true" style={{ "--at": at } as CSSProperties} />
+              <span
+                ref={pill}
+                className={`side-pill${at < 0 ? " side-pill-none" : ""}`}
+                aria-hidden="true"
+                style={{ "--at": Math.max(at, 0) } as CSSProperties}
+              />
               {destinations.map(({ to, label, icon: IconComponent, count }) => (
                 <NavLink key={to} to={to} className="side-item">
                   {/* Material 3's large badge, pinned to the icon as on a navigation rail. */}

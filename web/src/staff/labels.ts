@@ -21,7 +21,7 @@ export const STAFF_STATE: Record<AppointmentState, { label: string; tone: Tone }
   IN_CONSULTATION: { label: "In consultation", tone: "confirmed" },
   COMPLETED: { label: "Attended", tone: "neutral" },
   AWAITING_FEEDBACK: { label: "Attended", tone: "neutral" },
-  CLINIC_CANCELLED: { label: "Cancelled by the institution", tone: "cancelled" },
+  CLINIC_CANCELLED: { label: "Cancelled by the hospital", tone: "cancelled" },
   PATIENT_CANCELLED: { label: "Cancelled by patient", tone: "cancelled" },
   NO_SHOW: { label: "No-show", tone: "awaiting" },
 };

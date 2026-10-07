@@ -41,8 +41,14 @@ class StateChip extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
     decoration: BoxDecoration(color: toneFill(tone).withValues(alpha: .13), borderRadius: BorderRadius.circular(99)),
     child: Text(
-      label,
-      style: AtriaType.body(size: 11, weight: FontWeight.w700, color: toneInk(tone), height: 1.2),
+      label.toUpperCase(),
+      semanticsLabel: label,
+      style: AtriaType.body(
+        size: 11,
+        weight: FontWeight.w700,
+        color: toneInk(tone),
+        height: 1.2,
+      ).copyWith(letterSpacing: .44),
     ),
   );
 }

@@ -202,72 +202,85 @@ export async function exportReportPdf(f: ReportFigures, context: ReportContext) 
 
 export async function exportReportExcel(f: ReportFigures, context: ReportContext) {
   const t = tables(f);
-  const book = await AtriaWorkbook.create();
-  const meta = `${context.hospital} · ${context.unit} · ${context.period} · Made ${madeAt()}`;
+  const book = await AtriaWorkbook.create({
+    kicker: context.title,
+    title: context.unit,
+    code: `ATR-RPT · ${context.title}`,
+    meta: [
+      { label: "Hospital", value: context.hospital },
+      { label: "Period", value: context.period },
+      { label: "Made", value: madeAt() },
+    ],
+  });
   const rate = (r: number | null | undefined): SheetCell => (r == null ? "Not yet" : Math.round(r * 100) / 100);
-  book.table({
-    name: "Summary",
-    title: `${context.title}, ${context.unit}`,
-    lede: "Visits disposition, attendance rate and fee ledger summary.",
-    meta,
-    columns: [
-      { label: "Figure", width: 30 },
-      { label: "Value", width: 16, kind: "number" },
+  const share = (part: number) => (f.booked ? Math.round((part / f.booked) * 100) / 100 : 0);
+
+  // Summary: the figures as tiles, then how the visits ended.
+  const summary = book.sheet("Summary", [22, 18, 18, 18, 18]);
+  const attendance = attendanceOf(f);
+  summary.tiles([
+    { label: "Booked", value: f.booked },
+    { label: "Attended", value: f.attended, tone: "ok" },
+    { label: "No-show", value: f.noShow, tone: f.noShow ? "bad" : undefined },
+    { label: "Cancelled", value: f.cancelled + f.lateCancelled },
+    attendance == null ? { label: "Attendance", value: "Not yet", accent: true } : { label: "Attendance", value: attendance, accent: true, percent: true },
+  ]);
+  summary.heading("01", "How visits ended", "Attended, missed or cancelled, as a share of the visits booked.");
+  summary.table(
+    [
+      { label: "Outcome", width: 22 },
+      { label: "Visits", width: 18, kind: "number" },
+      { label: "Share", width: 18, kind: "percent" },
     ],
-    rows: [
-      ["Booked", f.booked],
-      ["Attended", f.attended],
-      ["No-show", f.noShow],
-      ["Cancelled", f.cancelled],
-      ["Late cancelled", f.lateCancelled],
-    ],
-    note: `Attendance: ${percent(attendanceOf(f))} of the visits that were due.`,
-  });
+    t.outcomes.map(([label, visits]) => [label, visits, share(visits)]),
+    { filter: false },
+  );
+  summary.note("Attendance counts the visits that were due: those who came, of those who came or did not.");
+
   if (t.units.length) {
-    book.table({
-      name: "Hospital units",
-      title: "Hospital units",
-      meta,
-      columns: [
+    const units = book.sheet("Hospital units", [34, 13, 13, 13, 13, 16]);
+    units.heading("02", "Hospital units", "Each unit's visits in the period, and the share of those due that came.");
+    units.table(
+      [
         { label: "Unit", width: 34 },
-        { label: "Booked", width: 12, kind: "number" },
-        { label: "Attended", width: 12, kind: "number" },
-        { label: "No-show", width: 12, kind: "number" },
-        { label: "Cancelled", width: 12, kind: "number" },
-        { label: "Attendance", width: 14, kind: "percent" },
+        { label: "Booked", width: 13, kind: "number" },
+        { label: "Attended", width: 13, kind: "number" },
+        { label: "No-show", width: 13, kind: "number" },
+        { label: "Cancelled", width: 13, kind: "number" },
+        { label: "Attendance", width: 16, kind: "percent" },
       ],
-      rows: t.units.map(([name, booked, attended, noShow, cancelled, r]) => [name, booked, attended, noShow, cancelled, rate(r)]),
-    });
+      t.units.map(([name, booked, attended, noShow, cancelled, r]) => [name, booked, attended, noShow, cancelled, rate(r)]),
+    );
   }
-  const byGroup = (name: string, label: string, rows: typeof t.channels) =>
-    book.table({
-      name,
-      title: name,
-      meta,
-      columns: [
-        { label, width: 26 },
-        { label: "Booked", width: 12, kind: "number" },
-        { label: "Came", width: 12, kind: "number" },
-        { label: "Did not", width: 12, kind: "number" },
-        { label: "Attendance", width: 14, kind: "percent" },
-      ],
-      rows: rows.map(([l, booked, came, missed, r]) => [l, booked, came, missed, rate(r)]),
-    });
-  byGroup("How patients booked", "Channel", t.channels);
-  byGroup("Who booked", "Booked by", t.bookers);
-  byGroup("Attendance by reminder", "Reminder", t.reminders);
-  book.table({
-    name: "Fee ledger",
-    title: "Fee ledger",
-    lede: "A record of each closed visit's fee and refund. No money moves through Atria.",
-    meta,
-    columns: [
-      { label: "Group", width: 30 },
-      { label: "Visits", width: 12, kind: "number" },
-      { label: `Amount (${t.currency})`, width: 18, kind: "number" },
-    ],
-    rows: [...t.refunds.map(([l, v, a]) => [l, v, a]), ...t.bands.map(([l, v, a]) => [`Fee band: ${l}`, v, a])],
-  });
+
+  const groups = book.sheet("Attendance", [28, 13, 13, 13, 16]);
+  const columns = (label: string) =>
+    [
+      { label, width: 28 },
+      { label: "Booked", width: 13, kind: "number" },
+      { label: "Came", width: 13, kind: "number" },
+      { label: "Did not", width: 13, kind: "number" },
+      { label: "Attendance", width: 16, kind: "percent" },
+    ] as const;
+  const rowsOf = (rows: typeof t.channels) => rows.map(([l, booked, came, missed, r]) => [l, booked, came, missed, rate(r)]);
+  groups.heading("03", "How patients booked", "How this period's bookings reached the unit, and how many of each came.");
+  groups.table([...columns("Channel")], rowsOf(t.channels), { filter: false });
+  groups.heading("04", "Who booked", "The patient, or staff on their behalf.");
+  groups.table([...columns("Booked by")], rowsOf(t.bookers), { filter: false });
+  groups.heading("05", "Attendance by reminder", "Shown side by side, not as cause and effect.");
+  groups.table([...columns("Reminder")], rowsOf(t.reminders), { filter: false });
+
+  const fees = book.sheet("Fee ledger", [30, 13, 20]);
+  fees.heading("06", "Fee ledger", "A record of each closed visit's fee and refund. No money moves through Atria.");
+  const feeColumns = (label: string) =>
+    [
+      { label, width: 30 },
+      { label: "Visits", width: 13, kind: "number" },
+      { label: `Amount (${t.currency})`, width: 20, kind: "number" },
+    ] as const;
+  fees.table([...feeColumns("Refund")], t.refunds.map(([l, v, a]) => [l, v, a]), { filter: false });
+  fees.table([...feeColumns("Fee band")], t.bands.map(([l, v, a]) => [l, v, a]), { filter: false });
+
   await book.save(fileName([context.title, context.unit, context.period], "xlsx"));
 }
 

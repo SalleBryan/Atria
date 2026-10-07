@@ -188,3 +188,8 @@ def idempotency(tenant_id: str, key: str) -> Key:
 
 def audit_entry(tenant_id: str, day: str, ts: str, audit_id: str) -> Key:
     return Key(f"{TENANT}{tenant_id}#AUDIT#{day}", f"{ts}#{audit_id}")
+
+
+def audit_view(tenant_id: str, person_id: str, action: str, subject_id: str) -> Key:
+    """Where a screen that refreshes itself is remembered; outside the entries' partitions."""
+    return Key(f"{TENANT}{tenant_id}#VIEWING#{person_id}", f"{action}#{subject_id}")

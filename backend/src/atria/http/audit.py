@@ -21,6 +21,12 @@ a 500 rather than data nobody will know they saw. A change has already
 happened by the time it is recorded, so a failure there is logged loudly
 instead, and the caller still learns the outcome.
 
+A screen that refreshes itself (the live queue) is recorded once per
+viewing rather than once per refresh: a read that only repeats one recorded
+moments ago, showing nobody new, is not written again (VIEWING_GAP). The
+server decides this from what it has recorded, never from the request, so a
+client cannot ask for a read to go unrecorded.
+
 A service adds what only it knows, such as a flag, through `note`.
 """
 
@@ -58,6 +64,8 @@ class Route:
     """The response field naming the subject, for a create."""
     patient_data: bool = True
     """Recorded only when patients other than the actor are on it."""
+    refreshes: bool = False
+    """Read by a screen that refreshes itself: recorded once per viewing."""
 
 
 READ, WRITE = store.READ, store.WRITE
@@ -93,7 +101,7 @@ ROUTES: dict[tuple[str, str], Route] = {
     ("PUT", "/appointments/{id}/care-context"): Route(
         "care_context.write", WRITE, "APPOINTMENT", "id"
     ),
-    ("GET", "/sessions/{id}/queue"): Route("queue.read", READ, "SESSION", "id"),
+    ("GET", "/sessions/{id}/queue"): Route("queue.read", READ, "SESSION", "id", refreshes=True),
     ("POST", "/sessions/{id}/tickets"): Route("queue.ticket", WRITE, "SESSION", "id"),
     ("POST", "/sessions/{id}/next"): Route("queue.call_next", WRITE, "SESSION", "id"),
     ("POST", "/clinics/{id}/sessions"): Route(
@@ -322,6 +330,15 @@ def entry_for(event: dict[str, Any], response: dict[str, Any]) -> dict[str, Any]
     )
 
 
+def _remember(log: store.AuditLog, entry: dict[str, Any]) -> None:
+    # The entry is written; failing to remember it only means the next
+    # refresh is recorded too, so this never costs the caller their answer.
+    try:
+        log.remember_viewing(entry, recorded=True)
+    except Exception:
+        logger.exception("viewing not remembered", extra={"action": entry["action"]})
+
+
 def after(event: dict[str, Any], response: dict[str, Any]) -> dict[str, Any]:
     """Record the request if it calls for it; the response, or a failure for a read."""
     route = route_for(event)
@@ -330,7 +347,13 @@ def after(event: dict[str, Any], response: dict[str, Any]) -> dict[str, Any]:
     try:
         entry = entry_for(event, response)
         if entry is not None:
-            audit_log().record(entry)
+            log = audit_log()
+            if route.refreshes and log.continues_viewing(entry):
+                log.remember_viewing(entry, recorded=False)
+                return response
+            log.record(entry)
+            if route.refreshes:
+                _remember(log, entry)
     except Exception:
         logger.exception("audit entry not written", extra={"action": route.action})
         if route.kind == READ:

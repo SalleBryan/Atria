@@ -196,6 +196,80 @@ class TestWhatIsRecorded:
         assert result["statusCode"] == 200
 
 
+def read_queue(context, *patients: str, session: str = "ses-1"):
+    """The recorder seeing one load of the live queue, showing `patients`."""
+    body = {"appointments": [{"patientProfileId": p, "clinicId": DOUALA} for p in patients]}
+    return audit.after(
+        event("GET", "/sessions/{id}/queue", context=context, path={"id": session}),
+        {"statusCode": 200, "body": json.dumps(body)},
+    )
+
+
+class TestAQueueThatRefreshesItself:
+    """The desk's queue reloads every 30 seconds; a viewing is one entry, not one per reload."""
+
+    @pytest.fixture
+    def clock(self, audit_log, monkeypatch):
+        now = [dt.datetime(2026, 10, 7, 8, 0, tzinfo=dt.UTC)]
+        monkeypatch.setattr(audit_log, "_clock", lambda: now[0])
+
+        def later(seconds: int) -> None:
+            now[0] += dt.timedelta(seconds=seconds)
+
+        return later
+
+    def test_refreshes_showing_the_same_patients_are_one_entry(self, audit_log, clock):
+        for _ in range(10):
+            read_queue(staff_context(), "pp-1", "pp-2")
+            clock(30)
+        (entry,) = written(audit_log)
+        assert entry["action"] == "queue.read"
+        assert entry["patientProfileIds"] == ["pp-1", "pp-2"]
+
+    def test_a_patient_joining_the_queue_is_recorded(self, audit_log, clock):
+        read_queue(staff_context(), "pp-1")
+        clock(30)
+        read_queue(staff_context(), "pp-1", "pp-2")
+        clock(30)
+        read_queue(staff_context(), "pp-1", "pp-2")
+        assert [e["patientProfileIds"] for e in written(audit_log)] == [
+            ["pp-1", "pp-2"],
+            ["pp-1"],
+        ]
+
+    def test_coming_back_to_the_screen_is_a_new_viewing(self, audit_log, clock):
+        read_queue(staff_context(), "pp-1")
+        clock(5 * 60)
+        read_queue(staff_context(), "pp-1")
+        assert len(written(audit_log)) == 2
+
+    def test_each_person_and_each_queue_is_its_own_viewing(self, audit_log, clock):
+        read_queue(staff_context(), "pp-1")
+        read_queue(manager_context(), "pp-1")
+        read_queue(staff_context(), "pp-1", session="ses-2")
+        assert len(written(audit_log)) == 3
+
+    def test_a_read_that_was_not_recorded_does_not_start_a_viewing(
+        self, audit_log, clock, monkeypatch
+    ):
+        """Fail closed: the next load must be recorded, not taken as a refresh."""
+        recorded = audit_log.record
+        monkeypatch.setattr(audit_log, "record", lambda _item: 1 / 0)
+        with pytest.raises(ZeroDivisionError):
+            read_queue(staff_context(), "pp-1")
+        monkeypatch.setattr(audit_log, "record", recorded)
+        clock(30)
+        read_queue(staff_context(), "pp-1")
+        assert len(written(audit_log)) == 1
+
+    def test_other_reads_are_recorded_every_time(self, wired, audit_log):
+        _repo, clinician = wired
+        booked = book(clinician)
+        read_one(booked["appointmentId"], staff_context())
+        read_one(booked["appointmentId"], staff_context())
+        assert len(written(audit_log)) == 2
+
+
 class TestSelfBenefit:
     def test_a_move_near_the_actors_own_visit_is_flagged(self, wired, repository, audit_log):
         _repo, clinician = wired

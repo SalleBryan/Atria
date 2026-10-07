@@ -2935,6 +2935,21 @@ components:
                     amountMinor: { type: [integer, "null"] }
                     currency: { type: string }
                     freeUntil: { type: string, format: date-time }
+            reminders:
+              description: |
+                The visit's reminders as the message log has them, earliest
+                first, so the timeline says sent, failed or not sent. Staff
+                also read why one failed; a patient reads only the outcome.
+              type: array
+              items:
+                type: object
+                properties:
+                  channel: { type: string, enum: [SMS, EMAIL] }
+                  deliveryState: { type: string, enum: [SCHEDULED, SENT, DELIVERED, FAILED, CANCELLED] }
+                  sentAt: { type: string, format: date-time }
+                  settledAt: { type: [string, "null"], format: date-time }
+                  feedback: { type: [string, "null"], description: "BOUNCE or COMPLAINT" }
+                  failureReason: { type: [string, "null"], description: "Staff only." }
             history:
               description: |
                 What happened to the visit, oldest first (APPOINTMENT_EVENT):

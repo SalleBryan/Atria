@@ -16,8 +16,10 @@ import json
 import pytest
 
 from atria.core import booking as rules
+from atria.core import notices
 from atria.data import keys
 from atria.data.booking import Booking
+from atria.data.messages import Messages
 from atria.http import views
 from atria.services.booking import appointments as service
 
@@ -341,3 +343,63 @@ class TestHistory:
 
     def test_a_visit_with_no_events_has_an_empty_history(self, seeded):
         assert body_of(self.one("a-later"))["history"] == []
+
+
+class TestRemindersOnTheVisit:
+    """The timeline says what happened to each reminder, from the message log."""
+
+    STAFF = {
+        "roles": "RECEPTIONIST",
+        "staffId": "s-rec-1",
+        "clinicId": DOUALA,
+        "patientProfileId": "",
+        "personId": "p-rec",
+    }
+
+    def one(self, appointment_id: str, **context):
+        return service.handler(
+            event("/appointments/{id}", path={"id": appointment_id}, **context), None
+        )
+
+    @pytest.fixture
+    def reminded(self, seeded):
+        log = Messages(seeded, clock=lambda: NOW + dt.timedelta(days=1))
+        for channel, reason in (("SMS", None), ("EMAIL", "AccessDeniedException")):
+            row = log.scheduled(
+                tenant_id=TENANT,
+                notice=notices.Notice(
+                    kind=notices.APPOINTMENT_REMINDER,
+                    channel=channel,
+                    language="en",
+                    template="reminder",
+                    subject="",
+                    body="",
+                ),
+                recipient_person_id="per-mine",
+                recipient="+237600000000",
+                appointment_id="a-soon",
+                message_log_id=f"ml-reminder-a-soon-{channel}",
+                clinic_id=DOUALA,
+            )
+            if reason:
+                log.failed(row, reason=reason)
+            else:
+                log.sent(row, provider_message_id="sns-1")
+        return seeded
+
+    def test_staff_read_each_reminder_and_why_one_failed(self, reminded):
+        found = body_of(self.one("a-soon", **self.STAFF))["reminders"]
+        assert {(r["channel"], r["deliveryState"]) for r in found} == {
+            ("EMAIL", "FAILED"),
+            ("SMS", "SENT"),
+        }
+        failed = next(r for r in found if r["deliveryState"] == "FAILED")
+        assert failed["failureReason"] == "AccessDeniedException"
+
+    def test_a_patient_reads_the_outcome_not_the_reason(self, reminded):
+        found = body_of(self.one("a-soon"))["reminders"]
+        assert {r["deliveryState"] for r in found} == {"SENT", "FAILED"}
+        assert all("failureReason" not in r for r in found)
+
+    def test_another_visits_reminders_are_not_on_it(self, reminded):
+        assert body_of(self.one("a-later"))["reminders"] == []

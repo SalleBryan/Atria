@@ -26,6 +26,7 @@ import { PAGE_ROWS, Pager, usePages } from "../components/Pager";
 import { SelectMenu } from "../components/Pickers";
 import { roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
+import { plainReason } from "../utils/messageReason";
 
 export interface LoggedMessage {
   messageLogId: string;
@@ -285,7 +286,7 @@ function UnitMessages({ admin, clinicId, tabs }: { admin: boolean; clinicId: str
 
 function MessageRow({ message: m, index, unit = false }: { message: LoggedMessage; index: number; unit?: boolean }) {
   const shown = STATE[m.deliveryState] ?? STATE.SENT;
-  const why = m.feedback === "BOUNCE" ? "Bounced" : m.feedback === "COMPLAINT" ? "Marked as spam" : m.failureReason;
+  const why = m.feedback === "BOUNCE" ? "Bounced" : m.feedback === "COMPLAINT" ? "Marked as spam" : plainReason(m.failureReason, m.channel);
   const Channel = m.channel === "SMS" ? Phone : Mail;
   return (
     <li className={`account-row message-row${m.deliveryState === "FAILED" ? " message-row-failed" : ""}`} style={{ "--i": index } as CSSProperties}>
@@ -320,7 +321,9 @@ function MessageRow({ message: m, index, unit = false }: { message: LoggedMessag
       <span className="message-status">
         <span className={`chip ${shown.tone}`}>{shown.label}</span>
         {why && (m.deliveryState !== "DELIVERED" || m.feedback === "COMPLAINT") && (
-          <span className="account-sub message-why">{why}</span>
+          <span className="account-sub message-why" title={m.failureReason ?? undefined}>
+            {why}
+          </span>
         )}
       </span>
     </li>

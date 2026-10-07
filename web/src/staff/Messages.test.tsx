@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import type { Me } from "../api/client";
 import { SessionContext } from "../auth/session";
 import { staffRoutes } from "./routes";
+import { plainReason } from "../utils/messageReason";
 
 const api = vi.hoisted(() => vi.fn());
 vi.mock("../api/client", async (original) => ({
@@ -110,7 +111,8 @@ describe("Messages", () => {
     const rows = await within(card).findAllByRole("listitem");
     expect(within(rows[0]!).getByText("Brice Tagne")).toBeInTheDocument();
     expect(within(rows[0]!).getByText("Failed")).toBeInTheDocument();
-    expect(within(rows[0]!).getByText("Phone is unreachable")).toBeInTheDocument();
+    const why = within(rows[0]!).getByText("The network did not deliver it. The phone may be off or out of reach.");
+    expect(why).toHaveAttribute("title", "Phone is unreachable");
     expect(within(rows[0]!).getByRole("link", { name: "+237600000102" })).toHaveAttribute("href", "tel:+237600000102");
     expect(screen.getByText(/1 message did not reach the patient/)).toBeInTheDocument();
     expect(asked.some((p) => p.startsWith("/clinics/u-med/messages?day="))).toBe(true);
@@ -143,5 +145,20 @@ describe("Messages", () => {
     renderAt(DESK);
     await screen.findByRole("region", { name: "Messages sent" });
     expect(screen.queryByRole("tab", { name: "Delivery" })).not.toBeInTheDocument();
+  });
+});
+
+describe("plainReason", () => {
+  it("puts the provider's words into the desk's", () => {
+    expect(plainReason(null, "SMS")).toBeNull();
+    expect(plainReason("Sandboxed account unable to send to number.", "SMS")).toBe(
+      "Not sent: the test system only reaches approved numbers and addresses.",
+    );
+    expect(
+      plainReason("ClientError: An error occurred (AccessDeniedException) when calling the SendEmail operation", "EMAIL"),
+    ).toBe("The system could not send it. Tell your administrator.");
+    expect(plainReason("no email address at send time", "EMAIL")).toBe("No email address on file.");
+    expect(plainReason("the appointment is NO_SHOW", "SMS")).toBe("Not sent: the visit was already no show.");
+    expect(plainReason("rejected by SES: Bad content", "EMAIL")).toBe("The email address refused it.");
   });
 });

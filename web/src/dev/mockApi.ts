@@ -625,6 +625,19 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       editable: !staffSide && open && Boolean(form),
     }, 350);
   }
+  // A visit's reminders as the message log would have them: one SMS a day
+  // ahead, once that time has passed and the visit was booked before it.
+  // Every fifth one failed, so the timeline's failure shows in the preview.
+  const remindersOf = (a: Record<string, unknown>, staff: boolean) => {
+    const due = Date.parse(String(a.startAt)) - 24 * 3600000;
+    const cancelled = String(a.state).endsWith("CANCELLED");
+    if (due > Date.now() || due < Date.parse(String(a.createdAt))) return [];
+    const at = new Date(due).toISOString().slice(0, 19) + "Z";
+    const failed = Number(String(a.appointmentId).replace(/\D/g, "").slice(-2) || 0) % 5 === 0;
+    const state = cancelled ? "CANCELLED" : failed ? "FAILED" : "DELIVERED";
+    const reason = cancelled ? "the appointment was cancelled before the reminder was due" : failed ? "Phone is unreachable" : null;
+    return [{ channel: "SMS", deliveryState: state, sentAt: at, settledAt: at, feedback: null, ...(staff ? { failureReason: reason } : {}) }];
+  };
   const one = path.match(/^\/appointments\/([^/]+)$/);
   if (one) {
     const found = appointments.find((a) => a.appointmentId === one[1]) ?? todayQueue.find((a) => a.appointmentId === one[1]);
@@ -644,6 +657,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
           ...e,
           byYou: Boolean(e.byYou) && (callerRole === "PATIENT" ? !e.actorRole : e.actorRole === callerRole),
         })),
+        reminders: remindersOf(found, callerRole !== "PATIENT"),
         ledger: closedStates.includes(String(found.state))
           ? {
               feeBandId: band?.feeBandId ?? null,

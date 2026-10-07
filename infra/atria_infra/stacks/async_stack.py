@@ -284,6 +284,16 @@ class AsyncStack(Stack):
                 ],
             )
         )
+        # While the account is in the SES sandbox, SendEmail is authorised on
+        # each recipient's identity too, so a reminder to a verified patient
+        # was refused. Any identity, but only ever from the one sender.
+        self.sender.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ses:SendEmail"],
+                resources=[self.format_arn(service="ses", resource="identity", resource_name="*")],
+                conditions={"StringEquals": {"ses:FromAddress": settings.notice_sender}},
+            )
+        )
 
         self._delivery_reports(settings, data, common_environment)
 

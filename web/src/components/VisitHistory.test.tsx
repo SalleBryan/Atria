@@ -65,4 +65,29 @@ describe("VisitHistory", () => {
     show("patient");
     expect(await screen.findByText("Worked out from the state")).toBeInTheDocument();
   });
+
+  it("says what happened to a reminder once it is on record, and why one failed to staff", async () => {
+    api.mockResolvedValue({
+      history: [event("BOOKED", "2026-10-01T08:00:00Z")],
+      reminders: [
+        { channel: "SMS", deliveryState: "DELIVERED", sentAt: "2026-10-04T07:20:00Z", settledAt: "2026-10-04T07:21:00Z", feedback: null, failureReason: null },
+        { channel: "EMAIL", deliveryState: "FAILED", sentAt: "2026-10-04T07:20:00Z", settledAt: "2026-10-04T07:20:00Z", feedback: null, failureReason: "AccessDeniedException" },
+      ],
+    });
+    show("staff");
+    expect(await screen.findByText("SMS reminder delivered")).toBeInTheDocument();
+    expect(screen.getByText("Email reminder failed")).toBeInTheDocument();
+    expect(screen.getByText(/Tell your administrator/)).toBeInTheDocument();
+    expect(screen.queryByText("SMS reminder")).not.toBeInTheDocument();
+  });
+
+  it("tells a patient a reminder failed, never the provider's reason", async () => {
+    api.mockResolvedValue({
+      history: [event("BOOKED", "2026-10-01T08:00:00Z")],
+      reminders: [{ channel: "SMS", deliveryState: "FAILED", sentAt: "2026-10-04T07:20:00Z", settledAt: null, feedback: null }],
+    });
+    show("patient");
+    expect(await screen.findByText("SMS reminder failed")).toBeInTheDocument();
+    expect(screen.queryByText(/network/)).not.toBeInTheDocument();
+  });
 });

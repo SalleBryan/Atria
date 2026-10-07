@@ -585,6 +585,19 @@ class TestAsyncStack:
                         ses_actions.add(str(name))
         assert ses_actions == {"ses:SendEmail"}
 
+    def test_any_recipient_identity_is_only_ever_from_the_one_sender(self, synthesised):
+        """The sandbox authorises each recipient; a wildcard must still pin the From address."""
+        template = template_for(synthesised, "async")
+        wildcards = [
+            statement
+            for policy in template.find_resources("AWS::IAM::Policy").values()
+            for statement in policy["Properties"]["PolicyDocument"]["Statement"]
+            if statement.get("Action") == "ses:SendEmail" and "identity/*" in str(statement.get("Resource"))
+        ]
+        assert wildcards
+        for statement in wildcards:
+            assert statement["Condition"] == {"StringEquals": {"ses:FromAddress": config.DEV.notice_sender}}
+
     def test_the_sender_knows_which_identity_to_send_as(self, synthesised):
         """An unset value would fail every send, so it is pinned here."""
         template = template_for(synthesised, "async")

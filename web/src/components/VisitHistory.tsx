@@ -11,12 +11,17 @@
  * Until the history arrives, and for a visit recorded before events were
  * kept, the steps the screen worked out before are shown instead, so the
  * card is never empty. Whatever is still to come (the reminder) follows.
+ *
+ * Reminders come from the message log on the same read: once one is on
+ * record the timeline says what happened to it (sent, delivered, failed, not
+ * sent) in place of the screen's own "scheduled for" line.
  */
 
 import { type ReactNode, useEffect, useState } from "react";
 
 import { api } from "../api/client";
 import { clock } from "../patient/data";
+import { plainReason } from "../utils/messageReason";
 import { Alert, Bell, Calendar, CheckMark, Clipboard, Close, Pin, Repeat, Stethoscope, User } from "./icons";
 
 export interface VisitEvent {
@@ -31,7 +36,52 @@ export interface VisitEvent {
   reason: string | null;
 }
 
+export interface VisitReminder {
+  channel: string;
+  deliveryState: string;
+  sentAt: string;
+  settledAt: string | null;
+  feedback: string | null;
+  failureReason?: string | null;
+}
+
 type Audience = "patient" | "staff";
+
+const REMINDER_STATE: Record<string, { word: string; tone: string }> = {
+  SCHEDULED: { word: "being sent", tone: "dot-amber-tint" },
+  SENT: { word: "sent", tone: "dot-done" },
+  DELIVERED: { word: "delivered", tone: "dot-done" },
+  FAILED: { word: "failed", tone: "dot-red" },
+  CANCELLED: { word: "not sent", tone: "dot-amber-tint" },
+};
+
+function ReminderStep({ reminder, audience }: { reminder: VisitReminder; audience: Audience }) {
+  const shown = REMINDER_STATE[reminder.deliveryState] ?? REMINDER_STATE.SENT!;
+  const channel = reminder.channel === "SMS" ? "SMS" : "Email";
+  const at = reminder.settledAt ?? reminder.sentAt;
+  const why =
+    audience === "staff" && (reminder.deliveryState === "FAILED" || reminder.deliveryState === "CANCELLED")
+      ? reminder.feedback === "BOUNCE"
+        ? "Bounced"
+        : plainReason(reminder.failureReason ?? null, reminder.channel)
+      : null;
+  return (
+    <li>
+      <span className={`timeline-dot ${shown.tone}`}>
+        {reminder.deliveryState === "FAILED" ? <Close size={11} /> : <Bell size={11} />}
+      </span>
+      <span>
+        <span className="timeline-title">
+          {channel} reminder {shown.word}
+        </span>
+        <span className="timeline-sub" title={audience === "staff" ? (reminder.failureReason ?? undefined) : undefined}>
+          {clock.day(at)}, {clock.time(at)}
+          {why ? ` · ${why}` : ""}
+        </span>
+      </span>
+    </li>
+  );
+}
 
 const ROLE: Record<string, string> = {
   RECEPTIONIST: "a receptionist",
@@ -113,22 +163,31 @@ export function VisitHistory({
   className?: string;
 }) {
   const [events, setEvents] = useState<VisitEvent[] | null>(null);
+  const [reminders, setReminders] = useState<VisitReminder[]>([]);
 
   useEffect(() => {
     let live = true;
-    api<{ history?: VisitEvent[] }>(`/appointments/${encodeURIComponent(appointmentId)}`)
-      .then((found) => live && setEvents(found.history ?? []))
+    api<{ history?: VisitEvent[]; reminders?: VisitReminder[] }>(`/appointments/${encodeURIComponent(appointmentId)}`)
+      .then((found) => {
+        if (!live) return;
+        setEvents(found.history ?? []);
+        setReminders(found.reminders ?? []);
+      })
       .catch(() => live && setEvents([]));
     return () => {
       live = false;
     };
   }, [appointmentId, refresh]);
 
+  // What is still to come gives way to what happened, once it is on record.
+  const after = reminders.length
+    ? reminders.map((reminder, i) => <ReminderStep key={`${reminder.channel}-${reminder.sentAt}-${i}`} reminder={reminder} audience={audience} />)
+    : children;
   if (!events || !events.length) {
     return (
       <ol className={className}>
         {fallback}
-        {children}
+        {after}
       </ol>
     );
   }
@@ -149,7 +208,7 @@ export function VisitHistory({
           </li>
         );
       })}
-      {children}
+      {after}
     </ol>
   );
 }

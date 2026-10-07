@@ -23,6 +23,7 @@ from decimal import Decimal
 from typing import Any
 
 from atria.core import notices
+from atria.core.reminders import MAX_LEAD_HOURS as MAX_REMINDER_LEAD_HOURS
 from atria.data import keys
 from atria.data.people import new_id
 from atria.data.repository import Item, Repository
@@ -231,6 +232,25 @@ class Messages:
     def for_day(self, tenant_id: str, day: str) -> list[Item]:
         """Every message logged for one day, earliest first."""
         return self._repo.query_partition(f"{keys.TENANT}{tenant_id}#MSG#{day}")
+
+    def reminders_for(self, tenant_id: str, appointment_id: str, start: dt.datetime) -> list[Item]:
+        """An appointment's reminders, earliest first, read from the days they could be on.
+
+        A reminder's row is filed on the day it was sent, at most the widest
+        lead (three days) before the visit, so this is a handful of day reads.
+        """
+        last = start.date()
+        day = (start - dt.timedelta(hours=MAX_REMINDER_LEAD_HOURS)).date()
+        found: list[Item] = []
+        while day <= last:
+            found.extend(
+                row
+                for row in self.for_day(tenant_id, day.isoformat())
+                if row.get("appointmentId") == appointment_id
+                and row.get("kind") == notices.APPOINTMENT_REMINDER
+            )
+            day += dt.timedelta(days=1)
+        return sorted(found, key=lambda row: str(row.get("sentAt", "")))
 
     def went_out(self, tenant_id: str, day: str, *, clinic_id: str | None = None) -> list[Item]:
         """Every message that settled on one day (UTC), a unit's alone if named."""

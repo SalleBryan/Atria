@@ -643,7 +643,7 @@ function VisitDetail({
                     {reminderAt.getTime() > Date.parse(appointment.createdAt)
                       ? reminderAt.getTime() > Date.now()
                         ? "SMS reminder scheduled"
-                        : "SMS reminder due"
+                        : "SMS reminder"
                       : "SMS confirmation sent"}
                   </span>
                   <span className="timeline-sub">

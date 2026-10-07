@@ -379,7 +379,9 @@ export function VisitPage() {
                 <span>
                   <span className="timeline-title">SMS reminder</span>
                   <span className="timeline-sub">
-                    {reminder.getTime() > Date.now() ? "Scheduled for" : "Due"} {clock.day(reminder)}, {clock.time(reminder)} · 24h ahead
+                    {reminder.getTime() > Date.now()
+                      ? `Scheduled for ${clock.day(reminder)}, ${clock.time(reminder)} · 24h ahead`
+                      : `Was due ${clock.day(reminder)}, ${clock.time(reminder)} · nothing on record yet`}
                   </span>
                 </span>
               </li>

@@ -30,6 +30,7 @@ from atria.data.audit import POTENTIAL_SELF_BENEFIT
 from atria.data.booking import FUTURE_YEARS, HISTORY_YEARS, Booking
 from atria.data.idempotency import COMPLETED, Idempotency, validate_key
 from atria.data.ledger import Ledger, entry_view
+from atria.data.messages import Messages
 from atria.data.repository import Repository
 from atria.http import audit, paging, requests, responses
 from atria.http.handler import api
@@ -218,6 +219,15 @@ def one(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
         event_view(e, staff=caller.is_staff, person_id=caller.person_id)
         for e in data.events(principal.tenant_id, appointment_id)
     ]
+    # The reminders as they went, so the timeline says sent, failed or not
+    # sent rather than working it out from the visit's time.
+    start = rules.parse_instant(appointment["startAt"], name="startAt")
+    shown["reminders"] = [
+        reminder_view(row, staff=caller.is_staff)
+        for row in Messages(data.repository).reminders_for(
+            principal.tenant_id, appointment_id, start
+        )
+    ]
     ledger = Ledger(data.repository)
     if permissions.allows(caller, "fee_ledger.read", subject):
         shown["ledger"] = entry_view(ledger.entry(principal.tenant_id, appointment_id))
@@ -230,6 +240,20 @@ def one(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
             # A type since removed: the visit still reads, without a preview.
             shown["cancellationPreview"] = None
     return shown
+
+
+def reminder_view(row: dict[str, Any], *, staff: bool) -> dict[str, Any]:
+    """One reminder for the timeline. Why one failed is the desk's to read, not the patient's."""
+    view = {
+        "channel": row.get("channel"),
+        "deliveryState": row.get("deliveryState"),
+        "sentAt": row.get("sentAt"),
+        "settledAt": row.get("settledAt"),
+        "feedback": row.get("feedback"),
+    }
+    if staff:
+        view["failureReason"] = row.get("failureReason") or row.get("cancelledReason")
+    return view
 
 
 def lifecycle_cancellable() -> tuple[str, ...]:

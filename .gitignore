@@ -68,3 +68,8 @@ Regional_Hospital_Buea_Staff_Accounts.xlsx
 *Staff_Accounts*.xlsx
 *staff-credentials*.pdf
 *staff-credentials*.xlsx
+# Browser exports can contain temporary login credentials.
+*credentials*.pdf
+*credentials*.xlsx
+*Credentials*.pdf
+*Credentials*.xlsx

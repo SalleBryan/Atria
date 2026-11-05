@@ -59,6 +59,10 @@ def subscribe(person_id: str, body: dict[str, Any], *, at: dt.datetime) -> dict[
     p256dh, auth = str(found.get("p256dh") or ""), str(found.get("auth") or "")
     if not endpoint.startswith("https://") or len(endpoint) > 1000 or not p256dh or not auth:
         raise Invalid("a subscription has an https endpoint and its p256dh and auth keys")
+    try:
+        webpush.validate_endpoint(endpoint)
+    except ValueError as exc:
+        raise Invalid(str(exc)) from exc
     label = str(body.get("label") or "")[:80] or None
     subscriptions().add(person_id, endpoint, p256dh, auth, label=label, at=at)
     return {"subscribed": True}

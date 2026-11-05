@@ -16,4 +16,4 @@ pyjwt[crypto]==2.15.0
 # image is not guaranteed to carry one. Clinic opening hours and reminder
 # times are computed in Africa/Douala (FR-REM-05), so the data ships with the
 # code and behaves the same everywhere it runs.
-tzdata==2026.4
+tzdata==2026.6

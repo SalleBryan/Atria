@@ -77,12 +77,15 @@ def test_notify_reaches_each_browser_and_forgets_gone_ones(
         _, p256dh, auth = browser()
         push.subscribe(
             "p1",
-            {"endpoint": f"https://push.example/{name}", "keys": {"p256dh": p256dh, "auth": auth}},
+            {
+                "endpoint": f"https://fcm.googleapis.com/{name}",
+                "keys": {"p256dh": p256dh, "auth": auth},
+            },
             at=at,
         )
     push.subscribe(
         "p1",
-        {"endpoint": "https://push.example/a", "keys": {"p256dh": p256dh, "auth": auth}},
+        {"endpoint": "https://fcm.googleapis.com/a", "keys": {"p256dh": p256dh, "auth": auth}},
         at=at,
     )
     assert len(store.of("p1")) == 2
@@ -94,7 +97,7 @@ def test_notify_reaches_each_browser_and_forgets_gone_ones(
 
     monkeypatch.setattr(webpush, "send", fake_send)
     assert push.notify("p1", title="t", body="b") == 1
-    assert [i["endpoint"] for i in store.of("p1")] == ["https://push.example/a"]
+    assert [i["endpoint"] for i in store.of("p1")] == ["https://fcm.googleapis.com/a"]
     push.use(None, None)
 
 
@@ -103,3 +106,57 @@ def test_a_subscription_needs_its_keys() -> None:
 
     with pytest.raises(Invalid):
         push.subscribe("p1", {"endpoint": "https://x"}, at=dt.datetime.now(tz=dt.UTC))
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://127.0.0.1/internal",
+        "https://169.254.169.254/metadata",
+        "https://fcm.googleapis.com.attacker.example/x",
+        "https://fcm.googleapis.com@localhost/x",
+        "https://fcm.googleapis.com:8443/x",
+        "https://fcm.googleapis.com/x#fragment",
+        "https://user:secret@fcm.googleapis.com/x",
+        "file:///etc/passwd",
+    ],
+)
+def test_push_rejects_internal_and_spoofed_destinations(endpoint: str) -> None:
+    with pytest.raises(ValueError, match="push endpoint"):
+        webpush.validate_endpoint(endpoint)
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://fcm.googleapis.com/fcm/send/test",
+        "https://updates.push.services.mozilla.com/wpush/v2/test",
+        "https://web.push.apple.com/test",
+        "https://test.notify.windows.com/test",
+    ],
+)
+def test_push_accepts_browser_services(endpoint: str) -> None:
+    webpush.validate_endpoint(endpoint)
+
+
+def test_push_does_not_follow_redirects(monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import MagicMock
+
+    connection = MagicMock()
+    connection.getresponse.return_value.status = 302
+    connector = MagicMock(return_value=connection)
+    monkeypatch.setattr(webpush.http.client, "HTTPSConnection", connector)
+    _, p256dh, auth = browser()
+    with pytest.raises(ValueError, match="redirects"):
+        webpush.send(
+            webpush.Vapid.generate(),
+            {
+                "endpoint": "https://fcm.googleapis.com/test",
+                "p256dh": p256dh,
+                "auth": auth,
+            },
+            {},
+        )
+    connector.assert_called_once_with("fcm.googleapis.com", timeout=10)
+    connection.request.assert_called_once()
+    connection.close.assert_called_once()

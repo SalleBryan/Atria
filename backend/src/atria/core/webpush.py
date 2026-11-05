@@ -13,11 +13,11 @@ rather than pulling in a push library and its HTTP client.
 from __future__ import annotations
 
 import base64
+import http.client
 import json
 import os
 import time
 import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
@@ -140,35 +140,68 @@ class Gone(Exception):  # noqa: N818  named for what the push service says
     """The browser unsubscribed or the subscription expired: forget it."""
 
 
-def send(vapid: Vapid, subscription: dict[str, Any], payload: dict[str, Any]) -> int:
-    """Deliver one notice to one subscription and return the HTTP status.
+def validate_endpoint(endpoint: str) -> None:
+    """Only browser vendors may receive encrypted notices and VAPID credentials."""
+    parts = urlsplit(endpoint)
+    host = parts.hostname or ""
+    domains = (
+        "fcm.googleapis.com",
+        "push.services.mozilla.com",
+        "push.apple.com",
+        "notify.windows.com",
+        "wns.windows.com",
+    )
+    try:
+        valid_port = parts.port in (None, 443)
+    except ValueError:
+        valid_port = False
+    if (
+        parts.scheme != "https"
+        or not valid_port
+        or parts.username
+        or parts.password
+        or parts.fragment
+        or "\\" in endpoint
+        or any(ord(c) < 33 for c in endpoint)
+        or not any(
+            host == domain or (domain != "fcm.googleapis.com" and host.endswith("." + domain))
+            for domain in domains
+        )
+    ):
+        raise ValueError("a push endpoint must be an https URL at a supported browser push service")
 
-    Raises Gone for 404 and 410, which say the subscription no longer exists.
-    """
+
+def send(vapid: Vapid, subscription: dict[str, Any], payload: dict[str, Any]) -> int:
+    """Deliver to a validated browser service without following redirects."""
     endpoint = str(subscription["endpoint"])
-    if not endpoint.startswith("https://"):
-        raise ValueError("a push endpoint is an https URL")
+    validate_endpoint(endpoint)
+    parts = urlsplit(endpoint)
     body = encrypt(
         json.dumps(payload, separators=(",", ":")).encode("utf-8"),
         str(subscription["p256dh"]),
         str(subscription["auth"]),
     )
-    request = urllib.request.Request(  # noqa: S310  https only, checked above
-        endpoint,
-        data=body,
-        method="POST",
-        headers={
-            "Content-Encoding": "aes128gcm",
-            "Content-Type": "application/octet-stream",
-            "TTL": str(TTL_SECONDS),
-            "Urgency": "high",
-            "Authorization": vapid.authorization(endpoint),
-        },
-    )
+    headers = {
+        "Content-Encoding": "aes128gcm",
+        "Content-Type": "application/octet-stream",
+        "TTL": str(TTL_SECONDS),
+        "Urgency": "high",
+        "Authorization": vapid.authorization(endpoint),
+    }
+    connection = http.client.HTTPSConnection(str(parts.hostname), timeout=10)
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310
-            return int(response.status)
-    except urllib.error.HTTPError as exc:
-        if exc.code in (404, 410):
-            raise Gone(endpoint) from exc
-        raise
+        connection.request(
+            "POST", parts.path + ("?" + parts.query if parts.query else ""), body, headers
+        )
+        response = connection.getresponse()
+        if response.status in (404, 410):
+            raise Gone(endpoint)
+        if 300 <= response.status < 400:
+            raise ValueError("push service redirects are not followed")
+        if response.status >= 400:
+            raise urllib.error.HTTPError(
+                endpoint, response.status, response.reason, response.headers, None
+            )
+        return int(response.status)
+    finally:
+        connection.close()

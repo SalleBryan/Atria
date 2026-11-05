@@ -25,9 +25,12 @@ client cannot, so it holds a generated copy that CI checks is current
 
 ## Environments
 
-One development environment in `us-east-1`, account 340752829171. Development
+One development environment in `us-east-1`. The target AWS account is configured
+in the infrastructure environment. Development
 runs on synthetic data only: no real patient data reaches any environment in
-this repository (constraint C-03).
+this repository (constraint C-03). Staff import workbooks and credential exports
+are local operational files and must never be committed, even when used during
+development. Use `tools/seed_dev.py` for the synthetic development dataset.
 
 ## Getting started
 

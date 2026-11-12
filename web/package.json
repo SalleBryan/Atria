@@ -37,7 +37,7 @@
     "prettier": "3.9.9",
     "puppeteer-core": "^25.16.0",
     "typescript": "^7.0.2",
-    "vite": "^8.3.6",
+    "vite": "^8.3.7",
     "vitest": "^5.1.0"
   },
   "overrides": {

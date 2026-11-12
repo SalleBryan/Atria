@@ -34,6 +34,7 @@ import {
   join,
   past,
   stateLabel,
+  ticketSubtitle,
   until,
   upcoming,
   usePatientData,
@@ -329,7 +330,7 @@ export function VisitRow({ appointment, action = "Manage" }: { appointment: Appo
         <span className="visit-sub">
           {/* As My visits words them: a request has no time, a queue place an arrival. */}
           {(appointment.sessionId
-            ? [clinic?.name, `arrive ${clock.time(appointment.startAt)}`]
+            ? [clinic?.name, ticketSubtitle(appointment)]
             : requested
               ? [clinic?.name, "time to be set"]
               : [clinician?.specialty, clinic?.name, `${clock.time(appointment.startAt)} to ${clock.time(appointment.endAt)}`]

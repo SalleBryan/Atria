@@ -31,11 +31,13 @@ from atria.core import permissions, schedule
 from atria.core.errors import AtriaError, Invalid
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
+from atria.data import keys
 from atria.data.booking import Booking
 from atria.data.catalogue import Catalogue, as_listed
 from atria.data.intake import IntakeForms, form_view
 from atria.data.people import People
 from atria.data.repository import Repository
+from atria.data.settings import Settings
 from atria.http import paging, requests, responses
 from atria.http.handler import api
 from atria.services.directory import availability as availability_views
@@ -164,9 +166,20 @@ def list_appointment_types(principal: Principal, event: dict[str, Any]) -> dict[
     # not care context; only the answers are.
     forms = IntakeForms(booking().repository)
     asked: dict[str, dict[str, Any] | None] = {}
+    # The fee a patient is told before booking is the practice baseline in force
+    # today, in whole currency units. It carries no rating or score (AD-11), and
+    # no money moves (AD-07): the patient pays at the hospital.
+    repository = booking().repository
+    bands = {str(b["feeBandId"]): b for b in Settings(repository).fee_bands(principal.tenant_id)}
+    tenant_item = repository.get(keys.tenant(principal.tenant_id)) or {}
+    pack = repository.get(keys.region_pack(str(tenant_item.get("regionPackCode") or "CM"))) or {}
+    currency = pack.get("currency") or "XAF"
     listed = []
     for t in shown:
         view = as_listed(t, TYPE_FIELDS)
+        band = bands.get(str(t.get("feeBandId") or ""))
+        view["feeAmountMinor"] = int(band.get("baseAmountMinor") or 0) if band else None
+        view["feeCurrency"] = currency
         form_id = t.get("intakeFormId")
         if form_id:
             if form_id not in asked:

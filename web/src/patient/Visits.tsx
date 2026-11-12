@@ -45,6 +45,7 @@ import {
   join,
   past,
   stateLabel,
+  ticketSubtitle,
   upcoming,
   usePatientData,
   directionsTo,
@@ -286,7 +287,7 @@ export function Visits() {
                     </span>
                     <span className="visit-sub">
                       {(appointment.sessionId
-                        ? [clinic?.name, `arrive ${clock.time(appointment.startAt)}`]
+                        ? [clinic?.name, ticketSubtitle(appointment)]
                         : appointment.state === "REQUESTED"
                           ? [clinic?.name, "time to be set"]
                           : [clinician?.specialty, clinic?.name, clock.time(appointment.startAt)]

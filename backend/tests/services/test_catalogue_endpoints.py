@@ -14,6 +14,7 @@ import pytest
 from atria.data import keys
 from atria.data.booking import Booking
 from atria.data.catalogue import Catalogue, appointment_type_listing, clinic_listing
+from atria.data.settings import Settings
 from atria.services.directory import clinicians as service
 
 pytestmark = pytest.mark.usefixtures("table")
@@ -133,6 +134,19 @@ class TestAppointmentTypes:
 
     def test_no_fee_band_or_internal_field_leaks(self, wired):
         listed = call("/appointment-types")["appointmentTypes"][0]
-        # The listed fields, and the questions the type asks at booking (FR-BKG-15).
-        assert set(listed) == {*service.TYPE_FIELDS, "intakeForm"}
+        # The listed fields, the questions the type asks at booking (FR-BKG-15), and
+        # the fee a patient is told before booking.
+        assert set(listed) == {*service.TYPE_FIELDS, "intakeForm", "feeAmountMinor", "feeCurrency"}
         assert "feeBandId" not in listed
+
+    def test_the_fee_in_force_is_shown_before_booking(self, wired):
+        Settings(wired).set_fee_band(
+            TENANT, "fb-internal", {"practice": "Specialist", "baseAmountMinor": 15000}
+        )
+        listed = call("/appointment-types")["appointmentTypes"][0]
+        assert listed["feeAmountMinor"] == 15000
+        assert listed["feeCurrency"] == "XAF"
+
+    def test_a_type_with_no_band_shows_no_fee_rather_than_a_guess(self, wired):
+        listed = call("/appointment-types")["appointmentTypes"][0]
+        assert listed["feeAmountMinor"] is None

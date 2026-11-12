@@ -40,6 +40,7 @@ import {
   type IntakeAnswers,
   clock,
   experience,
+  feeText,
   initials,
   SENIORITY,
   usePatientData,
@@ -456,12 +457,17 @@ export function FindCare() {
                     <dt>VISIT</dt>
                     <dd>{minutes} min</dd>
                   </div>
+                  <div>
+                    <dt>FEE</dt>
+                    <dd>{feeText(type) ?? "Ask the desk"}</dd>
+                  </div>
                 </dl>
               </div>
               <p className="detail-bio">
                 {SENIORITY[selected.seniorityBand]} {selected.specialty?.toLowerCase()} practitioner at {clinic?.name ?? "the clinic"}
                 {clinic?.address ? `, ${clinic.address}` : ""}. Consults in {languages.join(" and ") || "French"}.
               </p>
+              <p className="detail-bio">You pay the fee at the hospital. Atria does not collect payment.</p>
             </div>
 
             {bookable.length > 1 && (

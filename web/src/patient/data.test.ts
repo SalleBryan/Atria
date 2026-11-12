@@ -1,5 +1,5 @@
 import { calendarEntry, googleCalendarLink, outlookCalendarLink } from "./calendar";
-import { type Appointment, clock, past, stateLabel, until, upcoming } from "./data";
+import { type Appointment, clock, feeText, past, stateLabel, ticketSubtitle, ticketWaits, until, upcoming } from "./data";
 
 const visit = (overrides: Partial<Appointment> = {}): Appointment => ({
   appointmentId: "a-1",
@@ -132,5 +132,37 @@ describe("the calendar links", () => {
     expect(link.searchParams.get("startdt")).toBe("2026-09-26T09:00:00.000Z");
     expect(link.searchParams.get("enddt")).toBe("2026-09-26T09:30:00.000Z");
     expect(link.searchParams.get("rru")).toBe("addevent");
+  });
+});
+
+describe("a queue ticket in a list (audit F03)", () => {
+  it("tells a waiting patient when to arrive", () => {
+    expect(ticketWaits("CONFIRMED")).toBe(true);
+    expect(ticketSubtitle(visit({ state: "CONFIRMED" }))).toBe("arrive 10:00");
+  });
+
+  it("never tells a patient to arrive once the place is given back", () => {
+    expect(ticketWaits("PATIENT_CANCELLED")).toBe(false);
+    expect(ticketSubtitle(visit({ state: "PATIENT_CANCELLED" }))).toBe("place given back");
+    expect(ticketSubtitle(visit({ state: "CLINIC_CANCELLED" }))).toBe("place given back");
+  });
+
+  it("shows only the time for a ticket that has been seen or closed", () => {
+    expect(ticketSubtitle(visit({ state: "COMPLETED" }))).toBe("10:00");
+  });
+});
+
+describe("the fee told before booking (audit F10)", () => {
+  it("formats the fee in the region's currency", () => {
+    expect(feeText({ feeAmountMinor: 15000, feeCurrency: "XAF" })).toBe("15,000 XAF");
+  });
+
+  it("falls back to francs when the currency is absent", () => {
+    expect(feeText({ feeAmountMinor: 1500 })).toBe("1,500 XAF");
+  });
+
+  it("says nothing rather than guess when the type has no fee band", () => {
+    expect(feeText({ feeAmountMinor: null })).toBeNull();
+    expect(feeText(undefined)).toBeNull();
   });
 });

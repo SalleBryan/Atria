@@ -80,8 +80,14 @@ As built in slice 1: ticket (appointment) fields `bypassCount`, `holdStartedAt`,
 and `completedAt` stamps, so no new event is needed for it. Still to come: `urgentReason`, `inviteReplyAt`, `inviteEta` and the
 invitation events. `core/queue.py::next_call` is the one pure function that decides who is called; `services/booking/queue.py`
 only persists its decision.
-Tenant settings (defaults above): `holdMinutes`, `lateGraceMinutes`, `inviteLeadMinutes`, `inviteFanout`,
-`earlyCallInvites` on or off. Change `spec/` first, then run `python spec/generate.py`.
+Settings by level, never constants. `core/queue.py::resolve_policy` merges, most specific winning per knob:
+session (the desk, for the day, `PATCH /sessions/{id}/policy`, permission `queue.tune_session`: receptionist and unit
+manager), unit (`PATCH /clinics/{id}/queue-policy`, permission `queue.configure`: unit manager for their unit,
+administrator for any), tenant (administrator, through `PATCH /admin/settings`: `queueHoldMinutes`,
+`queueLateGraceMinutes`, `queueMaxBypass`), then the built-in fallback (hold 5, late grace 15, bypass 1). Limits: hold 0
+to 30 (0 never holds), late grace 0 to 60, bypass 0 to 3 (0 holds at once). `null` clears an override. The live queue
+returns the policy in force with the level that set each knob. Still to come in slice 3: `inviteLeadMinutes`,
+`inviteFanout`, `earlyCallInvites`, on the same three levels.
 
 ### Messages
 New kinds `EARLY_CALL_INVITE` and `QUEUE_MOVED` in `core/notices.py`. The invite is time critical, so prefer the push
@@ -117,7 +123,7 @@ online ticket (existing register rules apply); URGENT while a doctor is mid-cons
 - **Time-critical delivery raises the value of production SMS and push** (OI-04 and the Firebase setup are owner actions).
 
 ## Open questions for the owner
-1. Defaults: hold 5, late grace 15, invite lead 5, fan-out 3: acceptable for a first pilot?
+1. (Answered 2026-11-13: these are settings by level, not constants.) Which built-in fallbacks for invitations: lead 5, fan-out 3?
 2. May a patient decline an invitation, and does a decline change anything? (Proposed: no effect on position.)
 3. Who may mark URGENT: clinician and desk, or clinician only?
 4. Is the walk-in reserve share wanted now or later?

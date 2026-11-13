@@ -290,6 +290,11 @@ class TestWeeklyReport:
         assert (by["PATIENT"]["booked"], by["PATIENT"]["noShow"]) == (3, 1)
         assert "CLINICIAN" not in by
 
+    def test_a_unit_without_a_queue_has_no_queue_figures(self, week):
+        # These are specialist visits: no general queue ran, so none is measured.
+        assert body_of(report(MANAGER))["queue"] is None
+        assert body_of(report(ADMIN, resource="/reports"))["queue"] is None
+
     def test_the_hospital_report_carries_every_breakdown(self, week):
         found = body_of(report(ADMIN, resource="/reports"))
         assert found["attendance"] == 0.5

@@ -3314,6 +3314,29 @@ components:
         attendance:
           type: [number, "null"]
           description: Attended over attended and no-show. Null when neither happened.
+        queue:
+          type: [object, "null"]
+          description: |
+            What the general queue measured (ADR 0022), null for a unit with no
+            queue in the period. Measurements only: no price, no saving. A
+            breach is against the arrival window as last told to the patient.
+            For the hospital report the medians are null, since they do not add.
+          properties:
+            tickets: { type: integer }
+            seen: { type: integer }
+            byChannel: { type: object, additionalProperties: { type: integer } }
+            medianWaitMinutes: { type: [number, "null"], description: Arrival to the start of the consultation. }
+            medianConsultationMinutes: { type: [number, "null"] }
+            arrivedInWindow: { type: integer }
+            promiseBreached: { type: integer, description: Arrived in their window and seen after it ended. }
+            medianBreachMinutes: { type: [number, "null"] }
+            longestBreachMinutes: { type: [number, "null"] }
+            bypassed: { type: integer }
+            urgent: { type: integer }
+            late: { type: integer }
+            doctorIdleWhileWaitingMinutes:
+              type: number
+              description: A doctor free between two consultations while a patient of the unit had arrived and waited.
         byChannel:
           type: array
           items:

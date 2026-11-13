@@ -28,6 +28,8 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
+from atria.core import queue_metrics
+
 ATTENDED = ("COMPLETED", "AWAITING_FEEDBACK")
 NO_SHOW = ("NO_SHOW",)
 LATE = ("CANCELLED_LATE",)
@@ -140,6 +142,8 @@ def week_figures(
         "byChannel": by_channel,
         "byBookedBy": by_booked_by,
         "byReminder": by_reminder,
+        # The general queue's measurements, or None for a unit with no queue (ADR 0022).
+        "queue": queue_metrics.queue_figures(appointments),
         "ledger": {
             "entries": len(ledger),
             "currency": next((str(e.get("currency")) for e in ledger if e.get("currency")), "XAF"),
@@ -227,6 +231,7 @@ def hospital_figures(units: list[dict[str, Any]]) -> dict[str, Any]:
         "byChannel": _merge_rates(units, "byChannel", "channel", CHANNELS),
         "byBookedBy": _merge_rates(units, "byBookedBy", "bookedBy", BOOKED_BY),
         "byReminder": _merge_rates(units, "byReminder", "reminder", REMINDER),
+        "queue": queue_metrics.merge([u.get("queue") for u in units]),
         "ledger": {
             "entries": sum(int((u.get("ledger") or {}).get("entries") or 0) for u in units),
             "currency": currency,

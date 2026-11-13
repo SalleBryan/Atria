@@ -12,7 +12,7 @@ Written 2026-11-13 for the teammate's Claude. Two Claude accounts push to this o
 Hackathon brief: pick a real everyday barrier and a named real user group. Atria is a healthcare appointment booking and reminder system for Cameroon (tenant: Regional Hospital Buea, hypothetical).
 
 ### Pain lane backlog (do not take these)
-1. **Queue revision, ADR 0022 (proposed, awaiting the owner's approval).** Work-conserving queue with bounded bypass: the doctor never idles when someone is present, an on-time patient is bypassed at most once, early-call invitations run in parallel and never hold the doctor, lateness forfeits priority, clinical urgency overrides. Read `docs/adr/0022-*.md` before touching `core/queue.py` or `services/booking/queue.py`.
+1. **Queue revision, ADR 0022 (accepted 2026-11-13, slice 1 in review, slices 2 and 3 to come).** Work-conserving queue with bounded bypass: the doctor never idles when someone is present, an on-time patient is bypassed at most once, early-call invitations run in parallel and never hold the doctor, lateness forfeits priority, clinical urgency overrides. Read `docs/adr/0022-*.md` before touching `core/queue.py` or `services/booking/queue.py`.
 2. Live queue position or estimate on the ticket (measured consultation length, not a fixed 30 minutes); voice reminder fallback and local-language messages; fee in reminders and on the desk view.
 3. Remaining audit findings (`docs/reference/reviews/2026-11-04/AUDIT.md`): F02, F04, F05, F06 and the P2 list. Production SMS (OI-04) is an owner action.
 
@@ -47,6 +47,8 @@ Hackathon brief: pick a real everyday barrier and a named real user group. Atria
 - Lane logs: each account appends status to its own file, `docs/handoff/LOG_PAIN.md` or `docs/handoff/LOG_BIZ.md`. Never edit the other's.
 - Deploys: Deploy runs after CI passes on main and is gated by reviewers on the `dev` environment. Do not trigger two at once. A stuck Amplify PENDING job blocks new ones (`aws amplify stop-job`).
 - Merging is the owner's call. Open PRs, do not merge.
+- **Update this handoff before every push** (owner's rule, 2026-11-13): refresh section 8 (current state) and append to your lane log in the same push. Fetch first and read the other lane's log and branches.
+- **No hard-coded policy.** Values a hospital may want to tune are settings by level (tenant, unit, session), edited by the right role, with built-in constants only as the fallback.
 
 ## 5. Repo map (root is `Atria/`)
 - `spec/atria_spec/`: single source: roles and permission matrix, entities, keys, lifecycles, region packs, `hospital.py` seed data. Change here first, then `python spec/generate.py`.
@@ -74,10 +76,15 @@ Gotchas (Windows, Git Bash, OneDrive):
 - Prefer DOM measurements over screenshots; screenshots catch animations mid-flight. Use real pointer clicks to test overlays.
 - Set `MSYS_NO_PATHCONV=1` for `/aws/lambda/...` log commands.
 
-## 8. Current state (2026-11-13)
-- PR 20 is merged to main (Deploy for it was approved on 2026-11-13; confirm the run and the live app): fee shown before booking (`feeAmountMinor`, `feeCurrency` on appointment types), cancelled tickets no longer say arrive, pickers render above dialogs (menu layer z-index 1100), procedure requests read "asked <day>", Sessions pace says "per doctor", CI pins Flutter 3.47.5. Deploy of the web build may still be pending: check the Deploy run and the live app.
-- Live dev app: `https://main.dym1ejjx8bhtw.amplifyapp.com`. SMS and email are in AWS sandbox (OI-04): no real patient receives a text yet. A test queue session exists for 2026-11-13. Staff list is cluttered with deleted and suspended test accounts (audit F05). A duplicate clinician "Emmanuel Ekane" exists as created data, not a code bug.
-- Open audit findings relevant to you: F18 (percentage denominators), F08 (clinician report destination), F13 (failed message follow-up state).
+## 8. Current state (updated 2026-11-13, pain lane, after queue slice 1 and the urgent-marking decision)
+- Merged to main: PR 20 (fee before booking, cancelled tickets, pickers above dialogs, request wording, per-doctor pace, Flutter pinned to 3.47.5), PR 21 (this handoff, `docs/reference/`, `CLAUDE.md`, ADR 0022). Deploy for PR 20 was approved and running on 2026-11-13: confirm the run and the live app.
+- Open: PR for queue slice 1 (branch `pain/queue-revision`): `core/queue.py::next_call` decides who is called (never idle, bypass bounded, hold, late, urgent); `call_next` applies it; live queue returns `callPreview`, per-ticket flags and `policy`. Queue rules are settings by level: tenant (`PATCH /admin/settings`: `queueHoldMinutes`, `queueLateGraceMinutes`, `queueMaxBypass`), unit (`PATCH /clinics/{id}/queue-policy`), session (`PATCH /sessions/{id}/policy`). New permissions `queue.configure` and `queue.tune_session` (the SRS permission matrix PDF does not list them yet).
+- Decision 2026-11-13: only the receptionist may mark a ticket urgent (permission `queue.mark_urgent`, receptionist clinic scope only, reason required, audited). Do not widen it to clinicians or managers without the owner.
+- PR 22 (slice 1) has all five CI jobs green. PR 20's Deploy succeeded; the dev app has the fee line and fixes.
+- Not built yet (pain lane, in order): slice 2 desk console (call guard, hold countdown, urgent marking with its permission and route, screens to edit the three levels); slice 3 early-call invitations, `EARLY_CALL_INVITE` and `QUEUE_MOVED` messages, invitation settings on the same three levels.
+- Live dev app: `https://main.dym1ejjx8bhtw.amplifyapp.com`. SMS and email are in AWS sandbox (OI-04): no real patient receives a text yet. A test queue session exists for 2026-11-13. The staff list is cluttered with deleted and suspended test accounts (audit F05). A duplicate clinician "Emmanuel Ekane" exists as created data.
+- Open audit findings relevant to the business lane: F18 (percentage denominators), F08 (clinician report destination), F13 (failed message follow-up state).
+- Business lane: nothing pushed yet as of this update (no branch, empty `LOG_BIZ.md`).
 
 ## 9. Reference material (now in the repo)
 Everything that used to sit outside the repo is under `docs/reference/` (index: `docs/reference/README.md`): SRS, Technical Document and Design Spec Rev B PDFs, `atria.tokens.json`, the PDF builder (`design-system/document-builder/atria_doc.py`), the evidence report and pitch map, the audit (text only), and `WORKING_RULES.md`. The repo is public: never add credentials, account or pool ids, staff workbooks or screenshots of real records. Reports for the owner are PDFs in the Atria house style, not Markdown; this handoff is the exception.
@@ -95,6 +102,6 @@ Everything that used to sit outside the repo is under `docs/reference/` (index: 
 
 ## 12. Queue revision: what it changes for the business lane (from ADR 0022)
 - **B1 metering:** new message kinds `EARLY_CALL_INVITE` and `QUEUE_MOVED` will appear in the message log. Count them by kind per unit. They are time critical, so delivery speed matters more than for reminders.
-- **B2 baseline report:** add queue-quality metrics next to attendance: doctor idle minutes, arrival-to-consultation wait, promise breach minutes (consultation start minus window end for patients who arrived in their window), bypass rate, on-site versus online mix. Needs the new `CONSULTATION_ENDED` event to measure durations. State them as measurements only, never as currency savings (FR-MSR-04, CX-12).
-- **Settings are not plan tiers.** `holdMinutes`, `lateGraceMinutes`, `inviteLeadMinutes`, `inviteFanout`, `earlyCallInvites` (and a possible walk-in reserve share) are tenant configuration. Do not attach them to pricing before B0 is decided.
+- **B2 baseline report:** add queue-quality metrics next to attendance: doctor idle minutes, arrival-to-consultation wait, promise breach minutes (consultation start minus window end for patients who arrived in their window), bypass rate, on-site versus online mix. Consultation length is derived from the existing `consultationStartedAt` and `completedAt` stamps on the ticket; no new event. State them as measurements only, never as currency savings (FR-MSR-04, CX-12).
+- **Settings are not plan tiers.** `queueHoldMinutes`, `queueLateGraceMinutes`, `queueMaxBypass` (and later the invitation settings and a possible walk-in reserve share) are configuration set by tenant, unit or session. Do not attach them to pricing before B0 is decided.
 - **Coordination:** the pain lane owns `core/queue.py`, `services/booking/queue.py` and the ticket fields. The business lane reads them; if you need a field, ask in `LOG_BIZ.md` and let the pain lane add it so the two do not edit the same files.

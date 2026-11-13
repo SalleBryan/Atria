@@ -506,6 +506,9 @@ class ApiStack(Stack):
             (one_session.add_resource("queue"), "GET"),
             (one_session.add_resource("next"), "POST"),
             (one_session.add_resource("close"), "POST"),
+            # ADR 0022: a unit's queue rules, and the desk's adjustment for one session.
+            (one_clinic.add_resource("queue-policy"), "PATCH"),
+            (one_session.add_resource("policy"), "PATCH"),
             (self.api.root.add_resource("procedure-requests"), "POST"),
         ):
             resource.add_method(

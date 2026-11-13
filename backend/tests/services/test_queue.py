@@ -568,3 +568,214 @@ class TestDeletingTheAccount:
         assert found["cancelledVisits"] == 1
         state = repository.get(keys.appointment(TENANT, made["appointmentId"]))["state"]
         assert "CANCELLED" in state
+
+
+class TestTheDoctorNeverIdlesAndAPromiseIsNeverSkipped:
+    """ADR 0022. The online patient is absent, walk-ins are here, the doctor is free."""
+
+    @pytest.fixture
+    def running(self, opd, repository):
+        _repo, clinician = opd
+        repository.put(
+            keys.patient_profile(TENANT, "pp-3"),
+            {"type": "PATIENT_PROFILE", "patientProfileId": "pp-3", "tenantId": TENANT},
+        )
+        session = body_of(publish(rostered=2))
+        booked = body_of(ticket(session["sessionId"]))  # online, position 1
+        walk_in = body_of(
+            ticket(session["sessionId"], context=staff_context(), patientProfileId="pp-2")
+        )
+        second_walk_in = body_of(
+            ticket(session["sessionId"], context=staff_context(), patientProfileId="pp-3")
+        )
+        # 08:05 in Douala: every window has opened.
+        CLOCK["now"] = dt.datetime(2026, 3, 4, 7, 5, tzinfo=dt.UTC)
+        doctor = {
+            "personId": "p-doc",
+            "tenantId": TENANT,
+            "roles": "CLINICIAN",
+            "staffId": clinician,
+            "clinicId": DOUALA,
+        }
+        return session["sessionId"], booked, walk_in, second_walk_in, doctor
+
+    def next_patient(self, session_id, doctor, **body):
+        return call(
+            "POST",
+            "/sessions/{id}/next",
+            context=doctor,
+            path={"id": session_id},
+            body=body or None,
+        )
+
+    def test_r1_the_doctor_takes_the_walk_in_when_the_booked_patient_is_not_here(self, running):
+        session_id, booked, walk_in, _second, doctor = running
+        act(walk_in["appointmentId"], "arrive")
+        called = body_of(self.next_patient(session_id, doctor))
+        assert called["appointmentId"] == walk_in["appointmentId"]
+        assert called["state"] == "IN_CONSULTATION"
+
+    def test_r2_the_passed_over_patient_is_next_when_they_arrive(self, running):
+        session_id, booked, walk_in, second, doctor = running
+        act(walk_in["appointmentId"], "arrive")
+        self.next_patient(session_id, doctor)
+        act(booked["appointmentId"], "arrive")
+        act(second["appointmentId"], "arrive")
+        called = body_of(self.next_patient(session_id, doctor))
+        assert called["appointmentId"] == booked["appointmentId"]
+
+    def test_r2_after_one_bypass_the_doctor_is_held_for_the_booked_patient(self, running):
+        session_id, booked, walk_in, second, doctor = running
+        act(walk_in["appointmentId"], "arrive")
+        self.next_patient(session_id, doctor)
+        act(second["appointmentId"], "arrive")
+        held = self.next_patient(session_id, doctor)
+        assert held["statusCode"] == 409
+        detail = json.loads(held["body"])
+        assert "HELD_FOR_BOOKED_PATIENT" in json.dumps(detail)
+        assert "heldFor" in json.dumps(detail)
+
+    def test_r3_when_the_hold_runs_out_the_booked_patient_is_late_and_the_doctor_moves_on(
+        self, running
+    ):
+        session_id, booked, walk_in, second, doctor = running
+        act(walk_in["appointmentId"], "arrive")
+        self.next_patient(session_id, doctor)
+        act(second["appointmentId"], "arrive")
+        assert self.next_patient(session_id, doctor)["statusCode"] == 409
+        CLOCK["now"] = dt.datetime(2026, 3, 4, 7, 12, tzinfo=dt.UTC)
+        called = body_of(self.next_patient(session_id, doctor))
+        assert called["appointmentId"] == second["appointmentId"]
+
+    def test_r5_the_desk_may_override_the_hold_but_must_say_why(self, running):
+        session_id, booked, walk_in, second, doctor = running
+        act(walk_in["appointmentId"], "arrive")
+        self.next_patient(session_id, doctor)
+        act(second["appointmentId"], "arrive")
+        assert self.next_patient(session_id, doctor, overrideHold=True)["statusCode"] == 400
+        called = body_of(
+            self.next_patient(
+                session_id, doctor, overrideHold=True, reason="booked patient phoned: not coming"
+            )
+        )
+        assert called["appointmentId"] == second["appointmentId"]
+
+    def test_r5_the_live_queue_shows_what_a_call_would_cost(self, running):
+        session_id, booked, walk_in, _second, _doctor = running
+        act(walk_in["appointmentId"], "arrive")
+        live = body_of(
+            call(
+                "GET",
+                "/sessions/{id}/queue",
+                context=staff_context(),
+                path={"id": session_id},
+            )
+        )
+        preview = live["callPreview"]
+        assert preview["candidate"] == walk_in["appointmentId"]
+        assert [b["appointmentId"] for b in preview["bypassed"]] == [booked["appointmentId"]]
+        assert preview["expectedConsultMinutes"] > 0
+        flags = {a["appointmentId"]: a for a in live["appointments"]}
+        assert flags[booked["appointmentId"]]["due"] is True
+        assert flags[booked["appointmentId"]]["bypassCount"] == 0
+
+
+class TestWhoSetsTheQueueRules:
+    """ADR 0022: the administrator's defaults, the manager's unit, the desk's session."""
+
+    def patch_unit(self, body, context=MANAGER):
+        return call(
+            "PATCH",
+            "/clinics/{id}/queue-policy",
+            context=context,
+            path={"id": DOUALA},
+            body=body,
+        )
+
+    def patch_session(self, session_id, body, context):
+        return call(
+            "PATCH", "/sessions/{id}/policy", context=context, path={"id": session_id}, body=body
+        )
+
+    def live(self, session_id):
+        return body_of(
+            call("GET", "/sessions/{id}/queue", context=staff_context(), path={"id": session_id})
+        )
+
+    def test_the_unit_manager_sets_their_units_rules(self, opd):
+        changed = body_of(self.patch_unit({"holdMinutes": 2}))
+        assert changed["holdMinutes"] == 2
+        assert changed["source"]["holdMinutes"] == "unit"
+        assert changed["source"]["maxBypass"] == "default"
+
+    def test_the_desk_does_not_set_the_units_rules(self, opd):
+        assert self.patch_unit({"holdMinutes": 2}, context=staff_context())["statusCode"] == 403
+
+    def test_a_patient_sets_nothing(self, opd):
+        assert self.patch_unit({"holdMinutes": 2}, context=patient_context())["statusCode"] == 403
+
+    def test_a_unit_override_is_cleared_with_null(self, opd):
+        self.patch_unit({"holdMinutes": 2})
+        cleared = body_of(self.patch_unit({"holdMinutes": None}))
+        assert cleared["holdMinutes"] == 5
+        assert cleared["source"]["holdMinutes"] == "default"
+
+    def test_a_value_outside_the_limits_is_refused(self, opd):
+        assert self.patch_unit({"holdMinutes": 99})["statusCode"] == 400
+
+    def test_the_tenants_defaults_apply_beneath_the_unit(self, opd, repository):
+        repository.update_existing(
+            keys.tenant(TENANT), set_values={"queueHoldMinutes": 10}, what="tenant"
+        )
+        session = body_of(publish())
+        assert self.live(session["sessionId"])["policy"]["source"]["holdMinutes"] == "tenant"
+        self.patch_unit({"holdMinutes": 3})
+        policy = self.live(session["sessionId"])["policy"]
+        assert (policy["holdMinutes"], policy["source"]["holdMinutes"]) == (3, "unit")
+
+    def test_the_desk_adjusts_one_session_and_the_live_queue_says_so(self, opd):
+        session = body_of(publish())
+        changed = body_of(
+            self.patch_session(session["sessionId"], {"maxBypass": 0}, staff_context())
+        )
+        assert changed["maxBypass"] == 0
+        assert self.live(session["sessionId"])["policy"]["source"]["maxBypass"] == "session"
+
+    def test_a_clinician_does_not_adjust_a_session(self, opd):
+        _repo, clinician = opd
+        session = body_of(publish())
+        doctor = {
+            "personId": "p-doc",
+            "tenantId": TENANT,
+            "roles": "CLINICIAN",
+            "staffId": clinician,
+            "clinicId": DOUALA,
+        }
+        assert (
+            self.patch_session(session["sessionId"], {"maxBypass": 0}, doctor)["statusCode"] == 403
+        )
+
+    def test_a_session_override_changes_who_is_called(self, opd, repository):
+        _repo, clinician = opd
+        session = body_of(publish(rostered=2))
+        booked = body_of(ticket(session["sessionId"]))
+        walk_in = body_of(
+            ticket(session["sessionId"], context=staff_context(), patientProfileId="pp-2")
+        )
+        CLOCK["now"] = dt.datetime(2026, 3, 4, 7, 5, tzinfo=dt.UTC)
+        act(walk_in["appointmentId"], "arrive")
+        doctor = {
+            "personId": "p-doc",
+            "tenantId": TENANT,
+            "roles": "CLINICIAN",
+            "staffId": clinician,
+            "clinicId": DOUALA,
+        }
+        # The desk says: never pass the booked patient over today.
+        self.patch_session(session["sessionId"], {"maxBypass": 0}, staff_context())
+        held = call(
+            "POST", "/sessions/{id}/next", context=doctor, path={"id": session["sessionId"]}
+        )
+        assert held["statusCode"] == 409
+        assert "HELD_FOR_BOOKED_PATIENT" in held["body"]
+        assert booked["appointmentId"] in held["body"]

@@ -141,3 +141,220 @@ def actual_throughput(
     seen = sum(1 for t in tickets if t.get("state") in ("COMPLETED", "AWAITING_FEEDBACK"))
     hours = max(0.25, (min(closed_at, window.closes_at) - window.opens_at).total_seconds() / 3600)
     return round(seen / (hours * max(1, rostered)), 2)
+
+
+# ------------------------------------------------- who is called next (ADR 0022)
+#
+# Work-conserving with bounded bypass. A doctor who is free takes the earliest
+# patient who is here (R1). A patient whose arrival window has opened and who is
+# not here is "due and absent"; a later ticket may be called ahead of them once
+# (R2). After that the next free doctor is held for them for a few minutes while
+# the desk phones; if they still do not come, they are late and rejoin behind
+# everyone who is present when they do arrive (R3). A clinician or the desk can
+# mark a ticket urgent, which outranks position and costs nobody a bypass (R6).
+
+
+@dataclass(frozen=True, slots=True)
+class Policy:
+    """The knobs of ADR 0022. Defaults for a pilot; tenant settings come later."""
+
+    hold_minutes: int = 5
+    late_grace_minutes: int = 15
+    max_bypass: int = 1
+
+
+DEFAULT_POLICY = Policy()
+
+# The three knobs, their limits, and where each is kept. Three levels set them,
+# the most specific winning: the tenant's defaults (the administrator), a unit's
+# own (its manager, or the administrator) and one session's (the desk, for the
+# day). A value of 0 for holdMinutes means the doctor is never held; 0 for
+# maxBypass means a due patient is never passed over before the hold starts.
+POLICY_LIMITS = {"holdMinutes": (0, 30), "lateGraceMinutes": (0, 60), "maxBypass": (0, 3)}
+TENANT_POLICY_FIELDS = {
+    "holdMinutes": "queueHoldMinutes",
+    "lateGraceMinutes": "queueLateGraceMinutes",
+    "maxBypass": "queueMaxBypass",
+}
+LEVELS = ("session", "unit", "tenant", "default")
+
+
+def _count(value: object) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(str(value))
+    except ValueError:
+        return None
+
+
+def policy_changes(body: dict[str, object]) -> dict[str, int | None]:
+    """A unit's or a session's queue policy from a request. None clears an override."""
+    unknown = sorted(set(body) - set(POLICY_LIMITS))
+    if unknown:
+        raise Invalid("those queue settings do not exist", detail={"unknown": unknown})
+    if not body:
+        raise Invalid("nothing to change")
+    out: dict[str, int | None] = {}
+    for name, value in body.items():
+        if value is None:
+            out[name] = None
+            continue
+        low, high = POLICY_LIMITS[name]
+        number = _count(value)
+        if number is None or isinstance(value, float) or not low <= number <= high:
+            raise Invalid(f"{name} must be a whole number from {low} to {high}")
+        out[name] = number
+    return out
+
+
+def resolve_policy(
+    tenant: dict[str, object] | None = None,
+    unit: dict[str, object] | None = None,
+    session: dict[str, object] | None = None,
+) -> tuple[Policy, dict[str, str]]:
+    """The policy in force and, per knob, which level set it."""
+    values = {
+        "holdMinutes": DEFAULT_POLICY.hold_minutes,
+        "lateGraceMinutes": DEFAULT_POLICY.late_grace_minutes,
+        "maxBypass": DEFAULT_POLICY.max_bypass,
+    }
+    source = dict.fromkeys(values, "default")
+    for level, layer in (("tenant", None), ("unit", unit), ("session", session)):
+        for name in values:
+            raw = (
+                (tenant or {}).get(TENANT_POLICY_FIELDS[name])
+                if level == "tenant"
+                else (layer or {}).get(name)
+            )
+            number = _count(raw)
+            if number is not None:
+                values[name] = number
+                source[name] = level
+    return Policy(values["holdMinutes"], values["lateGraceMinutes"], values["maxBypass"]), source
+
+
+@dataclass(frozen=True, slots=True)
+class Hold:
+    """The doctor is held for this absent ticket until `until`."""
+
+    appointment_id: str
+    position: int
+    until: dt.datetime
+
+
+@dataclass(frozen=True, slots=True)
+class Call:
+    """What calling the next patient would do right now."""
+
+    candidate: dict[str, object] | None  # None: nobody here, or held
+    bypassed: tuple[dict[str, object], ...] = ()  # absent due tickets this call passes over
+    hold: Hold | None = None  # set when the doctor is held for an absent ticket
+    start_hold: tuple[str, ...] = ()  # ticket ids whose hold clock starts now
+    late: tuple[str, ...] = ()  # ticket ids that have become late
+
+
+def _instant(value: object) -> dt.datetime | None:
+    if not value:
+        return None
+    return dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+
+def _position(ticket: dict[str, object]) -> int:
+    return int(str(ticket.get("position") or 0))
+
+
+def window_end(ticket: dict[str, object]) -> dt.datetime | None:
+    return _instant(ticket.get("arrivalWindowEnd"))
+
+
+def is_due(ticket: dict[str, object], now: dt.datetime) -> bool:
+    """The ticket's arrival window has opened."""
+    opened = _instant(ticket.get("arrivalWindowStart"))
+    return opened is not None and opened <= now
+
+
+def is_late(ticket: dict[str, object], now: dt.datetime, policy: Policy = DEFAULT_POLICY) -> bool:
+    """Lateness forfeits priority (R3): marked late, past the grace, or hold spent."""
+    if ticket.get("lateAt"):
+        return True
+    end = window_end(ticket)
+    reference = _instant(ticket.get("arrivedAt")) or now
+    if end is not None and reference > end + dt.timedelta(minutes=policy.late_grace_minutes):
+        return True
+    held_since = _instant(ticket.get("holdStartedAt"))
+    return held_since is not None and now >= held_since + dt.timedelta(minutes=policy.hold_minutes)
+
+
+def next_call(
+    tickets: list[dict[str, object]], now: dt.datetime, policy: Policy = DEFAULT_POLICY
+) -> Call:
+    """Decide who a free doctor takes, from the session's tickets in any order."""
+    here = [t for t in tickets if t.get("state") == "ARRIVED"]
+    if not here:
+        return Call(candidate=None)
+
+    def order(t: dict[str, object]) -> tuple[int, int, str]:
+        if t.get("urgent"):
+            return (0, _position(t), "")
+        if is_late(t, now, policy):
+            return (2, 0, str(t.get("arrivedAt") or ""))
+        return (1, _position(t), "")
+
+    candidate = sorted(here, key=order)[0]
+    if candidate.get("urgent"):
+        return Call(candidate=candidate)
+
+    # Absent and due tickets the candidate would pass over. A late candidate
+    # passes over nobody: they rejoined behind everyone, by their own lateness.
+    passed: list[dict[str, object]] = []
+    blocking: list[dict[str, object]] = []
+    start_hold: list[str] = []
+    late: list[str] = []
+    if not is_late(candidate, now, policy):
+        for t in tickets:
+            if t.get("state") not in WAITING or _position(t) >= _position(candidate):
+                continue
+            if not is_due(t, now):
+                continue
+            if is_late(t, now, policy):
+                if not t.get("lateAt"):
+                    late.append(str(t["appointmentId"]))
+                continue
+            if int(str(t.get("bypassCount") or 0)) < policy.max_bypass:
+                passed.append(t)
+                continue
+            # Already passed over as often as allowed: hold the doctor for them, then they
+            # are late. With no hold at all they are late at once.
+            if policy.hold_minutes == 0:
+                if not t.get("lateAt"):
+                    late.append(str(t["appointmentId"]))
+                continue
+            blocking.append(t)
+            if not t.get("holdStartedAt"):
+                start_hold.append(str(t["appointmentId"]))
+    if blocking:
+        first = min(blocking, key=_position)
+        started = _instant(first.get("holdStartedAt")) or now
+        until = started + dt.timedelta(minutes=policy.hold_minutes)
+        return Call(
+            candidate=None,
+            hold=Hold(str(first["appointmentId"]), _position(first), until),
+            start_hold=tuple(start_hold),
+            late=tuple(late),
+        )
+    return Call(candidate=candidate, bypassed=tuple(passed), late=tuple(late))
+
+
+def expected_consult_minutes(tickets: list[dict[str, object]], *, per_hour: float) -> float:
+    """How long one consultation takes here: the median of the session's, or the pace."""
+    spans = []
+    for t in tickets:
+        began, ended = _instant(t.get("consultationStartedAt")), _instant(t.get("completedAt"))
+        if began and ended and ended > began:
+            spans.append((ended - began).total_seconds() / 60)
+    if not spans:
+        return round(60 / max(0.1, per_hour), 1)
+    spans.sort()
+    middle = len(spans) // 2
+    return round(spans[middle] if len(spans) % 2 else (spans[middle - 1] + spans[middle]) / 2, 1)

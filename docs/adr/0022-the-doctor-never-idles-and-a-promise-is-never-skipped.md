@@ -1,6 +1,6 @@
 # 0022. The doctor never idles, and a promise is never skipped
 
-Status: proposed (needs the owner's approval before any code)
+Status: accepted 2026-11-13 by the owner. Built in slices: (1) rules and the call; (2) desk console guard and urgent marking; (3) early-call invitations, messages and tenant settings.
 Constraints: C-01 staffing, C-04 connectivity, AD-02 book a place in a session, AD-10 fair queues
 Lane: pain lane (pain point 1, waiting without knowing)
 
@@ -59,9 +59,10 @@ present and on time be bypassed more than once, and send invitations in parallel
   due ticket, the console shows: who is bypassed, minutes to their window end, and the expected length of this
   consultation (median of this unit's recent consultations of the type). If the expected end is later than the bypassed
   ticket's window end, the console warns and requires a one-tap confirm. Never blocked, always audited.
-- **R6, urgency override.** A clinician or desk may mark a ticket URGENT with a reason. It outranks position, is
-  audited, and is not counted as a bypass against others. Staff priority otherwise exists only as a granted quota
-  (ADR 0010); do not add another path.
+- **R6, urgency override.** Only a receptionist may mark a ticket URGENT, with a reason (owner's decision, 2026-11-13: the
+  desk sees who arrives and judges urgency; clinicians and managers cannot). It outranks position, is audited, and is not
+  counted as a bypass against others. Permission `queue.mark_urgent`, receptionist at clinic scope, nobody else. Staff priority
+  otherwise exists only as a granted quota (ADR 0010); do not add another path.
 - **R7, the queue moves up for everyone.** Early finishes shorten every later estimate. Recalculate windows from the
   measured consultation length, not a fixed 30 minutes, and text a patient only when their window moves by more than
   the tenant threshold (existing behaviour, `moved_enough`).
@@ -75,11 +76,19 @@ an on-time patient is the remaining time of one consultation that began while th
 cost before choosing (R5).
 
 ### Data (proposal; check `spec/atria_spec/lifecycle.py` and `keys.py` first)
-Ticket fields: `dueAt` (window start), `arrivedAt`, `bypassCount`, `lateAt`, `urgent` plus `urgentReason`,
-`inviteReplyAt`, `inviteEta`. Appointment event kinds: `CONSULTATION_ENDED` (so durations are measured),
-`QUEUE_BYPASS`, `QUEUE_LATE`, `QUEUE_URGENT`, `EARLY_CALL_INVITED`, `EARLY_CALL_REPLIED`.
-Tenant settings (defaults above): `holdMinutes`, `lateGraceMinutes`, `inviteLeadMinutes`, `inviteFanout`,
-`earlyCallInvites` on or off. Change `spec/` first, then run `python spec/generate.py`.
+As built in slice 1: ticket (appointment) fields `bypassCount`, `holdStartedAt`, `lateAt`, `urgent`, and on the consultation
+`bypassedAppointmentIds` and `bypassOverrideReason`. Consultation length is derived from the existing `consultationStartedAt`
+and `completedAt` stamps, so no new event is needed for it. Still to come: `urgentReason`, `inviteReplyAt`, `inviteEta` and the
+invitation events. `core/queue.py::next_call` is the one pure function that decides who is called; `services/booking/queue.py`
+only persists its decision.
+Settings by level, never constants. `core/queue.py::resolve_policy` merges, most specific winning per knob:
+session (the desk, for the day, `PATCH /sessions/{id}/policy`, permission `queue.tune_session`: receptionist and unit
+manager), unit (`PATCH /clinics/{id}/queue-policy`, permission `queue.configure`: unit manager for their unit,
+administrator for any), tenant (administrator, through `PATCH /admin/settings`: `queueHoldMinutes`,
+`queueLateGraceMinutes`, `queueMaxBypass`), then the built-in fallback (hold 5, late grace 15, bypass 1). Limits: hold 0
+to 30 (0 never holds), late grace 0 to 60, bypass 0 to 3 (0 holds at once). `null` clears an override. The live queue
+returns the policy in force with the level that set each knob. Still to come in slice 3: `inviteLeadMinutes`,
+`inviteFanout`, `earlyCallInvites`, on the same three levels.
 
 ### Messages
 New kinds `EARLY_CALL_INVITE` and `QUEUE_MOVED` in `core/notices.py`. The invite is time critical, so prefer the push
@@ -115,9 +124,9 @@ online ticket (existing register rules apply); URGENT while a doctor is mid-cons
 - **Time-critical delivery raises the value of production SMS and push** (OI-04 and the Firebase setup are owner actions).
 
 ## Open questions for the owner
-1. Defaults: hold 5, late grace 15, invite lead 5, fan-out 3: acceptable for a first pilot?
+1. (Answered 2026-11-13: these are settings by level, not constants.) Which built-in fallbacks for invitations: lead 5, fan-out 3?
 2. May a patient decline an invitation, and does a decline change anything? (Proposed: no effect on position.)
-3. Who may mark URGENT: clinician and desk, or clinician only?
+3. (Answered 2026-11-13: the receptionist only.)
 4. Is the walk-in reserve share wanted now or later?
 5. Which unit pilots this first? Its measured consultation length seeds R5.
 

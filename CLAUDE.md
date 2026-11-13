@@ -16,8 +16,10 @@ accounts work in this repo in parallel: the **pain lane** (queue, reminders, cos
 6. `spec/` is the single source: change it first, run `python spec/generate.py`, commit the regenerated files.
 7. Reuse existing UI parts and tokens; one screen at a time, screenshot each; never bulk restyle.
 8. Ratings never touch prices. No currency saving claims. No payment function before Phase 3 without the owner's decision.
-9. Report faithfully, including what you did not verify. Do not spawn large agent fan-outs.
+9. Update `docs/handoff/HANDOFF.md` (state section) and your lane log before every push; fetch and read the other lane first.
+10. Tunable values are settings by level (tenant, unit, session), never constants. Constants are only the fallback.
+11. Report faithfully, including what you did not verify. Do not spawn large agent fan-outs.
 
 ## Where to look first
-`docs/handoff/HANDOFF.md` (state and lanes), `docs/adr/` (decisions, 0022 is the open queue proposal), `CONTRIBUTING.md`,
+`docs/handoff/HANDOFF.md` (state and lanes), `docs/adr/` (decisions, 0022 is the queue design, accepted and being built in slices), `CONTRIBUTING.md`,
 `docs/constraints.md`, `docs/reference/README.md` (specs, tokens, research, audit).

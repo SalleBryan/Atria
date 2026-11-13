@@ -119,9 +119,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned to the version the app is built and analysed with. The floating
+      # stable channel moved on and began flagging package:flutter/material.dart
+      # as deprecated, which failed the analyser on a branch with no Dart changes.
+      # Move it deliberately, with the migration to material_ui, not by drift.
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: "3.47.5"
           cache: true
 
       - name: Install

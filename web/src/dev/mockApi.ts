@@ -522,7 +522,13 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
   if (method === "GET" && path === "/clinicians") return json(200, { clinicians, count: clinicians.length });
   if (method === "GET" && path === "/clinics") return json(200, { clinics, count: clinics.length });
   if (method === "GET" && path === "/appointment-types") {
-    const withForms = types.map((t) => ({ ...t, intakeForm: intakeForms.find((f) => f.intakeFormId === t.intakeFormId) ?? null }));
+    const withForms = types.map((t) => ({
+      ...t,
+      intakeForm: intakeForms.find((f) => f.intakeFormId === t.intakeFormId) ?? null,
+      // The fee in force, as the service tells a patient before booking (audit F10).
+      feeAmountMinor: feeBands.find((b) => b.feeBandId === t.feeBandId)?.baseAmountMinor ?? null,
+      feeCurrency: "XAF",
+    }));
     return json(200, { gridUnitMinutes: GRID, appointmentTypes: withForms, count: types.length });
   }
   if (method === "GET" && path === "/patients/me/appointments") {

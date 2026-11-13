@@ -117,6 +117,15 @@ export interface AppointmentType {
   /** The questions asked when it is booked (FR-BKG-15), as they stand now. */
   intakeFormId?: string | null;
   intakeForm?: IntakeForm | null;
+  /** The practice fee in force, in whole currency units; absent when the type has no band. */
+  feeAmountMinor?: number | null;
+  feeCurrency?: string | null;
+}
+
+/** The fee a patient is told before booking, or null when the type has no fee band. Nothing is collected online. */
+export function feeText(type: Pick<AppointmentType, "feeAmountMinor" | "feeCurrency"> | undefined): string | null {
+  if (!type || type.feeAmountMinor === null || type.feeAmountMinor === undefined) return null;
+  return `${new Intl.NumberFormat("en-GB").format(type.feeAmountMinor)} ${type.feeCurrency ?? "XAF"}`;
 }
 
 /** One question on an intake form. */
@@ -371,6 +380,28 @@ export const STATE_LABEL: Record<AppointmentState, { label: string; tone: "confi
 
 export function stateLabel(state: string) {
   return STATE_LABEL[state as AppointmentState] ?? { label: state, tone: "neutral" as const };
+}
+
+/** A queue ticket that still asks the patient to come: only a booked or confirmed one does. */
+export const ticketWaits = (state: string): boolean => state === "BOOKED" || state === "CONFIRMED";
+
+/**
+ * What a queue ticket says in a list, driven by its state so a ticket that has
+ * been given back never tells the patient to arrive (audit F03).
+ */
+export function ticketSubtitle(appointment: { state: string; startAt: string }): string {
+  if (ticketWaits(appointment.state)) return `arrive ${clock.time(appointment.startAt)}`;
+  if (appointment.state.endsWith("CANCELLED")) return "place given back";
+  return clock.time(appointment.startAt);
+}
+
+/**
+ * What a procedure request says in a list. A request holds no time, and its
+ * start is only when it was asked, so the list says "asked" with that day
+ * beside "time to be set" rather than showing it as the date of a visit.
+ */
+export function requestSubtitle(appointment: { startAt: string }): string {
+  return `asked ${clock.day(appointment.startAt)} · time to be set`;
 }
 
 /** A visit the patient can still act on: booked or confirmed, and ahead. */

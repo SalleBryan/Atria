@@ -16,11 +16,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { Notice } from "../components/controls";
 import { DatePickerMenu } from "../components/DatePickerMenu";
-import { ArrowLeft, Clock, Stethoscope, Users } from "../components/icons";
+import { ArrowLeft, Clock, Info, Stethoscope, Users } from "../components/icons";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { LoadingPane } from "../components/LoadingPane";
 import { SelectMenu } from "../components/Pickers";
-import { type Appointment, clock, offeredAt, usePatientData } from "./data";
+import { type Appointment, clock, feeText, offeredAt, usePatientData } from "./data";
 
 interface Session {
   sessionId: string;
@@ -53,6 +53,8 @@ export function JoinQueue() {
     [data],
   );
   const unit = units[0];
+  // The fee for a general consultation at this unit, told before a place is taken.
+  const queueFee = feeText((data?.types ?? []).find((t) => t.serviceLine === "GENERAL" && unit && offeredAt(t, unit.clinicId)));
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [day, setDay] = useState<string | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
@@ -109,6 +111,12 @@ export function JoinQueue() {
           <Users size={17} />
           Take a place in a session. You are told when to arrive, and a doctor sees you in the order places were taken. We text you if the
           queue moves.
+        </p>
+        <p className="queue-explain">
+          <Info size={17} />
+          {queueFee
+            ? `The visit fee is ${queueFee}. You pay it at the hospital; Atria does not collect payment.`
+            : "The desk tells you the visit fee. You pay it at the hospital; Atria does not collect payment."}
         </p>
 
         {!unit ? (

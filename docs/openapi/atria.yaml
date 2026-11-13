@@ -2732,6 +2732,12 @@ components:
         cancellationWindowMinutes:
           type: [integer, "null"]
           description: Cancelling at least this long before the start is in window (D-07).
+        feeAmountMinor:
+          type: [integer, "null"]
+          description: The practice fee in force, in whole currency units, told to the patient before booking. Null when the type has no fee band. Nothing is collected online (D-07).
+        feeCurrency:
+          type: [string, "null"]
+          description: The currency of the region pack, such as XAF.
 
     FreeStartsWeek:
       type: object

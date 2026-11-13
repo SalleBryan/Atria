@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
 import { Alert, Bell, CheckMark, Clock, Close, Mail } from "../components/icons";
-import { type Appointment, clock, join, stateLabel, usePatientData } from "./data";
+import { type Appointment, clock, join, stateLabel, ticketWaits, usePatientData } from "./data";
 
 interface SessionSummary {
   sessionId: string;
@@ -48,7 +48,9 @@ export function TicketDetail({ appointment, actions }: { appointment: Appointmen
   if (state.status !== "ready") return null;
   const { clinic, type } = join(state.data, appointment);
   const status = stateLabel(appointment.state);
-  const waiting = ["BOOKED", "CONFIRMED"].includes(appointment.state);
+  const waiting = ticketWaits(appointment.state);
+  const cancelled = appointment.state.endsWith("CANCELLED");
+  const checkedIn = ["ARRIVED", "IN_CONSULTATION"].includes(appointment.state);
   const from = appointment.arrivalWindowStart ?? appointment.startAt;
   const until = appointment.arrivalWindowEnd ?? appointment.endAt;
 
@@ -63,33 +65,56 @@ export function TicketDetail({ appointment, actions }: { appointment: Appointmen
             .filter(Boolean)
             .join(" · ")}
         </p>
-        <dl className="visit-cells">
-          <div>
-            <dt>ARRIVE FROM</dt>
-            <dd>{clock.time(from)}</dd>
-          </div>
-          <div>
-            <dt>UNTIL</dt>
-            <dd>{clock.time(until)}</dd>
-          </div>
-          <div>
-            <dt>PLACE</dt>
-            <dd>{session ? `${appointment.position} of ${session.issuedTickets}` : appointment.position}</dd>
-          </div>
-          <div>
-            <dt>REF</dt>
-            <dd>{appointment.reference}</dd>
-          </div>
-        </dl>
+        {waiting ? (
+          <dl className="visit-cells">
+            <div>
+              <dt>ARRIVE FROM</dt>
+              <dd>{clock.time(from)}</dd>
+            </div>
+            <div>
+              <dt>UNTIL</dt>
+              <dd>{clock.time(until)}</dd>
+            </div>
+            <div>
+              <dt>PLACE</dt>
+              <dd>{session ? `${appointment.position} of ${session.issuedTickets}` : appointment.position}</dd>
+            </div>
+            <div>
+              <dt>REF</dt>
+              <dd>{appointment.reference}</dd>
+            </div>
+          </dl>
+        ) : (
+          // A ticket that is no longer waiting gives no arrival instruction (audit F03).
+          <dl className="visit-cells">
+            <div>
+              <dt>STATUS</dt>
+              <dd>{status.label}</dd>
+            </div>
+            <div>
+              <dt>{cancelled ? "WINDOW WAS" : "WINDOW"}</dt>
+              <dd>{`${clock.time(from)} to ${clock.time(until)}`}</dd>
+            </div>
+            <div>
+              <dt>REF</dt>
+              <dd>{appointment.reference}</dd>
+            </div>
+          </dl>
+        )}
       </div>
 
       <div className="visit-cols">
         <section className="panel inner-card" aria-labelledby="queue-title">
-          <h3 id="queue-title">Your place</h3>
+          <h3 id="queue-title">{waiting ? "Your place" : "This booking"}</h3>
           <p className="queue-note">
             <Clock size={16} />
-            Come to the {clinic?.name ?? "outpatient"} desk between {clock.time(from)} and {clock.time(until)}. A doctor is assigned when
-            you check in.
+            {waiting
+              ? `Come to the ${clinic?.name ?? "outpatient"} desk between ${clock.time(from)} and ${clock.time(until)}. A doctor is assigned when you check in.`
+              : cancelled
+                ? "You no longer have a place in this queue, and you do not need to come for this booking. Take a new place from Find care if you still want to be seen."
+                : checkedIn
+                  ? "You are checked in. A doctor is assigned from the queue as one becomes free."
+                  : "This visit is closed. It stays in your history."}
           </p>
           <dl className="facts-list">
             <div>
@@ -104,10 +129,12 @@ export function TicketDetail({ appointment, actions }: { appointment: Appointmen
               <dt>Session</dt>
               <dd>{session ? `${session.startTime} to ${session.endTime}` : "Loading"}</dd>
             </div>
-            <div>
-              <dt>If the queue moves</dt>
-              <dd>We text you a new arrival time</dd>
-            </div>
+            {waiting ? (
+              <div>
+                <dt>If the queue moves</dt>
+                <dd>We text you a new arrival time</dd>
+              </div>
+            ) : null}
           </dl>
         </section>
 

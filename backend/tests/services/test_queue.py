@@ -33,6 +33,7 @@ from test_appointment_cancel import (
 
 from atria.data import keys
 from atria.data.catalogue import appointment_type_listing
+from atria.data.settings import Settings
 from atria.services.booking import appointments as service
 from atria.services.booking import queue as queue_service
 from atria.services.notify import outbox
@@ -928,3 +929,81 @@ class TestTicketOutlook:
 
     def test_a_booking_that_is_not_a_queue_place_is_not_found(self, opd):
         assert self.outlook("a-missing")["statusCode"] == 404
+
+
+class TestFeeOnTheDesk:
+    """The desk sees the fee each place will be asked for, from the band in force that day."""
+
+    GENERAL = keys.appointment_type(TENANT, "at-gen")
+
+    def band(self, repository, amount, *, on, band_id="fb-general"):
+        Settings(
+            repository, clock=lambda: dt.datetime.fromisoformat(f"{on}T08:00:00+00:00")
+        ).set_fee_band(
+            TENANT,
+            band_id,
+            {"practice": "General", "baseAmountMinor": amount, "scheduleReference": ""},
+        )
+
+    def attach(self, repository, band_id="fb-general"):
+        repository.put(self.GENERAL, {**repository.get(self.GENERAL), "feeBandId": band_id})
+
+    def live(self, session_id):
+        return body_of(
+            call("GET", "/sessions/{id}/queue", context=staff_context(), path={"id": session_id})
+        )
+
+    def test_a_place_shows_the_fee_in_the_region_currency(self, opd, repository):
+        self.band(repository, 5000, on="2026-02-01")
+        self.attach(repository)
+        session = body_of(publish())
+        ticket(session["sessionId"])
+        live = self.live(session["sessionId"])
+        assert live["appointments"][0]["fee"] == {"amountMinor": 5000, "currency": "XAF"}
+        assert live["walkInFee"] == {"amountMinor": 5000, "currency": "XAF"}
+
+    def test_a_free_visit_shows_zero_not_nothing(self, opd, repository):
+        self.band(repository, 0, on="2026-02-01")
+        self.attach(repository)
+        session = body_of(publish())
+        ticket(session["sessionId"])
+        fee = self.live(session["sessionId"])["appointments"][0]["fee"]
+        assert fee == {"amountMinor": 0, "currency": "XAF"}
+
+    def test_a_type_with_no_band_shows_no_fee(self, opd):
+        session = body_of(publish())
+        ticket(session["sessionId"])
+        live = self.live(session["sessionId"])
+        assert live["appointments"][0]["fee"] is None
+        assert live["walkInFee"] is None
+
+    def test_a_band_that_starts_after_the_session_is_not_used(self, opd, repository):
+        self.band(repository, 5000, on="2026-02-01")
+        self.band(repository, 6000, on="2026-03-10")
+        self.attach(repository)
+        session = body_of(publish())
+        ticket(session["sessionId"])
+        assert self.live(session["sessionId"])["appointments"][0]["fee"]["amountMinor"] == 5000
+
+    def test_the_band_is_read_once_per_type_not_once_per_place(self, opd, repository, monkeypatch):
+        self.band(repository, 5000, on="2026-02-01")
+        self.attach(repository)
+        repository.put(
+            keys.patient_profile(TENANT, "pp-3"),
+            {"type": "PATIENT_PROFILE", "patientProfileId": "pp-3", "tenantId": TENANT},
+        )
+        session = body_of(publish())
+        ticket(session["sessionId"])
+        ticket(session["sessionId"], context=staff_context(), patientProfileId="pp-2")
+        ticket(session["sessionId"], context=staff_context(), patientProfileId="pp-3")
+        reads = []
+        original = Settings.fee_band_on
+
+        def counted(self, *args):
+            reads.append(args)
+            return original(self, *args)
+
+        monkeypatch.setattr(Settings, "fee_band_on", counted)
+        live = self.live(session["sessionId"])
+        assert len(live["appointments"]) == 3
+        assert len(reads) == 1  # three places and the walk-in share one type

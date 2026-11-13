@@ -43,9 +43,19 @@ def test_sandbox_routes_and_permissions() -> None:
             "ResourceId": {"Ref": Match.string_like_regexp(".*webhooksfapshi.*")},
         },
     )
+    for method in ("GET", "POST"):
+        template.has_resource_properties(
+            "AWS::ApiGateway::Method",
+            {
+                "AuthorizationType": "CUSTOM",
+                "HttpMethod": method,
+                "ResourceId": {"Ref": Match.string_like_regexp(".*appointmentsidpayment.*")},
+            },
+        )
     variables = {
         SECRET_ENV: "atria/sandbox/fapshi",  # noqa: S105  Secrets Manager reference only
         TABLE_ENV: {"Ref": table_id},
+        "MAIN_TABLE": Match.any_value(),
     }
     template.has_resource_properties(
         "AWS::Lambda::Function",
@@ -58,8 +68,16 @@ def test_sandbox_routes_and_permissions() -> None:
     sandbox_policy = next(policy for name, policy in policies.items() if "PaymentSandbox" in name)
     grants = sandbox_policy["Properties"]["PolicyDocument"]["Statement"]
     data_grants = [grant for grant in grants if "dynamodb:" in json.dumps(grant["Action"])]
-    assert len(data_grants) == 1
-    data_grant = data_grants[0]
+    assert len(data_grants) == 2
+    data_grant = next(g for g in data_grants if g["Resource"] == {"Fn::GetAtt": [table_id, "Arn"]})
+    # The main table is read only: an appointment and its fee band, never written.
+    main_grant = next(g for g in data_grants if g is not data_grant)
+    assert set(main_grant["Action"]) == {"dynamodb:GetItem", "dynamodb:Query"}
+    # The main table is encrypted with its own key, so reading it needs decrypt, nothing more.
+    kms_grants = [g for g in grants if "kms:" in json.dumps(g["Action"])]
+    assert kms_grants
+    assert all("kms:Decrypt" in json.dumps(g["Action"]) for g in kms_grants)
+    assert not any("kms:Encrypt" in json.dumps(g["Action"]) for g in kms_grants)
     secret_grant = next(grant for grant in grants if "secretsmanager:GetSecretValue" in grant["Action"])
     assert set(data_grant["Action"]) == {"dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"}
     assert data_grant["Resource"] == {"Fn::GetAtt": [table_id, "Arn"]}

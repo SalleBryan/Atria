@@ -72,3 +72,6 @@ Branch `pain/offline-recovery`, web only. Audit F16 done for the web client; F15
 
 ## 2026-11-13 (PR integration)
 - PR 29 clears button ripple timers on unmount to fix the failing web check.
+
+## 2026-11-13 (appointment payment, sandbox)
+- Owner asked to pay an appointment through Fapshi and confirm it at the desk. Built on `feat/appointment-payment-sandbox`: `services/payment_sandbox/appointment_payment.py` (amount from `FeeLookup`, verified against Fapshi's status), `PayFee` and `FeePayment` in `web/src/components/SandboxPayment.tsx`, routes, read-only main table grant, OpenAPI, runbook. Ran it in the dev preview: patient paid 5,000 XAF (mock checkout), receptionist and administrator saw "Paid in full". A real sandbox payment needs the secret and a deploy.

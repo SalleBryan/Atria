@@ -5,8 +5,10 @@ Lambda has a separate DynamoDB table and server-side sandbox credentials. Access
 requires a tenant administrator with an authenticator. ADRs
 [0007](../adr/0007-fee-ledger-without-moving-money.md) and
 [0030](../adr/0030-commercial-scope-moves-into-phase-3.md) govern production
-payments. The sandbox uses its own attempt records and has no access to the
-booking table or fee ledger.
+payments. The sandbox uses its own attempt records. To price an appointment's
+checkout it may read the booking table (the appointment and its fee band,
+`GetItem` and `Query` only, plus decrypt on its key); it never writes the
+booking table or the fee ledger.
 
 ## Enter the sandbox credentials
 
@@ -80,3 +82,20 @@ A `429` means the request hit a rate limit. Fapshi sends each webhook once.
 Use a dashboard resend or **Check status** after a delivery failure.
 [Fapshi API errors](https://docs.fapshi.com/en/api-reference/preliminary-knowledge/request-status) ·
 [Fapshi webhook delivery](https://docs.fapshi.com/en/api-reference/endpoint/webhook)
+
+## Pay for an appointment (sandbox)
+
+1. As the patient, open a visit that has a fee and choose **Pay ... now**.
+   Atria starts a sandbox checkout for exactly the fee band in force on the
+   visit day (`POST /appointments/{id}/payment`, a new UUIDv4 `attemptId`).
+2. Choose **Open the test checkout** and pay with Fapshi's MTN sandbox number
+   `670000000` (success) or `670000001` (failure). Return and choose
+   **I have paid, check**.
+3. As the receptionist or administrator, open the same visit in the console.
+   The **Fee payment** row reads **Paid in full** only when Fapshi's status API
+   reports a successful collection of the full amount; a short or failed
+   payment stays **Not paid**. **Check again** refreshes it.
+
+A visit with no fee band, a free visit, a cancelled visit or one already paid
+cannot start a checkout (`409`). Whoever may read the appointment may start one
+or see its status. Synthetic money only; nothing reaches the fee ledger.

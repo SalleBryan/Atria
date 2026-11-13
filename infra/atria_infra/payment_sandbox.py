@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import pathlib
 
-from atria_spec.payment_sandbox import PAYMENT_PATH, SECRET_ENV, TABLE_ENV, WEBHOOK_PATH
+from atria_spec.payment_sandbox import (
+    APPOINTMENT_PAYMENT_PATH,
+    PAYMENT_PATH,
+    SECRET_ENV,
+    TABLE_ENV,
+    WEBHOOK_PATH,
+)
 from aws_cdk import CfnOutput, RemovalPolicy, Stack
 from aws_cdk import aws_apigateway as apigateway
 from aws_cdk import aws_dynamodb as dynamodb
 from aws_cdk import aws_iam as iam
+from aws_cdk import aws_kms as kms
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_secretsmanager as secretsmanager
 from constructs import Construct
@@ -30,6 +37,8 @@ class PaymentSandbox(Construct):
         layer: lambda_.ILayerVersion,
         api: apigateway.RestApi,
         authorizer: apigateway.IAuthorizer,
+        main_table: dynamodb.ITable,
+        main_key: kms.IKey,
     ) -> None:
         super().__init__(scope, construct_id)
         credentials = secretsmanager.Secret.from_secret_name_v2(self, "Credentials", SECRET_NAME)
@@ -49,7 +58,12 @@ class PaymentSandbox(Construct):
             layer=layer,
             handler="atria.services.payment_sandbox.handler.handler",
             description="Creates and verifies synthetic Fapshi sandbox payments",
-            environment={TABLE_ENV: payments.table_name, SECRET_ENV: credentials.secret_name},
+            environment={
+                TABLE_ENV: payments.table_name,
+                SECRET_ENV: credentials.secret_name,
+                # Read only: an appointment and its fee band, to price its checkout.
+                "MAIN_TABLE": main_table.table_name,
+            },
             memory_mb=256,
             timeout_seconds=20,
         )
@@ -60,11 +74,27 @@ class PaymentSandbox(Construct):
             )
         )
         credentials.grant_read(service, ["AWSCURRENT"])
+        # Paying an appointment reads it and its fee; nothing here writes bookings or the ledger.
+        service.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["dynamodb:GetItem", "dynamodb:Query"],
+                resources=[main_table.table_arn],
+            )
+        )
+        main_key.grant_decrypt(service)
 
         integration = apigateway.LambdaIntegration(service, allow_test_invoke=False)
         payment = api.root.resource_for_path(PAYMENT_PATH)
         for method in ("POST", "GET"):
             payment.add_method(
+                method,
+                integration,
+                authorizer=authorizer,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
+        appointment_payment = api.root.resource_for_path(APPOINTMENT_PAYMENT_PATH)
+        for method in ("POST", "GET"):
+            appointment_payment.add_method(
                 method,
                 integration,
                 authorizer=authorizer,

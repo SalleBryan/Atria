@@ -11,6 +11,7 @@ from typing import Any
 from uuid import UUID
 
 from atria_spec.payment_sandbox import (
+    APPOINTMENT_PAYMENT_PATH,
     CURRENCY,
     PAYMENT_PATH,
     PERMISSION,
@@ -83,20 +84,26 @@ def _save(repo: Repository, key: Key, current: Item, fields: Item) -> Item:
         return repo.require(key, what="sandbox payment", consistent=True)
 
 
-def _create(repo: Repository, key: Key) -> tuple[Item, bool]:
+def _create(
+    repo: Repository, key: Key, amount: int = TEST_AMOUNT, fields: Item | None = None
+) -> tuple[Item, bool]:
     existing = repo.get(key, consistent=True)
     if existing is not None:
         return existing, False
     provider = Fapshi(Credentials.load())
     try:
-        current = repo.put_new(key, {"status": "INITIATING", "version": 1}, what="sandbox payment")
+        current = repo.put_new(
+            key,
+            {"status": "INITIATING", "version": 1, "amount": amount, **(fields or {})},
+            what="sandbox payment",
+        )
     except Conflict:
         return repo.require(key, what="sandbox payment", consistent=True), False
 
     # Fapshi does not deduplicate externalId. Only the conditional insert winner
     # sends the POST, including when callers retry a timed-out request.
     try:
-        checkout = provider.initiate(key.pk)
+        checkout = provider.initiate(key.pk, amount)
     except ProviderError as exc:
         rejected = exc.provider_status in (400, 401, 403, 429)
         status = "INITIATION_REJECTED" if rejected else "INITIATION_UNKNOWN"
@@ -140,7 +147,10 @@ def _status(repo: Repository, key: Key) -> Item:
         return row
     provider = Fapshi(Credentials.load())
     trans_id = row.get("transId")
-    transaction = provider.status(key.pk, trans_id) if trans_id else provider.recover(key.pk)
+    amount = int(row.get("amount", TEST_AMOUNT))
+    transaction = (
+        provider.status(key.pk, trans_id, amount) if trans_id else provider.recover(key.pk, amount)
+    )
     return _apply(repo, key, row, transaction)
 
 
@@ -168,7 +178,9 @@ def _webhook(event: dict[str, Any], repo: Repository) -> dict[str, Any]:
     ):
         # Treat the webhook as a signal. Only the authenticated status API can
         # supply the state and confirm the identity, type and amount.
-        verified = Fapshi(credentials).status(reference, trans_id)
+        verified = Fapshi(credentials).status(
+            reference, trans_id, int(row.get("amount", TEST_AMOUNT))
+        )
         _apply(repo, key, row, verified)
     return responses.ok({"received": True})
 
@@ -176,7 +188,15 @@ def _webhook(event: dict[str, Any], repo: Repository) -> dict[str, Any]:
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     try:
         route = (event.get("httpMethod"), event.get("resource"))
-        if route not in {("POST", WEBHOOK_PATH), ("POST", PAYMENT_PATH), ("GET", PAYMENT_PATH)}:
+        appointment_route = route in {
+            ("POST", APPOINTMENT_PAYMENT_PATH),
+            ("GET", APPOINTMENT_PAYMENT_PATH),
+        }
+        if not appointment_route and route not in {
+            ("POST", WEBHOOK_PATH),
+            ("POST", PAYMENT_PATH),
+            ("GET", PAYMENT_PATH),
+        }:
             raise NotFound("no such sandbox route")
         table = os.environ.get(TABLE_ENV)
         if not table:
@@ -186,6 +206,11 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         if route == ("POST", WEBHOOK_PATH):
             return _webhook(event, repo)
         principal = requests.principal_from(event)
+        if appointment_route:
+            # Imported here: the appointment flow builds on this module's helpers.
+            from atria.services.payment_sandbox import appointment_payment
+
+            return appointment_payment.route(event, repo, principal)
         permissions.require(principal, PERMISSION)
         attempt_id = _attempt_id(event)
         key = _payment_key(principal.tenant_id, attempt_id)

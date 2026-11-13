@@ -631,6 +631,8 @@ class ApiStack(Stack):
                 layer=self.layer,
                 api=self.api,
                 authorizer=self.request_authoriser,
+                main_table=data.main_table,
+                main_key=data.main_key,
             )
 
     def _service(

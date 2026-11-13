@@ -7,6 +7,8 @@ This test API uses a separate store and a fixed synthetic amount.
 PERMISSION = "payment_sandbox.use"
 ENABLED_ENV = "FAPSHI_SANDBOX_ENABLED"
 PAYMENT_PATH = "/admin/payment-sandbox/{id}"
+# Pay one appointment's fee in the sandbox; the desk reads whether it was paid.
+APPOINTMENT_PAYMENT_PATH = "/appointments/{id}/payment"
 WEBHOOK_PATH = "/webhooks/fapshi"
 TABLE_ENV = "FAPSHI_SANDBOX_TABLE"
 SECRET_ENV = "FAPSHI_SANDBOX_SECRET_NAME"

@@ -94,19 +94,21 @@ class Transaction:
     status: str
 
     @classmethod
-    def verified(cls, data: object, reference: str, expected_id: str | None) -> Transaction:
+    def verified(
+        cls, data: object, reference: str, expected_id: str | None, amount: int = TEST_AMOUNT
+    ) -> Transaction:
         if not isinstance(data, dict):
             raise ProviderError()
         trans_id = transaction_id(data.get("transId"))
         status = data.get("status")
-        amount = data.get("amount")
+        paid = data.get("amount")
         if (
             (expected_id is not None and trans_id != expected_id)
             or data.get("externalId") != reference
             or data.get("userId") != reference
             or data.get("transType") != "Collection"
-            or type(amount) is not int
-            or amount != TEST_AMOUNT
+            or type(paid) is not int
+            or paid != amount
             or status not in PROVIDER_STATUSES
         ):
             raise ProviderError()
@@ -143,11 +145,11 @@ class Fapshi:
         finally:
             connection.close()
 
-    def initiate(self, reference: str) -> Checkout:
+    def initiate(self, reference: str, amount: int = TEST_AMOUNT) -> Checkout:
         data = self._request(
             "POST",
             "/initiate-pay",
-            {"amount": TEST_AMOUNT, "externalId": reference, "userId": reference},
+            {"amount": amount, "externalId": reference, "userId": reference},
         )
         if not isinstance(data, dict):
             raise ProviderError()
@@ -172,11 +174,11 @@ class Fapshi:
             raise ProviderError() from None
         return Checkout(transaction_id(data.get("transId")), link)
 
-    def status(self, reference: str, trans_id: str) -> Transaction:
+    def status(self, reference: str, trans_id: str, amount: int = TEST_AMOUNT) -> Transaction:
         data = self._request("GET", f"/payment-status/{transaction_id(trans_id)}")
-        return Transaction.verified(data, reference, trans_id)
+        return Transaction.verified(data, reference, trans_id, amount)
 
-    def recover(self, reference: str) -> Transaction | None:
+    def recover(self, reference: str, amount: int = TEST_AMOUNT) -> Transaction | None:
         try:
             data = self._request("GET", f"/transaction/{reference}")
         except ProviderError as exc:
@@ -190,4 +192,4 @@ class Fapshi:
         ]
         if len(matches) > 1:
             raise ProviderError()
-        return Transaction.verified(matches[0], reference, None) if matches else None
+        return Transaction.verified(matches[0], reference, None, amount) if matches else None

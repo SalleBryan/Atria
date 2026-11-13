@@ -35,7 +35,7 @@ def message(source: str = "CustomMessage_SignUp", **attributes: str) -> str:
 
 class TestEveryOccasion:
     @pytest.mark.parametrize("source", sorted(custom_message.PURPOSE))
-    @pytest.mark.parametrize("locale", ["fr", "en"])
+    @pytest.mark.parametrize("locale", ["fr", "en", "pcm"])
     def test_each_email_carries_the_code_and_fits(self, source, locale):
         result = custom_message.handler(event(source, locale=locale), None)
         message = result["response"]["emailMessage"]
@@ -68,10 +68,14 @@ class TestLanguage:
         result = custom_message.handler(event(), None)
         assert result["response"]["emailSubject"] == "Your Atria verification code"
 
-    def test_english_even_when_the_account_says_french(self):
-        """French ships with language switching in the next phase."""
-        result = custom_message.handler(event(locale="fr-CM"), None)
-        assert result["response"]["emailSubject"] == "Your Atria verification code"
+    def test_the_account_language_is_honoured(self):
+        """NFR-L10N-01: French and Pidgin are written when the account says so."""
+
+        def subject(code):
+            return custom_message.handler(event(locale=code), None)["response"]["emailSubject"]
+
+        assert subject("fr-CM") == "Votre code de vérification Atria"
+        assert subject("pcm") == "Yu Atria verification code"
 
 
 class TestPerson:

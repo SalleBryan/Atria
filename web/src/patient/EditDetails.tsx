@@ -1,7 +1,7 @@
 /**
  * Changing one's own details (2026-09-28, 2026-09-30): the name, the mobile,
- * and the date of birth, each through PATCH /me. Language is English only
- * until Phase 3. The email is
+ * and the date of birth, each through PATCH /me. Words follow the chosen
+ * language (NFR-L10N-01). The email is
  * what the account signs in with, so it is shown and not changed here. A
  * verified mobile changes by one-time code, which comes with SMS
  * verification; until then only an unverified number can be corrected.
@@ -11,6 +11,7 @@
  */
 
 import { type FormEvent, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { api } from "../api/client";
 import { messageFor } from "../auth/errors";
@@ -36,6 +37,15 @@ export function shownDate(iso: string | null | undefined): string {
   return found ? `${found[3]}/${found[2]}/${found[1]}` : "";
 }
 
+/** A stored date as the language writes it (NFR-L10N-02): fr 02/04/1990, en and pcm 02 April 1990. */
+export function shownDateIn(iso: string | null | undefined, language: string): string {
+  const found = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? "");
+  if (!found) return "";
+  if (language === "fr") return shownDate(iso);
+  const at = new Date(Date.UTC(Number(found[1]), Number(found[2]) - 1, Number(found[3])));
+  return new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "2-digit", month: "long", year: "numeric" }).format(at);
+}
+
 export function EditDetails({
   editing,
   onDone,
@@ -45,6 +55,7 @@ export function EditDetails({
   onDone: (said: string | null) => void;
   audience?: "patient" | "staff";
 }) {
+  const { t } = useTranslation("account");
   const { state, refresh } = useSession();
   const aud = audience ?? (state.status === "signed-in" ? state.audience : "patient");
   const me = state.status === "signed-in" ? state.me : undefined;
@@ -75,27 +86,23 @@ export function EditDetails({
     event.preventDefault();
     setError(undefined);
     if (editing === "name") {
-      const msg = aud === "staff" ? "Your name is saved across the console." : "Your name is saved. The front desk sees it too.";
+      const msg = t(aud === "staff" ? "edit.savedNameStaff" : "edit.savedName");
       await run({ givenName: given.trim(), familyName: family.trim() }, msg);
     } else if (editing === "phone") {
       const number = normalisePhone(phone, country);
       if (!isMobile(number)) {
-        setError(
-          country === HOME_COUNTRY
-            ? "Enter a Cameroonian mobile number, such as 6 70 00 00 00."
-            : `Enter a mobile number that works in ${countryName(country)}.`,
-        );
+        setError(country === HOME_COUNTRY ? t("edit.phoneHome") : t("edit.phoneAbroad", { country: countryName(country) }));
         return;
       }
-      const msg = aud === "staff" ? "Your mobile number is saved." : "Your mobile is saved. Reminders are texted there from now on.";
+      const msg = t(aud === "staff" ? "edit.savedPhoneStaff" : "edit.savedPhone");
       await run({ phoneE164: number }, msg);
     } else {
       const date = birthDate(born);
       if (!date) {
-        setError("Enter your date of birth as day, month and year, such as 02/04/1990.");
+        setError(t("edit.bornInvalid"));
         return;
       }
-      await run({ dateOfBirth: date }, "Your date of birth is saved.");
+      await run({ dateOfBirth: date }, t("edit.savedBorn"));
     }
   }
 
@@ -111,21 +118,27 @@ export function EditDetails({
       {failure && <Notice tone="error">{failure}</Notice>}
       {editing === "name" && (
         <div className="edit-details-pair">
-          <Field label="Given name" icon={User} value={given} onChange={(e) => setGiven(e.target.value)} autoComplete="given-name" />
-          <Field label="Family name" icon={User} value={family} onChange={(e) => setFamily(e.target.value)} autoComplete="family-name" />
+          <Field label={t("edit.given")} icon={User} value={given} onChange={(e) => setGiven(e.target.value)} autoComplete="given-name" />
+          <Field
+            label={t("edit.family")}
+            icon={User}
+            value={family}
+            onChange={(e) => setFamily(e.target.value)}
+            autoComplete="family-name"
+          />
         </div>
       )}
       {editing === "phone" && (
-        <PhoneField label="Mobile number" value={phone} onChange={setPhone} country={country} onCountry={setCountry} error={error} />
+        <PhoneField label={t("edit.phone")} value={phone} onChange={setPhone} country={country} onCountry={setCountry} error={error} />
       )}
-      {editing === "born" && <BirthDateField label="Date of birth" value={born} onChange={setBorn} error={error} />}
+      {editing === "born" && <BirthDateField label={t("edit.born")} value={born} onChange={setBorn} error={error} />}
       <div className="edit-details-actions">
         <button type="button" className="outline-button" disabled={busy} onClick={() => onDone(null)}>
-          Keep as it was
+          {t("edit.keep")}
         </button>
         <button type="submit" className="dock-button" disabled={!ready || busy} aria-busy={busy || undefined}>
-          {busy && <LoadingIndicator size={20} label="Saving" />}
-          {busy ? "Saving" : "Save"}
+          {busy && <LoadingIndicator size={20} label={t("edit.saving")} />}
+          {busy ? t("edit.saving") : t("edit.save")}
         </button>
       </div>
     </form>

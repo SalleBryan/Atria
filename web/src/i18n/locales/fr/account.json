@@ -1,0 +1,93 @@
+{
+  "title": "Compte",
+  "back": "Retour à votre compte",
+  "sectionsLabel": "Rubriques du compte",
+  "sections": { "details": "Informations personnelles", "notifications": "Notifications", "clinics": "Services" },
+  "yourAccount": "Votre compte",
+  "noEmailOnRecord": "Aucun e-mail enregistré",
+  "patientTag": "COMPTE PATIENT",
+  "stats": { "upcoming": "À venir", "completed": "Terminés", "units": "Services" },
+  "signOut": "Se déconnecter",
+  "details": {
+    "lede": "Ce qu'Atria détient sur vous. Modifiez ici votre nom et votre date de naissance ; votre e-mail sert à vous connecter, et l'accueil de {{hospital}} peut vous aider pour cela.",
+    "name": "Nom",
+    "email": "E-mail",
+    "notGiven": "Non renseigné",
+    "mobile": "Mobile",
+    "notVerified": "{{phone}} · pas encore vérifié",
+    "verified": "Vérifié",
+    "born": "Date de naissance",
+    "privacy": "Qui peut voir votre dossier",
+    "privacySub": "Seulement votre établissement de santé, et vous",
+    "language": "Langue",
+    "languageSub": "Utilisée dans l'application, vos rappels et vos e-mails",
+    "change": "Modifier",
+    "changeName": "Modifier votre nom",
+    "changePhone": "Modifier votre mobile",
+    "changeBorn": "Modifier votre date de naissance"
+  },
+  "delete": {
+    "title": "Supprimer votre compte",
+    "sub": "Vos prochaines visites sont annulées. Vous avez 30 jours pour changer d'avis.",
+    "button": "Supprimer",
+    "dialogTitle": "Supprimer votre compte Atria ?",
+    "lede": "Vous serez déconnecté(e), et {{hospital}} ne conservera plus vos rendez-vous.",
+    "points": [
+      "Vos prochaines visites sont annulées et leurs créneaux libérés.",
+      "Reconnectez-vous dans les 30 jours pour restaurer votre compte.",
+      "Après 30 jours, vos informations sont effacées définitivement."
+    ],
+    "confirm": "Supprimer mon compte"
+  },
+  "units": {
+    "lede": "Les services de {{hospital}} où vous pouvez réserver : où se trouve chacun, ses horaires et le chemin pour y accéder.",
+    "loading": "Chargement des services"
+  },
+  "notifications": {
+    "lede": "Comment Atria vous joint. Les confirmations vont toujours par e-mail, car elles gardent la trace de votre réservation. Le choix d'autres canaux et délais arrivera dans une prochaine version.",
+    "channels": "Canaux",
+    "sms": "Rappels par SMS",
+    "smsSub": "Un SMS 24 heures avant chaque visite",
+    "emailConfirm": "Confirmations par e-mail",
+    "emailConfirmSub": "Reçus de réservation et d'annulation",
+    "shortNotice": "Réservations de dernière minute",
+    "shortNoticeSub": "Un SMS de confirmation immédiat à la place",
+    "on": "Activé",
+    "timing": "Moment du rappel",
+    "lead48": "deux jours",
+    "lead24": "un jour",
+    "lead2": "le jour même",
+    "later": "Prochaine version",
+    "preview": "APERÇU DU SMS",
+    "reminder": "Rappel Atria: RDV le {{date}} a {{time}}, {{clinic}}, {{clinician}}. Ref {{reference}}. Pour annuler: application Atria.",
+    "fallbackClinic": "la clinique"
+  },
+  "push": {
+    "title": "Notifications sur cet appareil",
+    "on": "Chaque avis s'affiche aussi sur cet appareil",
+    "off": "Recevoir aussi chaque avis sur cet appareil",
+    "blocked": "Bloquées dans les réglages du site de ce navigateur",
+    "unsupported": "Ce navigateur ne peut pas afficher de notifications",
+    "checking": "Vérification de ce navigateur",
+    "turnOn": "Activer",
+    "turnOff": "Désactiver",
+    "failed": "Cela n'a pas fonctionné. Réessayez."
+  },
+  "edit": {
+    "given": "Prénom",
+    "family": "Nom de famille",
+    "phone": "Numéro de mobile",
+    "born": "Date de naissance",
+    "keep": "Garder tel quel",
+    "save": "Enregistrer",
+    "saving": "Enregistrement",
+    "savedNameStaff": "Votre nom est enregistré dans toute la console.",
+    "savedName": "Votre nom est enregistré. L'accueil le voit aussi.",
+    "savedPhoneStaff": "Votre numéro de mobile est enregistré.",
+    "savedPhone": "Votre mobile est enregistré. Les rappels y seront envoyés par SMS désormais.",
+    "savedBorn": "Votre date de naissance est enregistrée.",
+    "phoneHome": "Saisissez un numéro de mobile camerounais, par exemple 6 70 00 00 00.",
+    "phoneAbroad": "Saisissez un numéro de mobile valable en {{country}}.",
+    "bornInvalid": "Saisissez votre date de naissance en jour, mois et année, par exemple 02/04/1990."
+  }
+}

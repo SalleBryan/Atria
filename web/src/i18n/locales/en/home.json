@@ -1,0 +1,93 @@
+{
+  "greeting": { "morning": "Good morning", "afternoon": "Good afternoon", "evening": "Good evening" },
+  "welcome": "Welcome",
+  "summary": {
+    "loading": "Loading your visits",
+    "upcoming_one": "{{count}} upcoming visit",
+    "upcoming_other": "{{count}} upcoming visits",
+    "reminder": "reminder {{day}}",
+    "lastVisit": "last visit {{day}}"
+  },
+  "tryAgain": "Try again",
+  "search": "Search clinicians or specialties",
+  "book": "Book a visit",
+  "nextAppointment": "Next appointment",
+  "seeAll": "See all",
+  "hero": {
+    "label": "Your next visit",
+    "tag": "NEXT VISIT · {{status}}",
+    "queue": "Outpatient queue, place {{place}}",
+    "yourClinician": "Your clinician",
+    "date": "DATE",
+    "time": "TIME",
+    "in": "IN",
+    "ref": "REF",
+    "details": "View details",
+    "cancel": "Cancel",
+    "calendar": "Add to calendar",
+    "emptyTag": "NO VISIT BOOKED",
+    "emptyTitle": "Find a time that suits you.",
+    "emptyBody": "Choose a clinician, pick a day and hold a time. A text reminds you the day before.",
+    "findCare": "Find care"
+  },
+  "quick": {
+    "label": "Quick actions",
+    "findSub": "Find an opening",
+    "again": "Book again",
+    "againFirst": "After your first visit",
+    "visits": "My visits",
+    "pastVisits_one": "{{count}} past visit",
+    "pastVisits_other": "{{count}} past visits",
+    "reminders": "Reminders",
+    "remindersSub": "24h before, SMS"
+  },
+  "upcoming": {
+    "title": "Upcoming visits",
+    "empty": "Nothing booked yet. Your visits will be listed here."
+  },
+  "activity": {
+    "title": "Recent activity",
+    "empty": "Bookings, cancellations and reminders will show here.",
+    "reminder": "Reminder scheduled",
+    "reminderBody": "SMS goes out {{day}} at {{time}}",
+    "reminderFoot": "24 hours before your visit",
+    "cancelled": "Visit cancelled",
+    "requested": "Procedure requested",
+    "booked": "Visit booked",
+    "requestedBody": "{{reference}}, time to be set by the unit",
+    "bookedBody": "{{reference}} for {{day}} at {{time}}",
+    "foot": "Booked {{day}}, {{time}}"
+  },
+  "row": {
+    "manage": "Manage",
+    "procedure": "Procedure request",
+    "timeRange": "{{start}} to {{end}}",
+    "arrive": "arrive {{time}}",
+    "givenBack": "place given back",
+    "asked": "asked {{day}} · time to be set",
+    "theRequest": " the request made on ",
+    "theVisit": " the visit on "
+  },
+  "until": { "days": "{{count}} days", "tomorrow": "Tomorrow", "hours": "{{count}} h", "minutes": "{{count}} min", "now": "Now" },
+  "state": {
+    "REQUESTED": "Requested",
+    "DECLINED": "Declined",
+    "BOOKED": "Confirmed",
+    "CONFIRMED": "Confirmed",
+    "RESCHEDULED": "Moved",
+    "DISRUPTED": "New time needed",
+    "ARRIVED": "Checked in",
+    "IN_CONSULTATION": "In consultation",
+    "COMPLETED": "Attended",
+    "AWAITING_FEEDBACK": "Attended",
+    "CLINIC_CANCELLED": "Cancelled by the hospital",
+    "PATIENT_CANCELLED": "Cancelled",
+    "NO_SHOW": "Missed"
+  },
+  "clinic": {
+    "label": "Where your next visit is",
+    "open": "open {{start}} to {{end}} today",
+    "closed": "closed today",
+    "directions": "Get directions"
+  }
+}

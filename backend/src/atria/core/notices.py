@@ -20,7 +20,7 @@ import datetime as dt
 from dataclasses import dataclass
 from zoneinfo import ZoneInfo
 
-from atria.core import mail
+from atria.core import mail, pidgin
 from atria.core.errors import Invalid
 
 # What happened, which is what FR-MSG-03 calls the kind.
@@ -57,20 +57,18 @@ SMS_SEGMENT = 160
 CHANNELS = ("EMAIL", "SMS", "VOICE")
 
 # The region pack's languages for Cameroon.
-LANGUAGES = ("fr", "en")
+# "pcm" is Cameroonian Pidgin English (ISO 639-3); its wording is a draft that
+# still needs a native speaker (atria.core.pidgin).
+LANGUAGES = ("fr", "en", "pcm")
 
-# The language for a person who has stated no preference. The region pack puts
-# French first, but no screen lets a patient choose a language yet, so every
-# patient would be written to in French with no way to change it. Until they
-# can choose, the product owner's call (2026-09-24) is English. A preference
-# that is on record still wins, so language switching needs no change here.
+# The language for a person who has stated no preference. English, the product
+# owner's call (2026-09-24); a preference on record wins.
 DEFAULT_LANGUAGE = "en"
 
-# The languages switched on. French wording is written and tested, but the
-# product owner's call (2026-09-25) is that everything a person sees stays in
-# English until language switching ships in the next phase, so a French
-# preference on record is not honoured yet. Adding "fr" here turns it on.
-OFFERED = ("en",)
+# The languages switched on (2026-11-13: the owner asked for French and
+# Pidgin, and a person now chooses on the Account screen). Pidgin is a draft
+# that needs a native speaker's review before it is relied on.
+OFFERED = ("en", "fr", "pcm")
 
 
 # Which notice a change of state owes the patient. A state not listed here
@@ -123,7 +121,8 @@ def language_for(preferred: object) -> str:
     something the region pack no longer lists should still be told about their
     appointment.
     """
-    candidate = str(preferred or "").strip().lower()[:2]
+    # "fr-CM" and "pcm" both reduce to their language subtag.
+    candidate = str(preferred or "").strip().lower().replace("_", "-").split("-")[0]
     return candidate if candidate in OFFERED else DEFAULT_LANGUAGE
 
 
@@ -141,6 +140,7 @@ def local(instant: str, *, zone: ZoneInfo) -> dt.datetime:
 DATE_FORMATS = {
     "fr": "%d/%m/%Y",
     "en": "%d %B %Y",
+    "pcm": pidgin.DATE_FORMAT,
 }
 
 # What an email says, as parts rather than one string, so the plain text and
@@ -340,9 +340,9 @@ TEXT[BOOKING_DECLINED] = {
 }
 
 # The words around the parts, per language. French sets a space before a colon.
-GREETING = {"fr": "Bonjour,", "en": "Hello,"}
-REFERENCE = {"fr": "Référence", "en": "Reference"}
-COLON = {"fr": " : ", "en": ": "}
+GREETING = {"fr": "Bonjour,", "en": "Hello,", "pcm": pidgin.GREETING}
+REFERENCE = {"fr": "Référence", "en": "Reference", "pcm": pidgin.REFERENCE}
+COLON = {"fr": " : ", "en": ": ", "pcm": pidgin.COLON}
 
 # The reminder by email (2026-09-29): the same visit the SMS names, sent at the
 # same time to a patient who has an email address. Like the SMS it names no
@@ -415,6 +415,9 @@ TEXT[TICKET_REMINDER_TEXT] = {
     },
 }
 
+for _kind, _words in pidgin.TEXT.items():
+    TEXT[_kind]["pcm"] = _words
+
 # How each email looks, and where its button leads in the web client.
 EMAIL_TONE = {
     BOOKING_CONFIRMATION: "brand",
@@ -471,16 +474,21 @@ SMS_TEXT = {
     },
 }
 
+for _sms_kind, _sms in pidgin.SMS_TEXT.items():
+    SMS_TEXT[_sms_kind]["pcm"] = _sms
+
 SMS_DATE = "%d/%m/%Y"
+
+NEXT_DOCTOR = {"fr": "prochain médecin libre", "en": "next free doctor", "pcm": pidgin.NEXT_DOCTOR}
 
 # The fee a patient will be asked at the hospital (AD-07: no money moves in
 # Atria), stated in the notices that tell them about the visit. The amount is the
 # fee band in force on the day of the visit, in whole currency units, and carries
 # no rating or score (AD-11). A visit with no fee band says nothing about a fee,
 # rather than guessing one.
-FEE_LABEL = {"fr": "Tarif", "en": "Fee"}
-FREE = {"fr": "gratuit", "en": "free"}
-FEE_GROUP = {"fr": " ", "en": ","}
+FEE_LABEL = {"fr": "Tarif", "en": "Fee", "pcm": pidgin.FEE_LABEL}
+FREE = {"fr": "gratuit", "en": "free", "pcm": pidgin.FREE}
+FEE_GROUP = {"fr": " ", "en": ",", "pcm": ","}
 # The notices that carry a fee line: the ones that tell a patient about a visit.
 FEE_KINDS = (BOOKING_CONFIRMATION, TICKET_CONFIRMATION, APPOINTMENT_REMINDER, TICKET_REMINDER_TEXT)
 
@@ -578,7 +586,7 @@ def compose(
         "time": at.strftime("%H:%M"),
         "clinic": clinic_name,
         # A ticket names no doctor before check-in (FR-BKG-11).
-        "clinician": clinician_name or ("next free doctor" if ticket else ""),
+        "clinician": clinician_name or (NEXT_DOCTOR[chosen] if ticket else ""),
         "until": until.strftime("%H:%M"),
         "position": str(appointment.get("position") or ""),
         "fee_value": fee_text(fee, chosen) if fee is not None else "",

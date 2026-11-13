@@ -24,7 +24,7 @@ from typing import Any
 
 from aws_lambda_powertools import Logger
 
-from atria.core import mail, notices
+from atria.core import mail, notices, pidgin
 
 logger = Logger(service="atria-custom-message")
 
@@ -154,8 +154,11 @@ WORDS: dict[str, dict[str, dict[str, str]]] = {
     },
 }
 
-CODE = {"fr": "Votre code", "en": "Your code"}
-HELLO = {"fr": "Bonjour", "en": "Hello"}
+for _purpose, _words in pidgin.ACCOUNT.items():
+    WORDS[_purpose]["pcm"] = _words
+
+CODE = {"fr": "Votre code", "en": "Your code", "pcm": pidgin.CODE}
+HELLO = {"fr": "Bonjour", "en": "Hello", "pcm": pidgin.HELLO}
 
 
 def compose(

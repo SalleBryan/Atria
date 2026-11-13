@@ -19,7 +19,7 @@ MODEL = {
     ("currency", "string", "", "XAF"),
     ("dialCode", "string", "", "+237"),
     ("msisdnPattern", "string", "", "Validation for mobile numbers"),
-    ("languages", "list", "", "fr, en"),
+    ("languages", "list", "", "fr, en, pcm"),
     ("timezone", "string", "", "Africa/Douala"),
     ("administrativeRegions", "list", "", "The ten regions"),
     ("nationalIdPattern", "string", "", "CNI format"),

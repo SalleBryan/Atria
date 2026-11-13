@@ -301,7 +301,7 @@ class TestFiring:
         assert fire(fakes)["batchItemFailures"] == []
         (sms,) = fakes["sns"].published
         assert sms["PhoneNumber"] == "+237600000001"
-        assert "Atria reminder" in sms["Message"]
+        assert "Rappel Atria" in sms["Message"]
 
     def test_fr_rem_03_it_is_a_transactional_sms(self, world):
         repository, clinician, fakes = world
@@ -386,7 +386,7 @@ class TestTheReminderByEmail:
         (email,) = fakes["ses"].sent
         assert email["Destination"]["ToAddresses"] == ["patient@atria.invalid"]
         assert "APT-0123456789" in email["Content"]["Simple"]["Subject"]["Data"]
-        assert email["Content"]["Simple"]["Subject"]["Data"].startswith("Reminder")
+        assert email["Content"]["Simple"]["Subject"]["Data"].startswith("Rappel")
         assert len(fakes["sns"].published) == 1
 
     def test_the_email_has_a_log_row_of_its_own(self, world):
@@ -749,23 +749,23 @@ class TestFeeInReminders:
 
     def test_the_sms_reminder_states_the_fee_band_in_force(self, world):
         self.priced(world[0])
-        assert "Fee: 5,000 XAF." in self.reminder_text(world)
+        assert "Tarif: 5 000 XAF." in self.reminder_text(world)
 
     def test_the_fee_is_the_one_in_force_on_the_day_of_the_visit(self, world):
         # A later change must not rewrite what a booked visit was told.
         self.priced(world[0], amounts=(("2026-01-01", 5000), ("2026-06-01", 9000)))
         text = self.reminder_text(world)
-        assert "5,000 XAF" in text
-        assert "9,000" not in text
+        assert "5 000 XAF" in text
+        assert "9 000" not in text
 
     def test_a_zero_fee_band_says_free(self, world):
         self.priced(world[0], amounts=(("2026-01-01", 0),))
-        assert "Fee: free." in self.reminder_text(world)
+        assert "Tarif: gratuit." in self.reminder_text(world)
 
     def test_a_type_without_a_fee_band_says_nothing_about_a_fee(self, world):
         self.priced(world[0], band=None)
         text = self.reminder_text(world)
-        assert "Fee" not in text
+        assert "Tarif" not in text
         assert "XAF" not in text
 
     def test_the_confirmation_by_sms_states_the_fee_too(self, world):
@@ -773,4 +773,4 @@ class TestFeeInReminders:
         self.priced(repository)
         put_appointment(repository, clinician, start=SOON)
         run(reminders.SCHEDULE)
-        assert any("Fee: 5,000 XAF." in p["Message"] for p in fakes["sns"].published)
+        assert any("Tarif: 5 000 XAF." in p["Message"] for p in fakes["sns"].published)

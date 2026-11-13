@@ -42,16 +42,6 @@ SENT_PAIRS = [
 ]
 
 
-# What ships in Phase 1, read before the fixture below turns French on.
-SHIPPED = notices.OFFERED
-
-
-@pytest.fixture(autouse=True)
-def french_on(monkeypatch):
-    """The French wording is tested as it will ship in the next phase."""
-    monkeypatch.setattr(notices, "OFFERED", notices.LANGUAGES)
-
-
 def compose(kind: str = notices.BOOKING_CONFIRMATION, **overrides):
     settings = {
         "appointment": APPOINTMENT,
@@ -179,11 +169,14 @@ class TestLanguage:
     def test_french_is_recognised_however_it_is_written(self, preferred):
         assert notices.language_for(preferred) == "fr"
 
-    def test_french_waits_for_the_next_phase(self, monkeypatch):
-        """Everything a person sees is English in Phase 1, preference or not."""
-        monkeypatch.setattr(notices, "OFFERED", SHIPPED)
-        assert notices.language_for("fr-CM") == "en"
-        assert compose(language="fr").subject.startswith("Appointment confirmed")
+    @pytest.mark.parametrize("preferred", ["pcm", "PCM", "pcm-CM", " pcm "])
+    def test_pidgin_is_recognised_however_it_is_written(self, preferred):
+        """NFR-L10N-01: the three languages a person can choose are all offered.
+        The old two-letter cut would have turned pcm into 'pc'."""
+        assert notices.language_for(preferred) == "pcm"
+
+    def test_every_language_is_offered(self):
+        assert notices.OFFERED == ("en", "fr", "pcm")
 
     def test_english_is_recognised(self):
         assert notices.language_for("en-GB") == "en"
@@ -193,9 +186,8 @@ class TestLanguage:
         """A patient should still hear about their appointment."""
         assert notices.language_for(preferred) == notices.DEFAULT_LANGUAGE
 
-    def test_english_until_a_patient_can_choose(self):
-        """No screen sets a language yet, so French would be imposed with no
-        way out. A preference on record still wins."""
+    def test_english_for_a_person_who_has_not_chosen(self):
+        """A preference on record wins; with none, English (owner, 2026-09-24)."""
         assert notices.language_for(None) == "en"
         assert compose(language=None).subject.startswith("Appointment confirmed")
         assert compose(language="fr").subject.startswith("Rendez-vous confirmé")
@@ -203,6 +195,22 @@ class TestLanguage:
     def test_the_template_records_which_wording_was_used(self):
         assert compose(language="en").template == "booking_confirmation.en"
         assert compose(language="fr").template == "booking_confirmation.fr"
+
+    def test_a_pidgin_notice_is_composed_for_every_pair(self):
+        """FR-REM-09, CX-2: reminders and notices exist in Pidgin. The wording
+        is a draft awaiting a native speaker (atria.core.pidgin)."""
+        for kind, channel in SENT_PAIRS:
+            notice = compose(kind, channel=channel, language="pcm")
+            assert notice.language == "pcm"
+            assert notice.template.endswith(".pcm")
+            assert notice.body
+
+    def test_pidgin_sms_stays_one_ascii_segment(self):
+        for kind, channel in SENT_PAIRS:
+            if channel == "SMS":
+                body = compose(kind, channel="SMS", language="pcm").body
+                assert body.isascii()
+                assert len(body) <= notices.SMS_SEGMENT
 
     def test_every_notice_sent_exists_in_every_language(self):
         for kind, channel in SENT_PAIRS:
@@ -356,6 +364,13 @@ class TestFee:
             notices.APPOINTMENT_REMINDER, appointment=ticket, language="en", fee=self.FEE
         )
         assert "Fee: 15,000 XAF" in notice.body
+
+    def test_pidgin_confirmation_and_reminder_state_the_fee(self):
+        for kind in (notices.BOOKING_CONFIRMATION, notices.APPOINTMENT_REMINDER):
+            sms = compose(kind, channel="SMS", language="pcm", fee=self.FEE)
+            email = compose(kind, language="pcm", fee=self.FEE)
+            assert "15,000 XAF" in sms.body
+            assert "15,000 XAF" in email.body
 
     def test_other_notices_do_not_carry_a_fee(self):
         for kind in (notices.BOOKING_CANCELLATION, notices.BOOKING_RESCHEDULED):

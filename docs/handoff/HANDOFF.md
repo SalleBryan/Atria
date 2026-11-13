@@ -51,7 +51,7 @@ Only the pain lane account and the business lane account work in this repo. A th
 - Never type real passwords into forms. Never create accounts on non-local services without the owner saying so.
 - Synthetic data only. The deployed dev app already holds real patient accounts: never book, cancel or edit those. Use the test staff accounts (Test Receptionist, Test Clinician, Test Manager). Credentials are NOT in the repo; ask the owner.
 - Ratings never touch prices (AD-11). No currency savings claims (CX-12, FR-MSR-04). No ads, no selling data, no charging patients to book.
-- English only in UI until the language phase. Administrators are web only (ADR 0021).
+- Languages: English, French and Cameroonian Pidgin (`pcm`) exist (2026-11-13, owner's call). Only the patient web header switcher, Account, Edit details and Home are translated; every other screen, and the Flutter app, is still English. Administrators are web only (ADR 0021).
 - Run the full CI set before every push, including the Flutter job. A push is unfinished until CI and Deploy are green.
 - Work one screen at a time, screenshot each. Never bulk-restyle. Report faithfully, including what you did not verify.
 - Do not spawn large agent fan-outs. Sequential, or two or three at once.
@@ -93,6 +93,7 @@ Gotchas (Windows, Git Bash, OneDrive):
 - Set `MSYS_NO_PATHCONV=1` for `/aws/lambda/...` log commands.
 
 ## 8. Current state (updated 2026-11-13, pain lane, live ticket and offline recovery merged, slice 3 in progress)
+- PR 35 follows PR 34 and includes draft Pidgin wording for early-call invitations and fee notices. Pidgin still needs native-speaker review before patient rollout.
 - PR 29 contains the invitation rules and a web fix that clears ripple timers when controls unmount. PRs 30 to 32 build on it.
 - Merged to main: PR 20, PR 21 (handoff, reference library, CLAUDE.md, ADR 0022), PR 22 (queue slice 1: `core/queue.py::next_call`, call preview, per-ticket flags, policy routes), PR 23 (business lane B0 to B2), PR 24 (queue slice 2).
 - Slice 2 is on main: Desk console: call guard (passes over / held with countdown, "Call anyway" needs a reason), markers (Urgent, Late, Not here yet, Passed over), receptionist-only urgent marking (`POST /appointments/{id}/urgent`, `queue.mark_urgent`, reason required, audited), "Rules for today" (session) and "Queue rules" (unit) dialogs, tenant defaults card in Settings ("The queue"). New route `GET /clinics/{id}/queue-policy`. All three levels are settings, never constants.
@@ -106,6 +107,7 @@ Gotchas (Windows, Git Bash, OneDrive):
 - Not built yet (pain lane, in order, section 1): fee in reminders and local-language messages, audit F05, F02, F06, then slice 3 early-call invitations (`EARLY_CALL_INVITE`, `QUEUE_MOVED`, settings on the same three levels).
 - Offline and network-failure recovery (audit F16, web only, branch `pain/offline-recovery`): failed requests are classified and worded in `web/src/api/failure.ts`; `client.ts` retries only GETs, never writes, and flags a write whose outcome is unknown; `network.ts` holds the connection state and `startPolling` (pauses offline and in a hidden tab); `ConnectionBanner` is in both shells; booking, join queue, procedure request and the new-time offer keep what the person chose and say whether it went through. Not built: offline shell or queued writes (owner decision), idempotency keys beyond `POST /appointments` (backend), F15 route splitting (recorded in `LOG_PAIN.md`), Flutter parity.
 - Live dev app: `https://main.dym1ejjx8bhtw.amplifyapp.com`. SMS and email are in AWS sandbox (OI-04): no real patient receives a text yet. The SRS permission matrix PDF does not list the new queue permissions.
+- Language options (branch `pain/language-options`, pain lane, taken from Codex X2 because Codex had not started): `pcm` added to the Cameroon region pack (`spec/`), `notices.OFFERED` now `("en","fr","pcm")`, `language_for` fixed (it cut `pcm` to `pc`), Pidgin wording in `core/pidgin.py` merged into notices, SMS and Cognito emails. Web: `react-i18next`, `web/src/i18n/` (locale JSON per language and namespace, `LanguageProvider`, header `LanguageSwitcher`), choice saved with `PATCH /me`. Translated screens: Account, Edit details, Home. **All Pidgin text is a draft and needs a native speaker's review before real patients see it.** Not done: other patient screens, staff screens, Flutter app (its chooser exists, strings are English; Flutter has no `pcm` locale), landing pages, per-tenant template additions (FR-REM-10). Full CI set and screenshots by the owner's request were not run by the lead session; sub-sessions ran web typecheck, tests and build only.
 - Open audit findings relevant to the business lane: F08 (clinician report destination), F13 (failed message follow-up state).
 
 ## 9. Reference material (now in the repo)

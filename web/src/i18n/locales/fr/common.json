@@ -1,0 +1,6 @@
+{
+  "language": "Langue",
+  "languageHint": "Choisissez la langue dans laquelle vous lisez",
+  "close": "Fermer",
+  "languages": { "en": "English", "fr": "Français", "pcm": "Pidgin" }
+}

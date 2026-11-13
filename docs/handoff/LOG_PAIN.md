@@ -11,3 +11,13 @@ Append status notes here. Only the pain lane edits this file.
 ## 2026-11-13 (later)
 - PR 22 opened (queue slice 1), CI green. PR 20 Deploy succeeded.
 - Owner decision: only the receptionist may mark a ticket urgent. Recorded in ADR 0022 R6 and the handoff. Slice 2 will add `queue.mark_urgent` (receptionist only) and the route; slice 2 starts after PR 22 merges.
+
+## 2026-11-13 (slice 2)
+- Branch `pain/queue-desk`: desk console for the queue rules (guard, hold countdown, override with reason, urgent marking, markers), rules dialogs at session and unit level, tenant defaults in Settings, `GET /clinics/{id}/queue-policy`, audit routes for the policy routes, dev preview persona `opd-manager`.
+- Queue-quality metrics can be built from existing ticket stamps and `bypassCount`, `lateAt`, `urgent`; no new event is needed.
+- Next: patient live ticket view, voice and local-language reminders, fee in reminders.
+- Pain lane split between Claude (P1 to P3) and Codex (X1 to X4) is in the handoff, section 1. Codex notes go under a "Codex" heading below; requests for Claude's files go under "Codex requests".
+
+## Codex
+
+## Codex requests

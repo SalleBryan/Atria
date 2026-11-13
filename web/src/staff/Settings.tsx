@@ -40,6 +40,7 @@ import { daysOf, type Hours, type Week, weekFrom, WeekHours } from "../component
 import { MATRIX, PERMISSIONS } from "../generated/permissions";
 import { roleOf } from "./data";
 import { sentence } from "./labels";
+import { KNOBS } from "./QueueRules";
 import { Snackbar } from "./Snackbar";
 
 type Line = "GENERAL" | "SPECIALIST" | "PROCEDURE";
@@ -53,6 +54,9 @@ interface TenantSettings {
   reminderLeadHours: number;
   secondReminderHours: number;
   queueMoveThresholdMinutes: number;
+  queueHoldMinutes: number;
+  queueLateGraceMinutes: number;
+  queueMaxBypass: number;
   noShowStrikeThreshold: number;
   noShowStrikeWindowDays: number;
   qualityProgrammeEnabled: boolean;
@@ -260,6 +264,9 @@ function HospitalTab({ found, onSaved }: { found: Overview; onSaved: (message: s
       "reminderLeadHours",
       "secondReminderHours",
       "queueMoveThresholdMinutes",
+      "queueHoldMinutes",
+      "queueLateGraceMinutes",
+      "queueMaxBypass",
       "noShowStrikeThreshold",
       "noShowStrikeWindowDays",
       "qualityProgrammeEnabled",
@@ -429,6 +436,26 @@ function HospitalTab({ found, onSaved }: { found: Overview; onSaved: (message: s
           <Row title="Guardian consent" help="For a patient under 18.">
             <span className="settings-value">At the desk, or by the guardian's own account</span>
           </Row>
+          <p className="settings-label queue-rules-group">The queue</p>
+          <p className="queue-rule-help">
+            Defaults for every unit. A unit's manager can set its own, and the front desk can adjust one session for the day.
+          </p>
+          {KNOBS.map((k) => {
+            const field = (
+              { holdMinutes: "queueHoldMinutes", lateGraceMinutes: "queueLateGraceMinutes", maxBypass: "queueMaxBypass" } as const
+            )[k.name];
+            return (
+              <Row key={k.name} title={k.title} help={k.help}>
+                <SelectMenu
+                  label={k.title}
+                  value={String(draft[field])}
+                  options={options(k.values, k.show)}
+                  width={220}
+                  onChange={(v) => set({ [field]: Number(v) })}
+                />
+              </Row>
+            );
+          })}
         </section>
       </div>
 

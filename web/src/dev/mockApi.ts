@@ -117,6 +117,9 @@ const tenant: Record<string, unknown> = {
   name: HOSPITAL.name,
   regionPackCode: "CM",
   ...TENANT_SETTINGS,
+  queueHoldMinutes: 5,
+  queueLateGraceMinutes: 15,
+  queueMaxBypass: 1,
   languages: [...TENANT_SETTINGS.languages],
   firstAppointmentAt: "2026-09-19T08:12:40Z",
 };
@@ -311,6 +314,70 @@ const sessionView = (s: MockSession) => ({
   remaining: Math.max(0, s.capacity - s.issuedTickets),
   partOfDay: Number(s.startTime.slice(0, 2)) < 12 ? "MORNING" : "AFTERNOON",
 });
+
+// ADR 0022, as core/queue.py works it out: who a free doctor takes, who is due and absent, who is late.
+type QueueKnob = "holdMinutes" | "lateGraceMinutes" | "maxBypass";
+const policyLevels: Record<"tenant" | "unit" | "session", Partial<Record<QueueKnob, number>>> = {
+  tenant: { holdMinutes: 5, lateGraceMinutes: 15, maxBypass: 1 },
+  unit: {},
+  session: {},
+};
+/** The rules in force and the level that set each, the most specific winning (core/queue.py::resolve_policy). */
+function policyView(withSession = true) {
+  const values: Record<QueueKnob, number> = { holdMinutes: 5, lateGraceMinutes: 15, maxBypass: 1 };
+  const source: Record<string, string> = { holdMinutes: "default", lateGraceMinutes: "default", maxBypass: "default" };
+  for (const level of withSession ? (["tenant", "unit", "session"] as const) : (["tenant", "unit"] as const)) {
+    for (const name of Object.keys(values) as QueueKnob[]) {
+      const value = policyLevels[level][name];
+      if (value !== undefined) {
+        values[name] = value;
+        source[name] = level;
+      }
+    }
+  }
+  return { ...values, source };
+}
+const queuePolicy = new Proxy({} as Record<QueueKnob, number>, { get: (_t, name) => policyView()[name as QueueKnob] });
+const ticketTime = (t: Record<string, unknown>, field: string): number => Date.parse(String(t[field] ?? ""));
+const waitingState = (t: Record<string, unknown>) => ["BOOKED", "CONFIRMED", "RESCHEDULED"].includes(String(t.state));
+function ticketLate(t: Record<string, unknown>, nowMs: number): boolean {
+  if (t.lateAt) return true;
+  const end = ticketTime(t, "arrivalWindowEnd");
+  const reference = t.arrivedAt ? ticketTime(t, "arrivedAt") : nowMs;
+  if (!Number.isNaN(end) && reference > end + queuePolicy.lateGraceMinutes * 60000) return true;
+  return !!t.holdStartedAt && nowMs >= ticketTime(t, "holdStartedAt") + queuePolicy.holdMinutes * 60000;
+}
+function mockNextCall(tickets: Record<string, unknown>[], nowMs: number, override: boolean) {
+  const here = tickets.filter((t) => t.state === "ARRIVED");
+  if (!here.length) return { candidate: null, bypassed: [] as Record<string, unknown>[], hold: null as Record<string, unknown> | null };
+  const rank = (t: Record<string, unknown>) => (t.urgent ? 0 : ticketLate(t, nowMs) ? 2 : 1) * 1e6 + Number(t.position);
+  const candidate = [...here].sort((a, b) => rank(a) - rank(b))[0]!;
+  if (candidate.urgent || ticketLate(candidate, nowMs)) return { candidate, bypassed: [], hold: null };
+  const bypassed: Record<string, unknown>[] = [];
+  const blocking: Record<string, unknown>[] = [];
+  for (const t of tickets) {
+    if (!waitingState(t) || Number(t.position) >= Number(candidate.position)) continue;
+    if (ticketTime(t, "arrivalWindowStart") > nowMs || ticketLate(t, nowMs)) continue;
+    if (override || Number(t.bypassCount ?? 0) < queuePolicy.maxBypass) bypassed.push(t);
+    else blocking.push(t);
+  }
+  if (blocking.length) {
+    const first = blocking.sort((a, b) => Number(a.position) - Number(b.position))[0]!;
+    if (!first.holdStartedAt) first.holdStartedAt = new Date(nowMs).toISOString();
+    const until = new Date(ticketTime(first, "holdStartedAt") + queuePolicy.holdMinutes * 60000).toISOString();
+    return { candidate: null, bypassed: [], hold: { appointmentId: first.appointmentId, position: first.position, until } };
+  }
+  return { candidate, bypassed, hold: null };
+}
+function ticketFlags(t: Record<string, unknown>, nowMs: number) {
+  const waiting = waitingState(t);
+  return {
+    due: waiting && ticketTime(t, "arrivalWindowStart") <= nowMs,
+    late: waiting || t.state === "ARRIVED" ? ticketLate(t, nowMs) : false,
+    bypassCount: Number(t.bypassCount ?? 0),
+    urgent: !!t.urgent,
+  };
+}
 const queueNames = Object.keys(patients);
 // Today's first session's tickets, as appointments.
 const todayQueue: Record<string, unknown>[] = [];
@@ -331,9 +398,13 @@ const todayQueue: Record<string, unknown>[] = [];
         position: n,
         startAt: iso(window),
         endAt: iso(new Date(window.getTime() + 30 * 60000)),
-        arrivalWindowStart: iso(window),
-        arrivalWindowEnd: iso(new Date(window.getTime() + 30 * 60000)),
-        state: n <= 2 ? "COMPLETED" : n === 3 ? "IN_CONSULTATION" : n <= 5 ? "ARRIVED" : "BOOKED",
+        // Places 4 to 7 have windows around now, so the preview always shows someone due.
+        arrivalWindowStart: iso(n >= 4 && n <= 7 ? new Date(Date.now() + (n - 4) * 6 * 60000 - 14 * 60000) : window),
+        arrivalWindowEnd: iso(
+          n >= 4 && n <= 7 ? new Date(Date.now() + (n - 4) * 6 * 60000 + 16 * 60000) : new Date(window.getTime() + 30 * 60000),
+        ),
+        // Place 4 booked online and not here yet while 5 and 6 are on site: the case ADR 0022 is about.
+        state: n <= 2 ? "COMPLETED" : n === 3 ? "IN_CONSULTATION" : n === 4 ? "BOOKED" : n <= 6 ? "ARRIVED" : "BOOKED",
         channel: n % 3 === 0 ? "WALK_IN" : "ONLINE",
         bookedByRole: n % 3 === 0 ? "RECEPTIONIST" : null,
         version: 1,
@@ -854,6 +925,47 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     opdSessions.sort((a, b) => `${a.sessionDate}${a.startTime}`.localeCompare(`${b.sessionDate}${b.startTime}`));
     return json(201, sessionView(created), 500);
   }
+  const unitPolicy = path.match(/^\/clinics\/([^/]+)\/queue-policy$/);
+  if (unitPolicy) {
+    if (method === "GET") return json(200, policyView(false), 200);
+    if (method === "PATCH") {
+      if (!["CLINIC_MANAGER", "TENANT_ADMIN"].includes(callerRole)) {
+        return json(403, { code: "forbidden", message: "you may not set a unit's queue rules" });
+      }
+      for (const [name, value] of Object.entries((body ?? {}) as Record<string, number | null>)) {
+        if (value === null) delete policyLevels.unit[name as QueueKnob];
+        else policyLevels.unit[name as QueueKnob] = value;
+      }
+      return json(200, policyView(false), 300);
+    }
+  }
+  const sessionPolicy = path.match(/^\/sessions\/([^/]+)\/policy$/);
+  if (sessionPolicy && method === "PATCH") {
+    if (!["RECEPTIONIST", "CLINIC_MANAGER"].includes(callerRole)) {
+      return json(403, { code: "forbidden", message: "you may not adjust a session's queue rules" });
+    }
+    for (const [name, value] of Object.entries((body ?? {}) as Record<string, number | null>)) {
+      if (value === null) delete policyLevels.session[name as QueueKnob];
+      else policyLevels.session[name as QueueKnob] = value;
+    }
+    return json(200, policyView(), 300);
+  }
+  const urgentRoute = path.match(/^\/appointments\/([^/]+)\/urgent$/);
+  if (urgentRoute && method === "POST") {
+    // Only the receptionist marks a place urgent (ADR 0022, owner decision 2026-11-13).
+    if (callerRole !== "RECEPTIONIST") return json(403, { code: "forbidden", message: "only the front desk marks a place urgent" });
+    const ticket = [...todayQueue, ...appointments].find((a) => a.appointmentId === urgentRoute[1]);
+    if (!ticket) return json(404, { code: "not_found", message: "no such appointment" });
+    const asked = (body ?? {}) as { urgent?: boolean; reason?: string };
+    if (asked.urgent === false) {
+      ticket.urgent = false;
+    } else {
+      if (!asked.reason?.trim()) return json(400, { code: "invalid", message: "say why this patient is urgent" });
+      ticket.urgent = true;
+      ticket.urgentReason = asked.reason.trim();
+    }
+    return json(200, { ...ticket, urgent: !!ticket.urgent }, 300);
+  }
   const oneSession = path.match(/^\/sessions\/([^/]+)(?:\/(tickets|queue|next|close))?$/);
   if (oneSession) {
     const session = opdSessions.find((s) => s.sessionId === oneSession[1]);
@@ -872,7 +984,23 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         200,
         {
           ...sessionView(session),
-          appointments: tickets,
+          appointments: tickets.map((t) => ({ ...t, ...ticketFlags(t, Date.now()) })),
+          callPreview: (() => {
+            const decision = mockNextCall(tickets, Date.now(), false);
+            const minutes = 15;
+            return {
+              candidate: decision.candidate ? String(decision.candidate.appointmentId) : null,
+              bypassed: decision.bypassed.map((b) => ({
+                appointmentId: b.appointmentId,
+                position: b.position,
+                windowEnd: b.arrivalWindowEnd,
+              })),
+              hold: decision.hold,
+              expectedConsultMinutes: minutes,
+              wouldBreachWindow: decision.bypassed.some((b) => Date.now() + minutes * 60000 > ticketTime(b, "arrivalWindowEnd")),
+            };
+          })(),
+          policy: policyView(),
           patients,
           waiting: count(["BOOKED", "CONFIRMED", "RESCHEDULED"]),
           arrived: count(["ARRIVED"]),
@@ -915,10 +1043,28 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       return json(201, { ...made, of: session.issuedTickets }, 500);
     }
     if (method === "POST" && oneSession[2] === "next") {
-      const next = tickets.find((t) => t.state === "ARRIVED");
+      const asked = (body ?? {}) as { clinicianProfileId?: string; overrideHold?: boolean; reason?: string };
+      if (asked.overrideHold && !asked.reason?.trim()) {
+        return json(400, { code: "invalid", message: "say why the doctor is not waiting for the booked patient" });
+      }
+      const decision = mockNextCall(tickets, Date.now(), !!asked.overrideHold);
+      if (decision.hold) {
+        return json(409, {
+          code: "conflict",
+          message: "the doctor is held for a booked patient who has not arrived yet",
+          detail: {
+            rule: "HELD_FOR_BOOKED_PATIENT",
+            heldFor: decision.hold.appointmentId,
+            position: decision.hold.position,
+            until: decision.hold.until,
+          },
+        });
+      }
+      const next = decision.candidate;
       if (!next) return json(409, { code: "conflict", message: "nobody who has arrived is waiting" });
       next.state = "IN_CONSULTATION";
-      next.clinicianProfileId = (body as { clinicianProfileId?: string } | undefined)?.clinicianProfileId ?? "s-mbua";
+      next.clinicianProfileId = asked.clinicianProfileId ?? "s-mbua";
+      for (const passed of decision.bypassed) passed.bypassCount = Number(passed.bypassCount ?? 0) + 1;
       return json(200, next, 400);
     }
     if (method === "POST" && oneSession[2] === "close") {
@@ -1510,6 +1656,12 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     if (method === "GET") return json(200, settingsOverview());
     if (method === "PATCH") {
       Object.assign(tenant, body as Record<string, unknown>);
+      // The tenant's defaults are the bottom level of the queue rules.
+      policyLevels.tenant = {
+        holdMinutes: Number(tenant.queueHoldMinutes),
+        lateGraceMinutes: Number(tenant.queueLateGraceMinutes),
+        maxBypass: Number(tenant.queueMaxBypass),
+      };
       return json(200, settingsOverview().tenant, 500);
     }
   }

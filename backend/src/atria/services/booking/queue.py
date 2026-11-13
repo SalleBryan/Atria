@@ -457,6 +457,15 @@ def set_unit_policy(principal: Principal, event: dict[str, Any]) -> dict[str, An
     return policy_view(principal.tenant_id, {"clinicId": clinic_id, "policy": None})
 
 
+def read_unit_policy(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    """The queue rules in force for a unit, and which level set each."""
+    clinic_id = requests.path_parameter(event, "id")
+    permissions.require(
+        principal, "queue.read", Subject(tenant_id=principal.tenant_id, clinic_id=clinic_id)
+    )
+    return policy_view(principal.tenant_id, {"clinicId": clinic_id})
+
+
 def set_session_policy(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     """The desk adjusts the rules for one session. null clears one."""
     store = sessions()
@@ -624,4 +633,6 @@ def route(principal: Principal, event: dict[str, Any], *, people: People) -> dic
         return set_session_policy(principal, event)
     if method == "PATCH" and resource.endswith("/clinics/{id}/queue-policy"):
         return set_unit_policy(principal, event)
+    if method == "GET" and resource.endswith("/clinics/{id}/queue-policy"):
+        return read_unit_policy(principal, event)
     return None

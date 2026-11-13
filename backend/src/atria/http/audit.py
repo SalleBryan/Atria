@@ -79,6 +79,7 @@ VISIT_ACTIONS = (
     "no-show",
     "place",
     "decline",
+    "urgent",
 )
 
 ROUTES: dict[tuple[str, str], Route] = {
@@ -106,6 +107,12 @@ ROUTES: dict[tuple[str, str], Route] = {
     ("POST", "/sessions/{id}/next"): Route("queue.call_next", WRITE, "SESSION", "id"),
     ("POST", "/clinics/{id}/sessions"): Route(
         "session.publish", WRITE, "CLINIC", "id", patient_data=False
+    ),
+    ("PATCH", "/clinics/{id}/queue-policy"): Route(
+        "queue.policy_unit", WRITE, "CLINIC", "id", patient_data=False
+    ),
+    ("PATCH", "/sessions/{id}/policy"): Route(
+        "queue.policy_session", WRITE, "SESSION", "id", patient_data=False
     ),
     ("POST", "/sessions/{id}/close"): Route(
         "session.close", WRITE, "SESSION", "id", patient_data=False

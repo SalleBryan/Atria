@@ -1441,3 +1441,22 @@
     color: var(--ink-muted);
   }
 }
+
+/* The queue's rows on a phone: the generic account-row rule above hides a row's second
+   child, which in the queue is the patient's name. Show it, with the window under it. */
+@media (max-width: 767px) {
+  .account-row.queue-row > .account-who {
+    display: flex;
+    grid-column: 2;
+  }
+  /* The buttons take their own line, so a name is never squeezed to two letters. */
+  .account-row.queue-row > .account-actions {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+  .account-row.queue-row > .account-actions:empty {
+    display: none;
+  }
+}

@@ -31,6 +31,7 @@ import { type Appointment, clock, initials, offeredAt } from "../patient/data";
 import { doctor, roleOf, useStaffData } from "./data";
 import { sentence, staffState } from "./labels";
 import { fullName, type RegisterEntry, useRegisterSearch } from "./Patients";
+import { type QueuePolicy, QueueRulesDialog } from "./QueueRules";
 import { Snackbar } from "./Snackbar";
 
 export interface Session {
@@ -49,8 +50,29 @@ export interface Session {
   status: "OPEN" | "RUNNING" | "CLOSED";
 }
 
+/** What the desk needs to see about a ticket beside its state (ADR 0022). */
+interface TicketFlags {
+  due?: boolean;
+  late?: boolean;
+  bypassCount?: number;
+  urgent?: boolean;
+}
+
+/** What calling the next patient would do now, so the desk sees the cost first. */
+interface CallPreview {
+  candidate: string | null;
+  bypassed: { appointmentId: string; position: number; windowEnd: string | null }[];
+  hold: { appointmentId: string; position: number; until: string } | null;
+  expectedConsultMinutes: number;
+  wouldBreachWindow: boolean;
+}
+
+type Asking = { kind: "urgent"; appointmentId: string; name: string } | { kind: "override" } | { kind: "confirm" };
+
 interface LiveQueue extends Session {
-  appointments: Appointment[];
+  appointments: (Appointment & TicketFlags)[];
+  callPreview?: CallPreview;
+  policy?: QueuePolicy;
   patients: Record<string, { givenName: string | null; familyName: string | null }>;
   waiting: number;
   arrived: number;
@@ -82,6 +104,7 @@ export function QueuePage() {
   const [said, setSaid] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [unitRules, setUnitRules] = useState(false);
 
   // Seen once this session, "/console" is the schedule again (StaffShell).
   useEffect(() => {
@@ -121,13 +144,32 @@ export function QueuePage() {
           <h1>Queue</h1>
           <p>{unit?.name ?? "Your unit"} · general consultations in the order places were taken</p>
         </div>
-        {tab === "sessions" && publishes && (
-          <button type="button" className="staff-primary accounts-new" onClick={() => setPublishing(true)}>
-            <Plus size={16} />
-            Publish a session
-          </button>
-        )}
+        <span className="queue-header-actions">
+          {clinicId && can(role, "queue.configure") && (
+            <button type="button" className="outline-button" onClick={() => setUnitRules(true)}>
+              Queue rules
+            </button>
+          )}
+          {tab === "sessions" && publishes && (
+            <button type="button" className="staff-primary accounts-new" onClick={() => setPublishing(true)}>
+              <Plus size={16} />
+              Publish a session
+            </button>
+          )}
+        </span>
       </header>
+      {unitRules && clinicId && (
+        <QueueRulesDialog
+          level="unit"
+          path={`/clinics/${encodeURIComponent(clinicId)}/queue-policy`}
+          title={`Queue rules for ${unit?.name ?? "this unit"}`}
+          onClose={() => setUnitRules(false)}
+          onDone={(message) => {
+            setUnitRules(false);
+            done(message);
+          }}
+        />
+      )}
       <div className="segmented settings-tabs" role="tablist" aria-label="Queue">
         {(
           [
@@ -190,7 +232,15 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
   const [busy, setBusy] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [rules, setRules] = useState(false);
   const [doctorId, setDoctorId] = useState<string | null>(null);
+  // A dialog that asks for a reason, or a confirm, before a call or an urgent mark.
+  const [asking, setAsking] = useState<Asking | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const every = window.setInterval(() => setNow(Date.now()), 15000);
+    return () => window.clearInterval(every);
+  }, []);
 
   const load = useCallback(() => setFresh((n) => n + 1), []);
   const pages = usePages(found?.appointments ?? [], PAGE_ROWS, sessionId);
@@ -234,6 +284,20 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
       setBusy(null);
     }
   }
+
+  const preview = found?.callPreview;
+  const hold = preview?.hold ?? null;
+  const holdMinutes = hold ? Math.max(0, Math.ceil((Date.parse(hold.until) - now) / 60000)) : 0;
+  const marksUrgent = can(role, "queue.mark_urgent");
+  const nameOf = (appointmentId: string) => {
+    const ticket = found?.appointments.find((a) => a.appointmentId === appointmentId);
+    const who = ticket ? found?.patients[ticket.patientProfileId] : undefined;
+    return [who?.givenName, who?.familyName].filter(Boolean).join(" ") || "A booked patient";
+  };
+  const passed = preview?.bypassed ?? [];
+  const callBody = (extra?: { overrideHold: true; reason: string }) => (iAmDoctor ? extra : { clinicianProfileId: doctorId, ...extra });
+  const callNext = (extra?: { overrideHold: true; reason: string }) =>
+    step(`/sessions/${sessionId}/next`, "The next patient is called in.", callBody(extra));
 
   const session = found ?? sessions.find((s) => s.sessionId === sessionId);
   return (
@@ -292,6 +356,11 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
           <Plus size={15} />
           Add a walk-in
         </button>
+        {can(role, "queue.tune_session") && found && session?.status !== "CLOSED" && (
+          <button type="button" className="outline-button" onClick={() => setRules(true)}>
+            Rules for today
+          </button>
+        )}
         {calls && (
           <span className="queue-call">
             {!iAmDoctor && (
@@ -306,20 +375,40 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
             <button
               type="button"
               className="staff-primary"
-              disabled={!found?.arrived || busy !== null || (!iAmDoctor && !doctorId)}
-              onClick={() =>
-                void step(
-                  `/sessions/${sessionId}/next`,
-                  "The next patient is called in.",
-                  iAmDoctor ? undefined : { clinicianProfileId: doctorId },
-                )
-              }
+              disabled={!found?.arrived || busy !== null || (!iAmDoctor && !doctorId) || hold !== null}
+              onClick={() => (preview?.wouldBreachWindow ? setAsking({ kind: "confirm" }) : void callNext())}
             >
               {iAmDoctor ? "Call my next patient" : "Call next patient"}
             </button>
           </span>
         )}
       </div>
+      {calls && hold && (
+        <Notice tone="info">
+          <strong>The doctor is held for {nameOf(hold.appointmentId)}</strong>, place {hold.position}, who was passed over once and has not
+          arrived. {holdMinutes > 0 ? `${holdMinutes} min left.` : "The hold is ending."} Phone them. If they are not coming, call the next
+          patient anyway.{" "}
+          <button
+            type="button"
+            className="outline-button queue-arrive"
+            disabled={busy !== null || (!iAmDoctor && !doctorId)}
+            onClick={() => setAsking({ kind: "override" })}
+          >
+            Call anyway
+          </button>
+        </Notice>
+      )}
+      {calls && !hold && passed.length > 0 && (
+        <Notice tone="info">
+          Calling the next patient passes over{" "}
+          {passed
+            .map((p) => `${nameOf(p.appointmentId)} (place ${p.position}${p.windowEnd ? `, window ends ${clock.time(p.windowEnd)}` : ""})`)
+            .join(", ")}
+          . A consultation here takes about {preview?.expectedConsultMinutes} min.
+          {preview?.wouldBreachWindow ? " That runs past their window, so you will be asked to confirm." : ""} They are called next when
+          they arrive.
+        </Notice>
+      )}
       <ul className="accounts-rows queue-rows">
         {!found ? (
           <LoadingRow label="Loading the queue" />
@@ -355,10 +444,16 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
                   </span>
                   <span>{assigned ? doctor(assigned) : "No doctor yet"}</span>
                 </span>
-                <span>
+                <span className="queue-marks">
                   <span className={`chip chip-${shown.tone}`}>
                     {t.state === "BOOKED" || t.state === "CONFIRMED" ? "Waiting" : shown.label}
                   </span>
+                  {t.urgent && <span className="chip chip-cancelled">Urgent</span>}
+                  {t.late && <span className="chip chip-awaiting">Late</span>}
+                  {t.due && !t.late && ["BOOKED", "CONFIRMED"].includes(t.state) && (
+                    <span className="chip chip-awaiting">Not here yet</span>
+                  )}
+                  {!!t.bypassCount && <span className="chip chip-neutral">Passed over</span>}
                 </span>
                 <span className="account-actions">
                   {["BOOKED", "CONFIRMED"].includes(t.state) && (
@@ -378,6 +473,24 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
                       }
                     >
                       Arrived
+                    </button>
+                  )}
+                  {marksUrgent && ["BOOKED", "CONFIRMED", "ARRIVED"].includes(t.state) && (
+                    <button
+                      type="button"
+                      className="outline-button queue-arrive"
+                      disabled={busy !== null}
+                      onClick={() =>
+                        t.urgent
+                          ? void step(`/appointments/${t.appointmentId}/urgent`, "Urgent mark cleared.", { urgent: false })
+                          : setAsking({
+                              kind: "urgent",
+                              appointmentId: t.appointmentId,
+                              name: [name.givenName, name.familyName].filter(Boolean).join(" ") || "this patient",
+                            })
+                      }
+                    >
+                      {t.urgent ? "Clear urgent" : "Urgent"}
                     </button>
                   )}
                   {t.state === "IN_CONSULTATION" && (iAmDoctor || role === "CLINIC_MANAGER") && (
@@ -410,6 +523,57 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
           onNext={pages.next}
         />
       )}
+      {asking?.kind === "urgent" && (
+        <ReasonDialog
+          title={`Mark ${asking.name} urgent`}
+          lede="An urgent place is called before anyone else who is here. Say why; it is kept with your name and the time."
+          confirm="Mark urgent"
+          onClose={() => setAsking(null)}
+          onSubmit={async (reason) => {
+            await step(`/appointments/${asking.appointmentId}/urgent`, `${asking.name} is marked urgent.`, { reason });
+            setAsking(null);
+          }}
+        />
+      )}
+      {asking?.kind === "override" && (
+        <ReasonDialog
+          title="Call the next patient anyway"
+          lede="The doctor is held for a booked patient who has not arrived. Say why the doctor is not waiting; it is kept on the consultation."
+          confirm="Call anyway"
+          onClose={() => setAsking(null)}
+          onSubmit={async (reason) => {
+            await callNext({ overrideHold: true, reason });
+            setAsking(null);
+          }}
+        />
+      )}
+      {asking?.kind === "confirm" && (
+        <ReasonDialog
+          title="This call runs past a booked patient's window"
+          lede={`The next consultation takes about ${preview?.expectedConsultMinutes} minutes and the patient passed over is due sooner. They will be called next when they arrive. Call the next patient now?`}
+          confirm="Call now"
+          reason={false}
+          onClose={() => setAsking(null)}
+          onSubmit={async () => {
+            await callNext();
+            setAsking(null);
+          }}
+        />
+      )}
+      {rules && found?.policy && (
+        <QueueRulesDialog
+          level="session"
+          path={`/sessions/${encodeURIComponent(sessionId)}/policy`}
+          title="Queue rules for this session"
+          initial={found.policy}
+          onClose={() => setRules(false)}
+          onDone={(message) => {
+            setRules(false);
+            onDone(message);
+            load();
+          }}
+        />
+      )}
       {adding && (
         <WalkInDialog
           sessionId={sessionId}
@@ -422,6 +586,80 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
         />
       )}
     </section>
+  );
+}
+
+/** Asks the desk for a reason (or only a confirm) before an act that others will see on the record. */
+function ReasonDialog({
+  title,
+  lede,
+  confirm,
+  reason: needsReason = true,
+  onClose,
+  onSubmit,
+}: {
+  title: string;
+  lede: string;
+  confirm: string;
+  reason?: boolean;
+  onClose: () => void;
+  onSubmit: (reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const ready = !needsReason || reason.trim().length > 0;
+  async function go() {
+    if (!ready) return;
+    setBusy(true);
+    await onSubmit(reason.trim());
+    setBusy(false);
+  }
+  return createPortal(
+    <div className="scrim" onClick={() => !busy && onClose()}>
+      <div
+        className="dialog staff-dialog move-dialog settings-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reason-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="move-scroll">
+          <button type="button" className="icon-button dialog-close" aria-label="Close" onClick={onClose} disabled={busy}>
+            <Close size={16} />
+          </button>
+          <span className="dialog-icon dialog-icon-blue" aria-hidden="true">
+            <Users size={22} />
+          </span>
+          <h2 id="reason-title">{title}</h2>
+          <p className="dialog-lede">{lede}</p>
+          {needsReason && (
+            <div className="settings-dialog-form">
+              <label className="settings-label" htmlFor="queue-reason">
+                Reason
+              </label>
+              <textarea
+                id="queue-reason"
+                className="dialog-text"
+                maxLength={200}
+                autoFocus
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </div>
+          )}
+        </div>
+        <div className="dialog-actions move-actions">
+          <button type="button" className="outline-button keep" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button type="button" className="staff-primary" disabled={!ready || busy} aria-busy={busy || undefined} onClick={() => void go()}>
+            {busy ? <LoadingIndicator size={20} label="Working" /> : null}
+            {busy ? "Working" : confirm}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

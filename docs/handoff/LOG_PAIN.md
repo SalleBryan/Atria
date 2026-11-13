@@ -104,3 +104,6 @@ Branch `pain/offline-recovery`, web only. Audit F16 done for the web client; F15
 - Pitch deck published as an artifact; cost model in `docs/reference/research/atria_cost_model.py`.
 
 - PR 35 integrates the fee and invitation templates with all three message languages.
+
+## 2026-11-13 (handover)
+- Owner decisions: Fapshi is a real payment integration per environment (sandbox in dev, live in production); the payer gives a phone number (direct pay); the amount is the visit's fee band. Backend and infra done and tested on PR 38; web, ADR 0023, deck and the faster video are handed to the other account in `NEXT_PAYMENTS_AND_DEMO.md`. Demo script committed as `tools/demo/record_demo.js`.

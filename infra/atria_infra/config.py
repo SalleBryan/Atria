@@ -132,6 +132,11 @@ class Environment:
     def payment_sandbox_enabled(self) -> bool:
         return self.name == "dev" and self.fapshi_sandbox
 
+    @property
+    def fapshi_host(self) -> str:
+        """Fapshi's environment for this deployment, as the SMS sender is chosen per environment."""
+        return "live.fapshi.com" if self.name == "production" else "sandbox.fapshi.com"
+
     def stack_name(self, stack: str) -> str:
         return f"{self.prefix}-{stack}"
 

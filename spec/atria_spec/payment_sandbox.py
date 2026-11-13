@@ -12,6 +12,10 @@ APPOINTMENT_PAYMENT_PATH = "/appointments/{id}/payment"
 WEBHOOK_PATH = "/webhooks/fapshi"
 TABLE_ENV = "FAPSHI_SANDBOX_TABLE"
 SECRET_ENV = "FAPSHI_SANDBOX_SECRET_NAME"
+# Which Fapshi environment the function talks to, set per deployment like the SMS sender:
+# sandbox.fapshi.com in development, live.fapshi.com in production.
+HOST_ENV = "FAPSHI_HOST"
+HOSTS = ("sandbox.fapshi.com", "live.fapshi.com")
 WEBHOOK_HEADER = "x-wh-secret"
 
 CURRENCY = "XAF"

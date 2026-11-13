@@ -6,6 +6,7 @@ import pathlib
 
 from atria_spec.payment_sandbox import (
     APPOINTMENT_PAYMENT_PATH,
+    HOST_ENV,
     PAYMENT_PATH,
     SECRET_ENV,
     TABLE_ENV,
@@ -61,6 +62,7 @@ class PaymentSandbox(Construct):
             environment={
                 TABLE_ENV: payments.table_name,
                 SECRET_ENV: credentials.secret_name,
+                HOST_ENV: settings.fapshi_host,
                 # Read only: an appointment and its fee band, to price its checkout.
                 "MAIN_TABLE": main_table.table_name,
             },

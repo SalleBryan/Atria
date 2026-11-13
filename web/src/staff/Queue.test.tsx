@@ -166,6 +166,16 @@ describe("The queue and requests", () => {
     expect(within(list).getAllByText("Waiting").length).toBeGreaterThan(0);
   });
 
+  it("says the Sessions pace is per doctor, while the live queue shows the unit total", async () => {
+    renderAt("/console/queue", GP);
+    const live = await screen.findByRole("region", { name: "Today's queue" });
+    expect(await within(live).findByText(/of 8 an hour/)).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Sessions" }));
+    const sessions = await screen.findByRole("region", { name: "Sessions" });
+    expect(await within(sessions).findByText("4 an hour per doctor, planned")).toBeInTheDocument();
+  });
+
   it("lets a doctor call their next patient", async () => {
     const user = userEvent.setup();
     renderAt("/console/queue", GP);

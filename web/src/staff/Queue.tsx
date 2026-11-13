@@ -597,8 +597,8 @@ function SessionsCard({
                   <span className={`chip chip-${status.tone}`}>{status.label}</span>
                 </span>
                 <span className="account-role">
-                  <span>{s.expectedThroughputPerHour} planned an hour</span>
-                  <span>{s.actualThroughputPerHour ? `${s.actualThroughputPerHour} achieved` : "Not closed yet"}</span>
+                  <span>{s.expectedThroughputPerHour} an hour per doctor, planned</span>
+                  <span>{s.actualThroughputPerHour ? `${s.actualThroughputPerHour} an hour per doctor, achieved` : "Not closed yet"}</span>
                 </span>
                 <span className="account-actions">
                   {canClose && s.status !== "CLOSED" && (

@@ -3895,7 +3895,7 @@ body:has(.admin-app) .sheet-icon:not(.sheet-icon-done) {
 }
 .accounts-head.sessions-head,
 .account-row.session-row {
-  grid-template-columns: minmax(0, 1fr) 130px 170px 190px 96px;
+  grid-template-columns: minmax(0, 1fr) 130px 170px 230px 96px;
 }
 .accounts-head.sessions-head > :first-child,
 .accounts-head.requests-head > :first-child {

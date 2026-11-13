@@ -21,6 +21,7 @@ import type { Me } from "../api/client";
 import { useSession } from "../auth/session";
 import { Calendar, Home, Pulse, Search, SignOut, User } from "../components/icons";
 import { Waiting } from "../components/Waiting";
+import { LanguageSwitcher } from "../i18n/LanguageSwitcher";
 import { initials, PatientDataProvider, upcoming, usePatientData } from "./data";
 import { revealSelected } from "../layout/side";
 import { useScrollTopOnNavigate } from "../layout/scrollTop";
@@ -127,6 +128,7 @@ function Shell({ me }: { me: Me }) {
               <span className="side-me-name">{name}</span>
               <span className="side-me-sub">Patient</span>
             </span>
+            <LanguageSwitcher />
             <button type="button" className="icon-button" onClick={() => void signOut()} aria-label="Sign out">
               <SignOut size={17} />
             </button>
@@ -134,6 +136,7 @@ function Shell({ me }: { me: Me }) {
         </div>
       </aside>
 
+      <LanguageSwitcher className="icon-button lang-float" />
       <main className="patient-main" id="main">
         <Outlet />
       </main>

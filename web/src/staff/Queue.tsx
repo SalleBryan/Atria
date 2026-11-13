@@ -71,6 +71,25 @@ interface TicketFlags {
   late?: boolean;
   bypassCount?: number;
   urgent?: boolean;
+  invite?: EarlyCallInvite | null;
+}
+
+/** An early-call invitation on a ticket (ADR 0022 R4). Replying moves nobody. */
+export interface EarlyCallInvite {
+  status: "open" | "accepted" | "declined" | "expired";
+  sentAt: string;
+  expiresAt: string;
+  answer: "YES" | "NO" | null;
+  eta: string | null;
+}
+
+/** What the desk may do about invitations now. */
+interface InviteOutlook {
+  mode: "desk" | "auto";
+  fanout: number;
+  openMinutes: number;
+  open: number;
+  eligible: string[];
 }
 
 /** What calling the next patient would do now, so the desk sees the cost first. */
@@ -90,6 +109,7 @@ interface LiveQueue extends Session {
   /** The fee a walk-in will be asked for, from the unit's general consultation. */
   walkInFee?: DeskFee | null;
   policy?: QueuePolicy;
+  invites?: InviteOutlook;
   patients: Record<string, { givenName: string | null; familyName: string | null }>;
   waiting: number;
   arrived: number;
@@ -98,6 +118,13 @@ interface LiveQueue extends Session {
   plannedPerHour: number;
   actualPerHour: number | null;
 }
+
+const INVITE_CHIP: Record<EarlyCallInvite["status"], { label: string; tone: string }> = {
+  open: { label: "Invited", tone: "booked" },
+  accepted: { label: "Coming", tone: "confirmed" },
+  declined: { label: "Said no", tone: "neutral" },
+  expired: { label: "Invite ended", tone: "neutral" },
+};
 
 const PART = { MORNING: "Morning", AFTERNOON: "Afternoon", EVENING: "Evening" } as const;
 const STATUS: Record<Session["status"], { label: string; tone: string }> = {
@@ -378,6 +405,27 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
             Rules for today
           </button>
         )}
+        {can(role, "queue.invite") && found?.invites && session?.status !== "CLOSED" && (
+          <button
+            type="button"
+            className="outline-button"
+            disabled={busy !== null || found.invites.eligible.length === 0}
+            title={
+              found.invites.eligible.length === 0
+                ? "Nobody can be invited now: someone is here, every doctor is busy, or the invitations are already out."
+                : undefined
+            }
+            onClick={() =>
+              void step(
+                `/sessions/${sessionId}/invites`,
+                `${found.invites?.eligible.length === 1 ? "1 patient is" : `${found.invites?.eligible.length} patients are`} invited to come earlier.`,
+                {},
+              )
+            }
+          >
+            Invite to come earlier
+          </button>
+        )}
         {calls && (
           <span className="queue-call">
             {!iAmDoctor && (
@@ -472,6 +520,13 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
                     <span className="chip chip-awaiting">Not here yet</span>
                   )}
                   {!!t.bypassCount && <span className="chip chip-neutral">Passed over</span>}
+                  {t.invite && ["BOOKED", "CONFIRMED", "RESCHEDULED"].includes(t.state) && (
+                    <span className={`chip chip-${INVITE_CHIP[t.invite.status].tone}`}>
+                      {t.invite.status === "accepted" && t.invite.eta
+                        ? `Coming by ${clock.time(t.invite.eta)}`
+                        : INVITE_CHIP[t.invite.status].label}
+                    </span>
+                  )}
                 </span>
                 <span className="account-actions">
                   {["BOOKED", "CONFIRMED"].includes(t.state) && (

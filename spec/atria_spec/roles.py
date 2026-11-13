@@ -80,6 +80,12 @@ MATRIX = {
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"tenant"},
  "queue.tune_session":     {"PATIENT":"none","RECEPTIONIST":"clinic","CLINICIAN":"none",
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
+ # ADR 0022 R4: the desk invites booked patients to come early, and records a
+ # reply the patient gave by phone; a patient answers their own invitation.
+ "queue.invite":           {"PATIENT":"none","RECEPTIONIST":"clinic","CLINICIAN":"none",
+                             "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
+ "queue.reply_invite":     {"PATIENT":"own","RECEPTIONIST":"clinic","CLINICIAN":"none",
+                             "CLINIC_MANAGER":"none","TENANT_ADMIN":"none"},
  # Owner decision 2026-11-13: only the receptionist marks a ticket urgent.
  "queue.mark_urgent":      {"PATIENT":"none","RECEPTIONIST":"clinic","CLINICIAN":"none",
                              "CLINIC_MANAGER":"none","TENANT_ADMIN":"none"},

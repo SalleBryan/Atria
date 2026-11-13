@@ -83,7 +83,10 @@ class PaymentSandbox(Construct):
         )
         main_key.grant_decrypt(service)
 
-        integration = apigateway.LambdaIntegration(service, allow_test_invoke=False)
+        # One invoke statement for the whole API, as for every function (stacks/api.py).
+        from atria_infra.stacks.api import proxy_integration
+
+        integration = proxy_integration(api, service)
         payment = api.root.resource_for_path(PAYMENT_PATH)
         for method in ("POST", "GET"):
             payment.add_method(

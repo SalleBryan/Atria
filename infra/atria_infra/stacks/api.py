@@ -17,7 +17,7 @@ import pathlib
 from typing import Any
 
 from atria_spec.payment_sandbox import ENABLED_ENV
-from aws_cdk import Duration, RemovalPolicy, Stack
+from aws_cdk import Aws, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_apigateway as apigateway
 from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
@@ -49,7 +49,34 @@ VISIT_ACTIONS = (
     "place",
     "decline",
     "urgent",
+    "invite-reply",
 )
+
+
+def proxy_integration(api: apigateway.RestApi, handler: lambda_.IFunction) -> apigateway.Integration:
+    """A Lambda proxy integration whose invoke right is ONE statement for the whole API.
+
+    `LambdaIntegration` adds two statements to the function's resource policy for
+    every method it serves (the deployed stage and the console's test invoke).
+    The booking function serves so many routes that its policy passed Lambda's
+    20,480 byte limit and the dev deploy of 2026-11-13 rolled back. One statement,
+    scoped to this API, keeps the policy the same size however many routes are
+    added. Who may call a route is still decided by the request authoriser on
+    every method and by the permission matrix in the service.
+    """
+    handler.add_permission(
+        "InvokedByApi",
+        principal=iam.ServicePrincipal("apigateway.amazonaws.com"),
+        source_arn=api.arn_for_execute_api(),
+    )
+    return apigateway.Integration(
+        type=apigateway.IntegrationType.AWS_PROXY,
+        integration_http_method="POST",
+        uri=(
+            f"arn:{Aws.PARTITION}:apigateway:{Aws.REGION}:lambda:path/2015-03-31/functions/"
+            f"{handler.function_arn}/invocations"
+        ),
+    )
 
 
 class ApiStack(Stack):
@@ -327,7 +354,7 @@ class ApiStack(Stack):
         )
 
         me = self.api.root.add_resource("me")
-        identity_integration = apigateway.LambdaIntegration(self.identity_service, proxy=True)
+        identity_integration = proxy_integration(self.api, self.identity_service)
         for resource, method in (
             (me, "GET"),
             (me, "PATCH"),
@@ -348,7 +375,7 @@ class ApiStack(Stack):
         # Every route still goes through the same authoriser; staff.create,
         # staff.update_roles and staff.suspend are what actually confine these
         # to a tenant administrator (core.permissions, checked in the service).
-        staff_integration = apigateway.LambdaIntegration(self.staff_service, proxy=True)
+        staff_integration = proxy_integration(self.api, self.staff_service)
         admin = self.api.root.add_resource("admin")
         staff = admin.add_resource("staff")
         for verb in ("GET", "POST"):
@@ -402,7 +429,7 @@ class ApiStack(Stack):
         # A patient reaches all three as well as staff, so none of them sit
         # under /admin; appointment.create, .read and .cancel and their scopes
         # are what decide who may act on whose record.
-        booking_integration = apigateway.LambdaIntegration(self.booking_service, proxy=True)
+        booking_integration = proxy_integration(self.api, self.booking_service)
         appointments = self.api.root.add_resource("appointments")
         appointments.add_method(
             "POST",
@@ -445,7 +472,7 @@ class ApiStack(Stack):
             )
         patients = self.api.root.add_resource("patients")
         # The register (services/patients/register.py), beside the patient's own list.
-        patient_integration = apigateway.LambdaIntegration(self.patient_service, proxy=True)
+        patient_integration = proxy_integration(self.api, self.patient_service)
         for resource, method in (
             (patients, "GET"),
             (patients, "POST"),
@@ -467,7 +494,7 @@ class ApiStack(Stack):
         # /clinicians and /clinicians/{id}/slots. Any signed-in account of the
         # tenant reads these; the directory is what a patient chooses from, so
         # it is not under /admin either.
-        directory_integration = apigateway.LambdaIntegration(self.directory_service, proxy=True)
+        directory_integration = proxy_integration(self.api, self.directory_service)
         clinicians = self.api.root.add_resource("clinicians")
         clinicians.add_method(
             "GET",
@@ -487,7 +514,7 @@ class ApiStack(Stack):
             )
         # A clinician's hours and time off, on their own function so the
         # directory stays read only.
-        availability_integration = apigateway.LambdaIntegration(self.availability_service, proxy=True)
+        availability_integration = proxy_integration(self.api, self.availability_service)
         time_off = one_clinician.add_resource("time-off")
         for resource, method in (
             (one_clinician.add_resource("availability"), "GET"),
@@ -528,6 +555,8 @@ class ApiStack(Stack):
             (one_session.add_resource("queue"), "GET"),
             (one_session.add_resource("next"), "POST"),
             (one_session.add_resource("close"), "POST"),
+            # ADR 0022 R4: the desk invites booked patients to come early.
+            (one_session.add_resource("invites"), "POST"),
             # ADR 0022: a unit's queue rules, and the desk's adjustment for one session.
             (queue_policy := one_clinic.add_resource("queue-policy"), "PATCH"),
             (queue_policy, "GET"),
@@ -584,7 +613,7 @@ class ApiStack(Stack):
 
         # The administrator's settings (services/admin/settings.py). Each route
         # is its own permission, checked in the service.
-        settings_integration = apigateway.LambdaIntegration(self.settings_service, proxy=True)
+        settings_integration = proxy_integration(self.api, self.settings_service)
         admin_settings = admin.add_resource("settings")
         admin_clinics = admin.add_resource("clinics")
         admin_clinic = admin_clinics.add_resource("{id}")
@@ -612,7 +641,7 @@ class ApiStack(Stack):
             )
 
         # /audit and /audit/export. audit.read decides who reaches them.
-        audit_integration = apigateway.LambdaIntegration(self.audit_service, proxy=True)
+        audit_integration = proxy_integration(self.api, self.audit_service)
         audit = self.api.root.add_resource("audit")
         for resource in (audit, audit.add_resource("export"), audit.add_resource("changes")):
             resource.add_method(

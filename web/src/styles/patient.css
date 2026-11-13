@@ -253,6 +253,10 @@
 }
 /* Every notification count is red, on any background, so it reads as
    something waiting for you (feedback 2026-09-25). */
+/* The language button: in the sidebar from tablet up, floating at the top on phones. */
+.icon-button.lang-float {
+  display: none;
+}
 .side-me {
   display: flex;
   flex: none;
@@ -1156,6 +1160,19 @@
   }
   .side-margin {
     display: none;
+  }
+  .icon-button.lang-float {
+    display: grid;
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 30;
+    width: 38px;
+    height: 38px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 4px 14px rgba(33, 89, 210, 0.16);
+    backdrop-filter: blur(12px);
   }
   .patient-main {
     height: auto;

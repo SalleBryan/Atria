@@ -25,7 +25,8 @@ export const REGION_PACKS: Readonly<Record<string, RegionPack>> = {
     "msisdnPattern": "^\\+2376\\d{8}$",
     "languages": [
       "fr",
-      "en"
+      "en",
+      "pcm"
     ],
     "timezone": "Africa/Douala",
     "administrativeRegions": [

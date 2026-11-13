@@ -842,6 +842,7 @@ def test_every_visit_action_has_its_route(synthesised: cdk.App) -> None:
         "place",
         "decline",
         "urgent",
+        "invite-reply",
     ):
         assert (f"/appointments/{{id}}/{action}", "POST") in served
 
@@ -949,6 +950,7 @@ def test_the_queue_routes_exist(synthesised: cdk.App) -> None:
         ("/sessions/{id}/queue", "GET"),
         ("/sessions/{id}/next", "POST"),
         ("/sessions/{id}/close", "POST"),
+        ("/sessions/{id}/invites", "POST"),
         ("/clinics/{id}/queue-policy", "PATCH"),
         ("/clinics/{id}/queue-policy", "GET"),
         ("/sessions/{id}/policy", "PATCH"),
@@ -1044,3 +1046,20 @@ def test_a_staff_session_lasts_a_working_day(synthesised: cdk.App) -> None:
         if str(c["Properties"].get("ClientName", "")).endswith("-staff")
     )
     assert (staff["RefreshTokenValidity"], staff["TokenValidityUnits"]["RefreshToken"]) == (720, "minutes")
+
+
+class TestLambdaPolicySize:
+    def test_each_function_has_one_api_invoke_permission(self, synthesised):
+        """Lambda caps a function's resource policy at 20,480 bytes. Two statements
+        per method pushed the booking function past it and a dev deploy rolled back
+        (2026-11-13). One statement per function keeps it flat as routes are added."""
+        template = template_for(synthesised, "api")
+        counts: dict[str, int] = {}
+        for permission in template.find_resources("AWS::Lambda::Permission").values():
+            properties = permission["Properties"]
+            if properties.get("Principal") != "apigateway.amazonaws.com":
+                continue
+            name = json.dumps(properties["FunctionName"], sort_keys=True)
+            counts[name] = counts.get(name, 0) + 1
+        assert counts
+        assert max(counts.values()) <= 2, counts

@@ -173,6 +173,8 @@ export interface Me {
   clinicId: string | null;
   phoneVerified: boolean;
   languages: string[];
+  /** The language the person chose, from the region pack's list. */
+  preferredLanguage?: string | null;
   permissions: Record<string, string>;
   landing: string[];
   /** An administrator who has not signed in with an authenticator yet (FR-ACC-11). */

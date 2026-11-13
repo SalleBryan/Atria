@@ -1,0 +1,93 @@
+{
+  "title": "Account",
+  "back": "Back to your account",
+  "sectionsLabel": "Account sections",
+  "sections": { "details": "Personal details", "notifications": "Notifications", "clinics": "Units" },
+  "yourAccount": "Your account",
+  "noEmailOnRecord": "No email on record",
+  "patientTag": "PATIENT ACCOUNT",
+  "stats": { "upcoming": "Upcoming", "completed": "Completed", "units": "Units" },
+  "signOut": "Sign out",
+  "details": {
+    "lede": "What Atria holds about you. Change your name and date of birth here; your email is how you sign in, and the front desk at {{hospital}} can help with it.",
+    "name": "Name",
+    "email": "Email",
+    "notGiven": "Not given",
+    "mobile": "Mobile",
+    "notVerified": "{{phone}} · not verified yet",
+    "verified": "Verified",
+    "born": "Date of birth",
+    "privacy": "Who can see your record",
+    "privacySub": "Only your healthcare institution, and you",
+    "language": "Language",
+    "languageSub": "Used in the app, your reminders and your emails",
+    "change": "Change",
+    "changeName": "Change your name",
+    "changePhone": "Change your mobile",
+    "changeBorn": "Change your date of birth"
+  },
+  "delete": {
+    "title": "Delete your account",
+    "sub": "Your upcoming visits are cancelled. You have 30 days to change your mind.",
+    "button": "Delete",
+    "dialogTitle": "Delete your Atria account?",
+    "lede": "You will be signed out, and {{hospital}} stops holding your appointments.",
+    "points": [
+      "Your upcoming visits are cancelled and their times given back.",
+      "Sign in again within 30 days to restore your account.",
+      "After 30 days your details are erased for good."
+    ],
+    "confirm": "Delete my account"
+  },
+  "units": {
+    "lede": "The units of {{hospital}} you can book: where each one is, its hours, and the way to its door.",
+    "loading": "Loading the units"
+  },
+  "notifications": {
+    "lede": "How Atria reaches you. Confirmations always go to email, because they are your record of the booking. Choosing other channels and lead times arrives in a later release.",
+    "channels": "Channels",
+    "sms": "SMS reminders",
+    "smsSub": "A text 24 hours before every visit",
+    "emailConfirm": "Email confirmations",
+    "emailConfirmSub": "Booking and cancellation receipts",
+    "shortNotice": "Short-notice bookings",
+    "shortNoticeSub": "A confirmation text straight away instead",
+    "on": "On",
+    "timing": "Reminder timing",
+    "lead48": "two days",
+    "lead24": "one day",
+    "lead2": "same day",
+    "later": "Later release",
+    "preview": "SMS PREVIEW",
+    "reminder": "Atria reminder: appointment {{date}} at {{time}}, {{clinic}}, {{clinician}}. Ref {{reference}}. To cancel: Atria app.",
+    "fallbackClinic": "the clinic"
+  },
+  "push": {
+    "title": "Notifications on this device",
+    "on": "Every notice also appears on this device",
+    "off": "Get every notice on this device as well",
+    "blocked": "Blocked in this browser's site settings",
+    "unsupported": "This browser cannot show notifications",
+    "checking": "Checking this browser",
+    "turnOn": "Turn on",
+    "turnOff": "Turn off",
+    "failed": "That did not work. Try again."
+  },
+  "edit": {
+    "given": "Given name",
+    "family": "Family name",
+    "phone": "Mobile number",
+    "born": "Date of birth",
+    "keep": "Keep as it was",
+    "save": "Save",
+    "saving": "Saving",
+    "savedNameStaff": "Your name is saved across the console.",
+    "savedName": "Your name is saved. The front desk sees it too.",
+    "savedPhoneStaff": "Your mobile number is saved.",
+    "savedPhone": "Your mobile is saved. Reminders are texted there from now on.",
+    "savedBorn": "Your date of birth is saved.",
+    "phoneHome": "Enter a Cameroonian mobile number, such as 6 70 00 00 00.",
+    "phoneAbroad": "Enter a mobile number that works in {{country}}.",
+    "bornInvalid": "Enter your date of birth as day, month and year, such as 02/04/1990."
+  }
+}

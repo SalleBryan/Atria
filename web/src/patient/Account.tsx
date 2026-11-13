@@ -7,16 +7,20 @@
  * same sections state what Atria does today, truthfully, rather than showing
  * switches that would change nothing: every booking is confirmed by email,
  * and a text comes 24 hours before, in the words the reminder really uses.
+ * Words follow the chosen language (NFR-L10N-01), as the notices do.
  */
 
 import { type ComponentType, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { maskedPhone } from "../auth/phone";
 import { useSession } from "../auth/session";
 import { SignOutMenu } from "../components/SignOutMenu";
 import { Notice } from "../components/controls";
-import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Close, Mail, Phone, Pin, Shield, User } from "../components/icons";
-import { EditDetails, type Editing, shownDate } from "./EditDetails";
+import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Close, Globe, Mail, Phone, Pin, Shield, User } from "../components/icons";
+import { EditDetails, type Editing, shownDateIn } from "./EditDetails";
+import { useLanguage } from "../i18n/LanguageSwitcher";
+import { SelectMenu } from "../components/Pickers";
 import { DeleteAccountDialog } from "../components/DeleteAccountDialog";
 import { api } from "../api/client";
 import { type PushState, pushState, turnPushOff, turnPushOn } from "../api/push";
@@ -28,21 +32,20 @@ import { TENANT } from "../tenant";
 
 type Section = "details" | "notifications" | "clinics";
 
-const SECTIONS: { id: Section; label: string; icon: ComponentType<{ size?: number }> }[] = [
-  { id: "details", label: "Personal details", icon: User },
-  { id: "notifications", label: "Notifications", icon: Bell },
-  { id: "clinics", label: "Units", icon: Pin },
+const SECTIONS: { id: Section; icon: ComponentType<{ size?: number }> }[] = [
+  { id: "details", icon: User },
+  { id: "notifications", icon: Bell },
+  { id: "clinics", icon: Pin },
 ];
 
-/**
- * The SMS reminder, word for word as atria.core.notices writes it: English
- * until a patient can choose a language, the date as dd/mm/yyyy on the
- * clinic's clock, and the clinician by name without a title.
- */
-function reminderText(date: string, time: string, clinic: string, clinician: string, reference: string): string {
-  return `Atria reminder: appointment ${date} at ${time}, ${clinic}, ${clinician}. Ref ${reference}. To cancel: Atria app.`;
-}
+const LANGUAGES = [
+  { id: "en", label: "English" },
+  { id: "fr", label: "Français" },
+  { id: "pcm", label: "Pidgin" },
+];
 
+// The SMS reminder is worded by atria.core.notices in the patient's language,
+// but its date is always dd/mm/yyyy on the clinic's clock (SMS_DATE there).
 const SMS_DATE = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Africa/Douala",
   day: "2-digit",
@@ -51,6 +54,8 @@ const SMS_DATE = new Intl.DateTimeFormat("en-GB", {
 });
 
 export function Account() {
+  const { t, i18n } = useTranslation("account");
+  const { language, setLanguage } = useLanguage();
   const { state: session, signOut } = useSession();
   const { state } = usePatientData();
   const [section, setSection] = useState<Section>("details");
@@ -67,13 +72,13 @@ export function Account() {
     setEditing(what);
   };
   const data = state.status === "ready" ? state.data : undefined;
-  const name = [me?.givenName, me?.familyName].filter(Boolean).join(" ") || "Your account";
+  const name = [me?.givenName, me?.familyName].filter(Boolean).join(" ") || t("yourAccount");
   const index = SECTIONS.findIndex((s) => s.id === section);
 
   return (
     <div className="find-care account" data-step={phone ? (opened ? "detail" : "list") : undefined}>
-      <section className="find-list glass account-list" aria-label="Account">
-        {phone && <h1 className="phone-title">Account</h1>}
+      <section className="find-list glass account-list" aria-label={t("title")}>
+        {phone && <h1 className="phone-title">{t("title")}</h1>}
         <div className="profile-card">
           <span className="hero-bloom" aria-hidden="true" />
           <span className="hero-avatar" aria-hidden="true">
@@ -81,32 +86,32 @@ export function Account() {
           </span>
           <span className="profile-text">
             <span className="profile-name">{name}</span>
-            <span className="profile-email">{me?.email ?? "No email on record"}</span>
+            <span className="profile-email">{me?.email ?? t("noEmailOnRecord")}</span>
           </span>
           <span className="hero-tag">
             <CheckMark size={11} />
-            PATIENT ACCOUNT
+            {t("patientTag")}
           </span>
           {phone && data && (
             <dl className="profile-stats">
               <div>
-                <dt>Upcoming</dt>
+                <dt>{t("stats.upcoming")}</dt>
                 <dd>{upcoming(data.appointments).length}</dd>
               </div>
               <div>
-                <dt>Completed</dt>
+                <dt>{t("stats.completed")}</dt>
                 <dd>{past(data.appointments).filter((a) => ["COMPLETED", "AWAITING_FEEDBACK"].includes(a.state)).length}</dd>
               </div>
               <div>
-                <dt>Units</dt>
+                <dt>{t("stats.units")}</dt>
                 <dd>{data.clinics.length}</dd>
               </div>
             </dl>
           )}
         </div>
-        <nav className="account-nav" aria-label="Account sections">
+        <nav className="account-nav" aria-label={t("sectionsLabel")}>
           <span className="side-pill account-pill" aria-hidden="true" style={{ transform: `translateY(calc(${index} * 52px))` }} />
-          {SECTIONS.map(({ id, label, icon: IconComponent }) => (
+          {SECTIONS.map(({ id, icon: IconComponent }) => (
             <button
               key={id}
               type="button"
@@ -118,30 +123,27 @@ export function Account() {
               }}
             >
               <IconComponent size={17} />
-              <span>{label}</span>
+              <span>{t(`sections.${id}`)}</span>
               <span className="account-hint">{id === "notifications" ? "24h" : id === "clinics" ? (data?.clinics.length ?? "") : ""}</span>
               {phone && <ChevronRight size={16} />}
             </button>
           ))}
         </nav>
-        <SignOutMenu className="outline-danger sign-out">Sign out</SignOutMenu>
+        <SignOutMenu className="outline-danger sign-out">{t("signOut")}</SignOutMenu>
       </section>
 
       <section className="find-detail glass account-detail" aria-labelledby="section-title" key={section}>
         <div className="phone-bar">
-          <button type="button" className="square-button" aria-label="Back to your account" onClick={() => setOpened(false)}>
+          <button type="button" className="square-button" aria-label={t("back")} onClick={() => setOpened(false)}>
             <ChevronLeft size={18} />
           </button>
-          <span>Account</span>
+          <span>{t("title")}</span>
         </div>
         {section === "details" && (
           <>
             <header className="section-head">
-              <h1 id="section-title">Personal details</h1>
-              <p>
-                What Atria holds about you. Change your name and date of birth here; your email is how you sign in, and the front desk at{" "}
-                {TENANT.name} can help with it.
-              </p>
+              <h1 id="section-title">{t("sections.details")}</h1>
+              <p>{t("details.lede", { hospital: TENANT.name })}</p>
             </header>
             {said && <Notice tone="success">{said}</Notice>}
             {editing ? (
@@ -157,57 +159,68 @@ export function Account() {
               <Row
                 icon={User}
                 tone="tone-blue"
-                title="Name"
+                title={t("details.name")}
                 sub={name}
-                end={<EditLink label="Change your name" onClick={() => start("name")} />}
+                end={<EditLink label={t("details.changeName")} onClick={() => start("name")} />}
               />
-              <Row icon={Mail} tone="tone-green" title="Email" sub={me?.email ?? "Not given"} />
+              <Row icon={Mail} tone="tone-green" title={t("details.email")} sub={me?.email ?? t("details.notGiven")} />
               <Row
                 icon={Phone}
                 tone="tone-amber"
-                title="Mobile"
-                sub={me?.phoneVerified ? maskedPhone(me?.phoneE164) : `${maskedPhone(me?.phoneE164)} · not verified yet`}
+                title={t("details.mobile")}
+                sub={me?.phoneVerified ? maskedPhone(me?.phoneE164) : t("details.notVerified", { phone: maskedPhone(me?.phoneE164) })}
                 end={
                   // A verified number changes by a code sent to it, which comes with SMS.
                   me?.phoneVerified ? (
-                    <span className="chip chip-confirmed">Verified</span>
+                    <span className="chip chip-confirmed">{t("details.verified")}</span>
                   ) : (
-                    <EditLink label="Change your mobile" onClick={() => start("phone")} />
+                    <EditLink label={t("details.changePhone")} onClick={() => start("phone")} />
                   )
                 }
               />
               <Row
                 icon={Calendar}
                 tone="tone-blue"
-                title="Date of birth"
-                sub={shownDate(me?.dateOfBirth) || "Not given"}
-                end={<EditLink label="Change your date of birth" onClick={() => start("born")} />}
+                title={t("details.born")}
+                sub={shownDateIn(me?.dateOfBirth, i18n.language) || t("details.notGiven")}
+                end={<EditLink label={t("details.changeBorn")} onClick={() => start("born")} />}
               />
-              <Row icon={Shield} tone="tone-violet" title="Who can see your record" sub="Only your healthcare institution, and you" />
+              <Row
+                icon={Globe}
+                tone="tone-green"
+                title={t("details.language")}
+                sub={t("details.languageSub")}
+                end={
+                  <SelectMenu
+                    label={t("details.language")}
+                    value={language}
+                    options={LANGUAGES}
+                    onChange={(id) => void setLanguage(id as typeof language)}
+                    width={170}
+                  />
+                }
+              />
+              <Row icon={Shield} tone="tone-violet" title={t("details.privacy")} sub={t("details.privacySub")} />
             </div>
             <div className="inner-card settings-card delete-row">
               <Row
                 icon={Close}
                 tone="tone-red"
-                title="Delete your account"
-                sub="Your upcoming visits are cancelled. You have 30 days to change your mind."
+                title={t("delete.title")}
+                sub={t("delete.sub")}
                 end={
                   <button type="button" className="link-button link-danger" onClick={() => setDeleting(true)}>
-                    Delete
+                    {t("delete.button")}
                   </button>
                 }
               />
             </div>
             {deleting && (
               <DeleteAccountDialog
-                title="Delete your Atria account?"
-                lede={`You will be signed out, and ${TENANT.name} stops holding your appointments.`}
-                points={[
-                  "Your upcoming visits are cancelled and their times given back.",
-                  "Sign in again within 30 days to restore your account.",
-                  "After 30 days your details are erased for good.",
-                ]}
-                confirmLabel="Delete my account"
+                title={t("delete.dialogTitle")}
+                lede={t("delete.lede", { hospital: TENANT.name })}
+                points={t("delete.points", { returnObjects: true }) as string[]}
+                confirmLabel={t("delete.confirm")}
                 onClose={() => setDeleting(false)}
                 onConfirm={async () => {
                   await api("/me", { method: "DELETE" });
@@ -223,10 +236,10 @@ export function Account() {
         {section === "clinics" && (
           <>
             <header className="section-head">
-              <h1 id="section-title">Units</h1>
-              <p>The units of {TENANT.name} you can book: where each one is, its hours, and the way to its door.</p>
+              <h1 id="section-title">{t("sections.clinics")}</h1>
+              <p>{t("units.lede", { hospital: TENANT.name })}</p>
             </header>
-            {data ? <HospitalUnits clinics={data.clinics} hospital={TENANT.name} /> : <LoadingPane label="Loading the units" />}
+            {data ? <HospitalUnits clinics={data.clinics} hospital={TENANT.name} /> : <LoadingPane label={t("units.loading")} />}
           </>
         )}
       </section>
@@ -235,9 +248,10 @@ export function Account() {
 }
 
 function EditLink({ label, onClick }: { label: string; onClick: () => void }) {
+  const { t } = useTranslation("account");
   return (
     <button type="button" className="link-button" aria-label={label} onClick={onClick}>
-      Change
+      {t("details.change")}
     </button>
   );
 }
@@ -270,6 +284,7 @@ function Row({
 }
 
 function Notifications() {
+  const { t } = useTranslation("account");
   const { state } = usePatientData();
   const data = state.status === "ready" ? state.data : undefined;
   // A visit a reminder is sent for: a set time with a named clinician. A
@@ -277,44 +292,43 @@ function Notifications() {
   const next = data ? upcoming(data.appointments).find((a) => a.clinicianProfileId && a.state !== "REQUESTED") : undefined;
   const joined = data && next ? join(data, next) : undefined;
   const reminderAt = next ? new Date(Date.parse(next.startAt) - 24 * 3600 * 1000) : undefined;
+  const reminder = (date: string, time: string, clinic: string, clinician: string, reference: string) =>
+    t("notifications.reminder", { date, time, clinic, clinician, reference, interpolation: { escapeValue: false } });
   const sample =
     next && joined
-      ? reminderText(
+      ? reminder(
           SMS_DATE.format(new Date(next.startAt)),
           clock.time(next.startAt),
-          joined.clinic?.name ?? "the clinic",
+          joined.clinic?.name ?? t("notifications.fallbackClinic"),
           [joined.clinician?.givenName, joined.clinician?.familyName].filter(Boolean).join(" "),
           next.reference,
         )
-      : reminderText("26/09/2026", "10:00", "Paediatrics Unit", "Esther Mbarga", "APT-4958");
+      : reminder("26/09/2026", "10:00", "Paediatrics Unit", "Esther Mbarga", "APT-4958");
 
   return (
     <>
       <header className="section-head">
-        <h1 id="section-title">Notifications</h1>
-        <p>
-          How Atria reaches you. Confirmations always go to email, because they are your record of the booking. Choosing other channels and
-          lead times arrives in a later release.
-        </p>
+        <h1 id="section-title">{t("sections.notifications")}</h1>
+        <p>{t("notifications.lede")}</p>
       </header>
       <div className="inner-card settings-card">
-        <h3>Channels</h3>
-        <Row icon={Phone} tone="tone-amber" title="SMS reminders" sub="A text 24 hours before every visit" end={<On />} />
-        <Row icon={Mail} tone="tone-green" title="Email confirmations" sub="Booking and cancellation receipts" end={<On />} />
-        <Row icon={Calendar} tone="tone-blue" title="Short-notice bookings" sub="A confirmation text straight away instead" end={<On />} />
+        <h3>{t("notifications.channels")}</h3>
+        <Row icon={Phone} tone="tone-amber" title={t("notifications.sms")} sub={t("notifications.smsSub")} end={<On />} />
+        <Row icon={Mail} tone="tone-green" title={t("notifications.emailConfirm")} sub={t("notifications.emailConfirmSub")} end={<On />} />
+        <Row icon={Calendar} tone="tone-blue" title={t("notifications.shortNotice")} sub={t("notifications.shortNoticeSub")} end={<On />} />
         <PushRow />
       </div>
       <div className="inner-card settings-card">
-        <h3>Reminder timing</h3>
-        <div className="lead-options" role="radiogroup" aria-label="Reminder timing">
+        <h3>{t("notifications.timing")}</h3>
+        <div className="lead-options" role="radiogroup" aria-label={t("notifications.timing")}>
           {[
-            ["48h", "two days", false],
-            ["24h", "one day", true],
-            ["2h", "same day", false],
-          ].map(([value, label, on]) => (
+            ["48h", "lead48", false],
+            ["24h", "lead24", true],
+            ["2h", "lead2", false],
+          ].map(([value, key, on]) => (
             <span key={String(value)} role="radio" aria-checked={Boolean(on)} aria-disabled={!on} className={`lead${on ? " lead-on" : ""}`}>
               <span>{value}</span>
-              <span>{on ? label : "Later release"}</span>
+              <span>{on ? t(`notifications.${key}`) : t("notifications.later")}</span>
             </span>
           ))}
         </div>
@@ -324,7 +338,7 @@ function Notifications() {
           </span>
           <span>
             <span className="sms-preview-label">
-              SMS PREVIEW{reminderAt ? ` · ${clock.day(reminderAt).toUpperCase()}, ${clock.time(reminderAt)}` : ""}
+              {t("notifications.preview")}{reminderAt ? ` · ${clock.day(reminderAt).toUpperCase()}, ${clock.time(reminderAt)}` : ""}
             </span>
             <span className="sms-preview-text">{sample}</span>
           </span>
@@ -334,15 +348,9 @@ function Notifications() {
   );
 }
 
-const PUSH_SUB: Record<PushState, string> = {
-  on: "Every notice also appears on this device",
-  off: "Get every notice on this device as well",
-  blocked: "Blocked in this browser's site settings",
-  unsupported: "This browser cannot show notifications",
-};
-
 /** Notifications on this browser, beside SMS and email, never instead of them. */
 function PushRow() {
+  const { t } = useTranslation("account");
   const [state, setState] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -355,7 +363,7 @@ function PushRow() {
     try {
       setState(await (state === "on" ? turnPushOff() : turnPushOn()));
     } catch (e) {
-      setFailed(e instanceof Error ? e.message : "That did not work. Try again.");
+      setFailed(e instanceof Error ? e.message : t("push.failed"));
     } finally {
       setBusy(false);
     }
@@ -366,12 +374,12 @@ function PushRow() {
       <Row
         icon={Bell}
         tone="tone-blue"
-        title="Notifications on this device"
-        sub={state ? PUSH_SUB[state] : "Checking this browser"}
+        title={t("push.title")}
+        sub={state ? t(`push.${state}`) : t("push.checking")}
         end={
           can ? (
             <button type="button" className="link-button" disabled={busy} onClick={change}>
-              {state === "on" ? "Turn off" : "Turn on"}
+              {state === "on" ? t("push.turnOff") : t("push.turnOn")}
             </button>
           ) : undefined
         }
@@ -382,5 +390,6 @@ function PushRow() {
 }
 
 function On() {
-  return <span className="chip chip-confirmed">On</span>;
+  const { t } = useTranslation("account");
+  return <span className="chip chip-confirmed">{t("notifications.on")}</span>;
 }

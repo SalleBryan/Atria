@@ -25,7 +25,7 @@ Only the pain lane account and the business lane account work in this repo. A th
 3. Audit F05 (staff reactivation, new permission, spec first), F02 (unit deletion dialog and server checks), F06 (size one procedure in the placement dialog), then F11 (withdraw a pending procedure request). Codex diffs exist for F05, F02 and F06.
 4. P2 slice 3 early-call invitations (`EARLY_CALL_INVITE`, `QUEUE_MOVED`, settings on the three levels).
 5. Flutter parity: the slice 2 desk, then the live place on the patient ticket. Flutter cannot run in the owner's Windows path; say so in the PR if `flutter test` was not run.
-6. F16 offline and network-failure recovery, F15 lighter first load, F07 phone-only sign-in wording, F17 label consistency.
+6. F16 offline and network-failure recovery (web built, in review; Flutter parity and idempotency keys remain), F15 lighter first load, F07 phone-only sign-in wording, F17 label consistency.
 7. P3 voice fallback, blocked on the voice provider decision (OI-05).
 
 **Business lane account, proposed in addition to its own backlog (it may decline any in `LOG_BIZ.md`; declined items return to the pain lane):** F04 terms and privacy reachable, F13 failed-message follow-up state, F08 clinician report destination, F14 support and demographic-correction destination, F12 quality-programme control, and the web screens for the usage statement and the report comparison (its log says none exist yet).
@@ -92,7 +92,7 @@ Gotchas (Windows, Git Bash, OneDrive):
 - Prefer DOM measurements over screenshots; screenshots catch animations mid-flight. Use real pointer clicks to test overlays.
 - Set `MSYS_NO_PATHCONV=1` for `/aws/lambda/...` log commands.
 
-## 8. Current state (updated 2026-11-13, pain lane, slice 2 merged, live ticket in CI)
+## 8. Current state (updated 2026-11-13, pain lane, live ticket merged, offline recovery in review)
 - Merged to main: PR 20, PR 21 (handoff, reference library, CLAUDE.md, ADR 0022), PR 22 (queue slice 1: `core/queue.py::next_call`, call preview, per-ticket flags, policy routes), PR 23 (business lane B0 to B2), PR 24 (queue slice 2).
 - Slice 2 is on main: Desk console: call guard (passes over / held with countdown, "Call anyway" needs a reason), markers (Urgent, Late, Not here yet, Passed over), receptionist-only urgent marking (`POST /appointments/{id}/urgent`, `queue.mark_urgent`, reason required, audited), "Rules for today" (session) and "Queue rules" (unit) dialogs, tenant defaults card in Settings ("The queue"). New route `GET /clinics/{id}/queue-policy`. All three levels are settings, never constants.
 - Decision 2026-11-13: only the receptionist marks a ticket urgent. Do not widen it without the owner.
@@ -100,6 +100,7 @@ Gotchas (Windows, Git Bash, OneDrive):
 - P1 built (branch `pain/live-ticket`, from main after PR 24): `GET /appointments/{id}/ticket` (counts and times only, never another patient; `appointment.read` scope; audited as a refreshing read) and the patient ticket screen polls it every 30 seconds: "Ahead of you" and "Likely to be seen around" (estimate from the session's measured consultation length, rounded up to 5 minutes). Core is `core/queue.py::outlook`. The route is `/appointments/{id}/ticket`, not `/tickets/{id}`. The Flutter patient app does not show it yet.
 - Codex is no longer on the project (2026-11-13). Its unfinished worktrees are not merged and not verified; section 1 says how to adopt them.
 - Not built yet (pain lane, in order, section 1): fee in reminders and local-language messages, audit F05, F02, F06, then slice 3 early-call invitations (`EARLY_CALL_INVITE`, `QUEUE_MOVED`, settings on the same three levels).
+- Offline and network-failure recovery (audit F16, web only, branch `pain/offline-recovery`): failed requests are classified and worded in `web/src/api/failure.ts`; `client.ts` retries only GETs, never writes, and flags a write whose outcome is unknown; `network.ts` holds the connection state and `startPolling` (pauses offline and in a hidden tab); `ConnectionBanner` is in both shells; booking, join queue, procedure request and the new-time offer keep what the person chose and say whether it went through. Not built: offline shell or queued writes (owner decision), idempotency keys beyond `POST /appointments` (backend), F15 route splitting (recorded in `LOG_PAIN.md`), Flutter parity.
 - Live dev app: `https://main.dym1ejjx8bhtw.amplifyapp.com`. SMS and email are in AWS sandbox (OI-04): no real patient receives a text yet. The SRS permission matrix PDF does not list the new queue permissions.
 - Open audit findings relevant to the business lane: F08 (clinician report destination), F13 (failed message follow-up state).
 

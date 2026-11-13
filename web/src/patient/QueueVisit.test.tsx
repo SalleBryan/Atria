@@ -89,3 +89,36 @@ describe("TicketDetail, the live place", () => {
     expect(api).not.toHaveBeenCalledWith("/appointments/a-9/ticket");
   });
 });
+
+describe("TicketDetail on a bad connection (audit F16)", () => {
+  const online = vi.spyOn(window.navigator, "onLine", "get");
+  beforeEach(() => {
+    vi.clearAllMocks();
+    online.mockReturnValue(true);
+  });
+
+  it("keeps the last place and says it may be out of date when a refresh fails", async () => {
+    respond({ ahead: 3, expectedStartAt: "2026-11-13T08:45:00Z", next: false });
+    renderTicket();
+    expect(await screen.findByText("3 patients")).toBeInTheDocument();
+    expect(screen.queryByText(/could not refresh your place/)).not.toBeInTheDocument();
+
+    respond("fail");
+    window.dispatchEvent(new Event("online"));
+    expect(await screen.findByText(/could not refresh your place/)).toBeInTheDocument();
+    expect(screen.getByText(/may have changed/)).toBeInTheDocument();
+    expect(screen.getByText("3 patients")).toBeInTheDocument();
+  });
+
+  it("does not read the live place at all while the device is offline, and reads at once when it is back", async () => {
+    online.mockReturnValue(false);
+    respond({ ahead: 2, expectedStartAt: "2026-11-13T08:45:00Z", next: false });
+    renderTicket();
+    expect(await screen.findByText("4 of 9")).toBeInTheDocument();
+    expect(api).not.toHaveBeenCalledWith("/appointments/a-9/ticket");
+
+    online.mockReturnValue(true);
+    window.dispatchEvent(new Event("online"));
+    expect(await screen.findByText("2 patients")).toBeInTheDocument();
+  });
+});

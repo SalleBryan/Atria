@@ -165,4 +165,52 @@ describe("FindCare", () => {
       screen.getByText((_, element) => element?.className === "dock-title" && element.textContent === "Pick a time above to continue"),
     ).toBeInTheDocument();
   });
+
+  it("keeps the chosen time when the connection drops while booking, and a retry sends the same key", async () => {
+    const { ApiError } = await import("../api/client");
+    let calls = 0;
+    const book = vi.fn(() => {
+      calls += 1;
+      if (calls === 1) throw new ApiError(0, "down", undefined, true);
+      return { appointmentId: "a-new", startAt: START, endAt: END, state: "BOOKED" };
+    });
+    respond(book);
+    renderFindCare();
+    const user = await chooseTheTime();
+    await user.click(screen.getByRole("button", { name: "Book appointment" }));
+    expect(await screen.findByText(/cannot tell whether it went through/)).toBeInTheDocument();
+    expect(screen.getByText(/it will not book twice/)).toBeInTheDocument();
+    // Still on the same screen, same time still chosen, nothing sent again by itself.
+    expect(screen.queryByRole("heading", { name: "Someone took that slot." })).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^\d\d:\d\d$/ })).toBeChecked();
+    expect(book).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Book appointment" }));
+    expect(await screen.findByTestId("landed")).toHaveTextContent("/booked/a-new");
+    expect(book).toHaveBeenCalledTimes(2);
+    const keys = (book.mock.calls as unknown as [unknown, { headers: Record<string, string> }][]).map(
+      ([, init]) => init.headers["Idempotency-Key"],
+    );
+    expect(keys[0]).toBe(keys[1]);
+  });
+
+  it("does not call a dropped connection a taken slot", async () => {
+    const { ApiError } = await import("../api/client");
+    respond(() => {
+      throw new ApiError(0, "down");
+    });
+    renderFindCare();
+    const user = await chooseTheTime();
+    await user.click(screen.getByRole("button", { name: "Book appointment" }));
+    expect(await screen.findByText(/You are offline, so nothing was sent/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Someone took that slot." })).not.toBeInTheDocument();
+  });
+
+  it("offers Try again when the directory could not be loaded", async () => {
+    const { ApiError } = await import("../api/client");
+    api.mockRejectedValue(new ApiError(0, "down"));
+    renderFindCare();
+    expect(await screen.findByText(/We could not reach Atria/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
 });

@@ -13,6 +13,8 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
+import { startPolling } from "../api/network";
+import { Notice } from "../components/controls";
 import { Alert, Bell, CheckMark, Clock, Close, Mail } from "../components/icons";
 import { type Appointment, clock, join, stateLabel, ticketWaits, usePatientData } from "./data";
 
@@ -51,31 +53,52 @@ interface Outlook {
   next: boolean;
 }
 
-/** The patient's own place, live: patients ahead and when they are likely to be seen. */
+/**
+ * The patient's own place, live: patients ahead and when they are likely to be seen.
+ *
+ * Read again every 30 seconds while the device is online and the tab is
+ * showing; paused otherwise, and read at once when either ends (audit F16).
+ * When a read fails the last answer stays, with the time it was true, so the
+ * screen can say it may be out of date instead of showing nothing.
+ */
 export function useOutlook(appointmentId: string, active: boolean) {
   const [found, setFound] = useState<Outlook | null>(null);
+  const [asOf, setAsOf] = useState<number | null>(null);
+  const [stale, setStale] = useState(false);
   useEffect(() => {
     if (!active) return;
     let live = true;
-    const read = () =>
-      api<Outlook>(`/appointments/${encodeURIComponent(appointmentId)}/ticket`)
-        .then((data) => live && setFound(data))
-        .catch(() => undefined);
-    void read();
-    const timer = window.setInterval(() => void read(), TICKET_REFRESH_MS);
+    const stop = startPolling(
+      () =>
+        api<Outlook>(`/appointments/${encodeURIComponent(appointmentId)}/ticket`).then(
+          (data) => {
+            if (!live) return;
+            setFound(data);
+            setAsOf(Date.now());
+            setStale(false);
+          },
+          (error: unknown) => {
+            if (live) setStale(true);
+            // Thrown on, so the poller backs off.
+            throw error;
+          },
+        ),
+      TICKET_REFRESH_MS,
+      { immediate: true },
+    );
     return () => {
       live = false;
-      window.clearInterval(timer);
+      stop();
     };
   }, [appointmentId, active]);
-  return found;
+  return { found, asOf, stale };
 }
 
 export function TicketDetail({ appointment, actions }: { appointment: Appointment; actions: React.ReactNode }) {
   const { state } = usePatientData();
   const session = useSession(appointment.sessionId);
   const waitingNow = ticketWaits(appointment.state) || appointment.state === "ARRIVED";
-  const outlook = useOutlook(appointment.appointmentId, waitingNow);
+  const { found: outlook, asOf, stale } = useOutlook(appointment.appointmentId, waitingNow);
   if (state.status !== "ready") return null;
   const { clinic, type } = join(state.data, appointment);
   const status = stateLabel(appointment.state);
@@ -147,6 +170,12 @@ export function TicketDetail({ appointment, actions }: { appointment: Appointmen
                   ? "You are checked in. A doctor is assigned from the queue as one becomes free."
                   : "This visit is closed. It stays in your history."}
           </p>
+          {stale && outlook && asOf && waitingNow ? (
+            <Notice tone="info">
+              We could not refresh your place. It was last updated at {clock.time(new Date(asOf).toISOString())} and may have changed. We
+              keep trying, and come to the desk as planned if you are unsure.
+            </Notice>
+          ) : null}
           <dl className="facts-list">
             <div>
               <dt>Unit</dt>

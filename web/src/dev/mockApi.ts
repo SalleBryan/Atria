@@ -2235,6 +2235,11 @@ export function installMockApi(): void {
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.origin);
     if (!url.pathname.startsWith("/api/")) return real(input, init);
+    // Offline simulation for the preview: window.__atriaNetwork = "down" fails every
+    // request the way a dead connection does; "slow" answers after four seconds.
+    const mode = (window as unknown as { __atriaNetwork?: string }).__atriaNetwork;
+    if (mode === "down") throw new TypeError("Failed to fetch");
+    if (mode === "slow") await new Promise((resolve) => window.setTimeout(resolve, 4000));
     const body = typeof init?.body === "string" ? (JSON.parse(init.body) as unknown) : undefined;
     return answer((init?.method ?? "GET").toUpperCase(), url, body);
   };

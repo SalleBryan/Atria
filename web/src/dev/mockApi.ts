@@ -1229,6 +1229,23 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       400,
     );
   }
+  if (method === "GET" && path === "/messages/usage") {
+    const month = url.searchParams.get("month") ?? clinicDate(new Date()).slice(0, 7);
+    return json(200, {
+      month,
+      from: `${month}-01`,
+      to: `${month}-28`,
+      messages: 120,
+      lines: [
+        { clinicId: "u-rhb-opd", kind: "APPOINTMENT_REMINDER", channel: "SMS", state: "SENT", count: 70 },
+        { clinicId: "u-rhb-opd", kind: "QUEUE_MOVED", channel: "SMS", state: "SENT", count: 20 },
+        { clinicId: "u-rhb-paeds", kind: "BOOKING_CONFIRMATION", channel: "EMAIL", state: "DELIVERED", count: 30 },
+      ],
+      byKind: { APPOINTMENT_REMINDER: 70, BOOKING_CONFIRMATION: 30, QUEUE_MOVED: 20 },
+      byChannel: { EMAIL: 30, SMS: 90 },
+      byState: { DELIVERED: 30, SENT: 90 },
+    });
+  }
   if (method === "GET" && path === "/messages/delivery") {
     const count = Number(url.searchParams.get("days") ?? "14");
     const today = clinicDate(new Date());
@@ -1301,6 +1318,40 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     const rawDate = url.searchParams.get("date") ?? url.searchParams.get("week") ?? new Date().toISOString().slice(0, 10);
     const granularity = (url.searchParams.get("granularity") ?? "week").toLowerCase();
     const mult = granularity === "day" ? 0.2 : granularity === "month" ? 4.2 : granularity === "year" ? 52 : 1;
+    // core/report.change, with an earlier period a tenth smaller and slightly less attended.
+    const earlier = (now: {
+      booked: number;
+      attended: number;
+      noShow: number;
+      cancelled: number;
+      lateCancelled: number;
+      attendance: number;
+    }) => {
+      if (!url.searchParams.get("before")) return {};
+      const was = {
+        booked: Math.round(now.booked * 0.9),
+        attended: Math.round(now.attended * 0.85),
+        noShow: Math.round(now.noShow * 1.2),
+        cancelled: now.cancelled,
+        lateCancelled: now.lateCancelled,
+        open: 0,
+      };
+      const wasRate = Math.round((was.attended / (was.attended + was.noShow)) * 1000) / 1000;
+      const counts = Object.fromEntries(
+        (["booked", "attended", "noShow", "cancelled", "lateCancelled", "open"] as const).map((k) => [
+          k,
+          { before: was[k], after: k === "open" ? 0 : now[k], change: (k === "open" ? 0 : now[k]) - was[k] },
+        ]),
+      );
+      return {
+        comparison: {
+          from: url.searchParams.get("before"),
+          to: url.searchParams.get("before"),
+          counts,
+          attendance: { before: wasRate, after: now.attendance, points: Math.round((now.attendance - wasRate) * 1000) / 10 },
+        },
+      };
+    };
     const figures = (seed: number) => {
       const base = 40 + ((seed * 17) % 60);
       const booked = Math.max(5, Math.round(base * mult));
@@ -1423,6 +1474,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
           granularity,
           firstDay: "2026-09-19",
           ...figures(clinics.indexOf(unit!)),
+          ...earlier(figures(clinics.indexOf(unit!))),
         },
         300,
       );
@@ -1482,6 +1534,14 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         cancelled: sum("cancelled"),
         lateCancelled: sum("lateCancelled"),
         attendance: Math.round((sum("attended") / (sum("attended") + sum("noShow"))) * 1000) / 1000,
+        ...earlier({
+          booked: sum("booked"),
+          attended: sum("attended"),
+          noShow: sum("noShow"),
+          cancelled: sum("cancelled"),
+          lateCancelled: sum("lateCancelled"),
+          attendance: Math.round((sum("attended") / (sum("attended") + sum("noShow"))) * 1000) / 1000,
+        }),
         byChannel: merged(
           units.map((u) => u.byChannel),
           "channel",

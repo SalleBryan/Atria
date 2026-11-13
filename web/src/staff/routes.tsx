@@ -12,6 +12,7 @@ import { BookForPatient } from "./BookForPatient";
 import { PatientRecordPage, Patients } from "./Patients";
 import { QueuePage } from "./Queue";
 import { Messages } from "./Messages";
+import { Onboarding } from "./Onboarding";
 import { Reports } from "./Reports";
 import { RequestsPage } from "./Requests";
 import { RosterPage } from "./Roster";
@@ -42,5 +43,6 @@ export const staffRoutes = (
     <Route path="/console/requests" element={<RequestsPage />} />
     <Route path="/console/reports" element={<Reports />} />
     <Route path="/console/messages" element={<Messages />} />
+    <Route path="/console/onboarding" element={<Onboarding />} />
   </Route>
 );

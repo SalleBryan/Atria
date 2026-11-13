@@ -885,6 +885,8 @@
    text stays as written, so a screen reader and a search read it plainly. */
 .chip {
   flex: none;
+  /* The text of a pill is always centred, also when a grid stretches the pill (user, 2026-11-13). */
+  text-align: center;
   padding: 5px 10px;
   border-radius: 999px;
   font-size: 10.5px;

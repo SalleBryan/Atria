@@ -1125,6 +1125,44 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/WrongState" }
 
+  /appointments/{id}/urgent:
+    post:
+      tags: [Queue and requests]
+      operationId: markUrgent
+      summary: The desk marks a queue place urgent, or clears the mark (ADR 0022)
+      description: |
+        Permission queue.mark_urgent: the receptionist at clinic scope, and no
+        other role (owner decision 2026-11-13). Only a place in the general
+        queue that is still waiting. An urgent place is called before any other
+        who is here and costs nobody a bypass. Marking needs a reason; it is
+        kept with who marked it and when, and the route is audited.
+      parameters:
+        - $ref: "#/components/parameters/AppointmentId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                urgent: { type: boolean, default: true, description: false clears the mark. }
+                reason: { type: string, maxLength: 200, description: Required when marking. }
+      responses:
+        "200":
+          description: The place, with its urgent flag.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Appointment"
+                  - type: object
+                    properties:
+                      urgent: { type: boolean }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
   /appointments/{id}/start:
     post:
       tags: [Schedule]

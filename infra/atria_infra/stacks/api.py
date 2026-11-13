@@ -37,7 +37,17 @@ from atria_infra.stacks.platform import (
 )
 
 # POST /appointments/{id}/<action>, the moves after booking.
-VISIT_ACTIONS = ("reschedule", "confirm", "arrive", "start", "complete", "no-show", "place", "decline")
+VISIT_ACTIONS = (
+    "reschedule",
+    "confirm",
+    "arrive",
+    "start",
+    "complete",
+    "no-show",
+    "place",
+    "decline",
+    "urgent",
+)
 
 
 class ApiStack(Stack):

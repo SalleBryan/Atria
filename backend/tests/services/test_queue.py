@@ -779,3 +779,90 @@ class TestWhoSetsTheQueueRules:
         assert held["statusCode"] == 409
         assert "HELD_FOR_BOOKED_PATIENT" in held["body"]
         assert booked["appointmentId"] in held["body"]
+
+
+class TestOnlyTheReceptionistMarksUrgent:
+    """ADR 0022 R6, owner decision 2026-11-13."""
+
+    @pytest.fixture
+    def waiting(self, opd):
+        _repo, clinician = opd
+        session = body_of(publish())
+        made = body_of(ticket(session["sessionId"]))
+        return session["sessionId"], made["appointmentId"], clinician
+
+    def mark(self, appointment_id, context, **body):
+        return act(appointment_id, "urgent", context=context, body=body or None)
+
+    def test_the_receptionist_marks_a_place_urgent_with_a_reason(self, waiting):
+        _session, appointment, _clinician = waiting
+        done = body_of(
+            self.mark(appointment, staff_context(), reason="bleeding, came in on a stretcher")
+        )
+        assert done["urgent"] is True
+
+    def test_a_reason_is_required(self, waiting):
+        _session, appointment, _clinician = waiting
+        assert self.mark(appointment, staff_context())["statusCode"] == 400
+
+    def test_the_mark_is_cleared(self, waiting):
+        _session, appointment, _clinician = waiting
+        self.mark(appointment, staff_context(), reason="faint")
+        cleared = body_of(self.mark(appointment, staff_context(), urgent=False))
+        assert cleared["urgent"] is False
+
+    def test_a_clinician_cannot_mark_urgent(self, waiting):
+        _session, appointment, clinician = waiting
+        doctor = {
+            "personId": "p-doc",
+            "tenantId": TENANT,
+            "roles": "CLINICIAN",
+            "staffId": clinician,
+            "clinicId": DOUALA,
+        }
+        assert self.mark(appointment, doctor, reason="x")["statusCode"] == 403
+
+    def test_a_unit_manager_cannot_mark_urgent(self, waiting):
+        _session, appointment, _clinician = waiting
+        assert self.mark(appointment, MANAGER, reason="x")["statusCode"] == 403
+
+    def test_a_patient_cannot_mark_their_own_place_urgent(self, waiting):
+        _session, appointment, _clinician = waiting
+        assert self.mark(appointment, patient_context(), reason="x")["statusCode"] == 403
+
+    def test_an_urgent_place_is_called_first(self, waiting):
+        session_id, first, clinician = waiting
+        second = body_of(ticket(session_id, context=staff_context(), patientProfileId="pp-2"))[
+            "appointmentId"
+        ]
+        CLOCK["now"] = dt.datetime(2026, 3, 4, 7, 5, tzinfo=dt.UTC)
+        act(first, "arrive")
+        act(second, "arrive")
+        self.mark(second, staff_context(), reason="chest pain")
+        doctor = {
+            "personId": "p-doc",
+            "tenantId": TENANT,
+            "roles": "CLINICIAN",
+            "staffId": clinician,
+            "clinicId": DOUALA,
+        }
+        called = body_of(
+            call("POST", "/sessions/{id}/next", context=doctor, path={"id": session_id})
+        )
+        assert called["appointmentId"] == second
+
+    def test_only_a_queue_place_can_be_urgent(self, opd):
+        _repo, clinician = opd
+        # A specialist booking is not in the queue.
+        booked = body_of(
+            call(
+                "POST",
+                "/appointments",
+                context=patient_context(),
+                body={"clinicianProfileId": clinician, "startAt": "2026-03-04T09:00:00Z"},
+            )
+        )
+        if "appointmentId" in booked:
+            assert (
+                self.mark(booked["appointmentId"], staff_context(), reason="x")["statusCode"] == 400
+            )

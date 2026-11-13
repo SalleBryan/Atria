@@ -6,6 +6,7 @@
     POST /appointments/{id}/start        the clinician starts the consultation
     POST /appointments/{id}/complete     the clinician closes it
     POST /appointments/{id}/no-show      staff record that nobody came (FR-STF-05)
+    POST /appointments/{id}/urgent       the desk marks a queue place urgent (ADR 0022)
 
 Which moves exist comes from the lifecycle spec (atria_spec.lifecycle), and
 who may make them from the permission matrix. What this module adds is the
@@ -26,9 +27,10 @@ from typing import Any
 from aws_lambda_powertools import Logger
 
 from atria.core import booking as rules
-from atria.core import permissions
-from atria.core.errors import Forbidden, Invalid
+from atria.core import permissions, queue
+from atria.core.errors import Conflict, Forbidden, Invalid
 from atria.core.principal import Principal
+from atria.data import keys
 from atria.data.ledger import CLOSING, Ledger
 from atria.http import requests
 from atria.http.views import appointment_view
@@ -100,6 +102,44 @@ def _moved(
         extra={"appointmentId": appointment["appointmentId"], "state": to_state},
     )
     return appointment_view(moved)
+
+
+def urgent(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    """The desk marks a queue place urgent, or clears the mark (ADR 0022, rule R6).
+
+    Only the receptionist may (queue.mark_urgent). An urgent place outranks
+    position and costs nobody a bypass. A reason is required to mark one and is
+    kept with who marked it and when; the route is audited like any change to a
+    patient's appointment.
+    """
+    caller, appointment = _load(principal, event, "queue.mark_urgent")
+    if not appointment.get("sessionId"):
+        raise Invalid("only a place in the general queue can be marked urgent")
+    if appointment.get("state") not in (*queue.WAITING, "ARRIVED"):
+        raise Conflict("that place is no longer waiting")
+    body = _body(event)
+    flag = body.get("urgent", True)
+    if not isinstance(flag, bool):
+        raise Invalid("urgent must be true or false")
+    data = booking()
+    if flag:
+        reason = str(body.get("reason") or "").strip()
+        if not reason:
+            raise Invalid("say why this patient is urgent")
+        fields: dict[str, Any] = {
+            "urgent": True,
+            "urgentReason": reason[:200],
+            "urgentAt": rules.instant(data.now()),
+            "urgentBy": caller.person_id,
+        }
+    else:
+        fields = {"urgent": False}
+    changed = data.repository.update_existing(
+        keys.appointment(caller.tenant_id, str(appointment["appointmentId"])),
+        set_values=fields,
+        what="appointment",
+    )
+    return {**appointment_view(changed), "urgent": bool(changed.get("urgent"))}
 
 
 def reschedule(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
@@ -302,6 +342,7 @@ ACTIONS = {
     "start": _requeued(start),
     "complete": _requeued(complete),
     "no-show": _requeued(no_show),
+    "urgent": urgent,
     "place": place,
     "decline": decline,
 }

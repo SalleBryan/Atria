@@ -76,9 +76,11 @@ Gotchas (Windows, Git Bash, OneDrive):
 - Prefer DOM measurements over screenshots; screenshots catch animations mid-flight. Use real pointer clicks to test overlays.
 - Set `MSYS_NO_PATHCONV=1` for `/aws/lambda/...` log commands.
 
-## 8. Current state (updated 2026-11-13, pain lane, with the queue slice 1 push)
+## 8. Current state (updated 2026-11-13, pain lane, after queue slice 1 and the urgent-marking decision)
 - Merged to main: PR 20 (fee before booking, cancelled tickets, pickers above dialogs, request wording, per-doctor pace, Flutter pinned to 3.47.5), PR 21 (this handoff, `docs/reference/`, `CLAUDE.md`, ADR 0022). Deploy for PR 20 was approved and running on 2026-11-13: confirm the run and the live app.
 - Open: PR for queue slice 1 (branch `pain/queue-revision`): `core/queue.py::next_call` decides who is called (never idle, bypass bounded, hold, late, urgent); `call_next` applies it; live queue returns `callPreview`, per-ticket flags and `policy`. Queue rules are settings by level: tenant (`PATCH /admin/settings`: `queueHoldMinutes`, `queueLateGraceMinutes`, `queueMaxBypass`), unit (`PATCH /clinics/{id}/queue-policy`), session (`PATCH /sessions/{id}/policy`). New permissions `queue.configure` and `queue.tune_session` (the SRS permission matrix PDF does not list them yet).
+- Decision 2026-11-13: only the receptionist may mark a ticket urgent (permission `queue.mark_urgent`, receptionist clinic scope only, reason required, audited). Do not widen it to clinicians or managers without the owner.
+- PR 22 (slice 1) has all five CI jobs green. PR 20's Deploy succeeded; the dev app has the fee line and fixes.
 - Not built yet (pain lane, in order): slice 2 desk console (call guard, hold countdown, urgent marking with its permission and route, screens to edit the three levels); slice 3 early-call invitations, `EARLY_CALL_INVITE` and `QUEUE_MOVED` messages, invitation settings on the same three levels.
 - Live dev app: `https://main.dym1ejjx8bhtw.amplifyapp.com`. SMS and email are in AWS sandbox (OI-04): no real patient receives a text yet. A test queue session exists for 2026-11-13. The staff list is cluttered with deleted and suspended test accounts (audit F05). A duplicate clinician "Emmanuel Ekane" exists as created data.
 - Open audit findings relevant to the business lane: F18 (percentage denominators), F08 (clinician report destination), F13 (failed message follow-up state).

@@ -59,9 +59,10 @@ present and on time be bypassed more than once, and send invitations in parallel
   due ticket, the console shows: who is bypassed, minutes to their window end, and the expected length of this
   consultation (median of this unit's recent consultations of the type). If the expected end is later than the bypassed
   ticket's window end, the console warns and requires a one-tap confirm. Never blocked, always audited.
-- **R6, urgency override.** A clinician or desk may mark a ticket URGENT with a reason. It outranks position, is
-  audited, and is not counted as a bypass against others. Staff priority otherwise exists only as a granted quota
-  (ADR 0010); do not add another path.
+- **R6, urgency override.** Only a receptionist may mark a ticket URGENT, with a reason (owner's decision, 2026-11-13: the
+  desk sees who arrives and judges urgency; clinicians and managers cannot). It outranks position, is audited, and is not
+  counted as a bypass against others. Permission `queue.mark_urgent`, receptionist at clinic scope, nobody else. Staff priority
+  otherwise exists only as a granted quota (ADR 0010); do not add another path.
 - **R7, the queue moves up for everyone.** Early finishes shorten every later estimate. Recalculate windows from the
   measured consultation length, not a fixed 30 minutes, and text a patient only when their window moves by more than
   the tenant threshold (existing behaviour, `moved_enough`).
@@ -125,7 +126,7 @@ online ticket (existing register rules apply); URGENT while a doctor is mid-cons
 ## Open questions for the owner
 1. (Answered 2026-11-13: these are settings by level, not constants.) Which built-in fallbacks for invitations: lead 5, fan-out 3?
 2. May a patient decline an invitation, and does a decline change anything? (Proposed: no effect on position.)
-3. Who may mark URGENT: clinician and desk, or clinician only?
+3. (Answered 2026-11-13: the receptionist only.)
 4. Is the walk-in reserve share wanted now or later?
 5. Which unit pilots this first? Its measured consultation length seeds R5.
 

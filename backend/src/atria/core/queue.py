@@ -419,6 +419,20 @@ def invite_status(ticket: dict[str, object], now: dt.datetime) -> str | None:
     return "open"
 
 
+def invite_view(ticket: dict[str, object], now: dt.datetime) -> dict[str, object] | None:
+    """An invitation as the desk and the patient see it, or None if there is none."""
+    status = invite_status(ticket, now)
+    if status is None:
+        return None
+    return {
+        "status": status,
+        "sentAt": ticket.get("inviteSentAt"),
+        "expiresAt": ticket.get("inviteExpiresAt"),
+        "answer": ticket.get("inviteAnswer"),
+        "eta": ticket.get("inviteEta"),
+    }
+
+
 def _pending_invite(ticket: dict[str, object], now: dt.datetime) -> bool:
     """An invitation still counts against the fan-out: open, or accepted and not yet due in."""
     status = invite_status(ticket, now)

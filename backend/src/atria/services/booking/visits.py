@@ -34,6 +34,7 @@ from atria.data import keys
 from atria.data.ledger import CLOSING, Ledger
 from atria.http import requests
 from atria.http.views import appointment_view
+from atria.services.booking import queue as queue_service
 from atria.services.booking.appointments import (
     booking,
     flag_self_benefit,
@@ -343,6 +344,7 @@ ACTIONS = {
     "complete": _requeued(complete),
     "no-show": _requeued(no_show),
     "urgent": urgent,
+    "invite-reply": queue_service.reply_invite,
     "place": place,
     "decline": decline,
 }

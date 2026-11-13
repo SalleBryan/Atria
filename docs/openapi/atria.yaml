@@ -1158,6 +1158,7 @@ paths:
                   consultationMinutes: { type: number }
                   expectedStartAt: { type: string, format: date-time }
                   next: { type: boolean, description: Here and nobody ahead. }
+                  invite: { $ref: "#/components/schemas/EarlyCallInvite" }
         "404":
           description: The booking is not a place in a queue.
 
@@ -1193,6 +1194,47 @@ paths:
                   - type: object
                     properties:
                       urgent: { type: boolean }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /appointments/{id}/invite-reply:
+    post:
+      tags: [Queue and requests]
+      operationId: replyToInvite
+      summary: Answer an early-call invitation (ADR 0022 R4)
+      description: |
+        Permission queue.reply_invite: the patient for their own place, or the
+        receptionist at clinic scope recording a reply given by phone. YES records
+        the reply and an ETA (the invitation's closing time); NO records the
+        refusal. Neither moves the place or checks anyone in: a YES patient
+        arrives and is checked in like any arrival. Answering the same way twice
+        is allowed; changing an answer, answering after the invitation closed or
+        after the patient arrived is a 409.
+      parameters:
+        - $ref: "#/components/parameters/AppointmentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answer]
+              properties:
+                answer: { type: string, enum: [YES, NO, yes, no] }
+      responses:
+        "200":
+          description: The place, with its invitation.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Appointment"
+                  - type: object
+                    properties:
+                      invite: { $ref: "#/components/schemas/EarlyCallInvite" }
         "400": { $ref: "#/components/responses/Invalid" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -2074,6 +2116,7 @@ paths:
                                 late: { type: boolean, description: Past its window and grace, or its hold ran out. Lateness forfeits priority. }
                                 bypassCount: { type: integer, description: Consultations started ahead of this ticket while it was due and absent. }
                                 urgent: { type: boolean }
+                                invite: { $ref: "#/components/schemas/EarlyCallInvite" }
                                 fee: { $ref: "#/components/schemas/DeskFee" }
                       walkInFee: { $ref: "#/components/schemas/DeskFee" }
                       patients: { $ref: "#/components/schemas/PatientNames" }
@@ -2083,6 +2126,15 @@ paths:
                       seen: { type: integer }
                       plannedPerHour: { type: number }
                       actualPerHour: { type: [number, "null"] }
+                      invites:
+                        type: object
+                        description: What the desk may do about early-call invitations now (ADR 0022 R4).
+                        properties:
+                          mode: { type: string, enum: [desk, auto] }
+                          fanout: { type: integer }
+                          openMinutes: { type: integer }
+                          open: { type: integer, description: Invitations open now. }
+                          eligible: { type: array, items: { type: string }, description: Tickets the rules allow inviting right now. }
                       callPreview:
                         type: object
                         description: What calling the next patient would do now, so the desk sees the cost first.
@@ -2230,6 +2282,52 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/QueuePolicy" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /sessions/{id}/invites:
+    post:
+      tags: [Queue and requests]
+      operationId: sendEarlyCallInvites
+      summary: The desk invites booked patients to come early (ADR 0022 R4)
+      description: |
+        Permission queue.invite at clinic scope: the receptionist and the unit
+        manager. Invites the absent waiting tickets the rules allow now, by
+        position: only while nobody is here, a doctor is free or within the lead
+        time of being free, and fewer than the fan-out are open. Each ticket is
+        invited at most once; each invitation owes the patient one SMS
+        (EARLY_CALL_INVITE) and a push. An invitation never holds the doctor and
+        moves nobody. With mode auto the same rules run by themselves when the
+        desk's live queue is read and after a call.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                appointmentIds:
+                  type: array
+                  minItems: 1
+                  items: { type: string }
+                  description: Invite only these, which must be among those the rules allow now.
+      responses:
+        "200":
+          description: The tickets invited.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invited: { type: array, items: { type: string } }
+                  openMinutes: { type: integer }
         "400": { $ref: "#/components/responses/Invalid" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -2682,6 +2780,15 @@ components:
         inviteFanout: { type: [integer, "null"], minimum: 0, maximum: 10, description: How many invitations may be out at once. 0 sends none. }
         inviteOpenMinutes: { type: [integer, "null"], minimum: 5, maximum: 120, description: How long an invitation stays open, and the time the patient is asked to arrive within. }
         earlyCallInvites: { type: [string, "null"], enum: [desk, auto, null], description: "desk: only the desk sends invitations. auto: the system sends them when a doctor is about to be free and nobody is here." }
+    EarlyCallInvite:
+      type: [object, "null"]
+      description: A ticket's early-call invitation, or null if it was never invited.
+      properties:
+        status: { type: string, enum: [open, accepted, declined, expired] }
+        sentAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        answer: { type: [string, "null"], enum: [YES, NO, null] }
+        eta: { type: [string, "null"], format: date-time }
     QueuePolicy:
       type: object
       properties:

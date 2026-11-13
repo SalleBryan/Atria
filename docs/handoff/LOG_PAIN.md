@@ -18,6 +18,11 @@ Append status notes here. Only the pain lane edits this file.
 - Next: patient live ticket view, voice and local-language reminders, fee in reminders.
 - Pain lane split between Claude (P1 to P3) and Codex (X1 to X4) is in the handoff, section 1. Codex notes go under a "Codex" heading below; requests for Claude's files go under "Codex requests".
 
+## 2026-11-13 (later), Claude: language options (branch `pain/language-options`)
+- French and Cameroonian Pidgin added beside English. Backend and spec: region pack `pcm`, notices and Cognito emails honour the saved `preferredLanguage`, `language_for` fixed. Web: i18n foundation, header switcher, Account, Edit details and Home translated.
+- This takes Codex's X2 (local-language messages) for notices and account emails; Codex, skip those parts. Fee in reminders (X1) is untouched.
+- Pidgin is unreviewed. Not done: remaining screens, staff, Flutter, FR-REM-10. Full CI not run by me (owner said not to); not pushed.
+
 ## Codex
 
 ## Codex requests
@@ -60,10 +65,28 @@ Branch `pain/offline-recovery`, web only. Audit F16 done for the web client; F15
 - Decisions left for the owner: (1) whether to cache an offline app shell with a service worker (F16 asks for minimal retained data; a stale shell after a deploy is a risk), (2) idempotency keys for tickets, procedure requests, reschedule and cancel (backend; today only `POST /appointments` has them), (3) whether the poll interval and backoff should become a setting.
 - F15: measured with this branch, main chunk 1,949 kB (586 kB gzip), `exceljs` already its own 929 kB chunk loaded on export, jsPDF's html2canvas and purify already split. The remaining win is route level `lazy()` for `staff/routes.tsx` and `patient/routes.tsx` plus a Suspense in the two shells. Not done: about 15 tests render `staffRoutes` synchronously and a first lazy import in jsdom can exceed their 1 s waits, and `Reports.tsx` and `StaffAccounts.tsx` are business lane hotspots. Own PR, with a bundle budget for the patient entry path.
 
+## 2026-11-13 (fee in reminders)
+- Branch `pain/fee-in-reminders`: fee line in the confirmation and reminder by SMS and email (`core/notices.py::fee_text`, `rows_of`, `compose(fee=...)`; `services/notify/sender.py::appointment_fee`). The language work is left to the other account. Owner decisions recorded: MTN is the provider (OI-05), Flutter deferred.
+
+
 ## 2026-11-13 (slice 3, PR 1 of 4)
 - Branch `pain/early-call`: pure invitation rules and settings. `core/queue.py`: `Policy` gains `invite_lead_minutes`, `invite_fanout`, `invite_open_minutes`, `early_call_invites`; `resolve_policy` and `policy_changes` handle them (one is a word, desk or auto); `invite_status`, `doctor_free_within`, `invite_targets` are the new pure functions. Tenant fields `queueInviteLeadMinutes`, `queueInviteFanout`, `queueInviteOpenMinutes`, `queueEarlyCallInvites` in `core/settings.py` and `services/admin/settings.py`; unit `queuePolicy` and session `policy` take the short names. `policy_view` returns them. Nothing sends anything yet.
 - Decision to confirm: ADR 0022 R4 says a YES records an ETA and moves nothing, the task brief said a YES checks the patient in. The ADR wins, so a YES will not check anyone in; the patient arrives and checks in normally. The fallback for `earlyCallInvites` is `desk`.
 - Next: PR 2 the `EARLY_CALL_INVITE` notice, sender and outbox; PR 3 the desk invite route and the patient reply route; PR 4 the desk screen and the settings fields.
+
+## 2026-11-13 (slice 3, PR 2 of 4)
+- Branch `pain/early-call-notice` (stacked on `pain/early-call`): `EARLY_CALL_INVITE` is a new message kind, SMS only, one segment, plain ASCII, English and French wording (French stays off behind `OFFERED`). Added to `core/notices.py` (`KINDS`, `SMS_TEXT`, `invite_minutes`), `services/notify/outbox.py` (an `inviteSentAt` written on a waiting ticket owes one SMS), `services/notify/sender.py` (still true only while the ticket is waiting and the invitation is open and unanswered; it pushes itself) and the web message log label. The message log row carries the kind, so the business lane's metering counts it with no change.
+- Not touched: `language_for`, `OFFERED`, Flutter (the `oversight.dart` kind label is left for the Flutter slice).
+
+## 2026-11-13 (slice 3, PR 3 of 4)
+- Branch `pain/early-call-routes` (stacked on `pain/early-call-notice`): `POST /sessions/{id}/invites` (permission `queue.invite`: receptionist and unit manager, clinic scope) and `POST /appointments/{id}/invite-reply` (`queue.reply_invite`: the patient for their own place, the receptionist for a reply given by phone). Spec first, regenerated. Both are in `http/audit.py`, `infra/.../api.py` (an `invites` resource and the `invite-reply` visit action) with `infra/tests/test_stacks.py`, and `docs/openapi/atria.yaml`.
+- The live queue now returns `invites` (mode, fan-out, open count, eligible tickets) and an `invite` object per ticket; the patient's `GET /appointments/{id}/ticket` returns their own `invite`. In `auto` mode the invitations go out when the desk's live queue is read and after a call (there is no scheduler yet, so they do not go out with the desk closed). Not verified against real SMS: MTN is not wired and SMS is in the AWS sandbox.
+- A YES records the reply and an ETA only; it does not check the patient in (ADR 0022 R4).
+
+## 2026-11-13 (slice 3, PR 4 of 4)
+- Branch `pain/early-call-desk` (stacked on `pain/early-call-routes`): the desk's "Invite to come earlier" button and per-ticket chips (Invited, Coming by HH:MM, Said no, Invite ended) in `web/src/staff/Queue.tsx`; the four invitation rules added to the session and unit dialog (`QueueRules.tsx`, a heading and seven rules) and to the tenant Settings card ("The queue"); a Yes or No answer on the patient's ticket (`patient/QueueVisit.tsx`); mock API and web tests. The invitation mode (desk or automatic) is the one rule that is a word, so `KNOBS` stays numeric and `INVITE_MODE` sits beside it.
+- Verified in the dev preview (`/__preview?as=opd&at=/console/queue`; the screen is `/console/queue`, not `/queue`) at 1280x720 and 375x812: the rules dialog has all seven rules, scrolls inside, no horizontal overflow. Not verified in the browser: the enabled invite button and the chips (the mock's morning session has patients here, and the walk-in search gave no suggestions in the preview); those are covered by vitest only.
+- Flutter: not done (deferred by the owner). `app/lib/staff/oversight.dart` has a kind label map that lacks `EARLY_CALL_INVITE`; add it in the Flutter slice.
 
 ## 2026-11-13 (fee on the desk)
 - Branch `pain/desk-fee` from `origin/main`: the live queue shows the fee each place will be asked for ("Fee 5,000 XAF", "Free", nothing when the type has no band) and the walk-in dialog states the walk-in fee. Backend `FeeLookup` (one band read per type, band in force on the session date). Touched `services/booking/queue.py` only in `live_queue` and a small `walk_in_fee` helper, plus the queue view in `Queue.tsx`, so the early-call work should rebase cleanly.
@@ -77,3 +100,5 @@ Branch `pain/offline-recovery`, web only. Audit F16 done for the web client; F15
 - Root cause of the failed dev deploys: booking function resource policy over 20,480 bytes (two statements per API method). Fix on `fix/lambda-policy-size`: one API invoke statement per function, with a test.
 - Ran every pain point flow in the dev preview on the PR 36 code: desk guard, hold and Call anyway, urgent, rules dialog, fee on every place, patient join and live ticket, language switch (Home, Account, Edit details are translated; other screens are still English), offline notice and recovery, phone width.
 - Pitch deck published as an artifact; cost model in `docs/reference/research/atria_cost_model.py`.
+
+- PR 35 integrates the fee and invitation templates with all three message languages.

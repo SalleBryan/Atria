@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 
 import type { Me } from "../api/client";
 import { SessionContext } from "../auth/session";
+import { LanguageProvider } from "../i18n/LanguageProvider";
 import { Account } from "./Account";
 import { PatientDataProvider } from "./data";
 
@@ -27,7 +28,7 @@ const ME = {
 
 const AHEAD = new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
 
-function renderAccount(signOut = vi.fn()) {
+function renderAccount(signOut = vi.fn(), me: Me = ME) {
   api.mockImplementation(async (path: string) => {
     if (path.startsWith("/patients/me/appointments")) {
       return {
@@ -78,13 +79,15 @@ function renderAccount(signOut = vi.fn()) {
     }
     return { gridUnitMinutes: 10, appointmentTypes: [] };
   });
-  const session = { state: { status: "signed-in", me: ME, audience: "patient" }, refresh: vi.fn(), signOut };
+  const session = { state: { status: "signed-in", me, audience: "patient" }, refresh: vi.fn(), signOut };
   render(
     <SessionContext.Provider value={session as never}>
       <MemoryRouter>
-        <PatientDataProvider>
-          <Account />
-        </PatientDataProvider>
+        <LanguageProvider>
+          <PatientDataProvider>
+            <Account />
+          </PatientDataProvider>
+        </LanguageProvider>
       </MemoryRouter>
     </SessionContext.Provider>,
   );
@@ -92,7 +95,10 @@ function renderAccount(signOut = vi.fn()) {
 }
 
 describe("Account", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
 
   it("shows what Atria holds, with the mobile masked and its verification", async () => {
     renderAccount();
@@ -137,5 +143,49 @@ describe("Account", () => {
     await user.click(await screen.findByRole("button", { name: "Sign out" }));
     await user.click(screen.getByRole("menuitem", { name: /All devices/ }));
     expect(signOut).toHaveBeenCalledWith({ everywhere: true });
+  });
+
+  // NFR-L10N-01: the screen speaks the chosen language; NFR-L10N-02: dates follow it.
+  it.each([
+    [
+      "fr",
+      "Informations personnelles",
+      "pas encore vérifié",
+      "Modifier votre mobile",
+      "02/04/1990",
+      /^Rappel Atria: RDV le \d{2}\/\d{2}\/\d{4} a \d{2}:\d{2}, Medical Outpatient Unit, Esther Mbarga\. Ref APT-1\. Pour annuler: application Atria\.$/,
+    ],
+    [
+      "pcm",
+      "Yu details",
+      "dem no don verify am yet",
+      "Change yu mobile",
+      "02 April 1990",
+      /^Atria reminder: appointment \d{2}\/\d{2}\/\d{4} fo \d{2}:\d{2}, Medical Outpatient Unit, Esther Mbarga\. Ref APT-1\. Fo cancel: Atria app\.$/,
+    ],
+    [
+      "en",
+      "Personal details",
+      "not verified yet",
+      "Change your mobile",
+      "02 April 1990",
+      /^Atria reminder: appointment \d{2}\/\d{2}\/\d{4} at \d{2}:\d{2}, Medical Outpatient Unit, Esther Mbarga\. Ref APT-1\. To cancel: Atria app\.$/,
+    ],
+  ])("shows the details and the SMS preview in %s (NFR-L10N-01)", async (lng, heading, unverified, change, born, sms) => {
+    localStorage.setItem("atria.language", lng);
+    renderAccount(vi.fn(), { ...ME, dateOfBirth: "1990-04-02" } as Me);
+    expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(unverified))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: change })).toBeInTheDocument();
+    expect(screen.getByText(born)).toBeInTheDocument();
+    await userEvent.setup().click(screen.getAllByRole("button", { name: /Notifications/ })[0] as HTMLElement);
+    expect(await screen.findByText(sms)).toBeInTheDocument();
+  });
+
+  it("offers the three languages (NFR-L10N-01)", async () => {
+    renderAccount();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Language/ }));
+    for (const name of ["English", "Français", "Pidgin"]) expect(screen.getByRole("option", { name })).toBeInTheDocument();
   });
 });

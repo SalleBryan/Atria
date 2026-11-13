@@ -23,6 +23,8 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import type { Me } from "../api/client";
 import { SessionContext } from "../auth/session";
+import "../i18n";
+import { LanguageProvider } from "../i18n/LanguageProvider";
 import { patientRoutes } from "../patient/routes";
 import { staffRoutes } from "../staff/routes";
 import { setPreviewCaller } from "./mockApi";
@@ -191,13 +193,15 @@ export default function Preview() {
   );
   return (
     <SessionContext.Provider value={session}>
-      <MemoryRouter initialEntries={[start]}>
-        <Routes>
-          {patientRoutes}
-          {staffRoutes}
-          <Route path="*" element={<p style={{ padding: 24 }}>The preview has no screen at this address.</p>} />
-        </Routes>
-      </MemoryRouter>
+      <LanguageProvider>
+        <MemoryRouter initialEntries={[start]}>
+          <Routes>
+            {patientRoutes}
+            {staffRoutes}
+            <Route path="*" element={<p style={{ padding: 24 }}>The preview has no screen at this address.</p>} />
+          </Routes>
+        </MemoryRouter>
+      </LanguageProvider>
     </SessionContext.Provider>
   );
 }

@@ -7,6 +7,8 @@
     GET  /sessions/{id}/queue           the desk's live queue, in position order
     GET  /appointments/{id}/ticket      the patient's own place: patients ahead, expected start
     POST /sessions/{id}/next            a doctor takes the next patient who has arrived
+    POST /sessions/{id}/invites         the desk invites booked patients to come early (ADR 0022 R4)
+    POST /appointments/{id}/invite-reply  a patient (or the desk, for a phone reply) answers one
     POST /sessions/{id}/close           the manager closes it, recording what it achieved
 
 The general line queues rather than holding time (D-01). A position is the
@@ -355,6 +357,7 @@ def live_queue(principal: Principal, event: dict[str, Any], *, people: People) -
     if not principal.is_staff:
         raise Forbidden("the live queue is the desk's")
     recalculate(principal.tenant_id, session_id)
+    auto_invite(principal.tenant_id, session)
     tickets = store.tickets(principal.tenant_id, session_id)
     seen = [t for t in tickets if t.get("state") in ("COMPLETED", "AWAITING_FEEDBACK")]
     window = window_of(session, booking().zone(principal.tenant_id))
@@ -388,6 +391,9 @@ def live_queue(principal: Principal, event: dict[str, Any], *, people: People) -
             tickets, session, policy_in_force(principal.tenant_id, session)[0]
         ),
         "policy": policy_view(principal.tenant_id, session),
+        "invites": invite_outlook(
+            tickets, session, policy_in_force(principal.tenant_id, session)[0]
+        ),
     }
 
 
@@ -420,6 +426,7 @@ def ticket_outlook(principal: Principal, event: dict[str, Any]) -> dict[str, Any
         "issuedTickets": session.get("issuedTickets"),
         "arrivalWindowStart": mine.get("arrivalWindowStart"),
         "arrivalWindowEnd": mine.get("arrivalWindowEnd"),
+        "invite": queue.invite_view(mine, booking().now()),
         **queue.outlook(
             tickets,
             mine,
@@ -440,6 +447,7 @@ def ticket_flags(ticket: dict[str, Any], now: dt.datetime) -> dict[str, Any]:
         else False,
         "bypassCount": int(str(ticket.get("bypassCount") or 0)),
         "urgent": bool(ticket.get("urgent")),
+        "invite": queue.invite_view(ticket, now),
     }
 
 
@@ -559,6 +567,160 @@ def policy_view(tenant_id: str, session: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _pace(session: dict[str, Any]) -> tuple[int, float]:
+    return (
+        int(session.get("rosteredClinicianCount") or 1),
+        float(str(session.get("expectedThroughputPerHour") or queue.SEEDED_THROUGHPUT_PER_HOUR)),
+    )
+
+
+def invite_outlook(
+    tickets: list[dict[str, Any]], session: dict[str, Any], policy: queue.Policy
+) -> dict[str, Any]:
+    """What the desk may do about early-call invitations now (ADR 0022 R4)."""
+    now = booking().now()
+    rostered, per_hour = _pace(session)
+    eligible = queue.invite_targets(tickets, now, policy, rostered=rostered, per_hour=per_hour)
+    return {
+        "mode": policy.early_call_invites,
+        "fanout": policy.invite_fanout,
+        "openMinutes": policy.invite_open_minutes,
+        "open": sum(1 for t in tickets if queue.invite_status(t, now) == "open"),
+        "eligible": [str(t["appointmentId"]) for t in eligible],
+    }
+
+
+def write_invites(
+    tenant_id: str, targets: tuple[dict[str, Any], ...], policy: queue.Policy, *, by: str
+) -> list[str]:
+    """Record an invitation on each ticket. The stream turns each write into one SMS."""
+    data = booking()
+    now = data.now()
+    closes = now + dt.timedelta(minutes=policy.invite_open_minutes)
+    sent = []
+    for ticket in targets:
+        sessions().set_fields(
+            tenant_id,
+            str(ticket["appointmentId"]),
+            {
+                "inviteSentAt": rules.instant(now),
+                "inviteExpiresAt": rules.instant(closes),
+                "inviteBy": by,
+            },
+        )
+        sent.append(str(ticket["appointmentId"]))
+    if sent:
+        logger.info("early-call invitations sent", extra={"count": len(sent), "by": by})
+    return sent
+
+
+def auto_invite(tenant_id: str, session: dict[str, Any]) -> list[str]:
+    """In automatic mode, invite whoever the rules allow. Never blocks anyone (R4).
+
+    There is no scheduler yet, so this runs when the desk's live queue is read and
+    after a call; both happen as often as a doctor frees up while the desk is open.
+    """
+    if session.get("status") == "CLOSED":
+        return []
+    policy, _source = policy_in_force(tenant_id, session)
+    if policy.early_call_invites != "auto":
+        return []
+    rostered, per_hour = _pace(session)
+    tickets = sessions().tickets(tenant_id, str(session["sessionId"]))
+    targets = queue.invite_targets(
+        tickets, booking().now(), policy, rostered=rostered, per_hour=per_hour
+    )
+    return write_invites(tenant_id, targets, policy, by="system")
+
+
+def invite(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    """The desk invites booked patients who are not here to come earlier (ADR 0022 R4).
+
+    With no body it invites everyone the rules allow right now; with
+    appointmentIds it invites only those among them. An invitation never holds
+    the doctor and moves nobody.
+    """
+    store = sessions()
+    session = store.session(principal.tenant_id, requests.path_parameter(event, "id"))
+    permissions.require(
+        principal,
+        "queue.invite",
+        Subject(tenant_id=principal.tenant_id, clinic_id=str(session["clinicId"])),
+    )
+    if session.get("status") == "CLOSED":
+        raise Conflict("that session is closed")
+    body = requests.json_body(event) if event.get("body") else {}
+    wanted = body.get("appointmentIds")
+    if wanted is not None and (
+        not isinstance(wanted, list) or not wanted or not all(isinstance(i, str) for i in wanted)
+    ):
+        raise Invalid("appointmentIds is a list of ticket ids")
+    policy, _source = policy_in_force(principal.tenant_id, session)
+    rostered, per_hour = _pace(session)
+    tickets = store.tickets(principal.tenant_id, str(session["sessionId"]))
+    targets = queue.invite_targets(
+        tickets, booking().now(), policy, rostered=rostered, per_hour=per_hour
+    )
+    if wanted is not None:
+        allowed = {str(t["appointmentId"]) for t in targets}
+        refused = sorted(set(wanted) - allowed)
+        if refused:
+            raise Conflict(
+                "those tickets cannot be invited now",
+                detail={"rule": "NOT_INVITABLE", "appointmentIds": refused},
+            )
+        targets = tuple(t for t in targets if str(t["appointmentId"]) in set(wanted))
+    if not targets:
+        raise Conflict(
+            "nobody can be invited right now",
+            detail={"rule": "NOBODY_TO_INVITE"},
+        )
+    sent = write_invites(principal.tenant_id, targets, policy, by=principal.person_id)
+    return {"invited": sent, "openMinutes": policy.invite_open_minutes}
+
+
+def reply_invite(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    """A patient answers an early-call invitation; the desk may record a phone reply.
+
+    YES records the reply and an ETA, NO records the refusal; neither changes the
+    ticket's place or state. A YES does not check anyone in: the patient arrives
+    and is checked in like any arrival (R4).
+    """
+    appointment_id = requests.path_parameter(event, "id")
+    data = booking()
+    appointment = data.appointment(principal.tenant_id, appointment_id)
+    subject = subject_of(appointment)
+    caller = permissions.effective_principal(principal, subject)
+    permissions.require(caller, "queue.reply_invite", subject)
+    body = requests.json_body(event) if event.get("body") else {}
+    answer = str(body.get("answer") or "").upper()
+    if answer not in ("YES", "NO"):
+        raise Invalid("answer is YES or NO")
+    if not appointment.get("sessionId") or not appointment.get("inviteSentAt"):
+        raise Conflict("there is no invitation to answer", detail={"rule": "NO_INVITATION"})
+    now = data.now()
+    status = queue.invite_status(appointment, now)
+    if status in ("accepted", "declined"):
+        if appointment.get("inviteAnswer") == answer:
+            return {**appointment_view(appointment), "invite": queue.invite_view(appointment, now)}
+        raise Conflict("that invitation was already answered", detail={"rule": "ALREADY_ANSWERED"})
+    if status == "expired":
+        raise Conflict("that invitation has closed", detail={"rule": "INVITATION_CLOSED"})
+    if appointment.get("state") not in queue.WAITING:
+        raise Conflict("that place is no longer waiting")
+    session = sessions().session(principal.tenant_id, str(appointment["sessionId"]))
+    if session.get("status") == "CLOSED":
+        raise Conflict("that session is closed")
+    fields: dict[str, Any] = {"inviteAnswer": answer, "inviteReplyAt": rules.instant(now)}
+    if answer == "YES":
+        # The patient has until the invitation's own closing time to be here.
+        fields["inviteEta"] = appointment.get("inviteExpiresAt")
+    changed = data.repository.update_existing(
+        keys.appointment(principal.tenant_id, appointment_id), set_values=fields, what="appointment"
+    )
+    return {**appointment_view(changed), "invite": queue.invite_view(changed, now)}
+
+
 def call_next(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     """The next patient who is here goes in to a doctor (FR-BKG-13, ADR 0022).
 
@@ -637,6 +799,7 @@ def call_next(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     if session.get("status") == "OPEN":
         store.update(principal.tenant_id, session_id, {"status": "RUNNING"})
     recalculate(principal.tenant_id, session_id)
+    auto_invite(principal.tenant_id, session)
     return appointment_view(moved)
 
 
@@ -689,6 +852,8 @@ def route(principal: Principal, event: dict[str, Any], *, people: People) -> dic
         return ticket_outlook(principal, event)
     if method == "POST" and resource.endswith("/sessions/{id}/next"):
         return call_next(principal, event)
+    if method == "POST" and resource.endswith("/sessions/{id}/invites"):
+        return invite(principal, event)
     if method == "POST" and resource.endswith("/sessions/{id}/close"):
         return close(principal, event)
     if method == "PATCH" and resource.endswith("/sessions/{id}/policy"):

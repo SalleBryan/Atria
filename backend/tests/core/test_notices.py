@@ -22,6 +22,8 @@ APPOINTMENT = {
     "reference": "APT-0123456789",
     "startAt": "2026-03-04T08:00:00Z",
     "endAt": "2026-03-04T08:30:00Z",
+    "inviteSentAt": "2026-03-04T07:50:00Z",
+    "inviteExpiresAt": "2026-03-04T08:10:00Z",
 }
 
 
@@ -35,18 +37,9 @@ SENT_PAIRS = [
     (notices.BOOKING_RESCHEDULED, "EMAIL"),
     (notices.BOOKING_DISRUPTED, "EMAIL"),
     (notices.QUEUE_MOVED, "SMS"),
+    (notices.EARLY_CALL_INVITE, "SMS"),
     (notices.BOOKING_DECLINED, "EMAIL"),
 ]
-
-
-# What ships in Phase 1, read before the fixture below turns French on.
-SHIPPED = notices.OFFERED
-
-
-@pytest.fixture(autouse=True)
-def french_on(monkeypatch):
-    """The French wording is tested as it will ship in the next phase."""
-    monkeypatch.setattr(notices, "OFFERED", notices.LANGUAGES)
 
 
 def compose(kind: str = notices.BOOKING_CONFIRMATION, **overrides):
@@ -176,11 +169,14 @@ class TestLanguage:
     def test_french_is_recognised_however_it_is_written(self, preferred):
         assert notices.language_for(preferred) == "fr"
 
-    def test_french_waits_for_the_next_phase(self, monkeypatch):
-        """Everything a person sees is English in Phase 1, preference or not."""
-        monkeypatch.setattr(notices, "OFFERED", SHIPPED)
-        assert notices.language_for("fr-CM") == "en"
-        assert compose(language="fr").subject.startswith("Appointment confirmed")
+    @pytest.mark.parametrize("preferred", ["pcm", "PCM", "pcm-CM", " pcm "])
+    def test_pidgin_is_recognised_however_it_is_written(self, preferred):
+        """NFR-L10N-01: the three languages a person can choose are all offered.
+        The old two-letter cut would have turned pcm into 'pc'."""
+        assert notices.language_for(preferred) == "pcm"
+
+    def test_every_language_is_offered(self):
+        assert notices.OFFERED == ("en", "fr", "pcm")
 
     def test_english_is_recognised(self):
         assert notices.language_for("en-GB") == "en"
@@ -190,9 +186,8 @@ class TestLanguage:
         """A patient should still hear about their appointment."""
         assert notices.language_for(preferred) == notices.DEFAULT_LANGUAGE
 
-    def test_english_until_a_patient_can_choose(self):
-        """No screen sets a language yet, so French would be imposed with no
-        way out. A preference on record still wins."""
+    def test_english_for_a_person_who_has_not_chosen(self):
+        """A preference on record wins; with none, English (owner, 2026-09-24)."""
         assert notices.language_for(None) == "en"
         assert compose(language=None).subject.startswith("Appointment confirmed")
         assert compose(language="fr").subject.startswith("Rendez-vous confirmé")
@@ -200,6 +195,22 @@ class TestLanguage:
     def test_the_template_records_which_wording_was_used(self):
         assert compose(language="en").template == "booking_confirmation.en"
         assert compose(language="fr").template == "booking_confirmation.fr"
+
+    def test_a_pidgin_notice_is_composed_for_every_pair(self):
+        """FR-REM-09, CX-2: reminders and notices exist in Pidgin. The wording
+        is a draft awaiting a native speaker (atria.core.pidgin)."""
+        for kind, channel in SENT_PAIRS:
+            notice = compose(kind, channel=channel, language="pcm")
+            assert notice.language == "pcm"
+            assert notice.template.endswith(".pcm")
+            assert notice.body
+
+    def test_pidgin_sms_stays_one_ascii_segment(self):
+        for kind, channel in SENT_PAIRS:
+            if channel == "SMS":
+                body = compose(kind, channel="SMS", language="pcm").body
+                assert body.isascii()
+                assert len(body) <= notices.SMS_SEGMENT
 
     def test_every_notice_sent_exists_in_every_language(self):
         for kind, channel in SENT_PAIRS:
@@ -292,3 +303,113 @@ class TestSms:
     def test_a_cancellation_is_not_sent_by_sms(self):
         with pytest.raises(Invalid):
             compose(notices.BOOKING_CANCELLATION, channel="SMS")
+
+
+class TestFee:
+    """The fee is stated in the notices that tell a patient about a visit (cost transparency)."""
+
+    FEE = (15000, "XAF")
+
+    def test_the_reminder_sms_states_the_fee(self):
+        text = compose(
+            notices.APPOINTMENT_REMINDER, channel="SMS", language="en", fee=self.FEE
+        ).body
+        assert "Fee: 15,000 XAF." in text
+
+    def test_french_groups_thousands_with_a_space_and_stays_ascii(self):
+        text = compose(
+            notices.APPOINTMENT_REMINDER, channel="SMS", language="fr", fee=self.FEE
+        ).body
+        assert "Tarif: 15 000 XAF." in text
+        assert text.isascii()
+
+    def test_a_fee_of_nothing_says_free(self):
+        en = compose(
+            notices.BOOKING_CONFIRMATION, channel="SMS", language="en", fee=(0, "XAF")
+        ).body
+        fr = compose(
+            notices.BOOKING_CONFIRMATION, channel="SMS", language="fr", fee=(0, "XAF")
+        ).body
+        assert "Fee: free." in en
+        assert "Tarif: gratuit." in fr
+
+    def test_a_visit_with_no_fee_band_says_nothing_about_a_fee(self):
+        for channel in ("SMS", "EMAIL"):
+            text = compose(notices.APPOINTMENT_REMINDER, channel=channel, language="en").body
+            assert "Fee" not in text
+            assert "XAF" not in text
+
+    def test_the_longest_reminder_and_confirmation_still_fit_one_segment_with_a_fee(self):
+        for language in notices.LANGUAGES:
+            for kind in (notices.APPOINTMENT_REMINDER, notices.BOOKING_CONFIRMATION):
+                text = compose(
+                    kind,
+                    channel="SMS",
+                    language=language,
+                    clinic_name="Hopital General de Douala",
+                    clinician_name="Dr Marie-Claire Nkengfack",
+                    fee=(150000, "XAF"),
+                ).body
+                assert len(text) <= notices.SMS_SEGMENT, (kind, language, len(text))
+
+    def test_the_email_lists_the_fee_in_text_and_html(self):
+        for kind in (notices.APPOINTMENT_REMINDER, notices.BOOKING_CONFIRMATION):
+            notice = compose(kind, language="en", fee=self.FEE)
+            assert "Fee: 15,000 XAF" in notice.body
+            assert "15,000 XAF" in notice.html
+
+    def test_a_queue_place_states_the_fee_too(self):
+        ticket = {**APPOINTMENT, "sessionId": "s-1", "position": 3}
+        notice = compose(
+            notices.APPOINTMENT_REMINDER, appointment=ticket, language="en", fee=self.FEE
+        )
+        assert "Fee: 15,000 XAF" in notice.body
+
+    def test_pidgin_confirmation_and_reminder_state_the_fee(self):
+        for kind in (notices.BOOKING_CONFIRMATION, notices.APPOINTMENT_REMINDER):
+            sms = compose(kind, channel="SMS", language="pcm", fee=self.FEE)
+            email = compose(kind, language="pcm", fee=self.FEE)
+            assert "15,000 XAF" in sms.body
+            assert "15,000 XAF" in email.body
+
+    def test_other_notices_do_not_carry_a_fee(self):
+        for kind in (notices.BOOKING_CANCELLATION, notices.BOOKING_RESCHEDULED):
+            assert "XAF" not in compose(kind, language="en", fee=self.FEE).body
+
+    def test_a_fee_carries_no_rating_or_score(self):
+        text = compose(
+            notices.APPOINTMENT_REMINDER, channel="SMS", language="en", fee=self.FEE
+        ).body
+        assert "rating" not in text.lower()
+
+
+class TestEarlyCallInvite:
+    """ADR 0022 R4: the invitation is one plain SMS that says how long the patient has."""
+
+    def test_the_invitation_says_how_long_the_patient_has_and_where(self):
+        notice = compose(notices.EARLY_CALL_INVITE, channel="SMS", language="en")
+        assert "within 20 min" in notice.body
+        assert "Douala Clinic" in notice.body
+        assert "APT-0123456789" in notice.body
+
+    def test_the_invitation_never_says_now_because_an_sms_can_lag(self):
+        for language in notices.LANGUAGES:
+            body = compose(notices.EARLY_CALL_INVITE, channel="SMS", language=language).body
+            assert "maintenant" not in body.lower()
+            assert " now" not in body.lower()
+
+    def test_the_open_time_is_the_invitations_own(self):
+        appointment = {**APPOINTMENT, "inviteExpiresAt": "2026-03-04T08:20:00Z"}
+        body = compose(
+            notices.EARLY_CALL_INVITE, channel="SMS", language="en", appointment=appointment
+        ).body
+        assert "within 30 min" in body
+
+    def test_an_invitation_with_no_invitation_on_the_ticket_is_refused(self):
+        bare = {k: v for k, v in APPOINTMENT.items() if not k.startswith("invite")}
+        with pytest.raises(Invalid):
+            compose(notices.EARLY_CALL_INVITE, channel="SMS", appointment=bare)
+
+    def test_the_invitation_is_an_sms_only_notice(self):
+        assert notices.available(notices.EARLY_CALL_INVITE, "SMS")
+        assert not notices.available(notices.EARLY_CALL_INVITE, "EMAIL")

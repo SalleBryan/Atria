@@ -1,0 +1,7 @@
+{
+  "_review": "NEEDS NATIVE SPEAKER REVIEW",
+  "language": "Language",
+  "languageHint": "Choose di language wey you wan read",
+  "close": "Close",
+  "languages": { "en": "English", "fr": "Français", "pcm": "Pidgin" }
+}

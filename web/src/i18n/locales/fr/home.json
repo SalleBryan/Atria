@@ -1,0 +1,93 @@
+{
+  "greeting": { "morning": "Bonjour", "afternoon": "Bon après-midi", "evening": "Bonsoir" },
+  "welcome": "Bienvenue",
+  "summary": {
+    "loading": "Chargement de vos visites",
+    "upcoming_one": "{{count}} visite à venir",
+    "upcoming_other": "{{count}} visites à venir",
+    "reminder": "rappel {{day}}",
+    "lastVisit": "dernière visite {{day}}"
+  },
+  "tryAgain": "Réessayer",
+  "search": "Chercher un médecin ou une spécialité",
+  "book": "Prendre rendez-vous",
+  "nextAppointment": "Prochain rendez-vous",
+  "seeAll": "Tout voir",
+  "hero": {
+    "label": "Votre prochaine visite",
+    "tag": "PROCHAINE VISITE · {{status}}",
+    "queue": "File des consultations externes, place {{place}}",
+    "yourClinician": "Votre médecin",
+    "date": "DATE",
+    "time": "HEURE",
+    "in": "DANS",
+    "ref": "RÉF.",
+    "details": "Voir les détails",
+    "cancel": "Annuler",
+    "calendar": "Ajouter au calendrier",
+    "emptyTag": "AUCUNE VISITE PRÉVUE",
+    "emptyTitle": "Trouvez un créneau qui vous convient.",
+    "emptyBody": "Choisissez un médecin, un jour et réservez un créneau. Un SMS vous le rappelle la veille.",
+    "findCare": "Trouver des soins"
+  },
+  "quick": {
+    "label": "Actions rapides",
+    "findSub": "Trouver un créneau",
+    "again": "Reprendre rendez-vous",
+    "againFirst": "Après votre première visite",
+    "visits": "Mes visites",
+    "pastVisits_one": "{{count}} visite passée",
+    "pastVisits_other": "{{count}} visites passées",
+    "reminders": "Rappels",
+    "remindersSub": "24 h avant, par SMS"
+  },
+  "upcoming": {
+    "title": "Visites à venir",
+    "empty": "Rien de prévu pour l'instant. Vos visites apparaîtront ici."
+  },
+  "activity": {
+    "title": "Activité récente",
+    "empty": "Les réservations, annulations et rappels apparaîtront ici.",
+    "reminder": "Rappel programmé",
+    "reminderBody": "Le SMS part {{day}} à {{time}}",
+    "reminderFoot": "24 heures avant votre visite",
+    "cancelled": "Visite annulée",
+    "requested": "Acte demandé",
+    "booked": "Visite réservée",
+    "requestedBody": "{{reference}}, horaire à fixer par le service",
+    "bookedBody": "{{reference}} pour {{day}} à {{time}}",
+    "foot": "Réservé {{day}}, {{time}}"
+  },
+  "row": {
+    "manage": "Gérer",
+    "procedure": "Demande d'acte",
+    "timeRange": "{{start}} à {{end}}",
+    "arrive": "arrivée {{time}}",
+    "givenBack": "place rendue",
+    "asked": "demandé {{day}} · horaire à fixer",
+    "theRequest": " la demande faite le ",
+    "theVisit": " la visite du "
+  },
+  "until": { "days": "{{count}} jours", "tomorrow": "Demain", "hours": "{{count}} h", "minutes": "{{count}} min", "now": "Maintenant" },
+  "state": {
+    "REQUESTED": "Demandé",
+    "DECLINED": "Refusé",
+    "BOOKED": "Confirmé",
+    "CONFIRMED": "Confirmé",
+    "RESCHEDULED": "Déplacé",
+    "DISRUPTED": "Nouvel horaire nécessaire",
+    "ARRIVED": "Arrivé",
+    "IN_CONSULTATION": "En consultation",
+    "COMPLETED": "Effectuée",
+    "AWAITING_FEEDBACK": "Effectuée",
+    "CLINIC_CANCELLED": "Annulé par l'hôpital",
+    "PATIENT_CANCELLED": "Annulé",
+    "NO_SHOW": "Manqué"
+  },
+  "clinic": {
+    "label": "Lieu de votre prochaine visite",
+    "open": "ouvert de {{start}} à {{end}} aujourd'hui",
+    "closed": "fermé aujourd'hui",
+    "directions": "Obtenir l'itinéraire"
+  }
+}

@@ -837,6 +837,7 @@ def test_every_visit_action_has_its_route(synthesised: cdk.App) -> None:
         "place",
         "decline",
         "urgent",
+        "invite-reply",
     ):
         assert (f"/appointments/{{id}}/{action}", "POST") in served
 
@@ -942,6 +943,7 @@ def test_the_queue_routes_exist(synthesised: cdk.App) -> None:
         ("/sessions/{id}/queue", "GET"),
         ("/sessions/{id}/next", "POST"),
         ("/sessions/{id}/close", "POST"),
+        ("/sessions/{id}/invites", "POST"),
         ("/clinics/{id}/queue-policy", "PATCH"),
         ("/clinics/{id}/queue-policy", "GET"),
         ("/sessions/{id}/policy", "PATCH"),

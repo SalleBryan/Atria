@@ -6,7 +6,7 @@ Written 2026-11-13 for the teammate's Claude. Two Claude accounts push to this o
 
 | Lane | Owner | Goal |
 | --- | --- | --- |
-| Pain lane | first account | Build what makes the three pitched pain points real: (1) waiting without knowing, (2) not reachable by app or SMS alone, (3) not knowing the cost |
+| Pain lane | first account (Claude), with part of it split to Codex, see below | Build what makes the three pitched pain points real: (1) waiting without knowing, (2) not reachable by app or SMS alone, (3) not knowing the cost |
 | Business lane | you | Build what makes the business plan real: how Atria earns money |
 
 Hackathon brief: pick a real everyday barrier and a named real user group. Atria is a healthcare appointment booking and reminder system for Cameroon (tenant: Regional Hospital Buea, hypothetical).
@@ -15,6 +15,22 @@ Hackathon brief: pick a real everyday barrier and a named real user group. Atria
 1. **Queue revision, ADR 0022 (accepted 2026-11-13, slice 1 in review, slices 2 and 3 to come).** Work-conserving queue with bounded bypass: the doctor never idles when someone is present, an on-time patient is bypassed at most once, early-call invitations run in parallel and never hold the doctor, lateness forfeits priority, clinical urgency overrides. Read `docs/adr/0022-*.md` before touching `core/queue.py` or `services/booking/queue.py`.
 2. Live queue position or estimate on the ticket (measured consultation length, not a fixed 30 minutes); voice reminder fallback and local-language messages; fee in reminders and on the desk view.
 3. Remaining audit findings (`docs/reference/reviews/2026-11-04/AUDIT.md`): F02, F04, F05, F06 and the P2 list. Production SMS (OI-04) is an owner action.
+
+### Pain lane split: Claude and Codex (2026-11-13)
+The pain lane now runs on two agents. Files do not overlap, so branches never conflict. Codex: read `CLAUDE.md` (the same hard rules apply to you), this handoff, and `docs/adr/0022-*.md`; branch `pain-codex/<subject>`; append to `docs/handoff/LOG_PAIN.md` under a "Codex" heading; update section 8 before every push; no AI attribution, no em or en dashes, Conventional Commits, open PRs and never merge.
+
+**Claude keeps (owns `core/queue.py`, `services/booking/queue.py`, `data/sessions.py`, the staff queue screens):**
+- P1. Patient live ticket view: `GET /tickets/{id}` (position, patients ahead, expected start, window), polled on the patient screens in place of the static "place N of M".
+- P2. Slice 3, early-call invitations (`EARLY_CALL_INVITE`, `QUEUE_MOVED`), settings on the same three levels.
+- P3. Voice reminder fallback, once the owner decides the voice provider (OI-05).
+
+**For Codex (independent of the above; take in this order):**
+- X1. Fee in reminders. Edit `backend/src/atria/core/reminders.py` and `core/notices.py` (and their tests under `backend/tests/core/`): the booking and reminder messages state the fee (or "free") in the patient's language, from the clinic's stored fee. Pure functions first, then the sender. No new constants: wording lives in templates, no tunable values in code.
+- X2. Local-language messages. Add the template set for the languages the tenant enables (`languages` setting, see `web/src/dev/mockApi.ts` and `core/settings.py`) so reminders and notices render in the patient's preferred language, falling back to English. Do not add voice (P3).
+- X3. Flutter app parity for the slice 2 desk (needs PR `pain/queue-desk` merged first): call guard, markers, urgent marking (receptionist only), rules for today. Follow `docs/openapi/atria.yaml`; do not change the API. Run `flutter format`, `flutter analyze`, `flutter test` (Flutter pinned to 3.47.5; it cannot run in the owner's Windows path with spaces, so run it where it can).
+- X4. Remaining audit findings F02, F04, F05, F06 and the P2 list in `docs/reference/reviews/2026-11-04/AUDIT.md`, one small PR each.
+
+**Do not touch (Claude's files):** `core/queue.py`, `services/booking/queue.py`, `data/sessions.py`, `web/src/staff/Queue.tsx`, `web/src/staff/QueueRules.tsx`. If you need a change there, write the request in `LOG_PAIN.md` under "Codex requests".
 
 ### Business lane backlog (yours), in order
 1. **B0, decision first.** The SRS says tenant onboarding commercial terms, per-tenant branding and billing are OUT OF SCOPE (FR-TEN-03), and no payment function exists before Phase 3 (FR-MSR-07). Write an ADR that moves commercial scope into Phase 3 before building a plan record or invoices. Ask the owner to confirm.
@@ -76,15 +92,15 @@ Gotchas (Windows, Git Bash, OneDrive):
 - Prefer DOM measurements over screenshots; screenshots catch animations mid-flight. Use real pointer clicks to test overlays.
 - Set `MSYS_NO_PATHCONV=1` for `/aws/lambda/...` log commands.
 
-## 8. Current state (updated 2026-11-13, pain lane, after queue slice 1 and the urgent-marking decision)
-- Merged to main: PR 20 (fee before booking, cancelled tickets, pickers above dialogs, request wording, per-doctor pace, Flutter pinned to 3.47.5), PR 21 (this handoff, `docs/reference/`, `CLAUDE.md`, ADR 0022). Deploy for PR 20 was approved and running on 2026-11-13: confirm the run and the live app.
-- Open: PR for queue slice 1 (branch `pain/queue-revision`): `core/queue.py::next_call` decides who is called (never idle, bypass bounded, hold, late, urgent); `call_next` applies it; live queue returns `callPreview`, per-ticket flags and `policy`. Queue rules are settings by level: tenant (`PATCH /admin/settings`: `queueHoldMinutes`, `queueLateGraceMinutes`, `queueMaxBypass`), unit (`PATCH /clinics/{id}/queue-policy`), session (`PATCH /sessions/{id}/policy`). New permissions `queue.configure` and `queue.tune_session` (the SRS permission matrix PDF does not list them yet).
-- Decision 2026-11-13: only the receptionist may mark a ticket urgent (permission `queue.mark_urgent`, receptionist clinic scope only, reason required, audited). Do not widen it to clinicians or managers without the owner.
-- PR 22 (slice 1) has all five CI jobs green. PR 20's Deploy succeeded; the dev app has the fee line and fixes.
-- Not built yet (pain lane, in order): slice 2 desk console (call guard, hold countdown, urgent marking with its permission and route, screens to edit the three levels); slice 3 early-call invitations, `EARLY_CALL_INVITE` and `QUEUE_MOVED` messages, invitation settings on the same three levels.
-- Live dev app: `https://main.dym1ejjx8bhtw.amplifyapp.com`. SMS and email are in AWS sandbox (OI-04): no real patient receives a text yet. A test queue session exists for 2026-11-13. The staff list is cluttered with deleted and suspended test accounts (audit F05). A duplicate clinician "Emmanuel Ekane" exists as created data.
-- Open audit findings relevant to the business lane: F18 (percentage denominators), F08 (clinician report destination), F13 (failed message follow-up state).
-- Business lane: nothing pushed yet as of this update (no branch, empty `LOG_BIZ.md`).
+## 8. Current state (updated 2026-11-13, pain lane, queue slice 2 ready for PR)
+- Merged to main: PR 20, PR 21 (handoff, reference library, CLAUDE.md, ADR 0022), PR 22 (queue slice 1: `core/queue.py::next_call`, call preview, per-ticket flags, policy routes), PR 23 (business lane B0 to B2).
+- Open: queue slice 2 (branch `pain/queue-desk`). Desk console: call guard (passes over / held with countdown, "Call anyway" needs a reason), markers (Urgent, Late, Not here yet, Passed over), receptionist-only urgent marking (`POST /appointments/{id}/urgent`, `queue.mark_urgent`, reason required, audited), "Rules for today" (session) and "Queue rules" (unit) dialogs, tenant defaults card in Settings ("The queue"). New route `GET /clinics/{id}/queue-policy`. All three levels are settings, never constants.
+- Decision 2026-11-13: only the receptionist marks a ticket urgent. Do not widen it without the owner.
+- Queue facts the business lane can use for quality metrics without new events: tickets carry `arrivedAt`, `consultationStartedAt`, `completedAt` (consultation length is derived), `bypassCount`, `lateAt`, `urgent`, `urgentAt`.
+- Split 2026-11-13: Claude takes P1 to P3, Codex takes X1 to X4 (section 1, "Pain lane split"). Start Codex on X1, X2 and X4 now; X3 waits for the slice 2 PR to merge.
+- Not built yet (pain lane, in order): patient live ticket view (`GET /tickets/{id}`: position, patients ahead, expected start, window), voice reminder fallback and local-language messages (needs the voice provider decision OI-05), fee in reminders and desk view, then slice 3 early-call invitations (`EARLY_CALL_INVITE`, `QUEUE_MOVED`, settings on the same three levels).
+- Live dev app: `https://main.dym1ejjx8bhtw.amplifyapp.com`. SMS and email are in AWS sandbox (OI-04): no real patient receives a text yet. The SRS permission matrix PDF does not list the new queue permissions.
+- Open audit findings relevant to the business lane: F08 (clinician report destination), F13 (failed message follow-up state).
 
 ## 9. Reference material (now in the repo)
 Everything that used to sit outside the repo is under `docs/reference/` (index: `docs/reference/README.md`): SRS, Technical Document and Design Spec Rev B PDFs, `atria.tokens.json`, the PDF builder (`design-system/document-builder/atria_doc.py`), the evidence report and pitch map, the audit (text only), and `WORKING_RULES.md`. The repo is public: never add credentials, account or pool ids, staff workbooks or screenshots of real records. Reports for the owner are PDFs in the Atria house style, not Markdown; this handoff is the exception.

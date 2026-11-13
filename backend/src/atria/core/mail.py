@@ -21,6 +21,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from html import escape
 
+from atria.core import pidgin
+
 # Cognito's limit on a custom email message.
 COGNITO_LIMIT = 20_000
 
@@ -61,6 +63,7 @@ FOOTER = {
     "Ce message est automatique : les réponses ne sont pas lues.",
     "en": "You are receiving this email because you have an Atria account. "
     "It was sent automatically, so replies are not read.",
+    "pcm": pidgin.FOOTER,
 }
 
 TABLE = 'role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"'

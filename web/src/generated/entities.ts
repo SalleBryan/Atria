@@ -68,7 +68,7 @@ export interface RegionPack {
   dialCode?: string;
   /** Validation for mobile numbers */
   msisdnPattern?: string;
-  /** fr, en */
+  /** fr, en, pcm */
   languages?: string[];
   /** Africa/Douala */
   timezone?: string;
@@ -557,7 +557,7 @@ export const ENTITY_ATTRIBUTES: Record<string, readonly EntityAttribute[]> = {
     { name: "currency", kind: "string", key: "", note: "XAF" },
     { name: "dialCode", kind: "string", key: "", note: "+237" },
     { name: "msisdnPattern", kind: "string", key: "", note: "Validation for mobile numbers" },
-    { name: "languages", kind: "list", key: "", note: "fr, en" },
+    { name: "languages", kind: "list", key: "", note: "fr, en, pcm" },
     { name: "timezone", kind: "string", key: "", note: "Africa/Douala" },
     { name: "administrativeRegions", kind: "list", key: "", note: "The ten regions" },
     { name: "nationalIdPattern", kind: "string", key: "", note: "CNI format" },

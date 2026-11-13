@@ -21,7 +21,7 @@ CAMEROON: dict[str, Any] = {
     # Every Cameroonian mobile number is nine digits beginning with 6.
     "msisdnPattern": r"^\+2376\d{8}$",
     # French first: it is the default where a person states no preference.
-    "languages": ["fr", "en"],
+    "languages": ["fr", "en", "pcm"],
     # UTC+1 all year, with no daylight saving.
     "timezone": "Africa/Douala",
     "administrativeRegions": [

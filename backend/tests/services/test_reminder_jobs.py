@@ -301,7 +301,7 @@ class TestFiring:
         assert fire(fakes)["batchItemFailures"] == []
         (sms,) = fakes["sns"].published
         assert sms["PhoneNumber"] == "+237600000001"
-        assert "Atria reminder" in sms["Message"]
+        assert "Rappel Atria" in sms["Message"]
 
     def test_fr_rem_03_it_is_a_transactional_sms(self, world):
         repository, clinician, fakes = world
@@ -386,7 +386,7 @@ class TestTheReminderByEmail:
         (email,) = fakes["ses"].sent
         assert email["Destination"]["ToAddresses"] == ["patient@atria.invalid"]
         assert "APT-0123456789" in email["Content"]["Simple"]["Subject"]["Data"]
-        assert email["Content"]["Simple"]["Subject"]["Data"].startswith("Reminder")
+        assert email["Content"]["Simple"]["Subject"]["Data"].startswith("Rappel")
         assert len(fakes["sns"].published) == 1
 
     def test_the_email_has_a_log_row_of_its_own(self, world):

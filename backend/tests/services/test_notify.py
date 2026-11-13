@@ -355,7 +355,7 @@ class TestSending:
         put_appointment(repository, clinician, state="PATIENT_CANCELLED")
         sender.handler(job(notices.BOOKING_CANCELLATION), None)
         subject = fake_ses.sent[0]["Content"]["Simple"]["Subject"]["Data"]
-        assert "cancelled" in subject.lower()
+        assert "annul" in subject.lower()
 
     def test_fr_msg_03_the_message_is_logged_as_sent(self, wired):
         repository, clinician, _ses = wired

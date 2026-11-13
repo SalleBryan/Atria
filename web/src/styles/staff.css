@@ -5604,3 +5604,34 @@ body:has(.admin-app) .sheet-icon:not(.sheet-icon-done) {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Set up a unit (Onboarding.tsx): the step, its state, and where to do it. Its own
+   row rather than .account-row, whose phone layout hides the second column, and the
+   state is what this list is for. */
+.onboarding-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 200px;
+  align-items: center;
+  gap: 16px;
+  min-height: 68px;
+  padding: 10px 14px;
+  border: 1.5px solid #ffffff;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 1px 6px rgba(16, 42, 94, 0.05);
+  animation:
+    rise var(--move) both,
+    fade-in var(--fade) both;
+  animation-delay: calc(var(--i, 0) * 35ms + 150ms);
+}
+@media (max-width: 767px) {
+  .onboarding-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 12px;
+    padding: 14px;
+    border-radius: 22px;
+  }
+  .onboarding-row > a {
+    grid-column: 1 / -1;
+  }
+}

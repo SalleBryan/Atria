@@ -49,6 +49,35 @@ describe("outcome shares (audit F18)", () => {
   });
 });
 
+describe("comparison in the export", () => {
+  const compared: ReportFigures = {
+    ...WEEK,
+    comparison: {
+      from: "2026-09-14",
+      to: "2026-09-20",
+      counts: {
+        booked: { before: 8, after: 10, change: 2 },
+        attended: { before: 5, after: 6, change: 1 },
+        noShow: { before: 3, after: 2, change: -1 },
+        cancelled: { before: 1, after: 1, change: 0 },
+        lateCancelled: { before: 0, after: 1, change: 1 },
+      },
+      attendance: { before: 0.625, after: 0.75, points: 12.5 },
+    },
+  };
+
+  it("adds the earlier period to the CSV in the page's words", () => {
+    const rows = reportCsv(compared).rows.filter((r) => r[0] === "Compared with the earlier period");
+    expect(rows.find((r) => r[1] === "Booked")?.[7]).toBe("was 8, up 2");
+    expect(rows.find((r) => r[1] === "No-show")?.[7]).toBe("was 3, down 1");
+    expect(rows.find((r) => r[1] === "Attendance")?.[7]).toBe("was 63%, up 12.5 points");
+  });
+
+  it("adds nothing without a comparison", () => {
+    expect(reportCsv(WEEK).rows.some((r) => r[0] === "Compared with the earlier period")).toBe(false);
+  });
+});
+
 describe("AtriaWorkbook", () => {
   it("sets a sheet in the documents' style: brand banner, details, tinted small-caps head, frozen", async () => {
     const book = await AtriaWorkbook.create({

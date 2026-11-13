@@ -22,7 +22,14 @@ import { DonutChart, MultiUnitBarChart } from "../components/ExpressiveCharts";
 import { LoadingPane } from "../components/LoadingPane";
 import { SelectMenu } from "../components/Pickers";
 import { TENANT } from "../tenant";
-import { exportReportCsv, exportReportExcel, exportReportPdf } from "../utils/reportExport";
+import {
+  attendanceChange,
+  exportReportCsv,
+  exportReportExcel,
+  exportReportPdf,
+  type ReportComparison,
+  signed,
+} from "../utils/reportExport";
 import { ReportDownload } from "./ReportDownload";
 import { attendanceOf, roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
@@ -34,16 +41,8 @@ interface Rate {
   attendance: number | null;
 }
 
-/** core/report.change: what differs from an earlier period (FR-MSR-01). A difference, never a cause. */
-interface Comparison {
-  from: string;
-  to: string;
-  counts: Record<"booked" | "attended" | "noShow" | "cancelled" | "lateCancelled", { before: number; after: number; change: number }>;
-  attendance: { before: number | null; after: number | null; points: number | null };
-}
-
 interface Figures {
-  comparison?: Comparison;
+  comparison?: ReportComparison;
   booked: number;
   attended: number;
   noShow: number;
@@ -575,11 +574,4 @@ function RateCard({ title, note, rows }: { title: string; note?: string; rows: (
       )}
     </section>
   );
-}
-
-const signed = (n: number) => (n > 0 ? `up ${n}` : n < 0 ? `down ${-n}` : "no change");
-
-function attendanceChange({ before, points }: Comparison["attendance"]): string {
-  if (points == null) return "No earlier figure to compare";
-  return `was ${percent(before)}, ${points === 0 ? "no change" : `${points > 0 ? "up" : "down"} ${Math.abs(points)} points`}`;
 }

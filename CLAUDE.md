@@ -19,5 +19,5 @@ accounts work in this repo in parallel: the **pain lane** (queue, reminders, cos
 9. Report faithfully, including what you did not verify. Do not spawn large agent fan-outs.
 
 ## Where to look first
-`docs/handoff/HANDOFF.md` (state and lanes), `docs/adr/` (decisions, 0022 is the open queue proposal), `CONTRIBUTING.md`,
+`docs/handoff/HANDOFF.md` (state and lanes), `docs/adr/` (decisions, 0022 is the queue design, accepted and being built in slices), `CONTRIBUTING.md`,
 `docs/constraints.md`, `docs/reference/README.md` (specs, tokens, research, audit).

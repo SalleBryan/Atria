@@ -28,7 +28,7 @@ these updates the record in the same pull request.
 | [0019](0019-motion-is-material-3-expressive-springs.md) | Motion is Material 3 Expressive springs | project |
 | [0020](0020-every-email-shares-the-platform-look.md) | Every email shares the platform's look | project |
 | [0021](0021-the-app-talks-to-cognito-directly.md) | The app talks to Cognito directly | project |
-| [0022](0022-the-doctor-never-idles-and-a-promise-is-never-skipped.md) | The doctor never idles, and a promise is never skipped (proposed) | project |
+| [0022](0022-the-doctor-never-idles-and-a-promise-is-never-skipped.md) | The doctor never idles, and a promise is never skipped (accepted) | project |
 
 ## Constraints
 

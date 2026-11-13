@@ -12,7 +12,7 @@ Written 2026-11-13 for the teammate's Claude. Two Claude accounts push to this o
 Hackathon brief: pick a real everyday barrier and a named real user group. Atria is a healthcare appointment booking and reminder system for Cameroon (tenant: Regional Hospital Buea, hypothetical).
 
 ### Pain lane backlog (do not take these)
-1. **Queue revision, ADR 0022 (proposed, awaiting the owner's approval).** Work-conserving queue with bounded bypass: the doctor never idles when someone is present, an on-time patient is bypassed at most once, early-call invitations run in parallel and never hold the doctor, lateness forfeits priority, clinical urgency overrides. Read `docs/adr/0022-*.md` before touching `core/queue.py` or `services/booking/queue.py`.
+1. **Queue revision, ADR 0022 (accepted 2026-11-13, built in slices on `pain/queue-revision`).** Work-conserving queue with bounded bypass: the doctor never idles when someone is present, an on-time patient is bypassed at most once, early-call invitations run in parallel and never hold the doctor, lateness forfeits priority, clinical urgency overrides. Read `docs/adr/0022-*.md` before touching `core/queue.py` or `services/booking/queue.py`.
 2. Live queue position or estimate on the ticket (measured consultation length, not a fixed 30 minutes); voice reminder fallback and local-language messages; fee in reminders and on the desk view.
 3. Remaining audit findings (`docs/reference/reviews/2026-11-04/AUDIT.md`): F02, F04, F05, F06 and the P2 list. Production SMS (OI-04) is an owner action.
 

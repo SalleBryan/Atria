@@ -22,6 +22,8 @@ APPOINTMENT = {
     "reference": "APT-0123456789",
     "startAt": "2026-03-04T08:00:00Z",
     "endAt": "2026-03-04T08:30:00Z",
+    "inviteSentAt": "2026-03-04T07:50:00Z",
+    "inviteExpiresAt": "2026-03-04T08:10:00Z",
 }
 
 
@@ -35,6 +37,7 @@ SENT_PAIRS = [
     (notices.BOOKING_RESCHEDULED, "EMAIL"),
     (notices.BOOKING_DISRUPTED, "EMAIL"),
     (notices.QUEUE_MOVED, "SMS"),
+    (notices.EARLY_CALL_INVITE, "SMS"),
     (notices.BOOKING_DECLINED, "EMAIL"),
 ]
 
@@ -292,3 +295,35 @@ class TestSms:
     def test_a_cancellation_is_not_sent_by_sms(self):
         with pytest.raises(Invalid):
             compose(notices.BOOKING_CANCELLATION, channel="SMS")
+
+
+class TestEarlyCallInvite:
+    """ADR 0022 R4: the invitation is one plain SMS that says how long the patient has."""
+
+    def test_the_invitation_says_how_long_the_patient_has_and_where(self):
+        notice = compose(notices.EARLY_CALL_INVITE, channel="SMS", language="en")
+        assert "within 20 min" in notice.body
+        assert "Douala Clinic" in notice.body
+        assert "APT-0123456789" in notice.body
+
+    def test_the_invitation_never_says_now_because_an_sms_can_lag(self):
+        for language in notices.LANGUAGES:
+            body = compose(notices.EARLY_CALL_INVITE, channel="SMS", language=language).body
+            assert "maintenant" not in body.lower()
+            assert " now" not in body.lower()
+
+    def test_the_open_time_is_the_invitations_own(self):
+        appointment = {**APPOINTMENT, "inviteExpiresAt": "2026-03-04T08:20:00Z"}
+        body = compose(
+            notices.EARLY_CALL_INVITE, channel="SMS", language="en", appointment=appointment
+        ).body
+        assert "within 30 min" in body
+
+    def test_an_invitation_with_no_invitation_on_the_ticket_is_refused(self):
+        bare = {k: v for k, v in APPOINTMENT.items() if not k.startswith("invite")}
+        with pytest.raises(Invalid):
+            compose(notices.EARLY_CALL_INVITE, channel="SMS", appointment=bare)
+
+    def test_the_invitation_is_an_sms_only_notice(self):
+        assert notices.available(notices.EARLY_CALL_INVITE, "SMS")
+        assert not notices.available(notices.EARLY_CALL_INVITE, "EMAIL")

@@ -41,6 +41,7 @@ import { MATRIX, PERMISSIONS } from "../generated/permissions";
 import { roleOf } from "./data";
 import { sentence } from "./labels";
 import { KNOBS } from "./QueueRules";
+import { PaymentSandbox } from "./PaymentSandbox";
 import { Snackbar } from "./Snackbar";
 
 type Line = "GENERAL" | "SPECIALIST" | "PROCEDURE";
@@ -123,9 +124,10 @@ export interface Overview {
   appointmentTypes: VisitType[];
   feeBands: FeeBand[];
   intakeForms?: IntakeForm[];
+  paymentSandboxEnabled?: boolean;
 }
 
-type Tab = "hospital" | "units" | "types" | "forms" | "fees" | "roles";
+type Tab = "hospital" | "units" | "types" | "forms" | "fees" | "roles" | "payment-sandbox";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "hospital", label: "Hospital" },
@@ -135,6 +137,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "fees", label: "Fees" },
   { id: "roles", label: "Roles" },
 ];
+
+const PAYMENT_SANDBOX_TAB = { id: "payment-sandbox", label: "Payment sandbox" } as const;
 
 export const LINE: Record<Line, string> = { GENERAL: "General", SPECIALIST: "Specialist", PROCEDURE: "Procedure" };
 const LINE_TONE: Record<Line, string> = { GENERAL: "chip-confirmed", SPECIALIST: "chip-booked", PROCEDURE: "chip-admin" };
@@ -196,7 +200,7 @@ export function Settings() {
       </header>
 
       <div className="segmented settings-tabs" role="tablist" aria-label="Settings">
-        {TABS.map((t) => (
+        {(found?.paymentSandboxEnabled ? [...TABS, PAYMENT_SANDBOX_TAB] : TABS).map((t) => (
           <button
             key={t.id}
             type="button"
@@ -226,8 +230,13 @@ export function Settings() {
         <FormsTab forms={found.intakeForms ?? []} types={found.appointmentTypes} dialog={Dialog} onSaved={done} />
       ) : tab === "fees" ? (
         <FeesTab found={found} onSaved={done} />
-      ) : (
+      ) : tab === "payment-sandbox" ? null : (
         <RolesTab />
+      )}
+      {found?.paymentSandboxEnabled && (
+        <div hidden={tab !== "payment-sandbox"}>
+          <PaymentSandbox />
+        </div>
       )}
       <Snackbar message={said} onDone={() => setSaid(null)} />
     </div>
@@ -1353,6 +1362,7 @@ const PERMISSION_LABEL: Record<string, string> = {
   "staff.suspend": "Suspend accounts",
   "priority_allowance.grant": "Grant priority allowances",
   "clinic.manage": "Manage units",
+  "payment_sandbox.use": "Use the payment sandbox",
   "appointment_type.manage": "Manage visit types",
   "fee_band.manage": "Manage fees",
   "region_pack.choose": "Choose the region pack",

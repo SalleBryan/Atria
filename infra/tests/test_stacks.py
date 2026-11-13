@@ -262,14 +262,19 @@ class TestIdentityStack:
 
 
 class TestApiStack:
-    def test_every_method_goes_through_the_authoriser(self, synthesised):
+    def test_every_app_method_goes_through_the_authoriser(self, synthesised):
         template = template_for(synthesised, "api")
         methods = template.find_resources("AWS::ApiGateway::Method")
+        webhook = template.get_resource_id(
+            "AWS::ApiGateway::Resource", {"Properties": {"PathPart": "fapshi"}}
+        )
         assert methods, "the API has no methods"
         for method in methods.values():
             properties = method["Properties"]
             if properties.get("HttpMethod") == "OPTIONS":
                 continue  # CORS preflight carries no token by design
+            if properties["HttpMethod"] == "POST" and properties["ResourceId"] == {"Ref": webhook}:
+                continue  # The external Fapshi callback checks its own shared secret.
             assert properties["AuthorizationType"] == "CUSTOM"
             assert "AuthorizerId" in properties
 
@@ -866,13 +871,15 @@ def audit_statements(template: Template, effect: str) -> list[dict[str, Any]]:
 
 
 def test_no_function_can_change_or_remove_an_audit_entry(synthesised: cdk.App) -> None:
-    """FR-ADM-04: every policy that grants table writes also denies them on the audit partitions."""
+    """FR-ADM-04: main table writes must exclude the audit partitions."""
     checked = 0
     for stack in ("api", "async", "identity"):
         for policy in template_for(synthesised, stack).find_resources("AWS::IAM::Policy").values():
             statements = policy["Properties"]["PolicyDocument"]["Statement"]
             writes = any(
-                "dynamodb:UpdateItem" in json.dumps(st.get("Action")) and st.get("Effect") == "Allow"
+                "dynamodb:UpdateItem" in json.dumps(st.get("Action"))
+                and st.get("Effect") == "Allow"
+                and "PaymentSandboxPayments" not in json.dumps(st.get("Resource"))
                 for st in statements
             )
             if not writes:

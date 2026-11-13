@@ -19,8 +19,10 @@ The rules on each value are atria.core.settings; this module applies them.
 from __future__ import annotations
 
 import datetime as dt
+import os
 from typing import Any
 
+from atria_spec.payment_sandbox import ENABLED_ENV, PERMISSION
 from atria_spec.region_packs import REGION_PACKS
 
 from atria.core import intake as intake_rules
@@ -333,7 +335,13 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     resource = str(event.get("resource", ""))
     if resource.endswith("/admin/settings"):
         if method == "GET":
-            return responses.ok(overview(principal))
+            return responses.ok(
+                {
+                    **overview(principal),
+                    "paymentSandboxEnabled": os.environ.get(ENABLED_ENV) == "true"
+                    and permissions.allows(principal, PERMISSION),
+                }
+            )
         if method == "PATCH":
             return responses.ok(change_tenant(principal, event))
     if method == "POST" and resource.endswith("/admin/clinics"):

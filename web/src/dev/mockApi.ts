@@ -142,6 +142,8 @@ const regionPack = {
   allowsRatingFeeLink: false,
 };
 
+const sandboxAttempts = new Set<string>();
+
 function settingsOverview() {
   const locked = Boolean(tenant.firstAppointmentAt);
   return {
@@ -153,6 +155,7 @@ function settingsOverview() {
         : null,
     },
     regionPack,
+    paymentSandboxEnabled: true,
     clinics,
     appointmentTypes: types,
     feeBands,
@@ -1773,6 +1776,19 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     }
     const actors = [...groups.values()].sort((a, b) => Number(b.flagged) - Number(a.flagged));
     return json(200, { week, to: week, actors, total: inWeek.length, flagged: inWeek.filter((e) => e.flags.length).length }, 300);
+  }
+  const sandbox = path.match(/^\/admin\/payment-sandbox\/([^/]+)$/);
+  if (sandbox && (method === "POST" || method === "GET")) {
+    const id = sandbox[1]!;
+    const exists = sandboxAttempts.has(id);
+    if (method === "GET" && !exists) return json(404, { message: "No such sandbox payment." });
+    sandboxAttempts.add(id);
+    return json(exists ? 200 : 201, {
+      id,
+      currency: "XAF",
+      amount: 500,
+      status: method === "POST" ? "CREATED" : "SUCCESSFUL",
+    });
   }
   if (path === "/admin/settings") {
     if (method === "GET") return json(200, settingsOverview());

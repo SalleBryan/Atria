@@ -15,6 +15,9 @@ The AWS CDK application, in Python.
 The async and network stacks in the Technical Document arrive with the work
 that needs them: the reminder path and web hosting.
 
+The [Fapshi sandbox runbook](../docs/runbooks/fapshi-sandbox.md) covers credentials,
+webhook setup and synthetic checkout in the development admin console.
+
 ## Running it
 
 The `cdk` command runs `python app.py`, so the virtual environment has to be

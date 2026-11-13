@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import type { Me } from "../api/client";
@@ -120,5 +120,62 @@ describe("TicketDetail on a bad connection (audit F16)", () => {
     online.mockReturnValue(true);
     window.dispatchEvent(new Event("online"));
     expect(await screen.findByText("2 patients")).toBeInTheDocument();
+  });
+});
+
+describe("TicketDetail, an early-call invitation", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const OPEN = { status: "open", expiresAt: "2026-11-13T08:10:00Z", answer: null, eta: null };
+
+  function withReply(reply: unknown | "fail") {
+    const base = api.getMockImplementation() as (path: string, options?: unknown) => Promise<unknown>;
+    api.mockImplementation(async (path: string, options?: unknown) => {
+      if (path === "/appointments/a-9/invite-reply") {
+        if (reply === "fail") throw new Error("offline");
+        return reply;
+      }
+      return base(path, options);
+    });
+  }
+
+  it("asks whether the patient can come sooner and says the place does not change", async () => {
+    respond({ ahead: 3, expectedStartAt: "2026-11-13T08:45:00Z", next: false, invite: OPEN });
+    renderTicket();
+    expect(await screen.findByText(/A doctor is free sooner/)).toBeInTheDocument();
+    expect(screen.getByText(/Your place does not change whatever you answer/)).toBeInTheDocument();
+  });
+
+  it("sends YES and then says when they are expected", async () => {
+    respond({ ahead: 3, expectedStartAt: "2026-11-13T08:45:00Z", next: false, invite: OPEN });
+    withReply({ invite: { ...OPEN, status: "accepted", answer: "YES", eta: "2026-11-13T08:10:00Z" } });
+    renderTicket();
+    fireEvent.click(await screen.findByRole("button", { name: /Yes, I am coming/ }));
+    expect(await screen.findByText(/We expect you by/)).toBeInTheDocument();
+    expect(api).toHaveBeenCalledWith("/appointments/a-9/invite-reply", { method: "POST", json: { answer: "YES" } });
+  });
+
+  it("sends NO and keeps the place", async () => {
+    respond({ ahead: 3, expectedStartAt: "2026-11-13T08:45:00Z", next: false, invite: OPEN });
+    withReply({ invite: { ...OPEN, status: "declined", answer: "NO" } });
+    renderTicket();
+    fireEvent.click(await screen.findByRole("button", { name: /No, keep my place/ }));
+    expect(await screen.findByText(/Your place is unchanged/)).toBeInTheDocument();
+  });
+
+  it("says so when the answer did not go through, and offers it again", async () => {
+    respond({ ahead: 3, expectedStartAt: "2026-11-13T08:45:00Z", next: false, invite: OPEN });
+    withReply("fail");
+    renderTicket();
+    fireEvent.click(await screen.findByRole("button", { name: /Yes, I am coming/ }));
+    expect(await screen.findByText(/That did not go through/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Yes, I am coming/ })).toBeEnabled();
+  });
+
+  it("shows nothing once the invitation has run out", async () => {
+    respond({ ahead: 3, expectedStartAt: "2026-11-13T08:45:00Z", next: false, invite: { ...OPEN, status: "expired" } });
+    renderTicket();
+    expect(await screen.findByText("3 patients")).toBeInTheDocument();
+    expect(screen.queryByText(/A doctor is free sooner/)).not.toBeInTheDocument();
   });
 });

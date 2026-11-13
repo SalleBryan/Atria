@@ -142,7 +142,9 @@ class TestWhoSetsTheRules:
         session = {"maxBypass": 0}
         policy, source = queue.resolve_policy(tenant, unit, session)
         assert (policy.hold_minutes, policy.late_grace_minutes, policy.max_bypass) == (3, 20, 0)
-        assert source == {
+        assert {
+            name: source[name] for name in ("holdMinutes", "lateGraceMinutes", "maxBypass")
+        } == {
             "holdMinutes": "unit",
             "lateGraceMinutes": "tenant",
             "maxBypass": "session",
@@ -185,3 +187,141 @@ class TestWhoSetsTheRules:
         call = queue.next_call(tickets, NOW, queue.Policy(max_bypass=0))
         assert call.candidate is None
         assert call.hold is not None
+
+
+class TestInvitationSettings:
+    """ADR 0022 R4 knobs are settings on the same three levels, never constants."""
+
+    def test_the_built_in_fallbacks_for_invitations(self):
+        policy, source = queue.resolve_policy()
+        assert (
+            policy.invite_lead_minutes,
+            policy.invite_fanout,
+            policy.invite_open_minutes,
+            policy.early_call_invites,
+        ) == (5, 3, 20, "desk")
+        assert source["inviteFanout"] == source["earlyCallInvites"] == "default"
+
+    def test_the_most_specific_level_wins_for_each_invitation_knob(self):
+        tenant = {
+            "queueInviteFanout": 5,
+            "queueInviteOpenMinutes": 30,
+            "queueEarlyCallInvites": "auto",
+        }
+        unit = {"inviteFanout": 2}
+        session = {"earlyCallInvites": "desk", "inviteLeadMinutes": 10}
+        policy, source = queue.resolve_policy(tenant, unit, session)
+        assert policy.invite_fanout == 2
+        assert policy.invite_open_minutes == 30
+        assert policy.invite_lead_minutes == 10
+        assert policy.early_call_invites == "desk"
+        assert source["inviteFanout"] == "unit"
+        assert source["inviteOpenMinutes"] == "tenant"
+        assert source["inviteLeadMinutes"] == "session"
+        assert source["earlyCallInvites"] == "session"
+
+    def test_an_invitation_change_is_checked_against_the_limits(self):
+        good = {"inviteFanout": 0, "inviteOpenMinutes": 5, "earlyCallInvites": "auto"}
+        assert queue.policy_changes(good) == good
+        assert queue.policy_changes({"earlyCallInvites": None}) == {"earlyCallInvites": None}
+        for bad in (
+            {"inviteFanout": 11},
+            {"inviteLeadMinutes": 31},
+            {"inviteOpenMinutes": 4},
+            {"inviteOpenMinutes": 121},
+            {"earlyCallInvites": "always"},
+            {"earlyCallInvites": True},
+        ):
+            with pytest.raises(Invalid):
+                queue.policy_changes(bad)
+
+
+class TestInvitations:
+    """ADR 0022 R4: invite in parallel, never hold the doctor, never reorder."""
+
+    def pick(self, tickets, policy=None, rostered=1):
+        found = queue.invite_targets(
+            tickets, NOW, policy or queue.Policy(), rostered=rostered, per_hour=4
+        )
+        return [t["appointmentId"] for t in found]
+
+    def test_r4_a_free_doctor_and_nobody_here_invites_the_next_absent_tickets(self):
+        tickets = [ticket(n) for n in range(1, 6)]
+        assert self.pick(tickets) == ["a1", "a2", "a3"]
+
+    def test_r4_the_fan_out_is_a_setting(self):
+        tickets = [ticket(n) for n in range(1, 6)]
+        assert self.pick(tickets, queue.Policy(invite_fanout=1)) == ["a1"]
+        assert self.pick(tickets, queue.Policy(invite_fanout=0)) == []
+
+    def test_r4_nobody_is_invited_while_someone_is_here(self):
+        """The doctor takes the patient who is here at once (R1); inviting would add nothing."""
+        assert self.pick([ticket(1), ticket(2, "ARRIVED")]) == []
+
+    def test_r4_nobody_is_invited_while_every_doctor_is_busy_for_long(self):
+        busy = ticket(1, "IN_CONSULTATION", consultationStartedAt=at(-2))
+        assert self.pick([busy, ticket(2), ticket(3)]) == []
+
+    def test_r4_a_doctor_about_to_finish_counts_as_free_within_the_lead(self):
+        busy = ticket(1, "IN_CONSULTATION", consultationStartedAt=at(-12))
+        # 15 minutes is the seeded pace at 4 an hour, so this one ends in 3 minutes.
+        assert self.pick([busy, ticket(2)]) == ["a2"]
+        assert self.pick([busy, ticket(2)], queue.Policy(invite_lead_minutes=2)) == []
+
+    def test_r4_one_of_two_doctors_free_is_enough(self):
+        busy = ticket(1, "IN_CONSULTATION", consultationStartedAt=at(-2))
+        assert self.pick([busy, ticket(2)], rostered=2) == ["a2"]
+
+    def test_r4_a_ticket_is_invited_once_and_open_ones_use_up_the_fan_out(self):
+        sent = {"inviteSentAt": at(-1), "inviteExpiresAt": at(19)}
+        tickets = [ticket(1, **sent), ticket(2, **sent), ticket(3), ticket(4), ticket(5)]
+        assert self.pick(tickets) == ["a3"]
+
+    def test_r4_a_closed_or_declined_invitation_frees_its_place_but_is_not_repeated(self):
+        expired = {"inviteSentAt": at(-30), "inviteExpiresAt": at(-10)}
+        declined = {"inviteSentAt": at(-3), "inviteExpiresAt": at(17), "inviteAnswer": "NO"}
+        tickets = [ticket(1, **expired), ticket(2, **declined), ticket(3), ticket(4)]
+        assert self.pick(tickets, queue.Policy(invite_fanout=2)) == ["a3", "a4"]
+
+    def test_r4_an_accepted_patient_on_the_way_still_counts_until_their_eta(self):
+        yes = {
+            "inviteSentAt": at(-3),
+            "inviteExpiresAt": at(17),
+            "inviteAnswer": "YES",
+            "inviteEta": at(15),
+        }
+        tickets = [ticket(1, **yes), ticket(2), ticket(3)]
+        assert self.pick(tickets, queue.Policy(invite_fanout=1)) == []
+        assert self.pick(tickets, queue.Policy(invite_fanout=2)) == ["a2"]
+
+    def test_r4_only_waiting_tickets_are_invited(self):
+        tickets = [ticket(1, "CANCELLED"), ticket(2, "IN_CONSULTATION"), ticket(3, "COMPLETED")]
+        tickets[1]["consultationStartedAt"] = at(-14)
+        assert self.pick(tickets) == []
+
+    def test_r4_an_invitation_never_changes_who_is_called(self):
+        """Inviting is a record on a ticket; the call decision reads none of it."""
+        plain = [ticket(1), ticket(2, "ARRIVED")]
+        invited = [ticket(1, inviteSentAt=at(-1), inviteAnswer="YES"), ticket(2, "ARRIVED")]
+
+        def ids(call):
+            return (
+                call.candidate and call.candidate["appointmentId"],
+                [t["appointmentId"] for t in call.bypassed],
+                call.hold,
+                call.start_hold,
+                call.late,
+            )
+
+        assert ids(queue.next_call(plain, NOW)) == ids(queue.next_call(invited, NOW))
+
+    def test_r4_the_status_of_an_invitation(self):
+        assert queue.invite_status(ticket(1), NOW) is None
+        sent = {"inviteSentAt": at(-1), "inviteExpiresAt": at(19)}
+        assert queue.invite_status(ticket(1, **sent), NOW) == "open"
+        assert (
+            queue.invite_status(ticket(1, inviteSentAt=at(-30), inviteExpiresAt=at(-10)), NOW)
+            == "expired"
+        )
+        assert queue.invite_status(ticket(1, inviteAnswer="YES", **sent), NOW) == "accepted"
+        assert queue.invite_status(ticket(1, inviteAnswer="NO", **sent), NOW) == "declined"

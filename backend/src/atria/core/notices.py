@@ -31,6 +31,8 @@ BOOKING_RESCHEDULED = "BOOKING_RESCHEDULED"
 BOOKING_DISRUPTED = "BOOKING_DISRUPTED"
 QUEUE_MOVED = "QUEUE_MOVED"
 BOOKING_DECLINED = "BOOKING_DECLINED"
+# A booked patient who is not here yet is asked to come earlier (ADR 0022 R4).
+EARLY_CALL_INVITE = "EARLY_CALL_INVITE"
 
 KINDS = (
     BOOKING_CONFIRMATION,
@@ -40,6 +42,7 @@ KINDS = (
     BOOKING_DISRUPTED,
     QUEUE_MOVED,
     BOOKING_DECLINED,
+    EARLY_CALL_INVITE,
 )
 
 # A queue ticket is confirmed in its own words: a day, an arrival window and a
@@ -458,6 +461,14 @@ SMS_TEXT = {
         "en": "Atria: the queue has moved. Arrive {date} between {time} and {until}, {clinic}. "
         "Place {position}. Ref {reference}.",
     },
+    # Time critical, so the words say "within N min" and not "now": an SMS can lag.
+    # The reply is on the ticket (a button), never free text.
+    EARLY_CALL_INVITE: {
+        "fr": "Atria: un medecin est libre plus tot. Pouvez-vous etre a {clinic} dans "
+        "{minutes} min? Ouvrez votre ticket Atria et touchez Oui. Ref {reference}.",
+        "en": "Atria: a doctor is free sooner. Can you reach {clinic} within {minutes} min? "
+        "Open your Atria ticket and tap Yes. Ref {reference}.",
+    },
 }
 
 SMS_DATE = "%d/%m/%Y"
@@ -505,6 +516,17 @@ def available(kind: str, channel: str) -> bool:
     if channel == "SMS":
         return kind in SMS_TEXT
     return False
+
+
+def invite_minutes(appointment: dict[str, object]) -> str:
+    """How long the patient is asked to arrive within: the invitation's own open time."""
+    sent, closes = appointment.get("inviteSentAt"), appointment.get("inviteExpiresAt")
+    if not sent or not closes:
+        raise Invalid("that appointment holds no invitation")
+    span = dt.datetime.fromisoformat(
+        str(closes).replace("Z", "+00:00")
+    ) - dt.datetime.fromisoformat(str(sent).replace("Z", "+00:00"))
+    return str(max(1, round(span.total_seconds() / 60)))
 
 
 def compose(
@@ -561,6 +583,7 @@ def compose(
         "position": str(appointment.get("position") or ""),
         "fee_value": fee_text(fee, chosen) if fee is not None else "",
         "fee": f" {FEE_LABEL[chosen]}: {fee_text(fee, chosen)}." if fee is not None else "",
+        "minutes": invite_minutes(appointment) if kind == EARLY_CALL_INVITE else "",
     }
     if channel == "SMS":
         return Notice(

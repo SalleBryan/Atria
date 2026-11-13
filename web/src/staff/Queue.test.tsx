@@ -69,7 +69,19 @@ const POLICY = {
   holdMinutes: 5,
   lateGraceMinutes: 15,
   maxBypass: 1,
-  source: { holdMinutes: "default", lateGraceMinutes: "default", maxBypass: "default" },
+  inviteLeadMinutes: 5,
+  inviteFanout: 3,
+  inviteOpenMinutes: 20,
+  earlyCallInvites: "desk",
+  source: {
+    holdMinutes: "default",
+    lateGraceMinutes: "default",
+    maxBypass: "default",
+    inviteLeadMinutes: "default",
+    inviteFanout: "default",
+    inviteOpenMinutes: "default",
+    earlyCallInvites: "default",
+  },
 };
 
 const sent: { path: string; init?: { method?: string; json?: unknown } }[] = [];
@@ -135,6 +147,7 @@ function respond() {
         actualPerHour: null,
       };
     if (path === "/sessions/se-1/next") return ticket(1, "IN_CONSULTATION");
+    if (path === "/sessions/se-1/invites") return { invited: ["a-2"], openMinutes: 20 };
     if (path === "/clinics/u-surg/requests")
       return {
         count: 1,
@@ -300,6 +313,41 @@ describe("The desk sees the cost of a call and who is held for (ADR 0022)", () =
   });
 });
 
+describe("The desk sees the fee each place will be asked for", () => {
+  beforeEach(respond);
+
+  it("shows the fee, Free, or nothing when the visit has no fee band", async () => {
+    queueWith({
+      appointments: [
+        { ...ticket(1, "ARRIVED"), fee: { amountMinor: 5000, currency: "XAF" } },
+        { ...ticket(2, "BOOKED"), fee: { amountMinor: 0, currency: "XAF" } },
+        { ...ticket(3, "BOOKED"), fee: null },
+      ],
+    });
+    renderAt("/console/queue", GP);
+    const list = await screen.findByRole("region", { name: "Today's queue" });
+    expect(await within(list).findByText(/Fee 5,000 XAF/)).toBeInTheDocument();
+    expect(within(list).getByText("Free")).toBeInTheDocument();
+    expect(within(list).getByText("Online · APT-3")).toBeInTheDocument();
+    expect(within(list).queryByText(/Fee 0/)).not.toBeInTheDocument();
+  });
+
+  it("tells the receptionist the walk-in fee in the dialog", async () => {
+    const user = userEvent.setup();
+    queueWith({ walkInFee: { amountMinor: 1500, currency: "XAF" } });
+    renderAt("/console/queue", DESK);
+    await user.click(await screen.findByRole("button", { name: "Add a walk-in" }));
+    expect(await within(screen.getByRole("dialog")).findByText(/Fee 1,500 XAF, asked for at the hospital/)).toBeInTheDocument();
+  });
+
+  it("says nothing about a fee in the dialog when the type has none", async () => {
+    const user = userEvent.setup();
+    renderAt("/console/queue", DESK);
+    await user.click(await screen.findByRole("button", { name: "Add a walk-in" }));
+    expect(within(screen.getByRole("dialog")).queryByText(/Fee|free/)).not.toBeInTheDocument();
+  });
+});
+
 describe("Only the receptionist marks a place urgent (ADR 0022, owner decision)", () => {
   beforeEach(respond);
 
@@ -355,12 +403,75 @@ describe("The queue rules are set by level (ADR 0022)", () => {
     renderAt("/console/queue", MANAGER);
     await user.click(await screen.findByRole("button", { name: "Queue rules" }));
     const dialog = await screen.findByRole("dialog");
-    expect(await within(dialog).findByText(/Now 5 min, set by the built-in default/)).toBeInTheDocument();
+    expect((await within(dialog).findAllByText(/Now 5 min, set by the built-in default/)).length).toBeGreaterThan(0);
     expect(sent.some((s) => s.path === "/clinics/u-opd/queue-policy" && (s.init?.method ?? "GET") === "GET")).toBe(true);
     await user.click(within(dialog).getByRole("button", { name: /^Times a booked patient may be passed over/ }));
     await user.click(await screen.findByRole("option", { name: "Twice" }));
     await user.click(within(dialog).getByRole("button", { name: "Save the rules" }));
     const saved = sent.find((s) => s.path === "/clinics/u-opd/queue-policy" && s.init?.method === "PATCH");
     expect(saved?.init?.json).toEqual({ maxBypass: 2 });
+  });
+});
+
+describe("The desk invites booked patients to come earlier (ADR 0022 R4)", () => {
+  beforeEach(respond);
+
+  const INVITES = { mode: "desk", fanout: 3, openMinutes: 20, open: 0, eligible: ["a-2"] };
+
+  it("sends the invitations the rules allow, and says how many", async () => {
+    const user = userEvent.setup();
+    queueWith({ invites: INVITES, appointments: [ticket(2, "BOOKED")] });
+    renderAt("/console/queue", DESK);
+    await user.click(await screen.findByRole("button", { name: "Invite to come earlier" }));
+    const posted = sent.find((s) => s.path === "/sessions/se-1/invites");
+    expect(posted?.init?.method).toBe("POST");
+    expect(await screen.findByText(/1 patient is invited to come earlier/)).toBeInTheDocument();
+  });
+
+  it("is switched off when nobody can be invited now", async () => {
+    queueWith({ invites: { ...INVITES, eligible: [], open: 3 } });
+    renderAt("/console/queue", DESK);
+    expect(await screen.findByRole("button", { name: "Invite to come earlier" })).toBeDisabled();
+  });
+
+  it("gives a clinician no invite button", async () => {
+    queueWith({ invites: INVITES });
+    renderAt("/console/queue", GP);
+    await screen.findByText("Brice Tagne");
+    expect(screen.queryByRole("button", { name: "Invite to come earlier" })).not.toBeInTheDocument();
+  });
+
+  it("marks each invitation by where it stands, without moving anyone", async () => {
+    const open = { status: "open", sentAt: soon(-1), expiresAt: soon(19), answer: null, eta: null };
+    queueWith({
+      invites: { ...INVITES, eligible: [], open: 1 },
+      appointments: [
+        { ...ticket(1, "BOOKED"), invite: open },
+        { ...ticket(2, "BOOKED"), invite: { ...open, status: "accepted", answer: "YES", eta: soon(15) } },
+        { ...ticket(3, "BOOKED"), invite: { ...open, status: "declined", answer: "NO" } },
+        { ...ticket(4, "BOOKED"), invite: { ...open, status: "expired" } },
+      ],
+    });
+    renderAt("/console/queue", DESK);
+    const list = await screen.findByRole("region", { name: "Today's queue" });
+    expect(await within(list).findByText("Invited")).toBeInTheDocument();
+    expect(within(list).getByText(/^Coming by/)).toBeInTheDocument();
+    expect(within(list).getByText("Said no")).toBeInTheDocument();
+    expect(within(list).getByText("Invite ended")).toBeInTheDocument();
+  });
+
+  it("sets the invitation rules by level, in the same dialog", async () => {
+    const user = userEvent.setup();
+    queueWith({ policy: POLICY });
+    renderAt("/console/queue", DESK);
+    await user.click(await screen.findByRole("button", { name: "Rules for today" }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /^Invitations out at once/ }));
+    await user.click(await screen.findByRole("option", { name: "5" }));
+    await user.click(within(dialog).getByRole("button", { name: /^Who sends invitations/ }));
+    await user.click(await screen.findByRole("option", { name: "Automatically" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save the rules" }));
+    const saved = sent.find((s) => s.path === "/sessions/se-1/policy");
+    expect(saved?.init?.json).toEqual({ inviteFanout: 5, earlyCallInvites: "auto" });
   });
 });

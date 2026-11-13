@@ -33,6 +33,7 @@ from test_appointment_cancel import (
 
 from atria.data import keys
 from atria.data.catalogue import appointment_type_listing
+from atria.data.settings import Settings
 from atria.services.booking import appointments as service
 from atria.services.booking import queue as queue_service
 from atria.services.notify import outbox
@@ -741,6 +742,35 @@ class TestWhoSetsTheQueueRules:
         assert changed["maxBypass"] == 0
         assert self.live(session["sessionId"])["policy"]["source"]["maxBypass"] == "session"
 
+    def test_r4_the_invitation_rules_are_settings_on_all_three_levels(self, opd, repository):
+        repository.update_existing(
+            keys.tenant(TENANT),
+            set_values={"queueInviteFanout": 6, "queueEarlyCallInvites": "auto"},
+            what="tenant",
+        )
+        session = body_of(publish())
+        sid = session["sessionId"]
+        policy = self.live(sid)["policy"]
+        assert (policy["inviteFanout"], policy["earlyCallInvites"]) == (6, "auto")
+        assert policy["source"]["inviteFanout"] == "tenant"
+        assert policy["inviteLeadMinutes"] == 5
+        assert policy["inviteOpenMinutes"] == 20
+        assert policy["source"]["inviteLeadMinutes"] == "default"
+        body_of(self.patch_unit({"inviteFanout": 2, "inviteOpenMinutes": 45}))
+        policy = self.live(sid)["policy"]
+        assert (policy["inviteFanout"], policy["source"]["inviteFanout"]) == (2, "unit")
+        assert (policy["inviteOpenMinutes"], policy["source"]["inviteOpenMinutes"]) == (45, "unit")
+        body_of(self.patch_session(sid, {"earlyCallInvites": "desk"}, staff_context()))
+        policy = self.live(sid)["policy"]
+        assert (policy["earlyCallInvites"], policy["source"]["earlyCallInvites"]) == (
+            "desk",
+            "session",
+        )
+        cleared = body_of(self.patch_session(sid, {"earlyCallInvites": None}, staff_context()))
+        assert cleared["earlyCallInvites"] == "auto"
+        assert self.patch_unit({"inviteFanout": 11})["statusCode"] == 400
+        assert self.patch_unit({"earlyCallInvites": "sometimes"})["statusCode"] == 400
+
     def test_a_clinician_does_not_adjust_a_session(self, opd):
         _repo, clinician = opd
         session = body_of(publish())
@@ -928,3 +958,288 @@ class TestTicketOutlook:
 
     def test_a_booking_that_is_not_a_queue_place_is_not_found(self, opd):
         assert self.outlook("a-missing")["statusCode"] == 404
+
+
+class TestFeeOnTheDesk:
+    """The desk sees the fee each place will be asked for, from the band in force that day."""
+
+    GENERAL = keys.appointment_type(TENANT, "at-gen")
+
+    def band(self, repository, amount, *, on, band_id="fb-general"):
+        Settings(
+            repository, clock=lambda: dt.datetime.fromisoformat(f"{on}T08:00:00+00:00")
+        ).set_fee_band(
+            TENANT,
+            band_id,
+            {"practice": "General", "baseAmountMinor": amount, "scheduleReference": ""},
+        )
+
+    def attach(self, repository, band_id="fb-general"):
+        repository.put(self.GENERAL, {**repository.get(self.GENERAL), "feeBandId": band_id})
+
+    def live(self, session_id):
+        return body_of(
+            call("GET", "/sessions/{id}/queue", context=staff_context(), path={"id": session_id})
+        )
+
+    def test_a_place_shows_the_fee_in_the_region_currency(self, opd, repository):
+        self.band(repository, 5000, on="2026-02-01")
+        self.attach(repository)
+        session = body_of(publish())
+        ticket(session["sessionId"])
+        live = self.live(session["sessionId"])
+        assert live["appointments"][0]["fee"] == {"amountMinor": 5000, "currency": "XAF"}
+        assert live["walkInFee"] == {"amountMinor": 5000, "currency": "XAF"}
+
+    def test_a_free_visit_shows_zero_not_nothing(self, opd, repository):
+        self.band(repository, 0, on="2026-02-01")
+        self.attach(repository)
+        session = body_of(publish())
+        ticket(session["sessionId"])
+        fee = self.live(session["sessionId"])["appointments"][0]["fee"]
+        assert fee == {"amountMinor": 0, "currency": "XAF"}
+
+    def test_a_type_with_no_band_shows_no_fee(self, opd):
+        session = body_of(publish())
+        ticket(session["sessionId"])
+        live = self.live(session["sessionId"])
+        assert live["appointments"][0]["fee"] is None
+        assert live["walkInFee"] is None
+
+    def test_a_band_that_starts_after_the_session_is_not_used(self, opd, repository):
+        self.band(repository, 5000, on="2026-02-01")
+        self.band(repository, 6000, on="2026-03-10")
+        self.attach(repository)
+        session = body_of(publish())
+        ticket(session["sessionId"])
+        assert self.live(session["sessionId"])["appointments"][0]["fee"]["amountMinor"] == 5000
+
+    def test_the_band_is_read_once_per_type_not_once_per_place(self, opd, repository, monkeypatch):
+        self.band(repository, 5000, on="2026-02-01")
+        self.attach(repository)
+        repository.put(
+            keys.patient_profile(TENANT, "pp-3"),
+            {"type": "PATIENT_PROFILE", "patientProfileId": "pp-3", "tenantId": TENANT},
+        )
+        session = body_of(publish())
+        ticket(session["sessionId"])
+        ticket(session["sessionId"], context=staff_context(), patientProfileId="pp-2")
+        ticket(session["sessionId"], context=staff_context(), patientProfileId="pp-3")
+        reads = []
+        original = Settings.fee_band_on
+
+        def counted(self, *args):
+            reads.append(args)
+            return original(self, *args)
+
+        monkeypatch.setattr(Settings, "fee_band_on", counted)
+        live = self.live(session["sessionId"])
+        assert len(live["appointments"]) == 3
+        assert len(reads) == 1  # three places and the walk-in share one type
+
+
+class TestEarlyCallInvitations:
+    """ADR 0022 R4: invite in parallel, never hold the doctor, never move anyone."""
+
+    @pytest.fixture
+    def line(self, opd, repository):
+        """Three booked tickets, nobody here, both doctors free, 08:05 in Douala."""
+        _repo, clinician = opd
+        repository.put(
+            keys.patient_profile(TENANT, "pp-3"),
+            {"type": "PATIENT_PROFILE", "patientProfileId": "pp-3", "tenantId": TENANT},
+        )
+        session = body_of(publish(rostered=2))
+        sid = session["sessionId"]
+        first = body_of(ticket(sid))
+        second = body_of(ticket(sid, context=staff_context(), patientProfileId="pp-2"))
+        third = body_of(ticket(sid, context=staff_context(), patientProfileId="pp-3"))
+        CLOCK["now"] = dt.datetime(2026, 3, 4, 7, 5, tzinfo=dt.UTC)
+        doctor = {
+            "personId": "p-doc",
+            "tenantId": TENANT,
+            "roles": "CLINICIAN",
+            "staffId": clinician,
+            "clinicId": DOUALA,
+        }
+        return sid, [first, second, third], doctor
+
+    def invite(self, sid, context=None, **body):
+        return call(
+            "POST",
+            "/sessions/{id}/invites",
+            context=context or staff_context(),
+            path={"id": sid},
+            body=body or None,
+        )
+
+    def reply(self, appointment_id, answer, context=None):
+        return call(
+            "POST",
+            "/appointments/{id}/invite-reply",
+            context=context or patient_context(),
+            path={"id": appointment_id},
+            body={"answer": answer},
+        )
+
+    def live(self, sid):
+        return body_of(
+            call("GET", "/sessions/{id}/queue", context=staff_context(), path={"id": sid})
+        )
+
+    def stored(self, repository, appointment_id):
+        return repository.get(keys.appointment(TENANT, appointment_id))
+
+    def test_r4_the_desk_invites_the_next_absent_patients_up_to_the_fan_out(self, line, repository):
+        sid, tickets, _doctor = line
+        sent = body_of(self.invite(sid))
+        assert sent["invited"] == [t["appointmentId"] for t in tickets]
+        row = self.stored(repository, tickets[0]["appointmentId"])
+        assert row["inviteSentAt"]
+        assert row["inviteExpiresAt"]
+        assert row["inviteBy"] == "p-rec"
+        live = self.live(sid)
+        assert live["invites"]["open"] == 3
+        assert live["invites"]["eligible"] == []
+        flags = {a["appointmentId"]: a for a in live["appointments"]}
+        assert flags[tickets[0]["appointmentId"]]["invite"]["status"] == "open"
+
+    def test_r4_the_desk_may_invite_only_some_of_them(self, line):
+        sid, tickets, _doctor = line
+        only = tickets[1]["appointmentId"]
+        assert body_of(self.invite(sid, appointmentIds=[only]))["invited"] == [only]
+
+    def test_r4_a_ticket_that_may_not_be_invited_is_refused(self, line):
+        sid, _tickets, _doctor = line
+        assert self.invite(sid, appointmentIds=["nobody"])["statusCode"] == 409
+        assert self.invite(sid, appointmentIds="all")["statusCode"] == 400
+
+    def test_r4_nobody_is_invited_while_someone_is_here(self, line):
+        sid, tickets, _doctor = line
+        act(tickets[2]["appointmentId"], "arrive")
+        assert self.invite(sid)["statusCode"] == 409
+
+    def test_r4_a_second_round_invites_nobody_already_invited(self, line):
+        sid, _tickets, _doctor = line
+        self.invite(sid)
+        assert self.invite(sid)["statusCode"] == 409
+
+    def test_r4_only_the_desk_and_the_unit_manager_invite(self, line):
+        sid, _tickets, doctor = line
+        assert self.invite(sid, context=patient_context())["statusCode"] == 403
+        assert self.invite(sid, context=doctor)["statusCode"] == 403
+        assert self.invite(sid, context=MANAGER)["statusCode"] == 200
+
+    def test_r4_a_yes_records_the_reply_and_moves_nobody(self, line, repository):
+        sid, tickets, doctor = line
+        self.invite(sid)
+        mine = tickets[0]["appointmentId"]
+        answered = body_of(self.reply(mine, "yes"))
+        assert answered["invite"]["status"] == "accepted"
+        row = self.stored(repository, mine)
+        assert row["state"] == "BOOKED"
+        assert row["position"] == tickets[0]["position"]
+        assert row["inviteEta"] == row["inviteExpiresAt"]
+        # Not checked in: the doctor still has nobody to call.
+        called = call("POST", "/sessions/{id}/next", context=doctor, path={"id": sid})
+        assert called["statusCode"] == 409
+
+    def test_r4_a_no_changes_nothing_and_loses_no_place(self, line, repository):
+        sid, tickets, _doctor = line
+        self.invite(sid)
+        mine = tickets[0]["appointmentId"]
+        assert body_of(self.reply(mine, "NO"))["invite"]["status"] == "declined"
+        row = self.stored(repository, mine)
+        assert (row["state"], row["position"]) == ("BOOKED", tickets[0]["position"])
+        assert not row.get("lateAt")
+        assert not row.get("bypassCount")
+
+    def test_r4_an_answer_is_idempotent_but_not_reversible(self, line):
+        sid, tickets, _doctor = line
+        self.invite(sid)
+        mine = tickets[0]["appointmentId"]
+        assert self.reply(mine, "YES")["statusCode"] == 200
+        assert self.reply(mine, "YES")["statusCode"] == 200
+        assert self.reply(mine, "NO")["statusCode"] == 409
+
+    def test_r4_a_reply_after_the_invitation_ran_out_is_refused(self, line):
+        sid, tickets, _doctor = line
+        self.invite(sid)
+        CLOCK["now"] = dt.datetime(2026, 3, 4, 7, 40, tzinfo=dt.UTC)
+        late = self.reply(tickets[0]["appointmentId"], "YES")
+        assert late["statusCode"] == 409
+        assert "INVITATION_CLOSED" in late["body"]
+
+    def test_r4_a_reply_with_no_invitation_or_a_bad_answer_is_refused(self, line):
+        sid, tickets, _doctor = line
+        mine = tickets[0]["appointmentId"]
+        assert self.reply(mine, "YES")["statusCode"] == 409
+        self.invite(sid)
+        assert self.reply(mine, "maybe")["statusCode"] == 400
+
+    def test_r4_a_patient_answers_only_their_own_invitation(self, line):
+        sid, tickets, _doctor = line
+        self.invite(sid)
+        other = patient_context(personId="p-other", patientProfileId="pp-2")
+        assert self.reply(tickets[0]["appointmentId"], "YES", context=other)["statusCode"] == 403
+
+    def test_r4_the_desk_records_a_reply_given_by_phone(self, line):
+        sid, tickets, _doctor = line
+        self.invite(sid)
+        done = self.reply(tickets[0]["appointmentId"], "YES", context=staff_context())
+        assert done["statusCode"] == 200
+
+    def test_r4_a_reply_after_the_patient_arrived_is_refused(self, line):
+        sid, tickets, _doctor = line
+        self.invite(sid)
+        act(tickets[0]["appointmentId"], "arrive")
+        assert self.reply(tickets[0]["appointmentId"], "YES")["statusCode"] == 409
+
+    def test_r4_invitations_never_hold_the_doctor(self, line):
+        sid, tickets, doctor = line
+        self.invite(sid)
+        act(tickets[2]["appointmentId"], "arrive")
+        called = body_of(call("POST", "/sessions/{id}/next", context=doctor, path={"id": sid}))
+        assert called["appointmentId"] == tickets[2]["appointmentId"]
+
+    def test_r4_the_patients_own_ticket_shows_their_invitation(self, line):
+        sid, tickets, _doctor = line
+        self.invite(sid)
+        seen = body_of(
+            call(
+                "GET",
+                "/appointments/{id}/ticket",
+                context=patient_context(),
+                path={"id": tickets[0]["appointmentId"]},
+            )
+        )
+        assert seen["invite"]["status"] == "open"
+
+    def test_r4_in_automatic_mode_reading_the_live_queue_invites(self, line, repository):
+        sid, tickets, _doctor = line
+        body_of(
+            call(
+                "PATCH",
+                "/sessions/{id}/policy",
+                context=staff_context(),
+                path={"id": sid},
+                body={"earlyCallInvites": "auto", "inviteFanout": 2},
+            )
+        )
+        assert self.live(sid)["invites"]["open"] == 2
+        sent = [
+            t["appointmentId"]
+            for t in tickets
+            if self.stored(repository, t["appointmentId"]).get("inviteSentAt")
+        ]
+        assert sent == [t["appointmentId"] for t in tickets[:2]]
+        assert self.stored(repository, tickets[0]["appointmentId"])["inviteBy"] == "system"
+
+    def test_r4_in_desk_mode_reading_the_live_queue_invites_nobody(self, line):
+        sid, _tickets, _doctor = line
+        assert self.live(sid)["invites"]["open"] == 0
+
+    def test_r4_a_closed_session_invites_nobody(self, line):
+        sid, _tickets, _doctor = line
+        call("POST", "/sessions/{id}/close", context=MANAGER, path={"id": sid})
+        assert self.invite(sid)["statusCode"] == 409

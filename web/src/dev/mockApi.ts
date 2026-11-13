@@ -120,6 +120,10 @@ const tenant: Record<string, unknown> = {
   queueHoldMinutes: 5,
   queueLateGraceMinutes: 15,
   queueMaxBypass: 1,
+  queueInviteLeadMinutes: 5,
+  queueInviteFanout: 3,
+  queueInviteOpenMinutes: 20,
+  queueEarlyCallInvites: "desk",
   languages: [...TENANT_SETTINGS.languages],
   firstAppointmentAt: "2026-09-19T08:12:40Z",
 };
@@ -128,6 +132,11 @@ const feeBands = FEE_BANDS.map((b) => ({
   scheduleReference: "Atria fair rates, 2026-09-26",
   effectiveFrom: "2026-09-26",
 }));
+// The fee in force for a type, as the live queue shows the desk (services/booking/fees.py).
+const deskFee = (typeId: unknown) => {
+  const band = feeBands.find((b) => b.feeBandId === types.find((t) => t.appointmentTypeId === typeId)?.feeBandId);
+  return band ? { amountMinor: band.baseAmountMinor, currency: "XAF" } : null;
+};
 const regionPack = {
   code: "CM",
   currency: "XAF",
@@ -316,16 +325,34 @@ const sessionView = (s: MockSession) => ({
 });
 
 // ADR 0022, as core/queue.py works it out: who a free doctor takes, who is due and absent, who is late.
-type QueueKnob = "holdMinutes" | "lateGraceMinutes" | "maxBypass";
-const policyLevels: Record<"tenant" | "unit" | "session", Partial<Record<QueueKnob, number>>> = {
-  tenant: { holdMinutes: 5, lateGraceMinutes: 15, maxBypass: 1 },
+type QueueKnob =
+  "holdMinutes" | "lateGraceMinutes" | "maxBypass" | "inviteLeadMinutes" | "inviteFanout" | "inviteOpenMinutes" | "earlyCallInvites";
+type KnobValue = number | string;
+const policyLevels: Record<"tenant" | "unit" | "session", Partial<Record<QueueKnob, KnobValue>>> = {
+  tenant: {
+    holdMinutes: 5,
+    lateGraceMinutes: 15,
+    maxBypass: 1,
+    inviteLeadMinutes: 5,
+    inviteFanout: 3,
+    inviteOpenMinutes: 20,
+    earlyCallInvites: "desk",
+  },
   unit: {},
   session: {},
 };
 /** The rules in force and the level that set each, the most specific winning (core/queue.py::resolve_policy). */
 function policyView(withSession = true) {
-  const values: Record<QueueKnob, number> = { holdMinutes: 5, lateGraceMinutes: 15, maxBypass: 1 };
-  const source: Record<string, string> = { holdMinutes: "default", lateGraceMinutes: "default", maxBypass: "default" };
+  const values: Record<QueueKnob, KnobValue> = {
+    holdMinutes: 5,
+    lateGraceMinutes: 15,
+    maxBypass: 1,
+    inviteLeadMinutes: 5,
+    inviteFanout: 3,
+    inviteOpenMinutes: 20,
+    earlyCallInvites: "desk",
+  };
+  const source: Record<string, string> = Object.fromEntries(Object.keys(values).map((name) => [name, "default"]));
   for (const level of withSession ? (["tenant", "unit", "session"] as const) : (["tenant", "unit"] as const)) {
     for (const name of Object.keys(values) as QueueKnob[]) {
       const value = policyLevels[level][name];
@@ -335,9 +362,50 @@ function policyView(withSession = true) {
       }
     }
   }
-  return { ...values, source };
+  return { ...values, source } as Record<QueueKnob, KnobValue> & { source: Record<string, string> };
 }
-const queuePolicy = new Proxy({} as Record<QueueKnob, number>, { get: (_t, name) => policyView()[name as QueueKnob] });
+const queuePolicy = new Proxy({} as Record<QueueKnob, number>, { get: (_t, name) => Number(policyView()[name as QueueKnob]) });
+
+/** An early-call invitation as the API shows it (core/queue.py::invite_view). */
+function inviteStatus(t: Record<string, unknown>, nowMs: number): string | null {
+  if (!t.inviteSentAt) return null;
+  if (t.inviteAnswer === "YES") return "accepted";
+  if (t.inviteAnswer === "NO") return "declined";
+  return nowMs >= ticketTime(t, "inviteExpiresAt") ? "expired" : "open";
+}
+function inviteView(t: Record<string, unknown>, nowMs: number) {
+  const status = inviteStatus(t, nowMs);
+  if (!status) return null;
+  return {
+    status,
+    sentAt: t.inviteSentAt,
+    expiresAt: t.inviteExpiresAt,
+    answer: t.inviteAnswer ?? null,
+    eta: t.inviteEta ?? null,
+  };
+}
+/** Who the desk may invite now: nobody here, a doctor free, room under the fan-out, never invited before. */
+function inviteTargets(tickets: Record<string, unknown>[], nowMs: number, rostered: number): Record<string, unknown>[] {
+  const policy = policyView();
+  if (Number(policy.inviteFanout) <= 0 || tickets.some((t) => t.state === "ARRIVED")) return [];
+  if (tickets.filter((t) => t.state === "IN_CONSULTATION").length >= rostered) return [];
+  const pending = tickets.filter((t) => {
+    const status = inviteStatus(t, nowMs);
+    return status === "open" || (status === "accepted" && ticketTime(t, "inviteEta") > nowMs);
+  }).length;
+  return tickets
+    .filter((t) => waitingState(t) && !t.inviteSentAt)
+    .sort((a, b) => Number(a.position) - Number(b.position))
+    .slice(0, Math.max(0, Number(policy.inviteFanout) - pending));
+}
+function writeInvites(targets: Record<string, unknown>[], nowMs: number, by: string) {
+  const openMinutes = Number(policyView().inviteOpenMinutes);
+  for (const t of targets) {
+    t.inviteSentAt = new Date(nowMs).toISOString();
+    t.inviteExpiresAt = new Date(nowMs + openMinutes * 60000).toISOString();
+    t.inviteBy = by;
+  }
+}
 const ticketTime = (t: Record<string, unknown>, field: string): number => Date.parse(String(t[field] ?? ""));
 const waitingState = (t: Record<string, unknown>) => ["BOOKED", "CONFIRMED", "RESCHEDULED"].includes(String(t.state));
 function ticketLate(t: Record<string, unknown>, nowMs: number): boolean {
@@ -376,6 +444,7 @@ function ticketFlags(t: Record<string, unknown>, nowMs: number) {
     late: waiting || t.state === "ARRIVED" ? ticketLate(t, nowMs) : false,
     bypassCount: Number(t.bypassCount ?? 0),
     urgent: !!t.urgent,
+    invite: inviteView(t, nowMs),
   };
 }
 const queueNames = Object.keys(patients);
@@ -932,7 +1001,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       if (!["CLINIC_MANAGER", "TENANT_ADMIN"].includes(callerRole)) {
         return json(403, { code: "forbidden", message: "you may not set a unit's queue rules" });
       }
-      for (const [name, value] of Object.entries((body ?? {}) as Record<string, number | null>)) {
+      for (const [name, value] of Object.entries((body ?? {}) as Record<string, KnobValue | null>)) {
         if (value === null) delete policyLevels.unit[name as QueueKnob];
         else policyLevels.unit[name as QueueKnob] = value;
       }
@@ -944,7 +1013,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     if (!["RECEPTIONIST", "CLINIC_MANAGER"].includes(callerRole)) {
       return json(403, { code: "forbidden", message: "you may not adjust a session's queue rules" });
     }
-    for (const [name, value] of Object.entries((body ?? {}) as Record<string, number | null>)) {
+    for (const [name, value] of Object.entries((body ?? {}) as Record<string, KnobValue | null>)) {
       if (value === null) delete policyLevels.session[name as QueueKnob];
       else policyLevels.session[name as QueueKnob] = value;
     }
@@ -979,9 +1048,41 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         consultationMinutes: minutes,
         expectedStartAt: new Date(start).toISOString().replace(/\.\d{3}Z$/, "Z"),
         next: ahead === 0 && mine.state === "ARRIVED",
+        invite: inviteView(mine, Date.now()),
       },
       300,
     );
+  }
+  const replyRoute = path.match(/^\/appointments\/([^/]+)\/invite-reply$/);
+  if (replyRoute && method === "POST") {
+    const ticket = [...todayQueue, ...appointments].find((a) => a.appointmentId === replyRoute[1]);
+    if (!ticket) return json(404, { code: "not_found", message: "no such appointment" });
+    const answer = String(((body ?? {}) as { answer?: string }).answer ?? "").toUpperCase();
+    if (answer !== "YES" && answer !== "NO") return json(400, { code: "invalid", message: "answer is YES or NO" });
+    const status = inviteStatus(ticket, Date.now());
+    if (!status) return json(409, { code: "conflict", message: "there is no invitation to answer" });
+    if (status === "expired") return json(409, { code: "conflict", message: "that invitation has closed" });
+    if (status === "accepted" || status === "declined") {
+      if (ticket.inviteAnswer !== answer) return json(409, { code: "conflict", message: "that invitation was already answered" });
+    } else {
+      ticket.inviteAnswer = answer;
+      ticket.inviteReplyAt = new Date().toISOString();
+      if (answer === "YES") ticket.inviteEta = ticket.inviteExpiresAt;
+    }
+    return json(200, { ...ticket, invite: inviteView(ticket, Date.now()) }, 300);
+  }
+  const invitesRoute = path.match(/^\/sessions\/([^/]+)\/invites$/);
+  if (invitesRoute && method === "POST") {
+    if (!["RECEPTIONIST", "CLINIC_MANAGER"].includes(callerRole)) {
+      return json(403, { code: "forbidden", message: "you may not invite patients" });
+    }
+    const session = opdSessions.find((s) => s.sessionId === invitesRoute[1]);
+    if (!session) return json(404, { code: "not_found", message: "no such session" });
+    const all = [...todayQueue, ...appointments].filter((a) => a.sessionId === session.sessionId);
+    const targets = inviteTargets(all, Date.now(), session.rosteredClinicianCount);
+    if (!targets.length) return json(409, { code: "conflict", message: "nobody can be invited right now" });
+    writeInvites(targets, Date.now(), "preview");
+    return json(200, { invited: targets.map((t) => t.appointmentId), openMinutes: Number(policyView().inviteOpenMinutes) }, 400);
   }
   const urgentRoute = path.match(/^\/appointments\/([^/]+)\/urgent$/);
   if (urgentRoute && method === "POST") {
@@ -1017,7 +1118,8 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         200,
         {
           ...sessionView(session),
-          appointments: tickets.map((t) => ({ ...t, ...ticketFlags(t, Date.now()) })),
+          appointments: tickets.map((t) => ({ ...t, ...ticketFlags(t, Date.now()), fee: deskFee(t.appointmentTypeId) })),
+          walkInFee: deskFee(types.find((x) => x.serviceLine === "GENERAL")?.appointmentTypeId),
           callPreview: (() => {
             const decision = mockNextCall(tickets, Date.now(), false);
             const minutes = 15;
@@ -1034,6 +1136,17 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
             };
           })(),
           policy: policyView(),
+          invites: (() => {
+            const policy = policyView();
+            const now = Date.now();
+            return {
+              mode: policy.earlyCallInvites,
+              fanout: policy.inviteFanout,
+              openMinutes: policy.inviteOpenMinutes,
+              open: tickets.filter((t) => inviteStatus(t, now) === "open").length,
+              eligible: inviteTargets(tickets, now, session.rosteredClinicianCount).map((t) => t.appointmentId),
+            };
+          })(),
           patients,
           waiting: count(["BOOKED", "CONFIRMED", "RESCHEDULED"]),
           arrived: count(["ARRIVED"]),
@@ -1754,6 +1867,10 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         holdMinutes: Number(tenant.queueHoldMinutes),
         lateGraceMinutes: Number(tenant.queueLateGraceMinutes),
         maxBypass: Number(tenant.queueMaxBypass),
+        inviteLeadMinutes: Number(tenant.queueInviteLeadMinutes),
+        inviteFanout: Number(tenant.queueInviteFanout),
+        inviteOpenMinutes: Number(tenant.queueInviteOpenMinutes),
+        earlyCallInvites: String(tenant.queueEarlyCallInvites),
       };
       return json(200, settingsOverview().tenant, 500);
     }

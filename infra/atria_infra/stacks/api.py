@@ -47,6 +47,7 @@ VISIT_ACTIONS = (
     "place",
     "decline",
     "urgent",
+    "invite-reply",
 )
 
 
@@ -523,6 +524,8 @@ class ApiStack(Stack):
             (one_session.add_resource("queue"), "GET"),
             (one_session.add_resource("next"), "POST"),
             (one_session.add_resource("close"), "POST"),
+            # ADR 0022 R4: the desk invites booked patients to come early.
+            (one_session.add_resource("invites"), "POST"),
             # ADR 0022: a unit's queue rules, and the desk's adjustment for one session.
             (queue_policy := one_clinic.add_resource("queue-policy"), "PATCH"),
             (queue_policy, "GET"),

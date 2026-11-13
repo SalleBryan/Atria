@@ -151,7 +151,16 @@ STILL_TRUE = {
     notices.BOOKING_DISRUPTED: ("DISRUPTED",),
     notices.QUEUE_MOVED: ("BOOKED", "CONFIRMED"),
     notices.BOOKING_DECLINED: ("DECLINED",),
+    notices.EARLY_CALL_INVITE: ("BOOKED", "CONFIRMED"),
 }
+
+
+def invite_closed(appointment: dict[str, Any], now: dt.datetime) -> bool:
+    """An invitation that was answered or has run out is not worth sending late (ADR 0022 R4)."""
+    if appointment.get("inviteAnswer"):
+        return True
+    closes = parse_time(appointment.get("inviteExpiresAt"))
+    return closes is not None and now >= closes
 
 
 def permanent(exc: Exception) -> bool:
@@ -287,7 +296,7 @@ def pushes(job: dict[str, Any]) -> bool:
     email copy is itself an email job; pushing from the email job alone gives
     each notice one push. A queue move is texted only, so it pushes itself.
     """
-    if job.get("kind") == notices.QUEUE_MOVED:
+    if job.get("kind") in (notices.QUEUE_MOVED, notices.EARLY_CALL_INVITE):
         return True
     return job.get("channel") == "EMAIL"
 
@@ -333,7 +342,9 @@ def send_on_channel(
     data = booking()
     appointment = data.appointment(tenant_id, appointment_id)
     state = str(appointment.get("state") or "")
-    if not still_worth_sending(kind, state):
+    if not still_worth_sending(kind, state) or (
+        kind == notices.EARLY_CALL_INVITE and invite_closed(appointment, data.now())
+    ):
         # FR-REM-02: the record moved on, so nothing is sent and the skip is
         # logged. A reminder already has a row, which is closed as CANCELLED.
         logger.info(

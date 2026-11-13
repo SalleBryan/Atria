@@ -105,7 +105,8 @@ Full detail in `docs/handoff/LOG_BIZ.md`. Branch `biz/usage-statement-and-baseli
 - B0 ADR 0030 written (proposed). **Owner decision needed** before B3. Nothing commercial is built.
 - B1 done: `GET /messages/usage` (ADR 0031) and an administrator Usage tab on Messages. Possible next: a CSV through `utils/export/`, once the owner wants it.
 - B2 done: F18 fixed, `before` comparison on both report endpoints, and a Compare picker with change lines on the Reports tiles. Next: the queue metrics, once the pain lane adds `CONSULTATION_ENDED`. The comparison is not in the PDF, Excel or CSV exports yet.
-- B3 and B4 not started. B3 is blocked on the owner approving ADR 0030. B4 can start any time.
+- B4 done: the "Set up a unit" checklist at `/console/onboarding`. B3 is not started and is blocked on the owner approving ADR 0030.
+- Owner rule recorded: the text in a pill (`.chip`) is always centred.
 - Setup note: a venv inside OneDrive failed with permission errors. Build it outside the synced folder.
 
 ## 12. Queue revision: what it changes for the business lane (from ADR 0022)

@@ -84,7 +84,8 @@
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 80;
+  /* Above the dialog scrim (1000, visits.css): a picker opened inside a dialog must sit over it. */
+  z-index: 1100;
   width: var(--fit-width, 100vw);
   height: var(--fit-height, 100vh);
   zoom: var(--fit, 1);

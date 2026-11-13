@@ -6,7 +6,7 @@
 #
 # boto3 is deliberately absent: the Lambda runtime provides it.
 aws-lambda-powertools[tracer]==3.35.0
-pydantic==2.13.5
+pydantic==2.14.2
 
 # The authoriser verifies the Cognito token itself, against the pool's public
 # keys, and caches them between invocations.

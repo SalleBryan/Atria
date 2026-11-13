@@ -307,6 +307,7 @@ export function AdminOverview() {
                 ["/console/staff?create=1", "Create account", "Staff or admin", Plus, "overview-violet"],
                 ["/console/messages", "Messaging", "Senders and health", Mail, "overview-blue"],
                 ["/console/settings", "Hospital settings", "Units, visit types, fees", Sliders, "overview-green"],
+                ["/console/onboarding", "Set up a unit", "What a unit still needs", Check, "overview-blue"],
                 ["/console/audit", "Audit log", "Who changed what", Shield, "overview-grey"],
               ] as const
             ).map(([to, title, sub, IconComponent, tone]) => (

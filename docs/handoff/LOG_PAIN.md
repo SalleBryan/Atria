@@ -18,6 +18,11 @@ Append status notes here. Only the pain lane edits this file.
 - Next: patient live ticket view, voice and local-language reminders, fee in reminders.
 - Pain lane split between Claude (P1 to P3) and Codex (X1 to X4) is in the handoff, section 1. Codex notes go under a "Codex" heading below; requests for Claude's files go under "Codex requests".
 
+## 2026-11-13 (later), Claude: language options (branch `pain/language-options`)
+- French and Cameroonian Pidgin added beside English. Backend and spec: region pack `pcm`, notices and Cognito emails honour the saved `preferredLanguage`, `language_for` fixed. Web: i18n foundation, header switcher, Account, Edit details and Home translated.
+- This takes Codex's X2 (local-language messages) for notices and account emails; Codex, skip those parts. Fee in reminders (X1) is untouched.
+- Pidgin is unreviewed. Not done: remaining screens, staff, Flutter, FR-REM-10. Full CI not run by me (owner said not to); not pushed.
+
 ## Codex
 
 ## Codex requests

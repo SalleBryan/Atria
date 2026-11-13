@@ -121,7 +121,7 @@ Everything that used to sit outside the repo is under `docs/reference/` (index: 
 Full detail in `docs/handoff/LOG_BIZ.md`. Branch `biz/usage-statement-and-baseline`, uncommitted: the owner decides when to commit, push and open the PR.
 - B0 ADR 0030 written (proposed). **Owner decision needed** before B3. Nothing commercial is built.
 - B1 done: `GET /messages/usage` (ADR 0031) and an administrator Usage tab on Messages. Possible next: a CSV through `utils/export/`, once the owner wants it.
-- B2 done: F18 fixed, `before` comparison on both report endpoints, and a Compare picker with change lines on the Reports tiles. Next: the queue metrics, once the pain lane adds `CONSULTATION_ENDED`. The comparison is also in the PDF, Excel (a Comparison sheet) and CSV exports.
+- B2 done: F18 fixed, `before` comparison on both report endpoints, and a Compare picker with change lines on the Reports tiles. Queue-quality measurements are in the report (branch `biz/queue-metrics`, needs PR 26 first); they need no new event, and measure against the window as last told because the first is not kept. The comparison is also in the PDF, Excel (a Comparison sheet) and CSV exports.
 - B4 done: the "Set up a unit" checklist at `/console/onboarding`. B3 is not started and is blocked on the owner approving ADR 0030.
 - Owner rule recorded: the text in a pill (`.chip`) is always centred.
 - Setup note: a venv inside OneDrive failed with permission errors. Build it outside the synced folder.

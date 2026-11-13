@@ -20,8 +20,26 @@ export interface ReportComparison {
   attendance: { before: number | null; after: number | null; points: number | null };
 }
 
+/** What the general queue measured (core/queue_metrics). Measurements only, never a saving. */
+export interface QueueFigures {
+  tickets: number;
+  seen: number;
+  byChannel: Record<string, number>;
+  medianWaitMinutes: number | null;
+  medianConsultationMinutes: number | null;
+  arrivedInWindow: number;
+  promiseBreached: number;
+  medianBreachMinutes: number | null;
+  longestBreachMinutes: number | null;
+  bypassed: number;
+  urgent: number;
+  late: number;
+  doctorIdleWhileWaitingMinutes: number;
+}
+
 export interface ReportFigures {
   comparison?: ReportComparison;
+  queue?: QueueFigures | null;
   booked: number;
   attended: number;
   noShow: number;
@@ -94,6 +112,37 @@ export function attendanceChange({ before, points }: ReportComparison["attendanc
   return `was ${percent(before)}, ${points === 0 ? "no change" : `${points > 0 ? "up" : "down"} ${Math.abs(points)} points`}`;
 }
 
+/** A span as people read it: minutes below an hour, then hours and minutes (working rules, section 11). */
+export function spanText(minutes: number | null): string {
+  if (minutes == null) return "Not available here";
+  const whole = Math.round(minutes);
+  if (whole < 60) return `${whole} min`;
+  return `${Math.floor(whole / 60)} h ${String(whole % 60).padStart(2, "0")} min`;
+}
+
+/** The queue as labelled rows, for the page and all three files. Counts and times, no cause. */
+export function queueRows(q: QueueFigures): [string, string][] {
+  const kept = q.arrivedInWindow - q.promiseBreached;
+  const joined = Object.entries(q.byChannel).map(([channel, n]): [string, string] => [
+    `Taken ${(CHANNEL_LABEL[channel] ?? channel).toLowerCase()}`,
+    count(n),
+  ]);
+  return [
+    ["Places in the queue", count(q.tickets)],
+    ["Seen by a doctor", count(q.seen)],
+    ["Typical wait after arriving", spanText(q.medianWaitMinutes)],
+    ["Typical consultation", spanText(q.medianConsultationMinutes)],
+    ["Seen within their arrival window", `${count(kept)} of ${count(q.arrivedInWindow)} who arrived in it`],
+    ["Typical time past the window, when late", spanText(q.medianBreachMinutes)],
+    ["Longest time past the window", spanText(q.longestBreachMinutes)],
+    ["Doctor free while someone waited", spanText(q.doctorIdleWhileWaitingMinutes)],
+    ["Places passed over once or more", count(q.bypassed)],
+    ["Places marked urgent", count(q.urgent)],
+    ["Places that arrived late", count(q.late)],
+    ...joined,
+  ];
+}
+
 const COMPARED: [keyof ReportComparison["counts"], string][] = [
   ["booked", "Booked"],
   ["attended", "Attended"],
@@ -151,6 +200,7 @@ function tables(f: ReportFigures) {
   return {
     outcomes: [...outcomes, stillOpen],
     comparison: comparisonRows(f),
+    queue: f.queue ? queueRows(f.queue) : [],
     channels,
     bookers,
     reminders,
@@ -268,6 +318,16 @@ export async function exportReportPdf(f: ReportFigures, context: ReportContext) 
     ],
     t.reminders.map(([label, booked, came, missed, rate]) => [label, count(booked), count(came), count(missed), tone(rate)]),
   );
+  if (t.queue.length) {
+    pdf.heading(next(), "The general queue", "What the queue measured. Late is against the arrival window as last sent to the patient.");
+    pdf.table(
+      [
+        { label: "Measure", width: 3.4 },
+        { label: "Value", width: 2.2, align: "right" },
+      ],
+      t.queue,
+    );
+  }
   pdf.heading(next(), "Fee ledger", "A record of each closed visit's fee and refund. No money moves through Atria.");
   pdf.table(
     [
@@ -386,6 +446,19 @@ export async function exportReportExcel(f: ReportFigures, context: ReportContext
   groups.heading("05", "Attendance by reminder", "Shown side by side, not as cause and effect.");
   groups.table([...columns("Reminder")], rowsOf(t.reminders), { filter: false });
 
+  if (t.queue.length) {
+    const queue = book.sheet("Queue", [40, 34]);
+    queue.heading("07", "The general queue", "What the queue measured. Late is against the arrival window as last sent to the patient.");
+    queue.table(
+      [
+        { label: "Measure", width: 40 },
+        { label: "Value", width: 34 },
+      ],
+      t.queue,
+      { filter: false },
+    );
+  }
+
   const fees = book.sheet("Fee ledger", [30, 13, 20]);
   fees.heading("06", "Fee ledger", "A record of each closed visit's fee and refund. No money moves through Atria.");
   const feeColumns = (label: string) =>
@@ -445,6 +518,7 @@ export function reportCsv(f: ReportFigures): { head: string[]; rows: (string | n
     ...t.channels.map(([label, booked, came, missed, r]) => ["How patients booked", label, booked, came, missed, "", "", percent(r)]),
     ...t.bookers.map(([label, booked, came, missed, r]) => ["Who booked", label, booked, came, missed, "", "", percent(r)]),
     ...t.reminders.map(([label, booked, came, missed, r]) => ["Attendance by reminder", label, booked, came, missed, "", "", percent(r)]),
+    ...t.queue.map(([label, value]) => ["The general queue", label, "", "", "", "", "", value]),
     ...t.refunds.map(([label, visits, amount]) => ["Fee ledger by refund", label, visits, "", "", "", money(amount, t.currency), ""]),
     ...t.bands.map(([label, visits, amount]) => ["Fee ledger by fee band", label, visits, "", "", "", money(amount, t.currency), ""]),
   ];

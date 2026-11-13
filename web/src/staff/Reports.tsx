@@ -27,6 +27,8 @@ import {
   exportReportCsv,
   exportReportExcel,
   exportReportPdf,
+  type QueueFigures,
+  queueRows,
   type ReportComparison,
   signed,
 } from "../utils/reportExport";
@@ -43,6 +45,7 @@ interface Rate {
 
 interface Figures {
   comparison?: ReportComparison;
+  queue?: QueueFigures | null;
   booked: number;
   attended: number;
   noShow: number;
@@ -498,6 +501,22 @@ export function Reports() {
               note="Shown side by side, not as cause and effect."
               rows={(found.byReminder ?? []).map((r) => ({ ...r, label: REMINDER[r.reminder] ?? r.reminder }))}
             />
+            {found.queue && (
+              <section className="glass availability-card" aria-label="The general queue">
+                <h2>The general queue</h2>
+                <p className="availability-note">
+                  What the queue measured, not why. Late is against the arrival window as last sent to the patient.
+                </p>
+                <dl className="reports-list">
+                  {queueRows(found.queue).map(([label, value]) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            )}
             <section className="glass availability-card reports-ledger" aria-labelledby="ledger-title">
               <h2 id="ledger-title">Fee ledger</h2>
               <p className="accounts-banner reports-banner">

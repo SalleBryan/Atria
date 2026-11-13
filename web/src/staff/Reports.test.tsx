@@ -153,6 +153,49 @@ describe("Weekly report", () => {
     expect(document.body.textContent?.toLowerCase()).not.toMatch(/because|due to|caused|sav(ed|ing)/);
   });
 
+  it("shows what the general queue measured, with no cause or saving", async () => {
+    api.mockImplementation(async (path: string) => {
+      if (path === "/clinicians") return { clinicians: [] };
+      if (path === "/clinics") return { clinics: [{ clinicId: "u-med", name: "Medical Unit" }] };
+      if (path === "/appointment-types") return { appointmentTypes: [] };
+      if (path.startsWith("/clinics/u-med/day")) return { appointments: [], patients: {} };
+      if (path.startsWith("/clinics/u-med/report")) {
+        return {
+          ...WEEK,
+          queue: {
+            tickets: 20,
+            seen: 16,
+            byChannel: { ONLINE: 12, WALK_IN: 8 },
+            medianWaitMinutes: 75,
+            medianConsultationMinutes: 24,
+            arrivedInWindow: 10,
+            promiseBreached: 3,
+            medianBreachMinutes: 14,
+            longestBreachMinutes: 40,
+            bypassed: 2,
+            urgent: 1,
+            late: 2,
+            doctorIdleWhileWaitingMinutes: 55,
+          },
+        };
+      }
+      throw new Error(`unexpected ${path}`);
+    });
+    renderAt(MANAGER);
+    const card = await screen.findByRole("region", { name: "The general queue" });
+    expect(within(card).getByText("1 h 15 min")).toBeInTheDocument();
+    expect(within(card).getByText("7 of 10 who arrived in it")).toBeInTheDocument();
+    expect(within(card).getByText("55 min")).toBeInTheDocument();
+    expect(within(card).getByText("Taken at the desk")).toBeInTheDocument();
+    expect(card.textContent?.toLowerCase()).not.toMatch(/because|due to|caused|sav(ed|ing)|improv/);
+  });
+
+  it("shows no queue card for a unit with no queue", async () => {
+    renderAt(MANAGER);
+    await screen.findByRole("region", { name: "The week in numbers" });
+    expect(screen.queryByRole("region", { name: "The general queue" })).not.toBeInTheDocument();
+  });
+
   it("is not the front desk's", async () => {
     renderAt(DESK);
     expect(screen.queryByRole("link", { name: "Reports" })).not.toBeInTheDocument();

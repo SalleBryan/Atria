@@ -1367,6 +1367,25 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         lateCancelled: late,
         open: booked - attended - noShow - cancelled - late,
         attendance: Math.round((attended / (attended + noShow)) * 1000) / 1000,
+        // Only the outpatient desk runs a general queue (core/queue_metrics).
+        queue:
+          seed === 0
+            ? {
+                tickets: booked,
+                seen: attended,
+                byChannel: { ONLINE: Math.round(booked * 0.6), WALK_IN: booked - Math.round(booked * 0.6) },
+                medianWaitMinutes: 38,
+                medianConsultationMinutes: 24,
+                arrivedInWindow: Math.round(attended * 0.8),
+                promiseBreached: Math.round(attended * 0.2),
+                medianBreachMinutes: 14,
+                longestBreachMinutes: 72,
+                bypassed: Math.round(booked * 0.06),
+                urgent: Math.round(booked * 0.03),
+                late: Math.round(booked * 0.05),
+                doctorIdleWhileWaitingMinutes: 55,
+              }
+            : null,
         byChannel: [
           {
             channel: "ONLINE",
@@ -1554,6 +1573,10 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
           units.map((u) => u.byReminder),
           "reminder",
         ),
+        // Added across units; a median does not add, so the hospital leaves those out.
+        queue: units[0]?.queue
+          ? { ...units[0].queue, medianWaitMinutes: null, medianConsultationMinutes: null, medianBreachMinutes: null }
+          : null,
         ledger: {
           entries: units.reduce((n, u) => n + u.ledger.entries, 0),
           currency: "XAF",

@@ -31,6 +31,7 @@ import { type Appointment, clock, initials, offeredAt } from "../patient/data";
 import { doctor, roleOf, useStaffData } from "./data";
 import { sentence, staffState } from "./labels";
 import { fullName, type RegisterEntry, useRegisterSearch } from "./Patients";
+import { type QueuePolicy, QueueRulesDialog } from "./QueueRules";
 import { Snackbar } from "./Snackbar";
 
 export interface Session {
@@ -71,6 +72,7 @@ type Asking = { kind: "urgent"; appointmentId: string; name: string } | { kind: 
 interface LiveQueue extends Session {
   appointments: (Appointment & TicketFlags)[];
   callPreview?: CallPreview;
+  policy?: QueuePolicy;
   patients: Record<string, { givenName: string | null; familyName: string | null }>;
   waiting: number;
   arrived: number;
@@ -102,6 +104,7 @@ export function QueuePage() {
   const [said, setSaid] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [unitRules, setUnitRules] = useState(false);
 
   // Seen once this session, "/console" is the schedule again (StaffShell).
   useEffect(() => {
@@ -141,13 +144,32 @@ export function QueuePage() {
           <h1>Queue</h1>
           <p>{unit?.name ?? "Your unit"} · general consultations in the order places were taken</p>
         </div>
-        {tab === "sessions" && publishes && (
-          <button type="button" className="staff-primary accounts-new" onClick={() => setPublishing(true)}>
-            <Plus size={16} />
-            Publish a session
-          </button>
-        )}
+        <span className="queue-header-actions">
+          {clinicId && can(role, "queue.configure") && (
+            <button type="button" className="outline-button" onClick={() => setUnitRules(true)}>
+              Queue rules
+            </button>
+          )}
+          {tab === "sessions" && publishes && (
+            <button type="button" className="staff-primary accounts-new" onClick={() => setPublishing(true)}>
+              <Plus size={16} />
+              Publish a session
+            </button>
+          )}
+        </span>
       </header>
+      {unitRules && clinicId && (
+        <QueueRulesDialog
+          level="unit"
+          path={`/clinics/${encodeURIComponent(clinicId)}/queue-policy`}
+          title={`Queue rules for ${unit?.name ?? "this unit"}`}
+          onClose={() => setUnitRules(false)}
+          onDone={(message) => {
+            setUnitRules(false);
+            done(message);
+          }}
+        />
+      )}
       <div className="segmented settings-tabs" role="tablist" aria-label="Queue">
         {(
           [
@@ -210,6 +232,7 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
   const [busy, setBusy] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [rules, setRules] = useState(false);
   const [doctorId, setDoctorId] = useState<string | null>(null);
   // A dialog that asks for a reason, or a confirm, before a call or an urgent mark.
   const [asking, setAsking] = useState<Asking | null>(null);
@@ -333,6 +356,11 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
           <Plus size={15} />
           Add a walk-in
         </button>
+        {can(role, "queue.tune_session") && found && session?.status !== "CLOSED" && (
+          <button type="button" className="outline-button" onClick={() => setRules(true)}>
+            Rules for today
+          </button>
+        )}
         {calls && (
           <span className="queue-call">
             {!iAmDoctor && (
@@ -529,6 +557,20 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
           onSubmit={async () => {
             await callNext();
             setAsking(null);
+          }}
+        />
+      )}
+      {rules && found?.policy && (
+        <QueueRulesDialog
+          level="session"
+          path={`/sessions/${encodeURIComponent(sessionId)}/policy`}
+          title="Queue rules for this session"
+          initial={found.policy}
+          onClose={() => setRules(false)}
+          onDone={(message) => {
+            setRules(false);
+            onDone(message);
+            load();
           }}
         />
       )}

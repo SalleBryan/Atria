@@ -7,6 +7,7 @@
  *     http://localhost:5173/__preview?as=receptionist       the console, as the front desk
  *     http://localhost:5173/__preview?as=clinician          a clinician's own calendar
  *     http://localhost:5173/__preview?as=manager            a clinic manager
+ *     http://localhost:5173/__preview?as=opd-manager        the outpatient department's manager (runs the queue)
  *     http://localhost:5173/__preview?as=admin              a tenant administrator
  *     http://localhost:5173/__preview?as=admin-new          one yet to set up an authenticator
  *     http://localhost:5173/__preview?as=patient-google     a Google sign-up yet to finish their record
@@ -120,6 +121,19 @@ const PEOPLE: Record<string, Me> = {
     staffId: "s-manager",
     clinicId: "u-rhb-medicine",
     languages: ["fr"],
+  },
+  // The outpatient department's manager: the unit that runs the queue, so its queue rules can be set.
+  "opd-manager": {
+    ...BASE,
+    personId: "p-opd-manager",
+    givenName: "Beatrice",
+    familyName: "Tabi",
+    email: null,
+    roles: ["CLINIC_MANAGER"],
+    patientProfileId: null,
+    staffId: "s-opd-manager",
+    clinicId: "u-rhb-opd",
+    languages: ["en"],
   },
   admin: {
     ...BASE,

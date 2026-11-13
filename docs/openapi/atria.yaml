@@ -2111,6 +2111,25 @@ paths:
         "409": { $ref: "#/components/responses/Conflict" }
 
   /clinics/{id}/queue-policy:
+    get:
+      tags: [Queue and requests]
+      operationId: getUnitQueuePolicy
+      summary: The queue rules in force for a unit, and which level set each
+      description: Permission queue.read at clinic scope.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The rules in force for the unit.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QueuePolicy" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
     patch:
       tags: [Queue and requests]
       operationId: setUnitQueuePolicy

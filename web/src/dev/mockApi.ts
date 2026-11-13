@@ -117,6 +117,9 @@ const tenant: Record<string, unknown> = {
   name: HOSPITAL.name,
   regionPackCode: "CM",
   ...TENANT_SETTINGS,
+  queueHoldMinutes: 5,
+  queueLateGraceMinutes: 15,
+  queueMaxBypass: 1,
   languages: [...TENANT_SETTINGS.languages],
   firstAppointmentAt: "2026-09-19T08:12:40Z",
 };
@@ -313,12 +316,28 @@ const sessionView = (s: MockSession) => ({
 });
 
 // ADR 0022, as core/queue.py works it out: who a free doctor takes, who is due and absent, who is late.
-const queuePolicy: Record<"holdMinutes" | "lateGraceMinutes" | "maxBypass", number> = {
-  holdMinutes: 5,
-  lateGraceMinutes: 15,
-  maxBypass: 1,
+type QueueKnob = "holdMinutes" | "lateGraceMinutes" | "maxBypass";
+const policyLevels: Record<"tenant" | "unit" | "session", Partial<Record<QueueKnob, number>>> = {
+  tenant: { holdMinutes: 5, lateGraceMinutes: 15, maxBypass: 1 },
+  unit: {},
+  session: {},
 };
-const policySource = (): Record<string, string> => ({ holdMinutes: "default", lateGraceMinutes: "default", maxBypass: "default" });
+/** The rules in force and the level that set each, the most specific winning (core/queue.py::resolve_policy). */
+function policyView(withSession = true) {
+  const values: Record<QueueKnob, number> = { holdMinutes: 5, lateGraceMinutes: 15, maxBypass: 1 };
+  const source: Record<string, string> = { holdMinutes: "default", lateGraceMinutes: "default", maxBypass: "default" };
+  for (const level of withSession ? (["tenant", "unit", "session"] as const) : (["tenant", "unit"] as const)) {
+    for (const name of Object.keys(values) as QueueKnob[]) {
+      const value = policyLevels[level][name];
+      if (value !== undefined) {
+        values[name] = value;
+        source[name] = level;
+      }
+    }
+  }
+  return { ...values, source };
+}
+const queuePolicy = new Proxy({} as Record<QueueKnob, number>, { get: (_t, name) => policyView()[name as QueueKnob] });
 const ticketTime = (t: Record<string, unknown>, field: string): number => Date.parse(String(t[field] ?? ""));
 const waitingState = (t: Record<string, unknown>) => ["BOOKED", "CONFIRMED", "RESCHEDULED"].includes(String(t.state));
 function ticketLate(t: Record<string, unknown>, nowMs: number): boolean {
@@ -906,6 +925,31 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     opdSessions.sort((a, b) => `${a.sessionDate}${a.startTime}`.localeCompare(`${b.sessionDate}${b.startTime}`));
     return json(201, sessionView(created), 500);
   }
+  const unitPolicy = path.match(/^\/clinics\/([^/]+)\/queue-policy$/);
+  if (unitPolicy) {
+    if (method === "GET") return json(200, policyView(false), 200);
+    if (method === "PATCH") {
+      if (!["CLINIC_MANAGER", "TENANT_ADMIN"].includes(callerRole)) {
+        return json(403, { code: "forbidden", message: "you may not set a unit's queue rules" });
+      }
+      for (const [name, value] of Object.entries((body ?? {}) as Record<string, number | null>)) {
+        if (value === null) delete policyLevels.unit[name as QueueKnob];
+        else policyLevels.unit[name as QueueKnob] = value;
+      }
+      return json(200, policyView(false), 300);
+    }
+  }
+  const sessionPolicy = path.match(/^\/sessions\/([^/]+)\/policy$/);
+  if (sessionPolicy && method === "PATCH") {
+    if (!["RECEPTIONIST", "CLINIC_MANAGER"].includes(callerRole)) {
+      return json(403, { code: "forbidden", message: "you may not adjust a session's queue rules" });
+    }
+    for (const [name, value] of Object.entries((body ?? {}) as Record<string, number | null>)) {
+      if (value === null) delete policyLevels.session[name as QueueKnob];
+      else policyLevels.session[name as QueueKnob] = value;
+    }
+    return json(200, policyView(), 300);
+  }
   const urgentRoute = path.match(/^\/appointments\/([^/]+)\/urgent$/);
   if (urgentRoute && method === "POST") {
     // Only the receptionist marks a place urgent (ADR 0022, owner decision 2026-11-13).
@@ -956,7 +1000,7 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
               wouldBreachWindow: decision.bypassed.some((b) => Date.now() + minutes * 60000 > ticketTime(b, "arrivalWindowEnd")),
             };
           })(),
-          policy: { ...queuePolicy, source: policySource() },
+          policy: policyView(),
           patients,
           waiting: count(["BOOKED", "CONFIRMED", "RESCHEDULED"]),
           arrived: count(["ARRIVED"]),
@@ -1612,6 +1656,12 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     if (method === "GET") return json(200, settingsOverview());
     if (method === "PATCH") {
       Object.assign(tenant, body as Record<string, unknown>);
+      // The tenant's defaults are the bottom level of the queue rules.
+      policyLevels.tenant = {
+        holdMinutes: Number(tenant.queueHoldMinutes),
+        lateGraceMinutes: Number(tenant.queueLateGraceMinutes),
+        maxBypass: Number(tenant.queueMaxBypass),
+      };
       return json(200, settingsOverview().tenant, 500);
     }
   }

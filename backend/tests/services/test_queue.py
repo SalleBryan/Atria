@@ -866,3 +866,25 @@ class TestOnlyTheReceptionistMarksUrgent:
             assert (
                 self.mark(booked["appointmentId"], staff_context(), reason="x")["statusCode"] == 400
             )
+
+
+class TestReadingTheUnitsRules:
+    def test_the_desk_reads_the_rules_in_force_for_the_unit(self, opd):
+        got = call(
+            "GET",
+            "/clinics/{id}/queue-policy",
+            context=staff_context(),
+            path={"id": DOUALA},
+        )
+        shown = body_of(got)
+        assert (shown["holdMinutes"], shown["maxBypass"]) == (5, 1)
+        assert shown["source"]["holdMinutes"] == "default"
+
+    def test_a_patient_does_not_read_them(self, opd):
+        got = call(
+            "GET",
+            "/clinics/{id}/queue-policy",
+            context=patient_context(),
+            path={"id": DOUALA},
+        )
+        assert got["statusCode"] == 403

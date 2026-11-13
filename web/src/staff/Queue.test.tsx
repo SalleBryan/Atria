@@ -65,6 +65,13 @@ function ticket(n: number, state: string) {
   };
 }
 
+const POLICY = {
+  holdMinutes: 5,
+  lateGraceMinutes: 15,
+  maxBypass: 1,
+  source: { holdMinutes: "default", lateGraceMinutes: "default", maxBypass: "default" },
+};
+
 const sent: { path: string; init?: { method?: string; json?: unknown } }[] = [];
 
 function respond() {
@@ -136,6 +143,8 @@ function respond() {
         ],
         patients: { "pp-9": { givenName: "Herve", familyName: "Kamga" } },
       };
+    if (path === "/clinics/u-opd/queue-policy") return POLICY;
+    if (path.endsWith("/policy") || path.endsWith("/queue-policy")) return POLICY;
     if (path.endsWith("/decline")) return {};
     throw new Error(`unexpected ${path}`);
   });
@@ -310,5 +319,48 @@ describe("Only the receptionist marks a place urgent (ADR 0022, owner decision)"
     renderAt("/console/queue", GP);
     await screen.findByText("Brice Tagne");
     expect(screen.queryByRole("button", { name: "Urgent" })).not.toBeInTheDocument();
+  });
+});
+
+const MANAGER = { ...GP, roles: ["CLINIC_MANAGER"], staffId: "s-mgr", personId: "p-mgr" } as unknown as Me;
+
+describe("The queue rules are set by level (ADR 0022)", () => {
+  beforeEach(respond);
+
+  it("lets the desk adjust one session, and leave a rule on the default", async () => {
+    const user = userEvent.setup();
+    queueWith({ policy: POLICY });
+    renderAt("/console/queue", DESK);
+    await user.click(await screen.findByRole("button", { name: "Rules for today" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("button", { name: "Save the rules" })).toBeDisabled();
+    await user.click(within(dialog).getByRole("button", { name: /^Hold the doctor for a booked patient/ }));
+    await user.click(await screen.findByRole("option", { name: "8 min" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save the rules" }));
+    const saved = sent.find((s) => s.path === "/sessions/se-1/policy");
+    expect(saved?.init?.method).toBe("PATCH");
+    expect(saved?.init?.json).toEqual({ holdMinutes: 8 });
+  });
+
+  it("gives a clinician no rules to set", async () => {
+    queueWith({ policy: POLICY });
+    renderAt("/console/queue", GP);
+    await screen.findByText("Brice Tagne");
+    expect(screen.queryByRole("button", { name: "Rules for today" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Queue rules" })).not.toBeInTheDocument();
+  });
+
+  it("lets a unit manager set their unit's rules, read from the server", async () => {
+    const user = userEvent.setup();
+    renderAt("/console/queue", MANAGER);
+    await user.click(await screen.findByRole("button", { name: "Queue rules" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText(/Now 5 min, set by the built-in default/)).toBeInTheDocument();
+    expect(sent.some((s) => s.path === "/clinics/u-opd/queue-policy" && (s.init?.method ?? "GET") === "GET")).toBe(true);
+    await user.click(within(dialog).getByRole("button", { name: /^Times a booked patient may be passed over/ }));
+    await user.click(await screen.findByRole("option", { name: "Twice" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save the rules" }));
+    const saved = sent.find((s) => s.path === "/clinics/u-opd/queue-policy" && s.init?.method === "PATCH");
+    expect(saved?.init?.json).toEqual({ maxBypass: 2 });
   });
 });

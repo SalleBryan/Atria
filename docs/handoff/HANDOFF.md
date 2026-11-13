@@ -93,6 +93,7 @@ Gotchas (Windows, Git Bash, OneDrive):
 - Set `MSYS_NO_PATHCONV=1` for `/aws/lambda/...` log commands.
 
 ## 8. Current state (updated 2026-11-13, pain lane, live ticket and offline recovery merged, slice 3 in progress)
+- PR 29 contains the invitation rules and a web fix that clears ripple timers when controls unmount. PRs 30 to 32 build on it.
 - Merged to main: PR 20, PR 21 (handoff, reference library, CLAUDE.md, ADR 0022), PR 22 (queue slice 1: `core/queue.py::next_call`, call preview, per-ticket flags, policy routes), PR 23 (business lane B0 to B2), PR 24 (queue slice 2).
 - Slice 2 is on main: Desk console: call guard (passes over / held with countdown, "Call anyway" needs a reason), markers (Urgent, Late, Not here yet, Passed over), receptionist-only urgent marking (`POST /appointments/{id}/urgent`, `queue.mark_urgent`, reason required, audited), "Rules for today" (session) and "Queue rules" (unit) dialogs, tenant defaults card in Settings ("The queue"). New route `GET /clinics/{id}/queue-policy`. All three levels are settings, never constants.
 - Decision 2026-11-13: only the receptionist marks a ticket urgent. Do not widen it without the owner.

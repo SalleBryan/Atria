@@ -95,6 +95,14 @@ interface Ripple {
 function useRipples() {
   const [ripples, setRipples] = useState<Ripple[]>([]);
   const next = useRef(0);
+  const timers = useRef(new Set<number>());
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const timer of pending) window.clearTimeout(timer);
+      pending.clear();
+    };
+  }, []);
   function start(event: PointerEvent<HTMLElement>) {
     const target = event.currentTarget;
     const rect = target.getBoundingClientRect();
@@ -104,7 +112,11 @@ function useRipples() {
     const size = Math.hypot(Math.max(x, target.offsetWidth - x), Math.max(y, target.offsetHeight - y)) * 2;
     const id = (next.current += 1);
     setRipples((current) => [...current, { id, x, y, size }]);
-    window.setTimeout(() => setRipples((current) => current.filter((ripple) => ripple.id !== id)), 700);
+    const timer = window.setTimeout(() => {
+      timers.current.delete(timer);
+      setRipples((current) => current.filter((ripple) => ripple.id !== id));
+    }, 700);
+    timers.current.add(timer);
   }
   const layer = ripples.map((ripple) => (
     <span

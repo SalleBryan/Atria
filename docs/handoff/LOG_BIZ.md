@@ -23,3 +23,9 @@ For the pain lane: no field is needed from you. Queue-quality metrics (ADR 0022)
 - Walked through in the preview as the administrator: overview tile, unit switch, the settings link, adding a unit and seeing it at 1 of 5, at 1280x720 and 375 wide.
 - **Platform rule (from the owner):** the text in a pill (`.chip`) is always centred. Added `text-align: center` to `.chip` in `patient.css`.
 - Not verified: other screens that stretch a chip were not each re-screenshotted. Not in the preview: the sample units are all complete, so a to-do state needs a unit added in the session.
+
+## 2026-11-13 business lane, session 1 (later still): comparison in the exports
+
+- The Compare choice on Reports now also lands in the PDF (a section), the Excel workbook (a Comparison sheet) and the CSV (rows under "Compared with the earlier period"), in the page's words. `web/src/utils/reportExport.ts` now owns the comparison type and wording; `Reports.tsx` imports it.
+- Observed in the preview with the download captured in the page, nothing saved to disk: the CSV rows and the Excel sheet were read back and are right; the PDF came out as a valid 112 KB file, but I did not read its page text.
+- Preview quirk, not a code bug: the mock returns the earlier period as a single date.

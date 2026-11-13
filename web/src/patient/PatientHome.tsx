@@ -34,6 +34,7 @@ import {
   join,
   past,
   stateLabel,
+  requestSubtitle,
   ticketSubtitle,
   until,
   upcoming,
@@ -332,7 +333,7 @@ export function VisitRow({ appointment, action = "Manage" }: { appointment: Appo
           {(appointment.sessionId
             ? [clinic?.name, ticketSubtitle(appointment)]
             : requested
-              ? [clinic?.name, "time to be set"]
+              ? [clinic?.name, requestSubtitle(appointment)]
               : [clinician?.specialty, clinic?.name, `${clock.time(appointment.startAt)} to ${clock.time(appointment.endAt)}`]
           )
             .filter(Boolean)
@@ -342,7 +343,10 @@ export function VisitRow({ appointment, action = "Manage" }: { appointment: Appo
       <span className={`chip chip-${status.tone}`}>{status.label}</span>
       <Link className="link row-link" to={`/visits/${appointment.appointmentId}`}>
         {action}
-        <span className="visually-hidden"> the visit on {clock.long(appointment.startAt)}</span>
+        <span className="visually-hidden">
+          {requested ? " the request made on " : " the visit on "}
+          {clock.long(appointment.startAt)}
+        </span>
       </Link>
     </li>
   );

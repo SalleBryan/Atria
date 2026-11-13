@@ -1,5 +1,5 @@
 import { calendarEntry, googleCalendarLink, outlookCalendarLink } from "./calendar";
-import { type Appointment, clock, feeText, past, stateLabel, ticketSubtitle, ticketWaits, until, upcoming } from "./data";
+import { type Appointment, clock, feeText, past, requestSubtitle, stateLabel, ticketSubtitle, ticketWaits, until, upcoming } from "./data";
 
 const visit = (overrides: Partial<Appointment> = {}): Appointment => ({
   appointmentId: "a-1",
@@ -132,6 +132,12 @@ describe("the calendar links", () => {
     expect(link.searchParams.get("startdt")).toBe("2026-09-26T09:00:00.000Z");
     expect(link.searchParams.get("enddt")).toBe("2026-09-26T09:30:00.000Z");
     expect(link.searchParams.get("rru")).toBe("addevent");
+  });
+});
+
+describe("a procedure request in a list", () => {
+  it("says when it was asked rather than showing that day as a visit date", () => {
+    expect(requestSubtitle({ startAt: "2026-09-30T08:00:00Z" })).toBe("asked Wed 30 Sep · time to be set");
   });
 });
 

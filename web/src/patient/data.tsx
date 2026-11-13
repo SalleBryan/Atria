@@ -395,5 +395,14 @@ export function ticketSubtitle(appointment: { state: string; startAt: string }):
   return clock.time(appointment.startAt);
 }
 
+/**
+ * What a procedure request says in a list. A request holds no time, and its
+ * start is only when it was asked, so the list says "asked" with that day
+ * beside "time to be set" rather than showing it as the date of a visit.
+ */
+export function requestSubtitle(appointment: { startAt: string }): string {
+  return `asked ${clock.day(appointment.startAt)} · time to be set`;
+}
+
 /** A visit the patient can still act on: booked or confirmed, and ahead. */
 export const ACTIVE_STATES: readonly string[] = ["BOOKED", "CONFIRMED", "RESCHEDULED", "DISRUPTED"];

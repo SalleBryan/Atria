@@ -69,3 +69,6 @@ Branch `pain/offline-recovery`, web only. Audit F16 done for the web client; F15
 - Branch `pain/desk-fee` from `origin/main`: the live queue shows the fee each place will be asked for ("Fee 5,000 XAF", "Free", nothing when the type has no band) and the walk-in dialog states the walk-in fee. Backend `FeeLookup` (one band read per type, band in force on the session date). Touched `services/booking/queue.py` only in `live_queue` and a small `walk_in_fee` helper, plus the queue view in `Queue.tsx`, so the early-call work should rebase cleanly.
 - `pain/fee-in-reminders` was not merged yet (its work was uncommitted in another worktree). To avoid two copies of the band logic, that branch should call `FeeLookup` instead of its own `appointment_fee` lookup when it rebases.
 - Not done: Flutter desk (deferred by the owner).
+
+## 2026-11-13 (PR integration)
+- PR 29 clears button ripple timers on unmount to fix the failing web check.

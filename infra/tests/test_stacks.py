@@ -931,6 +931,8 @@ def test_the_queue_routes_exist(synthesised: cdk.App) -> None:
         ("/sessions/{id}/queue", "GET"),
         ("/sessions/{id}/next", "POST"),
         ("/sessions/{id}/close", "POST"),
+        ("/clinics/{id}/queue-policy", "PATCH"),
+        ("/sessions/{id}/policy", "PATCH"),
         ("/procedure-requests", "POST"),
     ):
         assert route in served

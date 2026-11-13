@@ -1983,7 +1983,18 @@ paths:
                   - $ref: "#/components/schemas/Session"
                   - type: object
                     properties:
-                      appointments: { type: array, items: { $ref: "#/components/schemas/Appointment" } }
+                      appointments:
+                        type: array
+                        items:
+                          allOf:
+                            - $ref: "#/components/schemas/Appointment"
+                            - type: object
+                              description: What the desk needs to see about a ticket (ADR 0022).
+                              properties:
+                                due: { type: boolean, description: Waiting and its arrival window has opened. }
+                                late: { type: boolean, description: Past its window and grace, or its hold ran out. Lateness forfeits priority. }
+                                bypassCount: { type: integer, description: Consultations started ahead of this ticket while it was due and absent. }
+                                urgent: { type: boolean }
                       patients: { $ref: "#/components/schemas/PatientNames" }
                       waiting: { type: integer }
                       arrived: { type: integer }
@@ -1991,6 +2002,30 @@ paths:
                       seen: { type: integer }
                       plannedPerHour: { type: number }
                       actualPerHour: { type: [number, "null"] }
+                      callPreview:
+                        type: object
+                        description: What calling the next patient would do now, so the desk sees the cost first.
+                        properties:
+                          candidate: { type: [string, "null"], description: The appointment id that would be called, or null when nobody is here or the doctor is held. }
+                          bypassed:
+                            type: array
+                            description: Due, absent tickets the call would pass over.
+                            items:
+                              type: object
+                              properties:
+                                appointmentId: { type: string }
+                                position: { type: integer }
+                                windowEnd: { type: [string, "null"], format: date-time }
+                          hold:
+                            type: [object, "null"]
+                            description: Set when the next free doctor is held for a booked patient already passed over once.
+                            properties:
+                              appointmentId: { type: string }
+                              position: { type: integer }
+                              until: { type: string, format: date-time }
+                          expectedConsultMinutes: { type: number, description: The median of this session's consultations, or the pace before any is measured. }
+                          wouldBreachWindow: { type: boolean, description: True when the call is expected to run past a bypassed ticket's arrival window. }
+                      policy: { $ref: "#/components/schemas/QueuePolicy" }
         "400": { $ref: "#/components/responses/Invalid" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -2000,11 +2035,17 @@ paths:
     post:
       tags: [Queue and requests]
       operationId: callNext
-      summary: A doctor takes the next patient who has arrived
+      summary: A doctor takes the next patient who is here
       description: |
         Permission queue.assign_next. The calling clinician, or one named by
-        the desk, is assigned the first arrived ticket in position order. No
-        doctor is named on a ticket before this.
+        the desk, is assigned the next ticket among those who have arrived (ADR
+        0022): urgent first, then by position, with late arrivals behind
+        everyone present. The doctor never waits when someone is here, except
+        that a booked patient already passed over once (due and not arrived)
+        holds the next free doctor for a few minutes. That answers 409 with
+        detail rule HELD_FOR_BOOKED_PATIENT, heldFor, position and until. The
+        desk may override with overrideHold and a reason; the reason is kept on
+        the consultation. No doctor is named on a ticket before this.
       parameters:
         - name: id
           in: path
@@ -2017,12 +2058,77 @@ paths:
               type: object
               properties:
                 clinicianProfileId: { type: string, description: Required when the caller is not a clinician. }
+                overrideHold: { type: boolean, description: Call the next patient who is here even though the doctor is held for a booked patient. Needs a reason. }
+                reason: { type: string, maxLength: 200, description: Required with overrideHold. }
       responses:
         "200":
           description: The ticket now in consultation.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Appointment" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /clinics/{id}/queue-policy:
+    patch:
+      tags: [Queue and requests]
+      operationId: setUnitQueuePolicy
+      summary: A unit's own queue rules, over the tenant's defaults (ADR 0022)
+      description: |
+        Permission queue.configure at clinic scope: the unit manager for their
+        unit, the administrator for any. Send only the rules to change; null
+        clears an override so the tenant's default applies again. The tenant's
+        defaults are set through PATCH /admin/settings (queueHoldMinutes,
+        queueLateGraceMinutes, queueMaxBypass).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QueuePolicyChange" }
+      responses:
+        "200":
+          description: The rules now in force for the unit.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QueuePolicy" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /sessions/{id}/policy:
+    patch:
+      tags: [Queue and requests]
+      operationId: setSessionQueuePolicy
+      summary: The desk adjusts the queue rules for one session (ADR 0022)
+      description: |
+        Permission queue.tune_session at clinic scope: the desk and the unit
+        manager. It overrides the unit and the tenant for this session only.
+        null clears an override. A closed session is refused.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QueuePolicyChange" }
+      responses:
+        "200":
+          description: The rules now in force for the session.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QueuePolicy" }
         "400": { $ref: "#/components/responses/Invalid" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -2406,6 +2512,23 @@ components:
         created with.
 
   schemas:
+    QueuePolicyChange:
+      type: object
+      description: Rules to change; null clears an override. At least one.
+      properties:
+        holdMinutes: { type: [integer, "null"], minimum: 0, maximum: 30, description: How long the next free doctor is held for a booked patient already passed over. 0 never holds. }
+        lateGraceMinutes: { type: [integer, "null"], minimum: 0, maximum: 60, description: Minutes after a window ends before an absent patient is late. }
+        maxBypass: { type: [integer, "null"], minimum: 0, maximum: 3, description: Consultations that may start ahead of a due, absent patient before the doctor is held. }
+    QueuePolicy:
+      type: object
+      properties:
+        holdMinutes: { type: integer }
+        lateGraceMinutes: { type: integer }
+        maxBypass: { type: integer }
+        source:
+          type: object
+          description: Which level set each rule (session, unit, tenant or default).
+          additionalProperties: { type: string, enum: [session, unit, tenant, default] }
     TenantSettings:
       type: object
       properties:

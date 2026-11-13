@@ -271,6 +271,12 @@ class Sessions:
             return appointment
         raise Conflict("the queue is busy; try again in a moment")
 
+    def set_fields(self, tenant_id: str, appointment_id: str, fields: dict[str, Any]) -> None:
+        """Set queue bookkeeping on a ticket: bypass count, hold clock, late and urgent marks."""
+        self._repo.update_existing(
+            keys.appointment(tenant_id, appointment_id), set_values=fields, what="appointment"
+        )
+
     def set_window(
         self, tenant_id: str, appointment_id: str, window: tuple[dt.datetime, dt.datetime]
     ) -> None:

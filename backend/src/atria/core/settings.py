@@ -22,7 +22,7 @@ import re
 from decimal import Decimal
 from typing import Any
 
-from atria.core import schedule
+from atria.core import queue, schedule
 from atria.core.errors import Invalid
 
 GRID_UNITS = (5, 10, 15, 20, 30)
@@ -86,6 +86,9 @@ def tenant_changes(
         "reminderLeadHours",
         "secondReminderHours",
         "queueMoveThresholdMinutes",
+        "queueHoldMinutes",
+        "queueLateGraceMinutes",
+        "queueMaxBypass",
         "noShowStrikeThreshold",
         "noShowStrikeWindowDays",
         "qualityProgrammeEnabled",
@@ -157,6 +160,12 @@ def tenant_changes(
         out["queueMoveThresholdMinutes"] = _whole(
             body, "queueMoveThresholdMinutes", low=10, high=120
         )
+
+    # The unit-wide queue rules a unit or a session may override (ADR 0022).
+    for name, field in queue.TENANT_POLICY_FIELDS.items():
+        if field in body:
+            low, high = queue.POLICY_LIMITS[name]
+            out[field] = _whole(body, field, low=low, high=high)
 
     if "noShowStrikeThreshold" in body:
         threshold = _whole(body, "noShowStrikeThreshold", low=0, high=10)

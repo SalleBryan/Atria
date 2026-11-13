@@ -73,6 +73,13 @@ MATRIX = {
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
  "queue.add_walk_in":       {"PATIENT":"none","RECEPTIONIST":"clinic","CLINICIAN":"clinic",
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
+ # ADR 0022: who sets the queue rules, by level. The administrator sets the
+ # tenant's defaults (through settings) and any unit's own; a unit manager sets
+ # their unit's; the desk adjusts one running session for the day.
+ "queue.configure":        {"PATIENT":"none","RECEPTIONIST":"none","CLINICIAN":"none",
+                             "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"tenant"},
+ "queue.tune_session":     {"PATIENT":"none","RECEPTIONIST":"clinic","CLINICIAN":"none",
+                             "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"none"},
 
  # ---- people --------------------------------------------------------------
  "patient.read":            {"PATIENT":"own","RECEPTIONIST":"clinic","CLINICIAN":"own",

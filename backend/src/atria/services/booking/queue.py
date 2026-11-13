@@ -18,6 +18,7 @@ queue at the desk, so online and physical tickets are one ordered list
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import replace
 from typing import Any
 
 from aws_lambda_powertools import Logger
@@ -28,6 +29,7 @@ from atria.core import settings as setting_rules
 from atria.core.errors import Conflict, Forbidden, Invalid, NotFound
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
+from atria.data import keys
 from atria.data.catalogue import Catalogue
 from atria.data.people import People
 from atria.data.sessions import Sessions, window_of
@@ -352,7 +354,9 @@ def live_queue(principal: Principal, event: dict[str, Any], *, people: People) -
     rostered = int(session.get("rosteredClinicianCount") or 1)
     return {
         **session_view(session),
-        "appointments": [appointment_view(t) for t in tickets],
+        "appointments": [
+            {**appointment_view(t), **ticket_flags(t, booking().now())} for t in tickets
+        ],
         "patients": people.patient_names(
             principal.tenant_id, [str(t["patientProfileId"]) for t in tickets]
         ),
@@ -363,14 +367,137 @@ def live_queue(principal: Principal, event: dict[str, Any], *, people: People) -
         # Planned against actual so far (FR-BKG-13).
         "plannedPerHour": float(str(session.get("expectedThroughputPerHour") or 0)) * rostered,
         "actualPerHour": round(len(seen) / elapsed, 2) if elapsed >= 0.25 else None,
+        "callPreview": call_preview(
+            tickets, session, policy_in_force(principal.tenant_id, session)[0]
+        ),
+        "policy": policy_view(principal.tenant_id, session),
+    }
+
+
+def ticket_flags(ticket: dict[str, Any], now: dt.datetime) -> dict[str, Any]:
+    """What the desk needs to see about a ticket beside its state (ADR 0022)."""
+    waiting = ticket.get("state") in queue.WAITING
+    return {
+        "due": waiting and queue.is_due(ticket, now),
+        "late": queue.is_late(ticket, now)
+        if ticket.get("state") in (*queue.WAITING, "ARRIVED")
+        else False,
+        "bypassCount": int(str(ticket.get("bypassCount") or 0)),
+        "urgent": bool(ticket.get("urgent")),
+    }
+
+
+def call_preview(
+    tickets: list[dict[str, Any]], session: dict[str, Any], policy: queue.Policy
+) -> dict[str, Any]:
+    """What calling the next patient would do now, so the desk sees the cost first (R5)."""
+    now = booking().now()
+    decision = queue.next_call(tickets, now, policy)
+    per_hour = float(
+        str(session.get("expectedThroughputPerHour") or queue.SEEDED_THROUGHPUT_PER_HOUR)
+    )
+    minutes = queue.expected_consult_minutes(tickets, per_hour=per_hour)
+    ends = now + dt.timedelta(minutes=minutes)
+    bypassed = [
+        {
+            "appointmentId": str(t["appointmentId"]),
+            "position": int(str(t.get("position") or 0)),
+            "windowEnd": t.get("arrivalWindowEnd"),
+        }
+        for t in decision.bypassed
+    ]
+    breach = any((end := queue.window_end(t)) is not None and ends > end for t in decision.bypassed)
+    return {
+        "candidate": str(decision.candidate["appointmentId"]) if decision.candidate else None,
+        "bypassed": bypassed,
+        "hold": (
+            {
+                "appointmentId": decision.hold.appointment_id,
+                "position": decision.hold.position,
+                "until": rules.instant(decision.hold.until),
+            }
+            if decision.hold
+            else None
+        ),
+        "expectedConsultMinutes": minutes,
+        "wouldBreachWindow": breach,
+    }
+
+
+def policy_in_force(tenant_id: str, session: dict[str, Any]) -> tuple[queue.Policy, dict[str, str]]:
+    """The queue rules in force for a session, and which level set each (ADR 0022)."""
+    data = booking()
+    unit = data.clinic(tenant_id, str(session["clinicId"])).get("queuePolicy")
+    return queue.resolve_policy(
+        data.tenant(tenant_id),
+        unit if isinstance(unit, dict) else None,
+        session.get("policy") if isinstance(session.get("policy"), dict) else None,
+    )
+
+
+def set_unit_policy(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    """A unit's own queue rules, over the tenant's defaults. null clears one."""
+    clinic_id = requests.path_parameter(event, "id")
+    permissions.require(
+        principal, "queue.configure", Subject(tenant_id=principal.tenant_id, clinic_id=clinic_id)
+    )
+    changes = queue.policy_changes(requests.json_body(event))
+    data = booking()
+    clinic = data.clinic(principal.tenant_id, clinic_id)
+    current = clinic.get("queuePolicy")
+    kept = dict(current) if isinstance(current, dict) else {}
+    for name, value in changes.items():
+        if value is None:
+            kept.pop(name, None)
+        else:
+            kept[name] = value
+    data.repository.update_existing(
+        keys.clinic(principal.tenant_id, clinic_id), set_values={"queuePolicy": kept}, what="unit"
+    )
+    return policy_view(principal.tenant_id, {"clinicId": clinic_id, "policy": None})
+
+
+def set_session_policy(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    """The desk adjusts the rules for one session. null clears one."""
+    store = sessions()
+    session = store.session(principal.tenant_id, requests.path_parameter(event, "id"))
+    permissions.require(
+        principal,
+        "queue.tune_session",
+        Subject(tenant_id=principal.tenant_id, clinic_id=str(session["clinicId"])),
+    )
+    if session.get("status") == "CLOSED":
+        raise Conflict("that session is closed")
+    changes = queue.policy_changes(requests.json_body(event))
+    current = session.get("policy")
+    kept = dict(current) if isinstance(current, dict) else {}
+    for name, value in changes.items():
+        if value is None:
+            kept.pop(name, None)
+        else:
+            kept[name] = value
+    store.update(principal.tenant_id, str(session["sessionId"]), {"policy": kept})
+    return policy_view(principal.tenant_id, {**session, "policy": kept})
+
+
+def policy_view(tenant_id: str, session: dict[str, Any]) -> dict[str, Any]:
+    policy, source = policy_in_force(tenant_id, session)
+    return {
+        "holdMinutes": policy.hold_minutes,
+        "lateGraceMinutes": policy.late_grace_minutes,
+        "maxBypass": policy.max_bypass,
+        "source": source,
     }
 
 
 def call_next(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
-    """The first patient who has arrived goes in to a doctor (FR-BKG-13).
+    """The next patient who is here goes in to a doctor (FR-BKG-13, ADR 0022).
 
     A doctor calls their own next patient; the desk may name the doctor. The
-    doctor is assigned here, at check-in, and not before.
+    doctor is assigned here, at check-in, and not before. The doctor never waits
+    when someone is here, except that a booked patient already passed over once
+    holds the next free doctor for a few minutes; the desk may override with a
+    reason (overrideHold and reason in the body).
     """
     session_id = requests.path_parameter(event, "id")
     store = sessions()
@@ -387,13 +514,42 @@ def call_next(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
     membership = booking().bookable_clinician(principal.tenant_id, clinician_id)
     if membership.get("clinicId") != clinic_id:
         raise Invalid("that doctor does not work in this unit")
-    arrived = [
-        t for t in store.tickets(principal.tenant_id, session_id) if t.get("state") == "ARRIVED"
-    ]
-    if not arrived:
-        raise Conflict("nobody who has arrived is waiting")
-    ticket = arrived[0]
     data = booking()
+    now = data.now()
+    override = bool(body.get("overrideHold"))
+    reason = str(body.get("reason") or "").strip()
+    if override and not reason:
+        raise Invalid("say why the doctor is not waiting for the booked patient")
+    # With an override the hold is not honoured, and the desk's reason is kept (ADR 0022 R5).
+    in_force, _source = policy_in_force(principal.tenant_id, session)
+    policy = replace(in_force, max_bypass=10**6) if override else in_force
+    tickets = store.tickets(principal.tenant_id, session_id)
+    decision = queue.next_call(tickets, now, policy)
+    for appointment_id in decision.late:
+        store.set_fields(principal.tenant_id, appointment_id, {"lateAt": rules.instant(now)})
+    for appointment_id in decision.start_hold:
+        store.set_fields(principal.tenant_id, appointment_id, {"holdStartedAt": rules.instant(now)})
+    if decision.hold is not None:
+        raise Conflict(
+            "the doctor is held for a booked patient who has not arrived yet",
+            detail={
+                "rule": "HELD_FOR_BOOKED_PATIENT",
+                "heldFor": decision.hold.appointment_id,
+                "position": decision.hold.position,
+                "until": rules.instant(decision.hold.until),
+            },
+        )
+    ticket = decision.candidate
+    if ticket is None:
+        raise Conflict("nobody who has arrived is waiting")
+    fields: dict[str, Any] = {
+        "clinicianProfileId": clinician_id,
+        "consultationStartedAt": rules.instant(now),
+    }
+    if decision.bypassed:
+        fields["bypassedAppointmentIds"] = [str(t["appointmentId"]) for t in decision.bypassed]
+    if override and reason:
+        fields["bypassOverrideReason"] = reason[:200]
     moved, _event = data.move(
         tenant_id=principal.tenant_id,
         appointment=ticket,
@@ -401,11 +557,14 @@ def call_next(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
         kind="CONSULTATION_STARTED",
         actor_person_id=principal.person_id,
         actor_role=role_used(principal, "queue.assign_next"),
-        fields={
-            "clinicianProfileId": clinician_id,
-            "consultationStartedAt": rules.instant(data.now()),
-        },
+        fields=fields,
     )
+    for passed in decision.bypassed:
+        store.set_fields(
+            principal.tenant_id,
+            str(passed["appointmentId"]),
+            {"bypassCount": int(str(passed.get("bypassCount") or 0)) + 1},
+        )
     if session.get("status") == "OPEN":
         store.update(principal.tenant_id, session_id, {"status": "RUNNING"})
     recalculate(principal.tenant_id, session_id)
@@ -461,4 +620,8 @@ def route(principal: Principal, event: dict[str, Any], *, people: People) -> dic
         return call_next(principal, event)
     if method == "POST" and resource.endswith("/sessions/{id}/close"):
         return close(principal, event)
+    if method == "PATCH" and resource.endswith("/sessions/{id}/policy"):
+        return set_session_policy(principal, event)
+    if method == "PATCH" and resource.endswith("/clinics/{id}/queue-policy"):
+        return set_unit_policy(principal, event)
     return None

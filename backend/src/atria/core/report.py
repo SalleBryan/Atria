@@ -149,6 +149,32 @@ def week_figures(
     }
 
 
+COMPARED = ("booked", "attended", "noShow", "cancelled", "lateCancelled", "open")
+
+
+def change(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    """What differs between two periods of the same unit: counts, and attendance in points.
+
+    A difference in counts is only a difference, whatever the reason; the report
+    names no cause (FR-MSR-04). Attendance is None when either period decided
+    nothing, since a rate of nothing is not zero.
+    """
+    counts = {
+        name: {
+            "before": int(before.get(name) or 0),
+            "after": int(after.get(name) or 0),
+            "change": int(after.get(name) or 0) - int(before.get(name) or 0),
+        }
+        for name in COMPARED
+    }
+    was, now = before.get("attendance"), after.get("attendance")
+    points = round((now - was) * 100, 1) if was is not None and now is not None else None
+    return {
+        "counts": counts,
+        "attendance": {"before": was, "after": now, "points": points},
+    }
+
+
 def _merge_rates(
     units: list[dict[str, Any]], field: str, name: str, order: tuple[str, ...]
 ) -> list[dict[str, Any]]:

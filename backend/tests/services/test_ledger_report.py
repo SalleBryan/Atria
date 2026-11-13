@@ -311,6 +311,27 @@ class TestWeeklyReport:
         assert "saving" not in body
         assert "saved" not in body
 
+    def test_fr_msr_01_a_period_is_compared_with_an_earlier_one(self, week):
+        found = body_of(report(MANAGER, query={"week": "2026-03-02", "before": "2026-02-23"}))
+        comparison = found["comparison"]
+        assert (comparison["from"], comparison["to"]) == ("2026-02-23", "2026-03-01")
+        assert comparison["counts"]["booked"] == {"before": 0, "after": 4, "change": 4}
+        # Nothing was decided in the earlier week, so there is no change to state.
+        assert comparison["attendance"] == {"before": None, "after": 0.5, "points": None}
+
+    def test_the_hospital_report_compares_too(self, week):
+        found = body_of(
+            report(ADMIN, resource="/reports", query={"week": "2026-03-02", "before": "2026-02-23"})
+        )
+        assert found["comparison"]["counts"]["attended"]["change"] == 1
+
+    def test_a_report_without_before_has_no_comparison(self, week):
+        assert "comparison" not in body_of(report(MANAGER))
+
+    def test_the_earlier_period_must_end_before_this_one_begins(self, week):
+        overlapping = {"week": "2026-03-02", "before": "2026-03-04"}
+        assert report(MANAGER, query=overlapping)["statusCode"] == 400
+
     def test_the_desk_does_not_read_it(self, week):
         assert report(staff_context())["statusCode"] == 403
 

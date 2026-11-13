@@ -30,6 +30,7 @@ import boto3
 from aws_lambda_powertools import Logger
 
 from atria.core import permissions, schedule
+from atria.core import usage as usage_rules
 from atria.core.errors import Invalid
 from atria.core.permissions import Subject
 from atria.core.principal import Principal
@@ -206,6 +207,38 @@ def delivery(principal: Principal, event: dict[str, Any], *, data: Booking) -> d
         "totals": figures([r for rows in by_day.values() for r in rows]),
         "days": per_day,
     }
+
+
+# ---------------------------------------------------------- the usage statement
+def usage(principal: Principal, event: dict[str, Any], *, data: Booking) -> dict[str, Any]:
+    """A month of messages counted by unit, kind, channel and state (ADR 0031).
+
+    The month is YYYY-MM on the tenant's clock, this month by default and never
+    a month that has not begun. A month still running is counted to today."""
+    scope = permissions.require(principal, "message.read", Subject(tenant_id=principal.tenant_id))
+    if scope != "tenant":
+        raise Invalid("the usage statement is the administrator's")
+    now = today(data, principal.tenant_id)
+    raw = requests.query_parameter(event, "month")
+    first = _month_start(raw) if raw else now.replace(day=1)
+    if first > now:
+        raise Invalid("that month has not started")
+    end = (first.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+    last = min(end, now)
+    by_day = rows_between(data, principal.tenant_id, first, last)
+    return {
+        "month": first.isoformat()[:7],
+        "from": first.isoformat(),
+        "to": last.isoformat(),
+        **usage_rules.statement([r for rows in by_day.values() for r in rows]),
+    }
+
+
+def _month_start(raw: str) -> dt.date:
+    try:
+        return dt.date.fromisoformat(f"{raw}-01")
+    except ValueError as exc:
+        raise Invalid("month must be YYYY-MM") from exc
 
 
 def rate(part: int, whole: int) -> float | None:

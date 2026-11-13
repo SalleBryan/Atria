@@ -2293,6 +2293,14 @@ paths:
         - name: week
           in: query
           schema: { type: string, format: date }
+        - name: before
+          in: query
+          description: |
+            A date in an earlier period of the same length (granularity). When
+            given, the response carries `comparison`: counts before and after,
+            and attendance in points. The earlier period must end before this
+            one begins. A difference is reported, never a cause.
+          schema: { type: string, format: date }
       responses:
         "200":
           description: The unit's week.
@@ -2321,6 +2329,14 @@ paths:
       parameters:
         - name: week
           in: query
+          schema: { type: string, format: date }
+        - name: before
+          in: query
+          description: |
+            A date in an earlier period of the same length (granularity). When
+            given, the response carries `comparison`: counts before and after,
+            and attendance in points. The earlier period must end before this
+            one begins. A difference is reported, never a cause.
           schema: { type: string, format: date }
       responses:
         "200":
@@ -2381,6 +2397,48 @@ paths:
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /messages/usage:
+    get:
+      tags: [Reports and messages]
+      operationId: messageUsage
+      summary: A month of messages counted by unit, kind, channel and state (ADR 0031)
+      description: |
+        Permission message.read at tenant scope, the administrator's. Counts
+        the message log rows that settled in the month on the tenant's clock,
+        a running month to today. Reporting only: no price, no invoice.
+      parameters:
+        - name: month
+          in: query
+          description: YYYY-MM, this month by default.
+          schema: { type: string, pattern: '^\d{4}-\d{2}$' }
+      responses:
+        "200":
+          description: The counts.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  month: { type: string }
+                  from: { type: string, format: date }
+                  to: { type: string, format: date }
+                  messages: { type: integer }
+                  lines:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        clinicId: { type: string }
+                        kind: { type: string }
+                        channel: { type: string }
+                        state: { type: string }
+                        count: { type: integer }
+                  byKind: { type: object, additionalProperties: { type: integer } }
+                  byChannel: { type: object, additionalProperties: { type: integer } }
+                  byState: { type: object, additionalProperties: { type: integer } }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   /messages/delivery:
     get:

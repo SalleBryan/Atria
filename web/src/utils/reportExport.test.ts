@@ -40,6 +40,15 @@ describe("reportCsv", () => {
   });
 });
 
+describe("outcome shares (audit F18)", () => {
+  it("names the share of booked and of closed apart, and counts open visits", () => {
+    const rows = reportCsv({ ...WEEK, booked: 10, attended: 4, noShow: 2, cancelled: 1, lateCancelled: 1 }).rows;
+    const ended = rows.filter((r) => r[0] === "How visits ended");
+    expect(ended.find((r) => r[1] === "Attended")?.[7]).toBe("40% of booked; 50% of closed");
+    expect(ended.find((r) => r[1] === "Still open")?.[2]).toBe(2);
+  });
+});
+
 describe("AtriaWorkbook", () => {
   it("sets a sheet in the documents' style: brand banner, details, tinted small-caps head, frozen", async () => {
     const book = await AtriaWorkbook.create({

@@ -100,6 +100,14 @@ Everything that used to sit outside the repo is under `docs/reference/` (index: 
 3. Write the B0 ADR and ask the owner to confirm the scope change before any billing code.
 4. Start B1 with a test first. Log progress in `docs/handoff/LOG_BIZ.md`.
 
+## 13. Business lane status (updated 2026-11-13 by the business account)
+Full detail in `docs/handoff/LOG_BIZ.md`. Branch `biz/usage-statement-and-baseline`, uncommitted: the owner decides when to commit, push and open the PR.
+- B0 ADR 0030 written (proposed). **Owner decision needed** before B3. Nothing commercial is built.
+- B1 done as an API: `GET /messages/usage` (ADR 0031). Next: an administrator screen for it (additive card in `Messages.tsx` or `AdminOverview.tsx`) and a CSV through `utils/export/`.
+- B2 done as an API and an export fix: F18 fixed, `before` comparison on both report endpoints. Next: a comparison control and delta tiles in `Reports.tsx`, then the queue metrics once the pain lane adds `CONSULTATION_ENDED`.
+- B3 and B4 not started. B3 is blocked on the owner approving ADR 0030. B4 can start any time.
+- Setup note: a venv inside OneDrive failed with permission errors. Build it outside the synced folder.
+
 ## 12. Queue revision: what it changes for the business lane (from ADR 0022)
 - **B1 metering:** new message kinds `EARLY_CALL_INVITE` and `QUEUE_MOVED` will appear in the message log. Count them by kind per unit. They are time critical, so delivery speed matters more than for reminders.
 - **B2 baseline report:** add queue-quality metrics next to attendance: doctor idle minutes, arrival-to-consultation wait, promise breach minutes (consultation start minus window end for patients who arrived in their window), bypass rate, on-site versus online mix. Consultation length is derived from the existing `consultationStartedAt` and `completedAt` stamps on the ticket; no new event. State them as measurements only, never as currency savings (FR-MSR-04, CX-12).

@@ -172,4 +172,35 @@ describe("Hospital settings", () => {
     expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
     expect(sent.some((s) => s.path === "/admin/settings")).toBe(false);
   });
+
+  it("exposes the payment sandbox only when the API enables it", async () => {
+    renderSettings();
+    await screen.findByRole("checkbox", { name: "Collect feedback" });
+    expect(screen.queryByRole("tab", { name: "Payment sandbox" })).not.toBeInTheDocument();
+  });
+
+  it("creates a sandbox checkout and checks the same attempt", async () => {
+    const checkoutUrl = "https://checkout.fapshi.com/payment/synthetic";
+    api.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path === "/admin/settings") return { ...OVERVIEW, paymentSandboxEnabled: true };
+      if (path.startsWith("/admin/payment-sandbox/")) {
+        sent.push({ path, init });
+        return { checkoutUrl, status: init?.method === "POST" ? "CREATED" : "SUCCESSFUL" };
+      }
+      return { clinicians: [], clinics: [], appointmentTypes: [] };
+    });
+    const user = userEvent.setup();
+    renderSettings();
+    await user.click(await screen.findByRole("tab", { name: "Payment sandbox" }));
+    await user.click(screen.getByRole("button", { name: "Create test checkout" }));
+    expect(await screen.findByRole("link", { name: "Open test checkout" })).toHaveAttribute("href", checkoutUrl);
+    await user.click(screen.getByRole("tab", { name: "Hospital" }));
+    await user.click(screen.getByRole("tab", { name: "Payment sandbox" }));
+    await user.click(screen.getByRole("button", { name: "Check status" }));
+    expect(await screen.findByText("Payment simulated successfully")).toBeInTheDocument();
+    expect(sent).toEqual([
+      { path: sent[0]?.path, init: { method: "POST" } },
+      { path: sent[0]?.path, init: undefined },
+    ]);
+  });
 });

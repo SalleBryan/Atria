@@ -133,6 +133,22 @@ const feeBands = FEE_BANDS.map((b) => ({
   effectiveFrom: "2026-09-26",
 }));
 // The fee in force for a type, as the live queue shows the desk (services/booking/fees.py).
+/** Sandbox payments in the preview, kept for the tab so the desk persona sees what the patient paid. */
+type SandboxPayment = Record<string, unknown> & { status: string; paid: boolean; amount: number };
+function sandboxPayments(): Record<string, SandboxPayment> {
+  try {
+    return JSON.parse(sessionStorage.getItem("atria.preview.payments") ?? "{}") as Record<string, SandboxPayment>;
+  } catch {
+    return {};
+  }
+}
+function saveSandboxPayments(payments: Record<string, SandboxPayment>) {
+  try {
+    sessionStorage.setItem("atria.preview.payments", JSON.stringify(payments));
+  } catch {
+    // A preview without storage simply forgets the payment on reload.
+  }
+}
 const deskFee = (typeId: unknown) => {
   const band = feeBands.find((b) => b.feeBandId === types.find((t) => t.appointmentTypeId === typeId)?.feeBandId);
   return band ? { amountMinor: band.baseAmountMinor, currency: "XAF" } : null;
@@ -146,6 +162,8 @@ const regionPack = {
   allowsRatingFeeLink: false,
 };
 
+const sandboxAttempts = new Set<string>();
+
 function settingsOverview() {
   const locked = Boolean(tenant.firstAppointmentAt);
   return {
@@ -157,6 +175,7 @@ function settingsOverview() {
         : null,
     },
     regionPack,
+    paymentSandboxEnabled: true,
     clinics,
     appointmentTypes: types,
     feeBands,
@@ -1053,6 +1072,58 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       300,
     );
   }
+  const payRoute = path.match(/^\/appointments\/([^/]+)\/payment$/);
+  if (payRoute) {
+    const visitId = payRoute[1] ?? "";
+    const visit = [...todayQueue, ...appointments].find((a) => a.appointmentId === visitId);
+    if (!visit) return json(404, { code: "not_found", message: "no such appointment" });
+    const fee = deskFee(visit.appointmentTypeId);
+    const payments = sandboxPayments();
+    const current = payments[visitId];
+    if (method === "GET") {
+      if (!current) {
+        return json(
+          200,
+          {
+            appointmentId: visitId,
+            sandbox: true,
+            status: "NONE",
+            paid: false,
+            amount: fee?.amountMinor ?? null,
+            currency: fee ? "XAF" : null,
+          },
+          300,
+        );
+      }
+      // The preview stands in for the patient finishing Fapshi's test page with the
+      // success number (670000000): the first check after starting finds it paid.
+      if (current.status === "CREATED") {
+        current.status = "SUCCESSFUL";
+        current.paid = true;
+        saveSandboxPayments(payments);
+      }
+      return json(200, current, 600);
+    }
+    if (method === "POST") {
+      if (String(visit.state).endsWith("CANCELLED")) return json(409, { code: "conflict", message: "a cancelled visit cannot be paid" });
+      if (!fee || fee.amountMinor <= 0) return json(409, { code: "conflict", message: "this visit has no fee to pay" });
+      if (current?.paid) return json(409, { code: "conflict", message: "this visit is already paid" });
+      const started = {
+        appointmentId: visitId,
+        sandbox: true,
+        attemptId: String((body as { attemptId?: string } | null)?.attemptId ?? ""),
+        status: "CREATED",
+        paid: false,
+        amount: fee.amountMinor,
+        currency: "XAF",
+        checkoutUrl: "https://sandbox.fapshi.com/checkout/preview",
+        startedAt: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+      };
+      payments[visitId] = started;
+      saveSandboxPayments(payments);
+      return json(201, started, 700);
+    }
+  }
   const replyRoute = path.match(/^\/appointments\/([^/]+)\/invite-reply$/);
   if (replyRoute && method === "POST") {
     const ticket = [...todayQueue, ...appointments].find((a) => a.appointmentId === replyRoute[1]);
@@ -1880,6 +1951,19 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     }
     const actors = [...groups.values()].sort((a, b) => Number(b.flagged) - Number(a.flagged));
     return json(200, { week, to: week, actors, total: inWeek.length, flagged: inWeek.filter((e) => e.flags.length).length }, 300);
+  }
+  const sandbox = path.match(/^\/admin\/payment-sandbox\/([^/]+)$/);
+  if (sandbox && (method === "POST" || method === "GET")) {
+    const id = sandbox[1]!;
+    const exists = sandboxAttempts.has(id);
+    if (method === "GET" && !exists) return json(404, { message: "No such sandbox payment." });
+    sandboxAttempts.add(id);
+    return json(exists ? 200 : 201, {
+      id,
+      currency: "XAF",
+      amount: 500,
+      status: method === "POST" ? "CREATED" : "SUCCESSFUL",
+    });
   }
   if (path === "/admin/settings") {
     if (method === "GET") return json(200, settingsOverview());

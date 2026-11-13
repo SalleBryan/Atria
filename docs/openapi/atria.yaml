@@ -1482,6 +1482,7 @@ paths:
                   clinics: { type: array, items: { type: object } }
                   appointmentTypes: { type: array, items: { $ref: "#/components/schemas/AppointmentTypeSettings" } }
                   feeBands: { type: array, items: { $ref: "#/components/schemas/FeeBand" } }
+                  paymentSandboxEnabled: { type: boolean }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
     patch:
@@ -1510,6 +1511,108 @@ paths:
         "400": { $ref: "#/components/responses/Invalid" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/payment-sandbox/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+        description: Random UUIDv4 for one synthetic checkout attempt.
+    post:
+      tags: [Settings]
+      operationId: createSandboxPayment
+      summary: Create a synthetic hosted checkout on the development API
+      description: Requires payment_sandbox.use. Send an empty body. Replaying the same ID returns the existing attempt.
+      responses:
+        "201": { $ref: "#/components/responses/SandboxPayment" }
+        "200": { $ref: "#/components/responses/SandboxPayment" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { description: Rate limit reached. }
+        "502": { description: Fapshi refused the request or the result is uncertain. }
+        "503": { description: Sandbox credentials are unavailable. }
+    get:
+      tags: [Settings]
+      operationId: getSandboxPayment
+      summary: Reconcile a synthetic checkout with Fapshi
+      description: Requires payment_sandbox.use. The attempt must belong to the caller's tenant.
+      responses:
+        "200": { $ref: "#/components/responses/SandboxPayment" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { description: Rate limit reached. }
+        "502": { description: Fapshi status could not be verified. }
+        "503": { description: Sandbox credentials are unavailable. }
+
+  /appointments/{id}/payment:
+    parameters:
+      - $ref: "#/components/parameters/AppointmentId"
+    post:
+      tags: [Settings]
+      operationId: payAppointmentInSandbox
+      summary: Start a Fapshi sandbox checkout for this visit's fee (development only)
+      description: |
+        Sandbox only: synthetic money on Fapshi's sandbox. Whoever may read the
+        appointment (appointment.read: the patient, or the unit's staff) may start
+        one. The amount is the fee band in force on the visit day. A visit with no
+        fee, a free one, a cancelled one or one already paid is a 409. Replaying the
+        same attemptId returns the existing attempt. Bookings and the fee ledger are
+        only read (ADR 0007, 0030).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [attemptId]
+              properties:
+                attemptId: { type: string, format: uuid, description: A new random UUIDv4 for each checkout. }
+      responses:
+        "201": { $ref: "#/components/responses/AppointmentPayment" }
+        "200": { $ref: "#/components/responses/AppointmentPayment" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Nothing to pay, cancelled, or already paid. }
+        "502": { description: Fapshi refused the request or the result is uncertain. }
+        "503": { description: Sandbox credentials are unavailable. }
+    get:
+      tags: [Settings]
+      operationId: getAppointmentPayment
+      summary: Whether this visit's fee was paid in the sandbox
+      description: |
+        The latest attempt, its status refreshed from Fapshi and checked against
+        the expected amount; paid is true only for the full amount. With no attempt
+        yet, status is NONE with the amount owed. For the desk to confirm payment.
+      responses:
+        "200": { $ref: "#/components/responses/AppointmentPayment" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { description: Fapshi status could not be verified. }
+        "503": { description: Sandbox credentials are unavailable. }
+
+  /webhooks/fapshi:
+    post:
+      tags: [Settings]
+      operationId: receiveFapshiSandboxWebhook
+      summary: Reconcile a sandbox checkout after a Fapshi notification
+      security:
+        - fapshiWebhook: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transId: { type: string }
+                externalId: { type: string }
+      responses:
+        "200": { description: Notification acknowledged. }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "502": { description: Fapshi status could not be verified. }
 
   /admin/clinics/{id}:
     patch:
@@ -2759,6 +2862,10 @@ components:
       description: Reads of patient data, or changes.
 
   securitySchemes:
+    fapshiWebhook:
+      type: apiKey
+      in: header
+      name: x-wh-secret
     cognito:
       type: http
       scheme: bearer
@@ -2769,6 +2876,16 @@ components:
         created with.
 
   schemas:
+    SandboxPayment:
+      type: object
+      required: [id, amount, currency, status]
+      properties:
+        id: { type: string, format: uuid }
+        amount: { type: integer, const: 500 }
+        currency: { type: string, const: XAF }
+        status: { type: string, enum: [INITIATING, INITIATION_UNKNOWN, INITIATION_REJECTED, CREATED, PENDING, SUCCESSFUL, FAILED, EXPIRED] }
+        transId: { type: string }
+        checkoutUrl: { type: string, format: uri }
     QueuePolicyChange:
       type: object
       description: Rules to change; null clears an override. At least one.
@@ -3626,6 +3743,28 @@ components:
           description: The invocation, for tracing a report from a clinic.
 
   responses:
+    AppointmentPayment:
+      description: The visit's sandbox payment.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              appointmentId: { type: string }
+              sandbox: { type: boolean, enum: [true] }
+              attemptId: { type: string, format: uuid }
+              status: { type: string, enum: [NONE, INITIATING, CREATED, PENDING, SUCCESSFUL, FAILED, EXPIRED, INITIATION_REJECTED, INITIATION_UNKNOWN] }
+              paid: { type: boolean }
+              amount: { type: integer, nullable: true, description: Whole XAF. }
+              currency: { type: string, nullable: true }
+              checkoutUrl: { type: string, format: uri }
+              transId: { type: string }
+              startedAt: { type: string, format: date-time }
+    SandboxPayment:
+      description: The synthetic checkout attempt and its last verified status.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/SandboxPayment" }
     MovedAppointment:
       description: The appointment in its new state.
       content:

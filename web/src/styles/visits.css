@@ -925,3 +925,38 @@
   line-height: 1.5;
   color: var(--ink-650);
 }
+
+/* Fee payment in the Fapshi sandbox (components/SandboxPayment.tsx). */
+.pay-fee {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.pay-fee .tonal-button,
+.pay-fee .outline-button {
+  flex: 1 1 100%;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+}
+.pay-fee-note {
+  flex-basis: 100%;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+.pay-fee-paid {
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(14, 156, 107, 0.14);
+  color: #0b7a53;
+  font-weight: 600;
+  font-size: 14px;
+  text-align: center;
+}
+.fee-paid {
+  color: #0b7a53;
+  font-weight: 600;
+}

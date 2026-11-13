@@ -148,6 +148,8 @@ MATRIX = {
  # patients (FR-MSG-05), and the delivery figures (FR-MSG-06).
  "message.read":            {"PATIENT":"none","RECEPTIONIST":"clinic","CLINICIAN":"none",
                              "CLINIC_MANAGER":"clinic","TENANT_ADMIN":"tenant"},
+ "payment_sandbox.use":     {"PATIENT":"none","RECEPTIONIST":"none","CLINICIAN":"none",
+                             "CLINIC_MANAGER":"none","TENANT_ADMIN":"tenant"},
 }
 
 # Rules the matrix alone cannot express. Evaluated by the authoriser after the

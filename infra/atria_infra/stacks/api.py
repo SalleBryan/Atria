@@ -16,6 +16,7 @@ from __future__ import annotations
 import pathlib
 from typing import Any
 
+from atria_spec.payment_sandbox import ENABLED_ENV
 from aws_cdk import Aws, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_apigateway as apigateway
 from aws_cdk import aws_events as events
@@ -26,6 +27,7 @@ from aws_cdk import aws_logs as logs
 from constructs import Construct
 
 from atria_infra.config import Environment
+from atria_infra.payment_sandbox import PaymentSandbox
 from atria_infra.stacks.data import DataStack
 from atria_infra.stacks.identity import IdentityStack
 from atria_infra.stacks.platform import (
@@ -293,7 +295,10 @@ class ApiStack(Stack):
             "SettingsService",
             handler="atria.services.admin.settings.handler",
             description="Tenant settings, units, appointment types, intake forms and fee bands",
-            environment=common_environment,
+            environment={
+                **common_environment,
+                ENABLED_ENV: "true" if settings.payment_sandbox_enabled else "false",
+            },
         )
         grant_table_write(data.main_table, self.settings_service)
 
@@ -644,6 +649,19 @@ class ApiStack(Stack):
                 audit_integration,
                 authorizer=self.request_authoriser,
                 authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
+
+        if settings.payment_sandbox_enabled:
+            PaymentSandbox(
+                self,
+                "PaymentSandbox",
+                settings=settings,
+                build_dir=build_dir,
+                layer=self.layer,
+                api=self.api,
+                authorizer=self.request_authoriser,
+                main_table=data.main_table,
+                main_key=data.main_key,
             )
 
     def _service(

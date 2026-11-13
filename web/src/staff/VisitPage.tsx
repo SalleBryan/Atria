@@ -21,6 +21,7 @@ import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
 
 import { api, ApiError } from "../api/client";
 import { FeeRecord } from "../components/FeeRecord";
+import { FeePayment } from "../components/SandboxPayment";
 import { LoadingPane } from "../components/LoadingPane";
 import { MoveVisit } from "../components/MoveVisit";
 import { useSession } from "../auth/session";
@@ -310,6 +311,7 @@ export function VisitPage() {
                   <dd>{appointment.channel ? (CHANNEL[appointment.channel] ?? appointment.channel) : "Not recorded"}</dd>
                 </div>
                 <FeeRecord appointmentId={appointment.appointmentId} state={appointment.state} />
+                <FeePayment appointmentId={appointment.appointmentId} />
               </dl>
             </div>
             <div className="visit-page-part">

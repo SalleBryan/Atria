@@ -86,6 +86,9 @@ class Environment:
     stays off everywhere else.
     """
 
+    fapshi_sandbox: bool = False
+    """Expose the synthetic Fapshi test on the development admin console."""
+
     auth_domain_prefix: str = ""
     """The Cognito sign-in domain, <prefix>.auth.<region>.amazoncognito.com.
 
@@ -125,6 +128,10 @@ class Environment:
         """Prefix for every resource name, so two environments can share an account."""
         return f"atria-{self.name}"
 
+    @property
+    def payment_sandbox_enabled(self) -> bool:
+        return self.name == "dev" and self.fapshi_sandbox
+
     def stack_name(self, stack: str) -> str:
         return f"{self.prefix}-{stack}"
 
@@ -139,6 +146,7 @@ DEV = Environment(
     # simulator, which is what the acceptance test uses.
     notice_sender="bryanjakevita@gmail.com",
     admin_password_auth=True,
+    fapshi_sandbox=True,
     auth_domain_prefix="atria-dev-cm",
     google_secret_name="atria/dev/google-oauth",  # noqa: S106  the name of a secret, not one
     # The hosted site (atria-dev-web, Amplify) and the development server.

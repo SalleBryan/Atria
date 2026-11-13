@@ -96,6 +96,8 @@ Branch `pain/offline-recovery`, web only. Audit F16 done for the web client; F15
 ## 2026-11-13 (PR integration)
 - PR 29 clears button ripple timers on unmount to fix the failing web check.
 
+## 2026-11-13 (appointment payment, sandbox)
+- Owner asked to pay an appointment through Fapshi and confirm it at the desk. Built on `feat/appointment-payment-sandbox`: `services/payment_sandbox/appointment_payment.py` (amount from `FeeLookup`, verified against Fapshi's status), `PayFee` and `FeePayment` in `web/src/components/SandboxPayment.tsx`, routes, read-only main table grant, OpenAPI, runbook. Ran it in the dev preview: patient paid 5,000 XAF (mock checkout), receptionist and administrator saw "Paid in full". A real sandbox payment needs the secret and a deploy.
 ## 2026-11-13 (deploy fix, pitch, cost model)
 - Root cause of the failed dev deploys: booking function resource policy over 20,480 bytes (two statements per API method). Fix on `fix/lambda-policy-size`: one API invoke statement per function, with a test.
 - Ran every pain point flow in the dev preview on the PR 36 code: desk guard, hold and Call anyway, urgent, rules dialog, fee on every place, patient join and live ticket, language switch (Home, Account, Edit details are translated; other screens are still English), offline notice and recovery, phone width.

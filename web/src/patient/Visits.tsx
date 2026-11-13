@@ -31,6 +31,7 @@ import { FeeRecord } from "../components/FeeRecord";
 import { MoveVisit } from "../components/MoveVisit";
 import { BeforeVisit } from "./BeforeVisit";
 import { NewTimeOffer } from "./NewTimeOffer";
+import { PayFee } from "../components/SandboxPayment";
 import { RequestDetail, TicketDetail } from "./QueueVisit";
 import { Alert, Bell, Building, Calendar, CheckMark, ChevronLeft, Close, Filter, Info, Mail, Stethoscope, User } from "../components/icons";
 import { PAGE_ROWS, Pager, usePages } from "../components/Pager";
@@ -450,6 +451,7 @@ function VisitDetail({
           {confirming ? "Confirming" : "I'll be there"}
         </button>
       )}
+      {active && <PayFee appointmentId={appointment.appointmentId} />}
       {active && appointment.state !== "DISRUPTED" && (
         <button type="button" className="outline-button" onClick={onMove}>
           Move visit
@@ -478,6 +480,7 @@ function VisitDetail({
         appointment={appointment}
         actions={
           <div className="visit-actions">
+            {waiting && <PayFee appointmentId={appointment.appointmentId} />}
             {waiting && (
               <button type="button" className="outline-danger" onClick={onCancel}>
                 Give up my place

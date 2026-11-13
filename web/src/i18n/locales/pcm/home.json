@@ -1,0 +1,94 @@
+{
+  "_review": "NEEDS NATIVE SPEAKER REVIEW",
+  "greeting": { "morning": "Good morning", "afternoon": "Good afternoon", "evening": "Good evening" },
+  "welcome": "Welcome",
+  "summary": {
+    "loading": "Wi de load yu visits",
+    "upcoming_one": "{{count}} visit wey de kam",
+    "upcoming_other": "{{count}} visits wey de kam",
+    "reminder": "reminder {{day}}",
+    "lastVisit": "las visit {{day}}"
+  },
+  "tryAgain": "Try again",
+  "search": "Search doctor or di sick wey dem de treat",
+  "book": "Book visit",
+  "nextAppointment": "Yu next appointment",
+  "seeAll": "See all",
+  "hero": {
+    "label": "Yu next visit",
+    "tag": "NEXT VISIT · {{status}}",
+    "queue": "Outpatient queue, place {{place}}",
+    "yourClinician": "Yu doctor",
+    "date": "DATE",
+    "time": "TIME",
+    "in": "FO",
+    "ref": "REF",
+    "details": "Look details",
+    "cancel": "Cancel",
+    "calendar": "Put am fo calendar",
+    "emptyTag": "NO VISIT DON BOOK",
+    "emptyTitle": "Find time wey fit yu.",
+    "emptyBody": "Choose doctor, pick day and hold time. Wi go send yu text di day before fo remind yu.",
+    "findCare": "Find care"
+  },
+  "quick": {
+    "label": "Quick actions",
+    "findSub": "Find free time",
+    "again": "Book again",
+    "againFirst": "After yu first visit",
+    "visits": "My visits",
+    "pastVisits_one": "{{count}} visit don pass",
+    "pastVisits_other": "{{count}} visits don pass",
+    "reminders": "Reminders",
+    "remindersSub": "24 hours before, SMS"
+  },
+  "upcoming": {
+    "title": "Visits wey de kam",
+    "empty": "Yu no book anything yet. Yu visits go show here."
+  },
+  "activity": {
+    "title": "Wetin don happen",
+    "empty": "Bookings, cancels and reminders go show here.",
+    "reminder": "Reminder don set",
+    "reminderBody": "SMS go go {{day}} fo {{time}}",
+    "reminderFoot": "24 hours before yu visit",
+    "cancelled": "Visit don cancel",
+    "requested": "Procedure don request",
+    "booked": "Visit don book",
+    "requestedBody": "{{reference}}, di unit go set di time",
+    "bookedBody": "{{reference}} fo {{day}} fo {{time}}",
+    "foot": "Book {{day}}, {{time}}"
+  },
+  "row": {
+    "manage": "Manage",
+    "procedure": "Procedure request",
+    "timeRange": "{{start}} to {{end}}",
+    "arrive": "kam {{time}}",
+    "givenBack": "place don go back",
+    "asked": "yu ask {{day}} · dem go set di time",
+    "theRequest": " di request wey yu make fo ",
+    "theVisit": " di visit fo "
+  },
+  "until": { "days": "{{count}} days", "tomorrow": "Tomorrow", "hours": "{{count}} h", "minutes": "{{count}} min", "now": "Now now" },
+  "state": {
+    "REQUESTED": "Don request",
+    "DECLINED": "Dem refuse",
+    "BOOKED": "Don confam",
+    "CONFIRMED": "Don confam",
+    "RESCHEDULED": "Don move",
+    "DISRUPTED": "Yu need new time",
+    "ARRIVED": "Don check in",
+    "IN_CONSULTATION": "De see doctor",
+    "COMPLETED": "Yu don kam",
+    "AWAITING_FEEDBACK": "Yu don kam",
+    "CLINIC_CANCELLED": "Hospital don cancel",
+    "PATIENT_CANCELLED": "Don cancel",
+    "NO_SHOW": "Yu no kam"
+  },
+  "clinic": {
+    "label": "Where yu next visit de",
+    "open": "e open {{start}} to {{end}} today",
+    "closed": "e don close today",
+    "directions": "Get directions"
+  }
+}

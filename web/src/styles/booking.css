@@ -1558,6 +1558,15 @@
 .queue-note-declined > svg {
   color: var(--status-cancelled);
 }
+.queue-invite {
+  margin: 0 0 14px;
+}
+.queue-invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
 @media (max-width: 767px) {
   .find-routes {
     grid-template-columns: minmax(0, 1fr);

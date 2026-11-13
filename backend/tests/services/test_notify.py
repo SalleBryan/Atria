@@ -355,7 +355,7 @@ class TestSending:
         put_appointment(repository, clinician, state="PATIENT_CANCELLED")
         sender.handler(job(notices.BOOKING_CANCELLATION), None)
         subject = fake_ses.sent[0]["Content"]["Simple"]["Subject"]["Data"]
-        assert "cancelled" in subject.lower()
+        assert "annul" in subject.lower()
 
     def test_fr_msg_03_the_message_is_logged_as_sent(self, wired):
         repository, clinician, _ses = wired
@@ -545,3 +545,100 @@ class TestBatch:
         result = sender.handler({"Records": records}, None)
         assert result["batchItemFailures"] == [{"itemIdentifier": "m-bad"}]
         assert len(fake_ses.sent) == 1
+
+
+class FakeSns:
+    def __init__(self) -> None:
+        self.sent: list[dict] = []
+
+    def publish(self, **request):
+        self.sent.append(request)
+        return {"MessageId": f"sns-{len(self.sent):04d}"}
+
+
+class TestEarlyCallInvite:
+    """ADR 0022 R4: an invitation on a waiting ticket owes one SMS, while it is open."""
+
+    def image(self, **more):
+        return {
+            "type": "APPOINTMENT",
+            "tenantId": TENANT,
+            "appointmentId": "a-1",
+            "state": "BOOKED",
+            "sessionId": "se-1",
+            "arrivalWindowStart": "2026-03-04T07:00:00Z",
+            **more,
+        }
+
+    def invited(self, **more):
+        return self.image(
+            inviteSentAt="2026-03-01T08:58:00Z", inviteExpiresAt="2026-03-01T09:18:00Z", **more
+        )
+
+    def test_an_invitation_owes_one_sms_and_nothing_else(self):
+        record = stream_record(old=self.image(), new=self.invited())
+        jobs = outbox.jobs_due(record)
+        assert [(j["kind"], j["channel"]) for j in jobs] == [(notices.EARLY_CALL_INVITE, "SMS")]
+
+    def test_a_reply_on_the_ticket_owes_nothing(self):
+        was = self.invited()
+        record = stream_record(
+            old=was, new={**was, "inviteAnswer": "YES", "inviteReplyAt": "2026-03-01T09:00:00Z"}
+        )
+        assert outbox.jobs_due(record) == []
+
+    def test_an_invitation_on_a_ticket_already_here_owes_nothing(self):
+        record = stream_record(old=self.image(), new=self.invited(state="ARRIVED"))
+        assert outbox.jobs_due(record) == []
+
+    @pytest.fixture
+    def texted(self, wired, monkeypatch):
+        repository, clinician, _ses = wired
+        fake = FakeSns()
+        monkeypatch.setattr(sender, "_sns", fake)
+        monkeypatch.setattr(sender.push, "notify", lambda *a, **k: 0)
+        return repository, clinician, fake
+
+    def put_invited(self, repository, clinician, **more):
+        put_appointment(repository, clinician)
+        repository.update_existing(
+            keys.appointment(TENANT, "a-1"),
+            set_values={
+                "sessionId": "se-1",
+                "inviteSentAt": "2026-03-01T08:58:00Z",
+                "inviteExpiresAt": "2026-03-01T09:18:00Z",
+                **more,
+            },
+            what="appointment",
+        )
+
+    def test_an_open_invitation_is_texted_and_logged_under_its_own_kind(self, texted):
+        repository, clinician, sns = texted
+        self.put_invited(repository, clinician)
+        sender.handler(job(notices.EARLY_CALL_INVITE, channel="SMS"), None)
+        assert len(sns.sent) == 1
+        assert sns.sent[0]["PhoneNumber"] == "+237600000001"
+        assert len(sns.sent[0]["Message"]) <= notices.SMS_SEGMENT
+        logged = Messages(repository).for_day(TENANT, "2026-03-01")
+        assert [row["kind"] for row in logged] == ["EARLY_CALL_INVITE"]
+
+    def test_an_invitation_that_ran_out_before_it_was_sent_is_skipped(self, texted):
+        repository, clinician, sns = texted
+        self.put_invited(repository, clinician, inviteExpiresAt="2026-03-01T08:59:00Z")
+        sender.handler(job(notices.EARLY_CALL_INVITE, channel="SMS"), None)
+        assert sns.sent == []
+
+    def test_an_invitation_already_answered_is_not_texted_late(self, texted):
+        repository, clinician, sns = texted
+        self.put_invited(repository, clinician, inviteAnswer="NO")
+        sender.handler(job(notices.EARLY_CALL_INVITE, channel="SMS"), None)
+        assert sns.sent == []
+
+    def test_an_invitation_for_a_patient_who_has_arrived_is_skipped(self, texted):
+        repository, clinician, sns = texted
+        self.put_invited(repository, clinician, state="ARRIVED")
+        sender.handler(job(notices.EARLY_CALL_INVITE, channel="SMS"), None)
+        assert sns.sent == []
+
+    def test_an_invitation_pushes_itself_as_a_queue_move_does(self):
+        assert sender.pushes({"kind": notices.EARLY_CALL_INVITE, "channel": "SMS"})

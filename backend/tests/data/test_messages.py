@@ -71,8 +71,8 @@ class TestScheduled:
     def test_the_wording_used_is_recorded(self, messages, notice):
         """Which text a patient received is the question asked afterwards."""
         row = schedule(messages, notice)
-        assert row["template"] == "booking_confirmation.en"
-        assert row["language"] == "en"
+        assert row["template"] == "booking_confirmation.fr"
+        assert row["language"] == "fr"
 
     def test_the_subject_is_kept_but_not_the_body(self, messages, notice):
         """Enough to recognise the message without keeping a copy of it."""

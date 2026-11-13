@@ -19,6 +19,8 @@ import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { SessionProvider } from "./auth/session";
 import { fitToWindow } from "./layout/fit";
+import "./i18n";
+import { LanguageProvider } from "./i18n/LanguageProvider";
 import { installMotion } from "./motion/springs";
 
 installMotion();
@@ -43,7 +45,9 @@ if (import.meta.env.DEV && window.location.pathname.startsWith("/__preview")) {
     <StrictMode>
       <BrowserRouter>
         <SessionProvider>
-          <App />
+          <LanguageProvider>
+            <App />
+          </LanguageProvider>
         </SessionProvider>
       </BrowserRouter>
     </StrictMode>,

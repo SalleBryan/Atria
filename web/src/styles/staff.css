@@ -5631,6 +5631,7 @@ body:has(.admin-app) .sheet-icon:not(.sheet-icon-done) {
 
 .queue-rules-group {
   margin: 10px 0 0;
+}
 
 /* Set up a unit (Onboarding.tsx): the step, its state, and where to do it. Its own
    row rather than .account-row, whose phone layout hides the second column, and the

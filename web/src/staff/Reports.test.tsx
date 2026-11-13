@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import type { Me } from "../api/client";
@@ -110,6 +111,46 @@ describe("Weekly report", () => {
     expect(await screen.findByText("Partial refund")).toBeInTheDocument();
     expect(screen.getByText(/No money moves through Atria/)).toBeInTheDocument();
     expect(document.body.textContent?.toLowerCase()).not.toMatch(/sav(ed|ing)/);
+  });
+
+  it("compares with the previous period and names no cause", async () => {
+    api.mockImplementation(async (path: string) => {
+      asked.push(path);
+      if (path === "/clinicians") return { clinicians: [] };
+      if (path === "/clinics") return { clinics: [{ clinicId: "u-med", name: "Medical Unit" }] };
+      if (path === "/appointment-types") return { appointmentTypes: [] };
+      if (path.startsWith("/clinics/u-med/day")) return { appointments: [], patients: {} };
+      if (path.startsWith("/clinics/u-med/report")) {
+        const change = (before: number, after: number) => ({ before, after, change: after - before });
+        return path.includes("before=")
+          ? {
+              ...WEEK,
+              comparison: {
+                from: "2026-09-14",
+                to: "2026-09-20",
+                counts: {
+                  booked: change(8, 10),
+                  attended: change(5, 6),
+                  noShow: change(3, 2),
+                  cancelled: change(1, 1),
+                  lateCancelled: change(0, 1),
+                },
+                attendance: { before: 0.625, after: 0.75, points: 12.5 },
+              },
+            }
+          : WEEK;
+      }
+      throw new Error(`unexpected ${path}`);
+    });
+    renderAt(MANAGER);
+    await screen.findByRole("region", { name: "The week in numbers" });
+    await userEvent.setup().click(screen.getByRole("button", { name: /Compare/ }));
+    await userEvent.setup().click(await screen.findByRole("option", { name: /previous week/ }));
+    const card = await screen.findByRole("region", { name: "The week in numbers" });
+    expect(await within(card).findByText("was 8, up 2")).toBeInTheDocument();
+    expect(within(card).getByText("was 63%, up 12.5 points")).toBeInTheDocument();
+    expect(asked.some((p) => p.includes("&before=2026-"))).toBe(true);
+    expect(document.body.textContent?.toLowerCase()).not.toMatch(/because|due to|caused|sav(ed|ing)/);
   });
 
   it("is not the front desk's", async () => {

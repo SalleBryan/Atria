@@ -960,13 +960,6 @@ class TestTicketOutlook:
         assert self.outlook("a-missing")["statusCode"] == 404
 
 
-class TestEarlyCallInvitations:
-    """ADR 0022 R4: invite in parallel, never hold the doctor, never move anyone."""
-
-    @pytest.fixture
-    def line(self, opd, repository):
-        """Three booked tickets, nobody here, both doctors free, 08:05 in Douala."""
-        _repo, clinician = opd
 class TestFeeOnTheDesk:
     """The desk sees the fee each place will be asked for, from the band in force that day."""
 
@@ -1024,6 +1017,34 @@ class TestFeeOnTheDesk:
     def test_the_band_is_read_once_per_type_not_once_per_place(self, opd, repository, monkeypatch):
         self.band(repository, 5000, on="2026-02-01")
         self.attach(repository)
+        repository.put(
+            keys.patient_profile(TENANT, "pp-3"),
+            {"type": "PATIENT_PROFILE", "patientProfileId": "pp-3", "tenantId": TENANT},
+        )
+        session = body_of(publish())
+        ticket(session["sessionId"])
+        ticket(session["sessionId"], context=staff_context(), patientProfileId="pp-2")
+        ticket(session["sessionId"], context=staff_context(), patientProfileId="pp-3")
+        reads = []
+        original = Settings.fee_band_on
+
+        def counted(self, *args):
+            reads.append(args)
+            return original(self, *args)
+
+        monkeypatch.setattr(Settings, "fee_band_on", counted)
+        live = self.live(session["sessionId"])
+        assert len(live["appointments"]) == 3
+        assert len(reads) == 1  # three places and the walk-in share one type
+
+
+class TestEarlyCallInvitations:
+    """ADR 0022 R4: invite in parallel, never hold the doctor, never move anyone."""
+
+    @pytest.fixture
+    def line(self, opd, repository):
+        """Three booked tickets, nobody here, both doctors free, 08:05 in Douala."""
+        _repo, clinician = opd
         repository.put(
             keys.patient_profile(TENANT, "pp-3"),
             {"type": "PATIENT_PROFILE", "patientProfileId": "pp-3", "tenantId": TENANT},
@@ -1222,18 +1243,3 @@ class TestFeeOnTheDesk:
         sid, _tickets, _doctor = line
         call("POST", "/sessions/{id}/close", context=MANAGER, path={"id": sid})
         assert self.invite(sid)["statusCode"] == 409
-        session = body_of(publish())
-        ticket(session["sessionId"])
-        ticket(session["sessionId"], context=staff_context(), patientProfileId="pp-2")
-        ticket(session["sessionId"], context=staff_context(), patientProfileId="pp-3")
-        reads = []
-        original = Settings.fee_band_on
-
-        def counted(self, *args):
-            reads.append(args)
-            return original(self, *args)
-
-        monkeypatch.setattr(Settings, "fee_band_on", counted)
-        live = self.live(session["sessionId"])
-        assert len(live["appointments"]) == 3
-        assert len(reads) == 1  # three places and the walk-in share one type

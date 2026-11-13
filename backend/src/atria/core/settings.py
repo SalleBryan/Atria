@@ -89,6 +89,10 @@ def tenant_changes(
         "queueHoldMinutes",
         "queueLateGraceMinutes",
         "queueMaxBypass",
+        "queueInviteLeadMinutes",
+        "queueInviteFanout",
+        "queueInviteOpenMinutes",
+        "queueEarlyCallInvites",
         "noShowStrikeThreshold",
         "noShowStrikeWindowDays",
         "qualityProgrammeEnabled",
@@ -166,6 +170,11 @@ def tenant_changes(
         if field in body:
             low, high = queue.POLICY_LIMITS[name]
             out[field] = _whole(body, field, low=low, high=high)
+    for name, field in queue.TENANT_CHOICE_FIELDS.items():
+        if field in body:
+            if body[field] not in queue.POLICY_CHOICES[name]:
+                raise Invalid(f"{field} must be one of {', '.join(queue.POLICY_CHOICES[name])}")
+            out[field] = body[field]
 
     if "noShowStrikeThreshold" in body:
         threshold = _whole(body, "noShowStrikeThreshold", low=0, high=10)

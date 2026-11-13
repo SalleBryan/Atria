@@ -60,7 +60,15 @@ Branch `pain/offline-recovery`, web only. Audit F16 done for the web client; F15
 - Decisions left for the owner: (1) whether to cache an offline app shell with a service worker (F16 asks for minimal retained data; a stale shell after a deploy is a risk), (2) idempotency keys for tickets, procedure requests, reschedule and cancel (backend; today only `POST /appointments` has them), (3) whether the poll interval and backoff should become a setting.
 - F15: measured with this branch, main chunk 1,949 kB (586 kB gzip), `exceljs` already its own 929 kB chunk loaded on export, jsPDF's html2canvas and purify already split. The remaining win is route level `lazy()` for `staff/routes.tsx` and `patient/routes.tsx` plus a Suspense in the two shells. Not done: about 15 tests render `staffRoutes` synchronously and a first lazy import in jsdom can exceed their 1 s waits, and `Reports.tsx` and `StaffAccounts.tsx` are business lane hotspots. Own PR, with a bundle budget for the patient entry path.
 
+## 2026-11-13 (slice 3, PR 1 of 4)
+- Branch `pain/early-call`: pure invitation rules and settings. `core/queue.py`: `Policy` gains `invite_lead_minutes`, `invite_fanout`, `invite_open_minutes`, `early_call_invites`; `resolve_policy` and `policy_changes` handle them (one is a word, desk or auto); `invite_status`, `doctor_free_within`, `invite_targets` are the new pure functions. Tenant fields `queueInviteLeadMinutes`, `queueInviteFanout`, `queueInviteOpenMinutes`, `queueEarlyCallInvites` in `core/settings.py` and `services/admin/settings.py`; unit `queuePolicy` and session `policy` take the short names. `policy_view` returns them. Nothing sends anything yet.
+- Decision to confirm: ADR 0022 R4 says a YES records an ETA and moves nothing, the task brief said a YES checks the patient in. The ADR wins, so a YES will not check anyone in; the patient arrives and checks in normally. The fallback for `earlyCallInvites` is `desk`.
+- Next: PR 2 the `EARLY_CALL_INVITE` notice, sender and outbox; PR 3 the desk invite route and the patient reply route; PR 4 the desk screen and the settings fields.
+
 ## 2026-11-13 (fee on the desk)
 - Branch `pain/desk-fee` from `origin/main`: the live queue shows the fee each place will be asked for ("Fee 5,000 XAF", "Free", nothing when the type has no band) and the walk-in dialog states the walk-in fee. Backend `FeeLookup` (one band read per type, band in force on the session date). Touched `services/booking/queue.py` only in `live_queue` and a small `walk_in_fee` helper, plus the queue view in `Queue.tsx`, so the early-call work should rebase cleanly.
 - `pain/fee-in-reminders` was not merged yet (its work was uncommitted in another worktree). To avoid two copies of the band logic, that branch should call `FeeLookup` instead of its own `appointment_fee` lookup when it rebases.
 - Not done: Flutter desk (deferred by the owner).
+
+## 2026-11-13 (PR integration)
+- PR 29 clears button ripple timers on unmount to fix the failing web check.

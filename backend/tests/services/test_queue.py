@@ -742,6 +742,35 @@ class TestWhoSetsTheQueueRules:
         assert changed["maxBypass"] == 0
         assert self.live(session["sessionId"])["policy"]["source"]["maxBypass"] == "session"
 
+    def test_r4_the_invitation_rules_are_settings_on_all_three_levels(self, opd, repository):
+        repository.update_existing(
+            keys.tenant(TENANT),
+            set_values={"queueInviteFanout": 6, "queueEarlyCallInvites": "auto"},
+            what="tenant",
+        )
+        session = body_of(publish())
+        sid = session["sessionId"]
+        policy = self.live(sid)["policy"]
+        assert (policy["inviteFanout"], policy["earlyCallInvites"]) == (6, "auto")
+        assert policy["source"]["inviteFanout"] == "tenant"
+        assert policy["inviteLeadMinutes"] == 5
+        assert policy["inviteOpenMinutes"] == 20
+        assert policy["source"]["inviteLeadMinutes"] == "default"
+        body_of(self.patch_unit({"inviteFanout": 2, "inviteOpenMinutes": 45}))
+        policy = self.live(sid)["policy"]
+        assert (policy["inviteFanout"], policy["source"]["inviteFanout"]) == (2, "unit")
+        assert (policy["inviteOpenMinutes"], policy["source"]["inviteOpenMinutes"]) == (45, "unit")
+        body_of(self.patch_session(sid, {"earlyCallInvites": "desk"}, staff_context()))
+        policy = self.live(sid)["policy"]
+        assert (policy["earlyCallInvites"], policy["source"]["earlyCallInvites"]) == (
+            "desk",
+            "session",
+        )
+        cleared = body_of(self.patch_session(sid, {"earlyCallInvites": None}, staff_context()))
+        assert cleared["earlyCallInvites"] == "auto"
+        assert self.patch_unit({"inviteFanout": 11})["statusCode"] == 400
+        assert self.patch_unit({"earlyCallInvites": "sometimes"})["statusCode"] == 400
+
     def test_a_clinician_does_not_adjust_a_session(self, opd):
         _repo, clinician = opd
         session = body_of(publish())

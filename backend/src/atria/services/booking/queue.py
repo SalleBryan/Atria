@@ -551,6 +551,10 @@ def policy_view(tenant_id: str, session: dict[str, Any]) -> dict[str, Any]:
         "holdMinutes": policy.hold_minutes,
         "lateGraceMinutes": policy.late_grace_minutes,
         "maxBypass": policy.max_bypass,
+        "inviteLeadMinutes": policy.invite_lead_minutes,
+        "inviteFanout": policy.invite_fanout,
+        "inviteOpenMinutes": policy.invite_open_minutes,
+        "earlyCallInvites": policy.early_call_invites,
         "source": source,
     }
 

@@ -1,40 +1,48 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import { FeePayment, PayFee } from "./SandboxPayment";
 
 const api = vi.hoisted(() => vi.fn());
 vi.mock("../api/client", () => ({ api }));
 
-const NONE = { appointmentId: "a-1", sandbox: true, status: "NONE", paid: false, amount: 1500, currency: "XAF" };
-const STARTED = { ...NONE, status: "CREATED", attemptId: "x", checkoutUrl: "https://sandbox.fapshi.com/checkout/t" };
+const NONE = { appointmentId: "a-1", status: "NONE", paid: false, amount: 1500, currency: "XAF" };
+const STARTED = { ...NONE, status: "PENDING", payerPhone: "6.. ... 000" };
 const PAID = { ...STARTED, status: "SUCCESSFUL", paid: true };
 
 describe("PayFee, the patient's side", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("offers to pay exactly the visit's fee, as a test payment", async () => {
-    api.mockResolvedValueOnce(NONE);
+  it("sends only the phone and attempt ID, then polls for verified payment", async () => {
+    api.mockResolvedValueOnce(NONE).mockResolvedValueOnce(STARTED).mockResolvedValueOnce(PAID);
     render(<PayFee appointmentId="a-1" />);
-    expect(await screen.findByRole("button", { name: "Pay 1,500 XAF now" })).toBeInTheDocument();
-    expect(screen.getByText(/No real money moves/)).toBeInTheDocument();
+    const pay = await screen.findByRole("button", { name: "Pay 1,500 XAF with mobile money" });
+    expect(pay).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox", { name: "Mobile money number" }), { target: { value: "+237 670000000" } });
+    vi.useFakeTimers();
+    try {
+      await act(async () => fireEvent.click(pay));
+      expect(screen.getByRole("status")).toHaveTextContent("Approve the payment on your phone. We sent a prompt to 6.. ... 000.");
+      expect(api.mock.calls[1]).toEqual([
+        "/appointments/a-1/payment",
+        {
+          method: "POST",
+          json: { attemptId: expect.stringMatching(/^[0-9a-f-]{36}$/), phone: "+237 670000000" },
+        },
+      ]);
+      await act(async () => vi.advanceTimersByTimeAsync(5000));
+      expect(screen.getByRole("status")).toHaveTextContent("Fee paid, 1,500 XAF");
+      await act(async () => vi.advanceTimersByTimeAsync(5000));
+      expect(api).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it("starts a checkout with a fresh attempt, then links to Fapshi's test page", async () => {
-    api.mockResolvedValueOnce(NONE).mockResolvedValueOnce(STARTED);
+  it("lets the payer start a new attempt after failure", async () => {
+    api.mockResolvedValueOnce({ ...STARTED, status: "FAILED" });
     render(<PayFee appointmentId="a-1" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Pay 1,500 XAF now" }));
-    expect(await screen.findByRole("link", { name: "Open the test checkout" })).toHaveAttribute("href", STARTED.checkoutUrl);
-    const [path, init] = api.mock.calls[1]!;
-    expect(path).toBe("/appointments/a-1/payment");
-    expect(init.method).toBe("POST");
-    expect(init.json.attemptId).toMatch(/^[0-9a-f-]{36}$/);
-  });
-
-  it("says the fee is paid once the check confirms it", async () => {
-    api.mockResolvedValueOnce(STARTED).mockResolvedValueOnce(PAID);
-    render(<PayFee appointmentId="a-1" />);
-    fireEvent.click(await screen.findByRole("button", { name: "I have paid, check" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Fee paid, 1,500 XAF");
+    expect(await screen.findByRole("status")).toHaveTextContent("You can try again");
+    expect(screen.getByRole("textbox", { name: "Mobile money number" })).toBeEnabled();
   });
 
   it("stays out of the way where the sandbox is not there", async () => {
@@ -62,7 +70,7 @@ describe("FeePayment, the desk's side", () => {
         <FeePayment appointmentId="a-1" />
       </dl>,
     );
-    expect(await screen.findByText("Paid in full, 1,500 XAF")).toBeInTheDocument();
+    expect(await screen.findByText("Paid in full, 1,500 XAF by mobile money (6.. ... 000)")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Check again" })).not.toBeInTheDocument();
   });
 
@@ -73,9 +81,9 @@ describe("FeePayment, the desk's side", () => {
         <FeePayment appointmentId="a-1" />
       </dl>,
     );
-    expect(await screen.findByText("Started, not confirmed yet (1,500 XAF)")).toBeInTheDocument();
+    expect(await screen.findByText("Waiting for the payer to approve")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Check again" }));
-    expect(await screen.findByText("Paid in full, 1,500 XAF")).toBeInTheDocument();
+    expect(await screen.findByText("Paid in full, 1,500 XAF by mobile money (6.. ... 000)")).toBeInTheDocument();
   });
 
   it("says nothing has been paid before any attempt", async () => {

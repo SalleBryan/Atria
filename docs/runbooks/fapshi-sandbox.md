@@ -2,13 +2,10 @@
 
 Atria's development admin console can create a synthetic 500 XAF checkout. Its
 Lambda has a separate DynamoDB table and server-side sandbox credentials. Access
-requires a tenant administrator with an authenticator. ADRs
-[0007](../adr/0007-fee-ledger-without-moving-money.md) and
-[0030](../adr/0030-commercial-scope-moves-into-phase-3.md) govern production
-payments. The sandbox uses its own attempt records. To price an appointment's
-checkout it may read the booking table (the appointment and its fee band,
-`GetItem` and `Query` only, plus decrypt on its key); it never writes the
-booking table or the fee ledger.
+requires a tenant administrator with an authenticator. [ADR 0023](../adr/0023-visit-fees-by-mobile-money.md) also allows patients to
+pay a visit fee through Fapshi Direct Pay. Development uses the sandbox host.
+The Lambda reads the visit and fee band, and stores attempts in a separate
+table without writing bookings or the fee ledger.
 
 ## Enter the sandbox credentials
 
@@ -43,7 +40,7 @@ webhook secret.
 The regular dev deployment creates the routes and sandbox table in
 `atria-dev-api` and publishes the admin UI to Amplify. After that deployment,
 open **CloudFormation → atria-dev-api → Outputs** in `us-east-1` and copy
-`FapshiWebhookUrl`. It points to API Gateway and ends in `/dev/webhooks/fapshi`.
+`FapshiWebhookUrl`. It points to API Gateway and ends in `/dev/webhooks/fapshi`. The Amplify site URL is the web app, not the webhook destination.
 
 In Fapshi's dedicated test collection service, set the **Webhook URL** to that
 output and the **Webhook secret** to the same value as `webhookSecret` in
@@ -83,19 +80,25 @@ Use a dashboard resend or **Check status** after a delivery failure.
 [Fapshi API errors](https://docs.fapshi.com/en/api-reference/preliminary-knowledge/request-status) ·
 [Fapshi webhook delivery](https://docs.fapshi.com/en/api-reference/endpoint/webhook)
 
-## Pay for an appointment (sandbox)
+## Pay for an appointment in development
 
-1. As the patient, open a visit that has a fee and choose **Pay ... now**.
-   Atria starts a sandbox checkout for exactly the fee band in force on the
-   visit day (`POST /appointments/{id}/payment`, a new UUIDv4 `attemptId`).
-2. Choose **Open the test checkout** and pay with Fapshi's MTN sandbox number
-   `670000000` (success) or `670000001` (failure). Return and choose
-   **I have paid, check**.
-3. As the receptionist or administrator, open the same visit in the console.
-   The **Fee payment** row reads **Paid in full** only when Fapshi's status API
-   reports a successful collection of the full amount; a short or failed
-   payment stays **Not paid**. **Check again** refreshes it.
+1. Open a synthetic patient visit with a fee of at least 100 XAF. Enter
+   Fapshi's test number `670000000` for success or `670000001` for failure and
+   choose **Pay ... with mobile money**. No physical phone is needed in the
+   sandbox.
+2. Leave the tab visible. It checks Atria every five seconds. Atria limits
+   provider status calls and also reconciles authenticated webhooks. The
+   patient can try again after a failed prompt. If initiation is uncertain,
+   check the original attempt; do not create another prompt manually.
+3. Open the same visit at the desk. **Paid in full** appears only after Fapshi
+   confirms the full amount. **Check again** refreshes the desk view.
 
-A visit with no fee band, a free visit, a cancelled visit or one already paid
-cannot start a checkout (`409`). Whoever may read the appointment may start one
-or see its status. Synthetic money only; nothing reaches the fee ledger.
+## Production setup
+
+Enable `fapshi_live` only on a `production` environment after Fapshi confirms
+Direct Pay for the collection service. Store live credentials in
+`atria/production/fapshi` and register the production stack's
+`FapshiWebhookUrl` and a separate webhook secret in that service. The
+production environment uses `live.fapshi.com`, rejects sandbox keys, retains
+payment records and does not expose the admin test checkout. The production
+option is off by default.

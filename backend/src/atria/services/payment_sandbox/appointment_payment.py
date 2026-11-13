@@ -1,18 +1,20 @@
-"""Pay one appointment's fee in the Fapshi sandbox, and see whether it was paid.
+"""Pay one appointment's fee by mobile money through Fapshi, and see whether it was paid.
 
-    POST /appointments/{id}/payment  {"attemptId": "<uuid4>"}: a checkout for the fee
+    POST /appointments/{id}/payment  {"attemptId": "<uuid4>", "phone": "6XXXXXXXX"}
     GET  /appointments/{id}/payment  the latest attempt, its status refreshed
 
-Sandbox only: Fapshi's sandbox host, synthetic money, test numbers. The amount is
-the fee band in force on the local day of the visit (services/booking/fees.py), so
-the patient pays exactly what the booking page, the desk and the reminder say. A
-visit with no fee band, or a free one, has nothing to pay. A cancelled visit cannot
-be paid.
+The patient (or the desk, for them) gives the number to pay from; Fapshi sends a
+payment prompt to that phone (direct pay) and the payer approves it there. The
+amount is never the caller's: it is the fee band in force on the local day of the
+visit (services/booking/fees.py), so a consultation priced at 1,500 XAF is charged
+1,500 XAF, exactly what the booking page, the desk and the reminder say. A visit
+with no fee band, or a free one, has nothing to pay; a cancelled visit cannot be
+paid; a prompt still waiting on a phone is not sent twice.
 
-Whoever may read the appointment may start a checkout or see its status: the
+Whoever may read the appointment may start a payment or see its status: the
 patient, or the unit's staff at the desk, who confirm the amount was paid. This
 reads the appointment and its fee from the main table and never writes it or the
-fee ledger; attempts live in the sandbox's own table (ADR 0007, 0030).
+fee ledger; attempts live in the payments table of their own (ADR 0023).
 """
 
 from __future__ import annotations
@@ -31,9 +33,60 @@ from atria.data.keys import Key
 from atria.data.repository import Item, Repository
 from atria.http import requests, responses
 from atria.services.booking.fees import FeeLookup
-from atria.services.payment_sandbox.handler import _create, _payment_key, _status
+from atria.services.payment_sandbox.fapshi import (
+    Credentials,
+    Fapshi,
+    ProviderError,
+    masked,
+    mobile_number,
+)
+from atria.services.payment_sandbox.handler import _payment_key, _save, _status
 
 PAID = "SUCCESSFUL"
+# An attempt still in these states may yet be paid: a new one would prompt twice.
+WAITING = ("INITIATING", "CREATED", "PENDING", "INITIATION_UNKNOWN")
+# Fapshi's smallest collection.
+MINIMUM = 100
+
+
+def _start(
+    repo: Repository,
+    key: Key,
+    latest_key: Key,
+    latest: Item | None,
+    amount: int,
+    phone: str,
+    fields: Item,
+    message: str,
+) -> tuple[Item, bool]:
+    """Claim the visit and persist the attempt before sending a single prompt."""
+    existing = repo.get(key, consistent=True)
+    if existing is not None:
+        if latest is not None and latest["reference"] == key.pk:
+            return existing, False
+        raise Conflict("use a new attempt ID to retry this payment")
+    provider = Fapshi(Credentials.load())
+    current = {"status": "INITIATING", "version": 1, "amount": amount, **fields}
+    pointer = {"reference": key.pk, "attemptId": fields["attemptId"]}
+    repo.change_together(
+        creates=[(key, current)] + ([(latest_key, pointer)] if latest is None else []),
+        updates=[(latest_key, pointer, ("reference", latest["reference"]))]
+        if latest is not None
+        else [],
+        conflict="this visit's payment changed; check the status before trying again",
+    )
+    try:
+        trans_id = provider.direct_pay(key.pk, amount, phone, message)
+    except ProviderError as exc:
+        rejected = exc.provider_status in (400, 401, 403, 429)
+        _save(
+            repo,
+            key,
+            current,
+            {"status": "INITIATION_REJECTED" if rejected else "INITIATION_UNKNOWN"},
+        )
+        raise
+    return _save(repo, key, current, {"status": "PENDING", "transId": trans_id}), True
 
 
 def _latest_key(tenant_id: str, appointment_id: str) -> Key:
@@ -79,7 +132,6 @@ def _view(appointment_id: str, row: Item | None, fee: tuple[int, str] | None) ->
     if row is None:
         return {
             "appointmentId": appointment_id,
-            "sandbox": True,
             "status": "NONE",
             "paid": False,
             "amount": fee[0] if fee else None,
@@ -87,21 +139,20 @@ def _view(appointment_id: str, row: Item | None, fee: tuple[int, str] | None) ->
         }
     view: dict[str, Any] = {
         "appointmentId": appointment_id,
-        "sandbox": True,
         "attemptId": row.get("attemptId"),
         "status": row["status"],
         "paid": row["status"] == PAID,
         "amount": int(row["amount"]),
         "currency": row.get("currency", "XAF"),
     }
-    for field in ("transId", "checkoutUrl", "startedAt"):
+    for field in ("transId", "payerPhone", "startedAt"):
         if field in row:
             view[field] = row[field]
     return view
 
 
 def route(event: dict[str, Any], repo: Repository, principal: Principal) -> dict[str, Any]:
-    """The appointment payment routes on the sandbox function."""
+    """The appointment payment routes on the payments function."""
     main = Repository()
     appointment_id = requests.path_parameter(event, "id")
     appointment = _appointment(main, principal, appointment_id)
@@ -115,26 +166,48 @@ def route(event: dict[str, Any], repo: Repository, principal: Principal) -> dict
         row = _status(repo, Key(str(latest["reference"]), "PAYMENT"))
         return responses.ok(_view(appointment_id, row, fee))
 
-    attempt_id = _uuid4(requests.json_body(event).get("attemptId"))
+    body = requests.json_body(event)
+    attempt_id = _uuid4(body.get("attemptId"))
+    # The amount is the visit's fee, whatever the request says.
+    phone = mobile_number(body.get("phone"))
     if str(appointment.get("state", "")).endswith("CANCELLED"):
         raise Conflict("a cancelled visit cannot be paid")
     if fee is None or fee[0] <= 0:
         raise Conflict("this visit has no fee to pay")
+    if fee[0] < MINIMUM:
+        raise Conflict(f"a fee under {MINIMUM} {fee[1]} cannot be paid by mobile money")
+    key = _payment_key(principal.tenant_id, f"{appointment_id}:{attempt_id}")
     if latest is not None:
-        previous = repo.get(Key(str(latest["reference"]), "PAYMENT"), consistent=True)
-        if previous is not None and previous["status"] == PAID:
-            raise Conflict("this visit is already paid")
-    key = _payment_key(principal.tenant_id, attempt_id)
-    row, created = _create(
+        previous_key = Key(str(latest["reference"]), "PAYMENT")
+        previous = repo.get(previous_key, consistent=True)
+        # Old hosted links can still be paid after failure until Fapshi expires them.
+        if previous is not None:
+            hosted_failed = previous["status"] == "FAILED" and not previous.get("directPay")
+            if hosted_failed or previous["status"] in ("CREATED", "PENDING", "INITIATION_UNKNOWN"):
+                previous = _status(repo, previous_key)
+            if previous["status"] == PAID:
+                raise Conflict("this visit is already paid")
+            if previous["status"] == "FAILED" and not previous.get("directPay"):
+                raise Conflict(
+                    "a previous payment link is still active; try again after it expires"
+                )
+            if previous["status"] in WAITING and latest["reference"] != key.pk:
+                raise Conflict("a payment prompt is already waiting on the phone")
+    row, created = _start(
         repo,
         key,
+        latest_key,
+        latest,
         fee[0],
+        phone,
         {
             "attemptId": attempt_id,
+            "directPay": True,
             "appointmentId": appointment_id,
             "currency": fee[1],
+            "payerPhone": masked(phone),
             "startedAt": dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         },
+        f"Atria visit {appointment.get('reference') or appointment_id}",
     )
-    repo.put(latest_key, {"reference": key.pk, "attemptId": attempt_id})
     return responses.response(201 if created else 200, _view(appointment_id, row, fee))

@@ -3844,24 +3844,47 @@ body:has(.admin-app) .sheet-icon:not(.sheet-icon-done) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 0 6px 12px;
 }
 .queue-actions .tonal-button {
-  height: 42px;
+  height: 44px;
   padding: 0 16px;
 }
 .queue-call {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  margin-inline-start: auto;
+  max-width: 100%;
 }
 .queue-call .staff-primary {
   height: 44px;
   padding: 0 20px;
 }
+.queue-hold {
+  margin-block-end: 12px;
+}
+.queue-hold > div {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  min-width: 0;
+}
+.queue-hold-copy {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+.queue-hold-copy p {
+  margin: 4px 0 0;
+}
+.queue-hold-action {
+  flex-shrink: 0;
+}
 .account-row.queue-row {
+  flex-shrink: 0;
   grid-template-columns: 44px minmax(0, 1fr) 190px 150px 110px;
 }
 .queue-position {
@@ -3955,6 +3978,7 @@ body:has(.admin-app) .sheet-icon:not(.sheet-icon-done) {
     align-items: stretch;
   }
   .queue-call {
+    margin-inline-start: 0;
     flex-direction: column;
     align-items: stretch;
   }

@@ -1086,7 +1086,6 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
           200,
           {
             appointmentId: visitId,
-            sandbox: true,
             status: "NONE",
             paid: false,
             amount: fee?.amountMinor ?? null,
@@ -1095,11 +1094,11 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
           300,
         );
       }
-      // The preview stands in for the patient finishing Fapshi's test page with the
-      // success number (670000000): the first check after starting finds it paid.
-      if (current.status === "CREATED") {
-        current.status = "SUCCESSFUL";
-        current.paid = true;
+      // The first check after the prompt simulates the operator's reply.
+      if (current.status === "PENDING") {
+        current.paid = !current.simulateFailure;
+        current.status = current.paid ? "SUCCESSFUL" : "FAILED";
+        delete current.simulateFailure;
         saveSandboxPayments(payments);
       }
       return json(200, current, 600);
@@ -1108,20 +1107,28 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       if (String(visit.state).endsWith("CANCELLED")) return json(409, { code: "conflict", message: "a cancelled visit cannot be paid" });
       if (!fee || fee.amountMinor <= 0) return json(409, { code: "conflict", message: "this visit has no fee to pay" });
       if (current?.paid) return json(409, { code: "conflict", message: "this visit is already paid" });
+      if (current?.status === "PENDING")
+        return json(409, { code: "conflict", message: "a payment prompt is already waiting on the phone" });
+      const request = body as { attemptId?: string; phone?: string } | null;
+      const phone = String(request?.phone ?? "")
+        .replace(/[\s.()\-]/g, "")
+        .replace(/^(?:\+237|237(?=\d{9}$))/, "");
+      if (!/^6\d{8}$/.test(phone)) return json(400, { code: "invalid", message: "Enter a Cameroon mobile number." });
       const started = {
         appointmentId: visitId,
-        sandbox: true,
-        attemptId: String((body as { attemptId?: string } | null)?.attemptId ?? ""),
-        status: "CREATED",
+        attemptId: String(request?.attemptId ?? ""),
+        status: "PENDING",
         paid: false,
         amount: fee.amountMinor,
         currency: "XAF",
-        checkoutUrl: "https://sandbox.fapshi.com/checkout/preview",
+        payerPhone: `6.. ... ${phone.slice(-3)}`,
+        simulateFailure: phone === "670000001",
         startedAt: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
       };
       payments[visitId] = started;
       saveSandboxPayments(payments);
-      return json(201, started, 700);
+      const { simulateFailure: _, ...view } = started;
+      return json(201, view, 700);
     }
   }
   const replyRoute = path.match(/^\/appointments\/([^/]+)\/invite-reply$/);

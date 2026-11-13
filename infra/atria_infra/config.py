@@ -89,6 +89,9 @@ class Environment:
     fapshi_sandbox: bool = False
     """Expose the synthetic Fapshi test on the development admin console."""
 
+    fapshi_live: bool = False
+    """Opt in after Fapshi activates the production collections service."""
+
     auth_domain_prefix: str = ""
     """The Cognito sign-in domain, <prefix>.auth.<region>.amazoncognito.com.
 
@@ -131,6 +134,15 @@ class Environment:
     @property
     def payment_sandbox_enabled(self) -> bool:
         return self.name == "dev" and self.fapshi_sandbox
+
+    @property
+    def fapshi_payments_enabled(self) -> bool:
+        return self.payment_sandbox_enabled or (self.name == "production" and self.fapshi_live)
+
+    @property
+    def fapshi_host(self) -> str:
+        """Fapshi's environment for this deployment, as the SMS sender is chosen per environment."""
+        return "live.fapshi.com" if self.name == "production" else "sandbox.fapshi.com"
 
     def stack_name(self, stack: str) -> str:
         return f"{self.prefix}-{stack}"

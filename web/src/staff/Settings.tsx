@@ -40,7 +40,7 @@ import { daysOf, type Hours, type Week, weekFrom, WeekHours } from "../component
 import { MATRIX, PERMISSIONS } from "../generated/permissions";
 import { roleOf } from "./data";
 import { sentence } from "./labels";
-import { KNOBS } from "./QueueRules";
+import { INVITE_MODE, KNOBS } from "./QueueRules";
 import { Snackbar } from "./Snackbar";
 
 type Line = "GENERAL" | "SPECIALIST" | "PROCEDURE";
@@ -57,6 +57,10 @@ interface TenantSettings {
   queueHoldMinutes: number;
   queueLateGraceMinutes: number;
   queueMaxBypass: number;
+  queueInviteLeadMinutes: number;
+  queueInviteFanout: number;
+  queueInviteOpenMinutes: number;
+  queueEarlyCallInvites: "desk" | "auto";
   noShowStrikeThreshold: number;
   noShowStrikeWindowDays: number;
   qualityProgrammeEnabled: boolean;
@@ -267,6 +271,10 @@ function HospitalTab({ found, onSaved }: { found: Overview; onSaved: (message: s
       "queueHoldMinutes",
       "queueLateGraceMinutes",
       "queueMaxBypass",
+      "queueInviteLeadMinutes",
+      "queueInviteFanout",
+      "queueInviteOpenMinutes",
+      "queueEarlyCallInvites",
       "noShowStrikeThreshold",
       "noShowStrikeWindowDays",
       "qualityProgrammeEnabled",
@@ -442,7 +450,14 @@ function HospitalTab({ found, onSaved }: { found: Overview; onSaved: (message: s
           </p>
           {KNOBS.map((k) => {
             const field = (
-              { holdMinutes: "queueHoldMinutes", lateGraceMinutes: "queueLateGraceMinutes", maxBypass: "queueMaxBypass" } as const
+              {
+                holdMinutes: "queueHoldMinutes",
+                lateGraceMinutes: "queueLateGraceMinutes",
+                maxBypass: "queueMaxBypass",
+                inviteLeadMinutes: "queueInviteLeadMinutes",
+                inviteFanout: "queueInviteFanout",
+                inviteOpenMinutes: "queueInviteOpenMinutes",
+              } as const
             )[k.name];
             return (
               <Row key={k.name} title={k.title} help={k.help}>
@@ -456,6 +471,15 @@ function HospitalTab({ found, onSaved }: { found: Overview; onSaved: (message: s
               </Row>
             );
           })}
+          <Row title={INVITE_MODE.title} help={INVITE_MODE.help}>
+            <SelectMenu
+              label={INVITE_MODE.title}
+              value={draft.queueEarlyCallInvites}
+              options={INVITE_MODE.options}
+              width={220}
+              onChange={(v) => set({ queueEarlyCallInvites: v as "desk" | "auto" })}
+            />
+          </Row>
         </section>
       </div>
 

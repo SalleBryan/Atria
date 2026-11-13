@@ -72,6 +72,20 @@ const DELIVERY = {
   days: [{ day: "2026-09-27", ...FIGURES }],
 };
 
+const USAGE = {
+  month: "2026-09",
+  from: "2026-09-01",
+  to: "2026-09-27",
+  messages: 7,
+  lines: [
+    { clinicId: "u-med", kind: "APPOINTMENT_REMINDER", channel: "SMS", state: "SENT", count: 5 },
+    { clinicId: "u-med", kind: "BOOKING_CONFIRMATION", channel: "EMAIL", state: "FAILED", count: 2 },
+  ],
+  byKind: { APPOINTMENT_REMINDER: 5, BOOKING_CONFIRMATION: 2 },
+  byChannel: { EMAIL: 2, SMS: 5 },
+  byState: { FAILED: 2, SENT: 5 },
+};
+
 const asked: string[] = [];
 
 function respond() {
@@ -84,6 +98,7 @@ function respond() {
     if (path.startsWith("/clinics/u-med/day")) return { appointments: [], patients: {} };
     if (path.startsWith("/clinics/u-med/messages")) return LOG;
     if (path.startsWith("/messages/delivery")) return DELIVERY;
+    if (path.startsWith("/messages/usage")) return USAGE;
     throw new Error(`unexpected ${path}`);
   });
 }
@@ -139,6 +154,18 @@ describe("Messages", () => {
     expect(within(tiles).getByText("US$0.32")).toBeInTheDocument();
     expect(screen.getByText("notices@atria.invalid")).toBeInTheDocument();
     expect(screen.getByText("Sandbox: verified numbers only")).toBeInTheDocument();
+  });
+
+  it("gives an administrator the month's usage as counts (ADR 0031)", async () => {
+    renderAt(ADMIN);
+    await userEvent.setup().click(await screen.findByRole("tab", { name: "Usage" }));
+    const tiles = await screen.findByRole("region", { name: "Usage in numbers" });
+    expect(within(tiles).getByText("7")).toBeInTheDocument();
+    const kinds = screen.getByRole("region", { name: "By kind" });
+    expect(within(kinds).getByText("Reminder")).toBeInTheDocument();
+    expect(await screen.findByText("Medical Unit")).toBeInTheDocument();
+    expect(asked.some((p) => /^\/messages\/usage\?month=\d{4}-\d{2}$/.test(p))).toBe(true);
+    expect(document.body.textContent).not.toMatch(/US\$|XAF/);
   });
 
   it("gives the desk no delivery tab", async () => {

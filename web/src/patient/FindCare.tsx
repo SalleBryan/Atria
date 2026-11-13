@@ -21,7 +21,9 @@ import { type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useStat
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
+import { describeFailure } from "../api/failure";
 import { Notice } from "../components/controls";
+import { FailureNotice } from "../components/FailureNotice";
 import { DatePickerMenu } from "../components/DatePickerMenu";
 import { IntakeDialog } from "../components/IntakeDialog";
 import { LoadingPane } from "../components/LoadingPane";
@@ -262,18 +264,27 @@ export function FindCare() {
       await reload();
       navigate(`/booked/${made.appointmentId}`, { state: { appointment: made } });
     } catch (caught) {
-      setAsking(false);
       if (caught instanceof ApiError && caught.status === 409 && day) {
+        setAsking(false);
         setConflict({ slot, clinician: selected, date: day });
-      } else {
-        setFailure(caught instanceof Error ? caught.message : "The booking did not go through. Try again.");
+        return;
       }
+      const failed = describeFailure(caught, { write: true, fallback: "The booking did not go through." });
+      // Your choices stay as they are, and the same key is sent again, so a
+      // booking that did get through is not made twice.
+      const text =
+        failed.kind === "offline" || failed.kind === "server"
+          ? `${failed.text} Your choices are kept. ${failed.outcomeUnknown ? "Try again: it will not book twice." : "Try again when you are ready."}`
+          : failed.text;
+      // The questionnaire stays open with its answers, and says why.
+      if (asking) throw new Error(text);
+      setFailure(text);
     } finally {
       setBooking(false);
     }
   }
 
-  if (state.status === "failed") return <Notice tone="error">{state.message}</Notice>;
+  if (state.status === "failed") return <FailureNotice message={state.message} onRetry={() => void reload()} />;
   if (!data) {
     return (
       <div className="find-care" aria-busy="true">
@@ -729,15 +740,21 @@ function Conflict({
       });
       await onBooked(made);
     } catch (caught) {
-      setFailure(
-        caught instanceof ApiError && caught.status === 409
-          ? "That one has just gone too. Choose another."
-          : caught instanceof Error
-            ? caught.message
-            : "The booking did not go through.",
-      );
-      setChoice(null);
-      setFreshness((n) => n + 1);
+      const failed = describeFailure(caught, { write: true, fallback: "The booking did not go through." });
+      if (caught instanceof ApiError && caught.status === 409) {
+        setFailure("That one has just gone too. Choose another.");
+        setChoice(null);
+        setFreshness((n) => n + 1);
+      } else if (failed.kind === "offline" || failed.kind === "server") {
+        // Not a taken time: the choice stays, and the same key is sent again.
+        setFailure(
+          `${failed.text} Your choice is kept. Use Hold this slot to try again${failed.outcomeUnknown ? "; it will not book twice" : ""}.`,
+        );
+      } else {
+        setFailure(failed.text);
+        setChoice(null);
+        setFreshness((n) => n + 1);
+      }
     } finally {
       setBusy(false);
     }

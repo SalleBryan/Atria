@@ -18,6 +18,7 @@ import { createPortal } from "react-dom";
 import { Link, Navigate } from "react-router-dom";
 
 import { api } from "../api/client";
+import { startPolling } from "../api/network";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
 import { Close, Plus, Users } from "../components/icons";
@@ -27,7 +28,7 @@ import { PAGE_ROWS, Pager, usePages } from "../components/Pager";
 import { DatePicker, SelectMenu } from "../components/Pickers";
 import { timeOptions } from "../components/WeekHours";
 import { MATRIX } from "../generated/permissions";
-import { type Appointment, clock, initials, offeredAt } from "../patient/data";
+import { type Appointment, clock, feeText, initials, offeredAt } from "../patient/data";
 import { doctor, roleOf, useStaffData } from "./data";
 import { sentence, staffState } from "./labels";
 import { fullName, type RegisterEntry, useRegisterSearch } from "./Patients";
@@ -50,12 +51,45 @@ export interface Session {
   status: "OPEN" | "RUNNING" | "CLOSED";
 }
 
+/** The fee a place will be asked for at the hospital, in whole currency units. Null when the visit has no fee band. */
+interface DeskFee {
+  amountMinor: number;
+  currency: string;
+}
+
+/** "Fee 5,000 XAF", "Free", or nothing when the visit's type has no fee band. Nothing is collected in Atria. */
+export function deskFee(fee: DeskFee | null | undefined): string | null {
+  if (!fee) return null;
+  if (fee.amountMinor === 0) return "Free";
+  return `Fee ${feeText({ feeAmountMinor: fee.amountMinor, feeCurrency: fee.currency })}`;
+}
+
 /** What the desk needs to see about a ticket beside its state (ADR 0022). */
 interface TicketFlags {
+  fee?: DeskFee | null;
   due?: boolean;
   late?: boolean;
   bypassCount?: number;
   urgent?: boolean;
+  invite?: EarlyCallInvite | null;
+}
+
+/** An early-call invitation on a ticket (ADR 0022 R4). Replying moves nobody. */
+export interface EarlyCallInvite {
+  status: "open" | "accepted" | "declined" | "expired";
+  sentAt: string;
+  expiresAt: string;
+  answer: "YES" | "NO" | null;
+  eta: string | null;
+}
+
+/** What the desk may do about invitations now. */
+interface InviteOutlook {
+  mode: "desk" | "auto";
+  fanout: number;
+  openMinutes: number;
+  open: number;
+  eligible: string[];
 }
 
 /** What calling the next patient would do now, so the desk sees the cost first. */
@@ -72,7 +106,10 @@ type Asking = { kind: "urgent"; appointmentId: string; name: string } | { kind: 
 interface LiveQueue extends Session {
   appointments: (Appointment & TicketFlags)[];
   callPreview?: CallPreview;
+  /** The fee a walk-in will be asked for, from the unit's general consultation. */
+  walkInFee?: DeskFee | null;
   policy?: QueuePolicy;
+  invites?: InviteOutlook;
   patients: Record<string, { givenName: string | null; familyName: string | null }>;
   waiting: number;
   arrived: number;
@@ -81,6 +118,13 @@ interface LiveQueue extends Session {
   plannedPerHour: number;
   actualPerHour: number | null;
 }
+
+const INVITE_CHIP: Record<EarlyCallInvite["status"], { label: string; tone: string }> = {
+  open: { label: "Invited", tone: "booked" },
+  accepted: { label: "Coming", tone: "confirmed" },
+  declined: { label: "Said no", tone: "neutral" },
+  expired: { label: "Invite ended", tone: "neutral" },
+};
 
 const PART = { MORNING: "Morning", AFTERNOON: "Afternoon", EVENING: "Evening" } as const;
 const STATUS: Record<Session["status"], { label: string; tone: string }> = {
@@ -253,11 +297,11 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
         setFailure(null);
       })
       .catch((error: unknown) => live && setFailure(error instanceof Error ? sentence(error.message) : "The queue could not be loaded."));
-    // The queue moves while the desk watches it.
-    const every = window.setInterval(load, 30000);
+    // The queue moves while the desk watches it. Paused offline or in a hidden tab (audit F16).
+    const stopPolling = startPolling(load, 30000);
     return () => {
       live = false;
-      window.clearInterval(every);
+      stopPolling();
     };
   }, [sessionId, fresh, load]);
 
@@ -361,6 +405,27 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
             Rules for today
           </button>
         )}
+        {can(role, "queue.invite") && found?.invites && session?.status !== "CLOSED" && (
+          <button
+            type="button"
+            className="outline-button"
+            disabled={busy !== null || found.invites.eligible.length === 0}
+            title={
+              found.invites.eligible.length === 0
+                ? "Nobody can be invited now: someone is here, every doctor is busy, or the invitations are already out."
+                : undefined
+            }
+            onClick={() =>
+              void step(
+                `/sessions/${sessionId}/invites`,
+                `${found.invites?.eligible.length === 1 ? "1 patient is" : `${found.invites?.eligible.length} patients are`} invited to come earlier.`,
+                {},
+              )
+            }
+          >
+            Invite to come earlier
+          </button>
+        )}
         {calls && (
           <span className="queue-call">
             {!iAmDoctor && (
@@ -436,6 +501,7 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
                     <span className="account-sub">
                       {t.channel === "WALK_IN" ? "Walk-in" : t.channel === "PHONE" ? "By phone" : "Online"} · {t.reference}
                     </span>
+                    {deskFee(t.fee) && <span className="account-sub">{deskFee(t.fee)}</span>}
                   </span>
                 </span>
                 <span className="account-role">
@@ -454,6 +520,13 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
                     <span className="chip chip-awaiting">Not here yet</span>
                   )}
                   {!!t.bypassCount && <span className="chip chip-neutral">Passed over</span>}
+                  {t.invite && ["BOOKED", "CONFIRMED", "RESCHEDULED"].includes(t.state) && (
+                    <span className={`chip chip-${INVITE_CHIP[t.invite.status].tone}`}>
+                      {t.invite.status === "accepted" && t.invite.eta
+                        ? `Coming by ${clock.time(t.invite.eta)}`
+                        : INVITE_CHIP[t.invite.status].label}
+                    </span>
+                  )}
                 </span>
                 <span className="account-actions">
                   {["BOOKED", "CONFIRMED"].includes(t.state) && (
@@ -577,6 +650,7 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
       {adding && (
         <WalkInDialog
           sessionId={sessionId}
+          fee={deskFee(found?.walkInFee)}
           onClose={() => setAdding(false)}
           onDone={(message) => {
             setAdding(false);
@@ -663,7 +737,17 @@ function ReasonDialog({
   );
 }
 
-function WalkInDialog({ sessionId, onClose, onDone }: { sessionId: string; onClose: () => void; onDone: (message: string) => void }) {
+function WalkInDialog({
+  sessionId,
+  fee,
+  onClose,
+  onDone,
+}: {
+  sessionId: string;
+  fee: string | null;
+  onClose: () => void;
+  onDone: (message: string) => void;
+}) {
   const [query, setQuery] = useState("");
   const { results } = useRegisterSearch(query);
   const [patient, setPatient] = useState<RegisterEntry | null>(null);
@@ -708,6 +792,7 @@ function WalkInDialog({ sessionId, onClose, onDone }: { sessionId: string; onClo
           <p className="dialog-lede">
             They join the same queue as online places, at the next number. A patient not yet registered is added in Patients first.
           </p>
+          {fee && <p className="dialog-lede">{fee === "Free" ? "This visit is free." : `${fee}, asked for at the hospital.`}</p>}
           <form id="walk-in-form" className="settings-dialog-form" onSubmit={submit}>
             {patient ? (
               <div className="book-patient">

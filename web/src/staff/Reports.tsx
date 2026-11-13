@@ -22,7 +22,14 @@ import { DonutChart, MultiUnitBarChart } from "../components/ExpressiveCharts";
 import { LoadingPane } from "../components/LoadingPane";
 import { SelectMenu } from "../components/Pickers";
 import { TENANT } from "../tenant";
-import { exportReportCsv, exportReportExcel, exportReportPdf } from "../utils/reportExport";
+import {
+  attendanceChange,
+  exportReportCsv,
+  exportReportExcel,
+  exportReportPdf,
+  type ReportComparison,
+  signed,
+} from "../utils/reportExport";
 import { ReportDownload } from "./ReportDownload";
 import { attendanceOf, roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
@@ -35,6 +42,7 @@ interface Rate {
 }
 
 interface Figures {
+  comparison?: ReportComparison;
   booked: number;
   attended: number;
   noShow: number;
@@ -144,20 +152,22 @@ export function Reports() {
   const [unit, setUnit] = useState<string>(admin ? EVERY : (me?.clinicId ?? ""));
   const [found, setFound] = useState<UnitWeek | HospitalWeek | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const [compare, setCompare] = useState("none");
 
   useEffect(() => {
     if (!unit) return;
     let live = true;
     setFound(null);
     const isWeek = granularity === "week";
+    const earlier = compare === "previous" ? `&before=${encodeURIComponent(stepDate(date, granularity, -1))}` : "";
     const path =
-      unit === EVERY
+      (unit === EVERY
         ? isWeek
           ? `/reports?week=${encodeURIComponent(date)}`
           : `/reports?date=${encodeURIComponent(date)}&granularity=${granularity}`
         : isWeek
           ? `/clinics/${encodeURIComponent(unit)}/report?week=${encodeURIComponent(date)}`
-          : `/clinics/${encodeURIComponent(unit)}/report?date=${encodeURIComponent(date)}&granularity=${granularity}`;
+          : `/clinics/${encodeURIComponent(unit)}/report?date=${encodeURIComponent(date)}&granularity=${granularity}`) + earlier;
     api<UnitWeek | HospitalWeek>(path)
       .then((data) => {
         if (!live) return;
@@ -168,7 +178,7 @@ export function Reports() {
     return () => {
       live = false;
     };
-  }, [unit, date, granularity]);
+  }, [unit, date, granularity, compare]);
 
   if (state.status !== "signed-in") return null;
   if (role !== "TENANT_ADMIN" && role !== "CLINIC_MANAGER") return <Navigate to="/console" replace />;
@@ -256,6 +266,17 @@ export function Reports() {
           />
         )}
 
+        <SelectMenu
+          label="Compare"
+          value={compare}
+          width={240}
+          options={[
+            { id: "none", label: "No comparison" },
+            { id: "previous", label: `With the previous ${granularity}` },
+          ]}
+          onChange={setCompare}
+        />
+
         <div className="changes-week">
           <button type="button" className="square-button" aria-label="Previous period" disabled={isAtStart} onClick={() => step(-1)}>
             <ChevronLeft size={16} />
@@ -287,23 +308,35 @@ export function Reports() {
           <section className="reports-tiles" aria-label={granularity === "week" ? "The week in numbers" : "In numbers"}>
             {(
               [
-                ["Booked", found.booked],
-                ["Attended", found.attended],
-                ["No-show", found.noShow],
-                ["Cancelled", found.cancelled],
-                ["Late cancelled", found.lateCancelled],
+                ["Booked", found.booked, "booked"],
+                ["Attended", found.attended, "attended"],
+                ["No-show", found.noShow, "noShow"],
+                ["Cancelled", found.cancelled, "cancelled"],
+                ["Late cancelled", found.lateCancelled, "lateCancelled"],
               ] as const
-            ).map(([label, value], index) => (
-              <div key={label} className="glass reports-tile" style={{ "--i": index } as CSSProperties}>
-                <span className="reports-tile-label">{label}</span>
-                <span className="reports-tile-value">{value}</span>
-              </div>
-            ))}
+            ).map(([label, value, key], index) => {
+              const c = found.comparison?.counts[key];
+              return (
+                <div key={label} className="glass reports-tile" style={{ "--i": index } as CSSProperties}>
+                  <span className="reports-tile-label">{label}</span>
+                  <span className="reports-tile-value">{value}</span>
+                  {c && (
+                    <span className="reports-tile-label">
+                      was {c.before}, {signed(c.change)}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
             <div className="glass reports-tile reports-tile-accent" style={{ "--i": 5 } as CSSProperties}>
               <span className="reports-tile-label">Attendance</span>
               <span className="reports-tile-value">{percent(attendanceRate)}</span>
+              {found.comparison && <span className="reports-tile-label">{attendanceChange(found.comparison.attendance)}</span>}
             </div>
           </section>
+          {found.comparison && (
+            <p className="availability-note">Against the period before this one. A difference is shown, not a reason for it.</p>
+          )}
 
           {/* Material 3 Expressive Visual Distribution Charts */}
           <section className="glass reports-visual-section" aria-label="Visit outcome visual analysis">

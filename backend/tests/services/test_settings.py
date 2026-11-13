@@ -136,6 +136,29 @@ class TestTenantSettings:
         assert patch_tenant({"smsSenderId": "REGIONAL-HOSPITAL"})["statusCode"] == 400
         assert body_of(patch_tenant({"smsSenderId": "RHBUEA"}))["smsSenderId"] == "RHBUEA"
 
+    def test_r4_the_invitation_defaults_are_set_and_checked(self, configured):
+        changed = body_of(
+            patch_tenant(
+                {
+                    "queueInviteLeadMinutes": 10,
+                    "queueInviteFanout": 4,
+                    "queueInviteOpenMinutes": 30,
+                    "queueEarlyCallInvites": "auto",
+                }
+            )
+        )
+        assert changed["queueInviteLeadMinutes"] == 10
+        assert changed["queueInviteFanout"] == 4
+        assert changed["queueInviteOpenMinutes"] == 30
+        assert changed["queueEarlyCallInvites"] == "auto"
+        for bad in (
+            {"queueInviteFanout": 11},
+            {"queueInviteOpenMinutes": 4},
+            {"queueInviteLeadMinutes": 31},
+            {"queueEarlyCallInvites": "always"},
+        ):
+            assert patch_tenant(bad)["statusCode"] == 400
+
     def test_an_unknown_setting_is_refused(self, configured):
         assert patch_tenant({"colour": "blue"})["statusCode"] == 400
 

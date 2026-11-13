@@ -10,11 +10,13 @@
 
 import { useEffect, useState } from "react";
 
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
+import { describeFailure } from "../api/failure";
+import { useOnReconnect } from "../api/network";
 import { Notice } from "../components/controls";
 import { Alert } from "../components/icons";
 import { LoadingPane } from "../components/LoadingPane";
-import { type Appointment, clock } from "./data";
+import { type Appointment, clock, usePatientData } from "./data";
 
 interface Slot {
   startAt: string;
@@ -36,6 +38,13 @@ export function NewTimeOffer({
   const [offers, setOffers] = useState<Slot[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  // After a drop mid-request: the move may have happened, so the visit is read again before anything is offered twice.
+  const [unsure, setUnsure] = useState(false);
+  const { reload } = usePatientData();
+  // The times could not be read (not the same as there being none).
+  const [unread, setUnread] = useState<string | null>(null);
+  const [again, setAgain] = useState(0);
+  useOnReconnect(() => setAgain((n) => n + 1));
 
   useEffect(() => {
     let live = true;
@@ -49,13 +58,18 @@ export function NewTimeOffer({
         const all = Object.keys(found.days)
           .sort()
           .flatMap((date) => found.days[date] ?? []);
+        setUnread(null);
         setOffers(all.slice(0, OFFERED));
       })
-      .catch(() => live && setOffers([]));
+      .catch((caught: unknown) => {
+        if (!live) return;
+        setUnread(describeFailure(caught).text);
+        setOffers([]);
+      });
     return () => {
       live = false;
     };
-  }, [appointment.clinicianProfileId, appointment.appointmentTypeId]);
+  }, [appointment.clinicianProfileId, appointment.appointmentTypeId, again]);
 
   async function take(slot: Slot) {
     setBusy(slot.startAt);
@@ -66,10 +80,25 @@ export function NewTimeOffer({
         json: { startAt: slot.startAt },
       });
       await onMoved(moved);
-    } catch {
-      setFailed("That time was just taken. Choose another.");
+    } catch (caught) {
       setBusy(null);
-      setOffers((current) => current?.filter((s) => s.startAt !== slot.startAt) ?? null);
+      if (caught instanceof ApiError && caught.status === 409) {
+        // Only a conflict means the time is gone.
+        setFailed("That time was just taken. Choose another.");
+        setOffers((current) => current?.filter((s) => s.startAt !== slot.startAt) ?? null);
+        return;
+      }
+      // Anything else leaves every offered time in place: the connection or the
+      // server failed, not the slot. Nothing is tried again by itself.
+      const why = describeFailure(caught, { write: true });
+      setUnsure(why.outcomeUnknown);
+      setFailed(
+        why.outcomeUnknown
+          ? `${why.text} Check your visit before choosing again.`
+          : why.kind === "offline" || why.kind === "server"
+            ? `${why.text} Your visit has not moved. The times above are still here.`
+            : why.text,
+      );
     }
   }
 
@@ -101,10 +130,37 @@ export function NewTimeOffer({
             </button>
           ))}
         </div>
+      ) : unread ? (
+        <Notice tone="error">
+          {unread} The free times could not be read.{" "}
+          <button type="button" className="link" onClick={() => setAgain((n) => n + 1)}>
+            Try again
+          </button>
+        </Notice>
       ) : (
         <p className="empty">No free times this week with the same clinician.</p>
       )}
-      {failed && <Notice tone="error">{failed}</Notice>}
+      {failed && (
+        <Notice tone="error">
+          {failed}
+          {unsure && (
+            <>
+              {" "}
+              <button
+                type="button"
+                className="link"
+                onClick={() => {
+                  setUnsure(false);
+                  setFailed(null);
+                  void reload();
+                }}
+              >
+                Check my visit
+              </button>
+            </>
+          )}
+        </Notice>
+      )}
       <button type="button" className="outline-button" onClick={onMore} disabled={busy !== null}>
         Other times
       </button>

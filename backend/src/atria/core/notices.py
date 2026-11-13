@@ -31,6 +31,8 @@ BOOKING_RESCHEDULED = "BOOKING_RESCHEDULED"
 BOOKING_DISRUPTED = "BOOKING_DISRUPTED"
 QUEUE_MOVED = "QUEUE_MOVED"
 BOOKING_DECLINED = "BOOKING_DECLINED"
+# A booked patient who is not here yet is asked to come earlier (ADR 0022 R4).
+EARLY_CALL_INVITE = "EARLY_CALL_INVITE"
 
 KINDS = (
     BOOKING_CONFIRMATION,
@@ -40,6 +42,7 @@ KINDS = (
     BOOKING_DISRUPTED,
     QUEUE_MOVED,
     BOOKING_DECLINED,
+    EARLY_CALL_INVITE,
 )
 
 # A queue ticket is confirmed in its own words: a day, an arrival window and a
@@ -445,21 +448,29 @@ EMAIL_LINK = {
 SMS_TEXT = {
     APPOINTMENT_REMINDER: {
         "fr": "Rappel Atria: RDV le {date} a {time}, {clinic}, {clinician}. "
-        "Ref {reference}. Pour annuler: application Atria.",
+        "Ref {reference}.{fee} Annuler: appli Atria.",
         "en": "Atria reminder: appointment {date} at {time}, {clinic}, {clinician}. "
-        "Ref {reference}. To cancel: Atria app.",
+        "Ref {reference}.{fee} Cancel: Atria app.",
     },
     BOOKING_CONFIRMATION: {
         "fr": "Atria: RDV confirme le {date} a {time}, {clinic}, {clinician}. "
-        "Ref {reference}. Pour annuler: application Atria.",
+        "Ref {reference}.{fee} Annuler: appli Atria.",
         "en": "Atria: appointment confirmed {date} at {time}, {clinic}, {clinician}. "
-        "Ref {reference}. To cancel: Atria app.",
+        "Ref {reference}.{fee} Cancel: Atria app.",
     },
     QUEUE_MOVED: {
         "fr": "Atria: la file a bouge. Arrivez le {date} entre {time} et {until}, {clinic}. "
         "Place {position}. Ref {reference}.",
         "en": "Atria: the queue has moved. Arrive {date} between {time} and {until}, {clinic}. "
         "Place {position}. Ref {reference}.",
+    },
+    # Time critical, so the words say "within N min" and not "now": an SMS can lag.
+    # The reply is on the ticket (a button), never free text.
+    EARLY_CALL_INVITE: {
+        "fr": "Atria: un medecin est libre plus tot. Pouvez-vous etre a {clinic} dans "
+        "{minutes} min? Ouvrez votre ticket Atria et touchez Oui. Ref {reference}.",
+        "en": "Atria: a doctor is free sooner. Can you reach {clinic} within {minutes} min? "
+        "Open your Atria ticket and tap Yes. Ref {reference}.",
     },
 }
 
@@ -469,6 +480,36 @@ for _sms_kind, _sms in pidgin.SMS_TEXT.items():
 SMS_DATE = "%d/%m/%Y"
 
 NEXT_DOCTOR = {"fr": "prochain médecin libre", "en": "next free doctor", "pcm": pidgin.NEXT_DOCTOR}
+
+# The fee a patient will be asked at the hospital (AD-07: no money moves in
+# Atria), stated in the notices that tell them about the visit. The amount is the
+# fee band in force on the day of the visit, in whole currency units, and carries
+# no rating or score (AD-11). A visit with no fee band says nothing about a fee,
+# rather than guessing one.
+FEE_LABEL = {"fr": "Tarif", "en": "Fee", "pcm": pidgin.FEE_LABEL}
+FREE = {"fr": "gratuit", "en": "free", "pcm": pidgin.FREE}
+FEE_GROUP = {"fr": " ", "en": ",", "pcm": ","}
+# The notices that carry a fee line: the ones that tell a patient about a visit.
+FEE_KINDS = (BOOKING_CONFIRMATION, TICKET_CONFIRMATION, APPOINTMENT_REMINDER, TICKET_REMINDER_TEXT)
+
+
+def fee_text(fee: tuple[int, str], language: str) -> str:
+    """ "15,000 XAF", "15 000 XAF" in French, or "free" for a fee of nothing."""
+    amount, currency = fee
+    if amount <= 0:
+        return FREE[language]
+    whole = f"{amount:,}".replace(",", FEE_GROUP[language])
+    return f"{whole} {currency}"
+
+
+def rows_of(kind: str, language: str, values: dict[str, str]) -> tuple[tuple[str, str], ...]:
+    """The detail rows of an email, with the fee row last when there is a fee to say."""
+    rows: list[tuple[str, str]] = [
+        (str(name), str(row)) for name, row in TEXT[kind][language]["rows"]
+    ]
+    if kind in FEE_KINDS and values.get("fee_value"):
+        rows.append((FEE_LABEL[language], "{fee_value}"))
+    return tuple(rows)
 
 
 def available(kind: str, channel: str) -> bool:
@@ -485,6 +526,17 @@ def available(kind: str, channel: str) -> bool:
     return False
 
 
+def invite_minutes(appointment: dict[str, object]) -> str:
+    """How long the patient is asked to arrive within: the invitation's own open time."""
+    sent, closes = appointment.get("inviteSentAt"), appointment.get("inviteExpiresAt")
+    if not sent or not closes:
+        raise Invalid("that appointment holds no invitation")
+    span = dt.datetime.fromisoformat(
+        str(closes).replace("Z", "+00:00")
+    ) - dt.datetime.fromisoformat(str(sent).replace("Z", "+00:00"))
+    return str(max(1, round(span.total_seconds() / 60)))
+
+
 def compose(
     kind: str,
     *,
@@ -495,6 +547,7 @@ def compose(
     zone: ZoneInfo,
     channel: str = "EMAIL",
     app_url: str = "",
+    fee: tuple[int, str] | None = None,
 ) -> Notice:
     """Turn an appointment into the notice a patient receives.
 
@@ -503,6 +556,9 @@ def compose(
 
     `app_url` is the web client's public origin. An email links into it, and
     shows the brand mark it serves, only when there is one to link to.
+
+    `fee` is the visit's fee as (whole units, currency), or None when the visit
+    has no fee band. A confirmation and a reminder state it; the other notices do not.
     """
     if kind not in KINDS:
         raise Invalid("unknown notice kind", detail={"allowed": list(KINDS)})
@@ -533,6 +589,9 @@ def compose(
         "clinician": clinician_name or (NEXT_DOCTOR[chosen] if ticket else ""),
         "until": until.strftime("%H:%M"),
         "position": str(appointment.get("position") or ""),
+        "fee_value": fee_text(fee, chosen) if fee is not None else "",
+        "fee": f" {FEE_LABEL[chosen]}: {fee_text(fee, chosen)}." if fee is not None else "",
+        "minutes": invite_minutes(appointment) if kind == EARLY_CALL_INVITE else "",
     }
     if channel == "SMS":
         return Notice(
@@ -564,7 +623,9 @@ def plain(kind: str, language: str, values: dict[str, str]) -> str:
     parts = TEXT[kind][language]
     colon = COLON[language]
     lines = [f"{REFERENCE[language]}{colon}{values['reference']}"]
-    lines += [f"{name}{colon}{value.format(**values)}" for name, value in parts["rows"]]
+    lines += [
+        f"{name}{colon}{value.format(**values)}" for name, value in rows_of(kind, language, values)
+    ]
     return (
         f"{GREETING[language]}\n\n"
         f"{parts['heading']}.\n\n" + "\n".join(lines) + f"\n\n{parts['closing']}\n"
@@ -594,7 +655,9 @@ def rendered(
             tag=str(parts["tag"]),
             heading=str(parts["heading"]),
             lead=f"{REFERENCE[language]} {values['reference']}",
-            pairs=[(name, value.format(**values)) for name, value in parts["rows"]],
+            pairs=[
+                (name, value.format(**values)) for name, value in rows_of(kind, language, values)
+            ],
             tone=EMAIL_TONE[kind],
             checked=kind == BOOKING_CONFIRMATION,
         ),

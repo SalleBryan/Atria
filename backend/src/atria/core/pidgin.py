@@ -144,11 +144,16 @@ TEXT: dict[str, dict[str, Sequence[Sequence[str]]]] = {
     },
 }
 
+FEE_LABEL = "Fee"
+FREE = "free"
+
 SMS_TEXT: dict[str, str] = {
-    "APPOINTMENT_REMINDER": "Atria reminder: appointment {date} fo {time}, {clinic}, "
-    "{clinician}. Ref {reference}. Fo cancel: Atria app.",
-    "BOOKING_CONFIRMATION": "Atria: appointment don confam {date} fo {time}, {clinic}, "
-    "{clinician}. Ref {reference}. Fo cancel: Atria app.",
+    "APPOINTMENT_REMINDER": "Atria reminder: visit {date} fo {time}, {clinic}, "
+    "{clinician}. Ref {reference}.{fee} Cancel fo Atria.",
+    "BOOKING_CONFIRMATION": "Atria: visit don confam {date} fo {time}, {clinic}, "
+    "{clinician}. Ref {reference}.{fee} Cancel fo Atria.",
+    "EARLY_CALL_INVITE": "Atria: doctor fit see yu early. Yu fit reach {clinic} in {minutes} min? "
+    "Open yu ticket fo Atria, tap Yes. Ref {reference}.",
     "QUEUE_MOVED": "Atria: di queue don move. Arrive {date} between {time} and {until}, "
     "{clinic}. Place {position}. Ref {reference}.",
 }

@@ -34,6 +34,7 @@ import {
 } from "../components/icons";
 import { offeredAt } from "../patient/data";
 import { runsQueue } from "./Queue";
+import { ConnectionBanner } from "../components/ConnectionBanner";
 import { SignOutMenu } from "../components/SignOutMenu";
 import { MoreMenu } from "./MoreMenu";
 import { Waiting } from "../components/Waiting";
@@ -214,6 +215,7 @@ function Shell({ me }: { me: Me }) {
       <span className="orb patient-orb-a" aria-hidden="true" />
       <span className="orb patient-orb-b" aria-hidden="true" />
       <span className="orb patient-orb-c" aria-hidden="true" />
+      <ConnectionBanner />
 
       <aside className="side-margin">
         <div className="side">

@@ -23,6 +23,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 import { api } from "../api/client";
 import { Notice } from "../components/controls";
+import { FailureNotice } from "../components/FailureNotice";
 import { LoadingPane } from "../components/LoadingPane";
 import { byPopularity, ChipRow, FilterMenu } from "../components/FilterMenu";
 import { VisitHistory } from "../components/VisitHistory";
@@ -175,7 +176,7 @@ export function Visits() {
     navigate(which === "past" ? "/visits?show=past" : "/visits");
   }
 
-  if (state.status === "failed") return <Notice tone="error">{state.message}</Notice>;
+  if (state.status === "failed") return <FailureNotice message={state.message} onRetry={() => void reload()} />;
   if (!data) {
     return (
       <div className="find-care" aria-busy="true">

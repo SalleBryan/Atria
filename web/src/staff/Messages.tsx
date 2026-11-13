@@ -26,6 +26,7 @@ import { PAGE_ROWS, Pager, usePages } from "../components/Pager";
 import { SelectMenu } from "../components/Pickers";
 import { roleOf, useStaffData } from "./data";
 import { sentence } from "./labels";
+import { UsageStatement } from "./UsageStatement";
 import { plainReason } from "../utils/messageReason";
 
 export interface LoggedMessage {
@@ -83,6 +84,7 @@ export const KIND_LABEL: Record<string, string> = {
   BOOKING_RESCHEDULED: "Visit moved",
   BOOKING_DISRUPTED: "Visit disrupted",
   QUEUE_MOVED: "Queue moved",
+  EARLY_CALL_INVITE: "Come earlier",
   BOOKING_DECLINED: "Request declined",
   TICKET_CONFIRMATION: "Queue ticket",
 };
@@ -132,7 +134,7 @@ export function Messages() {
   const { state } = useSession();
   const me = state.status === "signed-in" ? state.me : undefined;
   const role = me ? roleOf(me) : "CLINICIAN";
-  const [view, setView] = useState<"log" | "delivery">("log");
+  const [view, setView] = useState<"log" | "delivery" | "usage">("log");
   const [days, setDays] = useState("14");
 
   if (state.status !== "signed-in") return null;
@@ -145,6 +147,7 @@ export function Messages() {
         [
           ["log", "Unit log"],
           ["delivery", "Delivery"],
+          ["usage", "Usage"],
         ] as const
       ).map(([id, label]) => (
         <button
@@ -160,6 +163,21 @@ export function Messages() {
       ))}
     </div>
   );
+
+  if (view === "usage" && admin) {
+    return (
+      <div className="accounts-page messages-page">
+        <header className="accounts-top">
+          <div>
+            <h1>Messages</h1>
+            <p>How many messages went out each month, and what became of them.</p>
+          </div>
+        </header>
+        {tabs}
+        <UsageStatement />
+      </div>
+    );
+  }
 
   return view === "delivery" && admin ? (
     <div className="accounts-page messages-page">

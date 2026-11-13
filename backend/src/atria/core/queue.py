@@ -156,11 +156,18 @@ def actual_throughput(
 
 @dataclass(frozen=True, slots=True)
 class Policy:
-    """The knobs of ADR 0022. Defaults for a pilot; tenant settings come later."""
+    """The knobs of ADR 0022. These are the fallbacks; three levels of settings override them."""
 
     hold_minutes: int = 5
     late_grace_minutes: int = 15
     max_bypass: int = 1
+    # Early-call invitations (R4): how soon before a doctor is free to invite,
+    # how many invitations are out at once, how long one stays open, and whether
+    # the system sends them itself ("auto") or only when the desk does ("desk").
+    invite_lead_minutes: int = 5
+    invite_fanout: int = 3
+    invite_open_minutes: int = 20
+    early_call_invites: str = "desk"
 
 
 DEFAULT_POLICY = Policy()
@@ -170,12 +177,27 @@ DEFAULT_POLICY = Policy()
 # own (its manager, or the administrator) and one session's (the desk, for the
 # day). A value of 0 for holdMinutes means the doctor is never held; 0 for
 # maxBypass means a due patient is never passed over before the hold starts.
-POLICY_LIMITS = {"holdMinutes": (0, 30), "lateGraceMinutes": (0, 60), "maxBypass": (0, 3)}
+# The invitation knobs follow: lead 0 to 30 minutes, fan-out 0 to 10 (0 sends none),
+# an invitation open 5 to 120 minutes.
+POLICY_LIMITS = {
+    "holdMinutes": (0, 30),
+    "lateGraceMinutes": (0, 60),
+    "maxBypass": (0, 3),
+    "inviteLeadMinutes": (0, 30),
+    "inviteFanout": (0, 10),
+    "inviteOpenMinutes": (5, 120),
+}
 TENANT_POLICY_FIELDS = {
     "holdMinutes": "queueHoldMinutes",
     "lateGraceMinutes": "queueLateGraceMinutes",
     "maxBypass": "queueMaxBypass",
+    "inviteLeadMinutes": "queueInviteLeadMinutes",
+    "inviteFanout": "queueInviteFanout",
+    "inviteOpenMinutes": "queueInviteOpenMinutes",
 }
+# A knob that is one of a few words rather than a number.
+POLICY_CHOICES = {"earlyCallInvites": ("desk", "auto")}
+TENANT_CHOICE_FIELDS = {"earlyCallInvites": "queueEarlyCallInvites"}
 LEVELS = ("session", "unit", "tenant", "default")
 
 
@@ -188,17 +210,22 @@ def _count(value: object) -> int | None:
         return None
 
 
-def policy_changes(body: dict[str, object]) -> dict[str, int | None]:
+def policy_changes(body: dict[str, object]) -> dict[str, int | str | None]:
     """A unit's or a session's queue policy from a request. None clears an override."""
-    unknown = sorted(set(body) - set(POLICY_LIMITS))
+    unknown = sorted(set(body) - set(POLICY_LIMITS) - set(POLICY_CHOICES))
     if unknown:
         raise Invalid("those queue settings do not exist", detail={"unknown": unknown})
     if not body:
         raise Invalid("nothing to change")
-    out: dict[str, int | None] = {}
+    out: dict[str, int | str | None] = {}
     for name, value in body.items():
         if value is None:
             out[name] = None
+            continue
+        if name in POLICY_CHOICES:
+            if value not in POLICY_CHOICES[name]:
+                raise Invalid(f"{name} must be one of {', '.join(POLICY_CHOICES[name])}")
+            out[name] = str(value)
             continue
         low, high = POLICY_LIMITS[name]
         number = _count(value)
@@ -214,12 +241,16 @@ def resolve_policy(
     session: dict[str, object] | None = None,
 ) -> tuple[Policy, dict[str, str]]:
     """The policy in force and, per knob, which level set it."""
-    values = {
+    values: dict[str, int] = {
         "holdMinutes": DEFAULT_POLICY.hold_minutes,
         "lateGraceMinutes": DEFAULT_POLICY.late_grace_minutes,
         "maxBypass": DEFAULT_POLICY.max_bypass,
+        "inviteLeadMinutes": DEFAULT_POLICY.invite_lead_minutes,
+        "inviteFanout": DEFAULT_POLICY.invite_fanout,
+        "inviteOpenMinutes": DEFAULT_POLICY.invite_open_minutes,
     }
-    source = dict.fromkeys(values, "default")
+    mode = DEFAULT_POLICY.early_call_invites
+    source = dict.fromkeys((*values, *POLICY_CHOICES), "default")
     for level, layer in (("tenant", None), ("unit", unit), ("session", session)):
         for name in values:
             raw = (
@@ -231,7 +262,26 @@ def resolve_policy(
             if number is not None:
                 values[name] = number
                 source[name] = level
-    return Policy(values["holdMinutes"], values["lateGraceMinutes"], values["maxBypass"]), source
+        raw_mode = (
+            (tenant or {}).get(TENANT_CHOICE_FIELDS["earlyCallInvites"])
+            if level == "tenant"
+            else (layer or {}).get("earlyCallInvites")
+        )
+        if raw_mode in POLICY_CHOICES["earlyCallInvites"]:
+            mode = str(raw_mode)
+            source["earlyCallInvites"] = level
+    return (
+        Policy(
+            values["holdMinutes"],
+            values["lateGraceMinutes"],
+            values["maxBypass"],
+            values["inviteLeadMinutes"],
+            values["inviteFanout"],
+            values["inviteOpenMinutes"],
+            mode,
+        ),
+        source,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -346,6 +396,96 @@ def next_call(
     return Call(candidate=candidate, bypassed=tuple(passed), late=tuple(late))
 
 
+# ------------------------------------------------ early-call invitations (R4)
+#
+# When a doctor is about to be free and nobody is here, a booked patient who is
+# not yet here is invited to come earlier. Invitations run in parallel with the
+# queue and never hold the doctor: a patient who arrives is checked in as any
+# arrival is, and one who says no, or nothing, loses nothing and is not moved.
+
+
+def invite_status(ticket: dict[str, object], now: dt.datetime) -> str | None:
+    """Where a ticket's invitation stands: None, open, accepted, declined or expired."""
+    if not ticket.get("inviteSentAt"):
+        return None
+    answer = ticket.get("inviteAnswer")
+    if answer == "YES":
+        return "accepted"
+    if answer == "NO":
+        return "declined"
+    closes = _instant(ticket.get("inviteExpiresAt"))
+    if closes is not None and now >= closes:
+        return "expired"
+    return "open"
+
+
+def invite_view(ticket: dict[str, object], now: dt.datetime) -> dict[str, object] | None:
+    """An invitation as the desk and the patient see it, or None if there is none."""
+    status = invite_status(ticket, now)
+    if status is None:
+        return None
+    return {
+        "status": status,
+        "sentAt": ticket.get("inviteSentAt"),
+        "expiresAt": ticket.get("inviteExpiresAt"),
+        "answer": ticket.get("inviteAnswer"),
+        "eta": ticket.get("inviteEta"),
+    }
+
+
+def _pending_invite(ticket: dict[str, object], now: dt.datetime) -> bool:
+    """An invitation still counts against the fan-out: open, or accepted and not yet due in."""
+    status = invite_status(ticket, now)
+    if status == "open":
+        return True
+    eta = _instant(ticket.get("inviteEta"))
+    return status == "accepted" and ticket.get("state") in WAITING and eta is not None and eta > now
+
+
+def doctor_free_within(
+    tickets: list[dict[str, object]],
+    now: dt.datetime,
+    *,
+    rostered: int,
+    per_hour: float,
+    lead_minutes: int,
+) -> bool:
+    """Whether some doctor is free now or is expected to be within `lead_minutes`."""
+    busy = [t for t in tickets if t.get("state") == "IN_CONSULTATION"]
+    if len(busy) < max(1, rostered):
+        return True
+    length = dt.timedelta(minutes=expected_consult_minutes(tickets, per_hour=per_hour))
+    ends = [(_instant(t.get("consultationStartedAt")) or now) + length for t in busy]
+    return min(ends) - now <= dt.timedelta(minutes=lead_minutes)
+
+
+def invite_targets(
+    tickets: list[dict[str, object]],
+    now: dt.datetime,
+    policy: Policy,
+    *,
+    rostered: int,
+    per_hour: float,
+) -> tuple[dict[str, object], ...]:
+    """Who may be invited now: absent tickets by position, never invited before.
+
+    Nobody is invited while someone is here (the doctor takes them at once, R1),
+    nor before a doctor is within the lead time of being free, and no more than
+    the fan-out are out at once. Each ticket is invited at most once.
+    """
+    if policy.invite_fanout <= 0 or any(t.get("state") == "ARRIVED" for t in tickets):
+        return ()
+    if not doctor_free_within(
+        tickets, now, rostered=rostered, per_hour=per_hour, lead_minutes=policy.invite_lead_minutes
+    ):
+        return ()
+    room = policy.invite_fanout - sum(1 for t in tickets if _pending_invite(t, now))
+    if room <= 0:
+        return ()
+    absent = [t for t in tickets if t.get("state") in WAITING and invite_status(t, now) is None]
+    return tuple(sorted(absent, key=_position)[:room])
+
+
 def expected_consult_minutes(tickets: list[dict[str, object]], *, per_hour: float) -> float:
     """How long one consultation takes here: the median of the session's, or the pace."""
     spans = []
@@ -358,3 +498,48 @@ def expected_consult_minutes(tickets: list[dict[str, object]], *, per_hour: floa
     spans.sort()
     middle = len(spans) // 2
     return round(spans[middle] if len(spans) % 2 else (spans[middle - 1] + spans[middle]) / 2, 1)
+
+
+def outlook(
+    tickets: list[dict[str, object]],
+    mine: dict[str, object],
+    now: dt.datetime,
+    *,
+    per_hour: float,
+    clinicians: int = 1,
+) -> dict[str, object]:
+    """What one patient may be told about their place: counts and times, never people.
+
+    Ahead is everyone waiting or here with an earlier place, so a patient called
+    out of order by the rules (bypass, urgent) can wait a little more or less than
+    this says; the time is an estimate and is given rounded up to five minutes.
+    """
+    here = str(mine.get("appointmentId", ""))
+    ahead = [
+        t
+        for t in tickets
+        if str(t.get("appointmentId", "")) != here
+        and t.get("state") in (*WAITING, "ARRIVED")
+        and _position(t) < _position(mine)
+    ]
+    lanes = max(1, clinicians)
+    busy = sum(1 for t in tickets if t.get("state") == "IN_CONSULTATION")
+    minutes = expected_consult_minutes(tickets, per_hour=per_hour)
+    wait = len(ahead) / lanes * minutes
+    if busy >= lanes:
+        wait += minutes / 2
+    start = now + dt.timedelta(minutes=wait)
+    opens = _instant(mine.get("arrivalWindowStart"))
+    if opens and start < opens:
+        start = opens
+    rounded = start.replace(second=0, microsecond=0)
+    if start > rounded:
+        rounded += dt.timedelta(minutes=1)
+    rounded += dt.timedelta(minutes=(-rounded.minute) % 5)
+    return {
+        "ahead": len(ahead),
+        "inConsultation": busy,
+        "consultationMinutes": minutes,
+        "expectedStartAt": rounded.astimezone(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "next": not ahead and mine.get("state") == "ARRIVED",
+    }

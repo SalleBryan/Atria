@@ -19,6 +19,7 @@ import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import type { Me } from "../api/client";
 import { useSession } from "../auth/session";
+import { ConnectionBanner } from "../components/ConnectionBanner";
 import { Calendar, Home, Pulse, Search, SignOut, User } from "../components/icons";
 import { Waiting } from "../components/Waiting";
 import { LanguageSwitcher } from "../i18n/LanguageSwitcher";
@@ -83,6 +84,7 @@ function Shell({ me }: { me: Me }) {
       <span className="orb patient-orb-a" aria-hidden="true" />
       <span className="orb patient-orb-b" aria-hidden="true" />
       <span className="orb patient-orb-c" aria-hidden="true" />
+      <ConnectionBanner />
 
       <aside className="side-margin">
         <div className="side">

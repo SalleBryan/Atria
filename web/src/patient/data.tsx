@@ -13,6 +13,8 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { apiAll } from "../api/client";
+import { describeFailure } from "../api/failure";
+import { useOnReconnect } from "../api/network";
 import { PACK } from "../auth/phone";
 import type { AppointmentState } from "../generated/lifecycle";
 
@@ -225,13 +227,22 @@ export function PatientDataProvider({ children }: { children: ReactNode }) {
     try {
       setState({ status: "ready", data: await load() });
     } catch (error) {
-      setState({ status: "failed", message: error instanceof Error ? error.message : "Atria could not be reached." });
+      // What is already on screen stays: an old schedule, which the
+      // connection banner says may be out of date, beats an error page.
+      setState((shown) =>
+        shown.status === "ready"
+          ? shown
+          : { status: "failed", message: describeFailure(error, { fallback: "Atria could not be reached." }).text },
+      );
     }
   }, []);
 
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // Whatever was shown is read again when the connection returns.
+  useOnReconnect(() => void reload());
 
   const value = useMemo(() => ({ state, reload }), [state, reload]);
   return <Context.Provider value={value}>{children}</Context.Provider>;

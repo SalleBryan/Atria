@@ -13,7 +13,10 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
+import { startPolling } from "../api/network";
+import { Notice } from "../components/controls";
 import { Alert, Bell, CheckMark, Clock, Close, Mail } from "../components/icons";
+import { LoadingIndicator } from "../components/LoadingIndicator";
 import { type Appointment, clock, join, stateLabel, ticketWaits, usePatientData } from "./data";
 
 interface SessionSummary {
@@ -42,9 +45,141 @@ export function useSession(sessionId: string | null | undefined) {
   return found;
 }
 
+/** How often a waiting patient's place is read again. */
+const TICKET_REFRESH_MS = 30_000;
+
+/** An early-call invitation to come sooner (ADR 0022 R4). Answering moves nobody. */
+interface Invite {
+  status: "open" | "accepted" | "declined" | "expired";
+  expiresAt: string;
+  answer: "YES" | "NO" | null;
+  eta: string | null;
+}
+
+interface Outlook {
+  ahead: number;
+  expectedStartAt: string;
+  next: boolean;
+  invite?: Invite | null;
+}
+
+/**
+ * The patient's own place, live: patients ahead and when they are likely to be seen.
+ *
+ * Read again every 30 seconds while the device is online and the tab is
+ * showing; paused otherwise, and read at once when either ends (audit F16).
+ * When a read fails the last answer stays, with the time it was true, so the
+ * screen can say it may be out of date instead of showing nothing.
+ */
+export function useOutlook(appointmentId: string, active: boolean) {
+  const [found, setFound] = useState<Outlook | null>(null);
+  const [asOf, setAsOf] = useState<number | null>(null);
+  const [stale, setStale] = useState(false);
+  useEffect(() => {
+    if (!active) return;
+    let live = true;
+    const stop = startPolling(
+      () =>
+        api<Outlook>(`/appointments/${encodeURIComponent(appointmentId)}/ticket`).then(
+          (data) => {
+            if (!live) return;
+            setFound(data);
+            setAsOf(Date.now());
+            setStale(false);
+          },
+          (error: unknown) => {
+            if (live) setStale(true);
+            // Thrown on, so the poller backs off.
+            throw error;
+          },
+        ),
+      TICKET_REFRESH_MS,
+      { immediate: true },
+    );
+    return () => {
+      live = false;
+      stop();
+    };
+  }, [appointmentId, active]);
+  return { found, asOf, stale };
+}
+
+/** The patient's answer to "can you come sooner?": a button, never a free-text reply. */
+function InviteReply({ appointmentId, invite }: { appointmentId: string; invite: Invite }) {
+  const [shown, setShown] = useState(invite);
+  const [busy, setBusy] = useState<"YES" | "NO" | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  useEffect(() => setShown(invite), [invite]);
+
+  async function answer(choice: "YES" | "NO") {
+    setBusy(choice);
+    setFailure(null);
+    try {
+      const done = await api<{ invite: Invite }>(`/appointments/${encodeURIComponent(appointmentId)}/invite-reply`, {
+        method: "POST",
+        json: { answer: choice },
+      });
+      setShown(done.invite);
+    } catch {
+      setFailure("That did not go through. Try again, or tell the desk when you arrive.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (shown.status === "expired") return null;
+  return (
+    <div className="queue-invite" role="group" aria-label="A doctor is free sooner">
+      {shown.status === "open" ? (
+        <>
+          <p className="queue-note">
+            <Bell size={16} />A doctor is free sooner. Can you be at the desk by {clock.time(shown.expiresAt)}? Your place does not change
+            whatever you answer.
+          </p>
+          <div className="queue-invite-actions">
+            <button
+              type="button"
+              className="tonal-button"
+              disabled={busy !== null}
+              aria-busy={busy === "YES" || undefined}
+              onClick={() => void answer("YES")}
+            >
+              {busy === "YES" ? <LoadingIndicator size={18} label="Sending" /> : null}
+              Yes, I am coming
+            </button>
+            <button
+              type="button"
+              className="outline-button"
+              disabled={busy !== null}
+              aria-busy={busy === "NO" || undefined}
+              onClick={() => void answer("NO")}
+            >
+              {busy === "NO" ? <LoadingIndicator size={18} label="Sending" /> : null}
+              No, keep my place
+            </button>
+          </div>
+          {failure && <p className="queue-note queue-note-declined">{failure}</p>}
+        </>
+      ) : shown.status === "accepted" ? (
+        <p className="queue-note">
+          <CheckMark size={16} />
+          Thank you. We expect you by {clock.time(shown.eta ?? shown.expiresAt)}. Check in at the desk when you arrive.
+        </p>
+      ) : (
+        <p className="queue-note">
+          <CheckMark size={16} />
+          Understood. Your place is unchanged.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function TicketDetail({ appointment, actions }: { appointment: Appointment; actions: React.ReactNode }) {
   const { state } = usePatientData();
   const session = useSession(appointment.sessionId);
+  const waitingNow = ticketWaits(appointment.state) || appointment.state === "ARRIVED";
+  const { found: outlook, asOf, stale } = useOutlook(appointment.appointmentId, waitingNow);
   if (state.status !== "ready") return null;
   const { clinic, type } = join(state.data, appointment);
   const status = stateLabel(appointment.state);
@@ -116,6 +251,13 @@ export function TicketDetail({ appointment, actions }: { appointment: Appointmen
                   ? "You are checked in. A doctor is assigned from the queue as one becomes free."
                   : "This visit is closed. It stays in your history."}
           </p>
+          {stale && outlook && asOf && waitingNow ? (
+            <Notice tone="info">
+              We could not refresh your place. It was last updated at {clock.time(new Date(asOf).toISOString())} and may have changed. We
+              keep trying, and come to the desk as planned if you are unsure.
+            </Notice>
+          ) : null}
+          {outlook?.invite && waiting ? <InviteReply appointmentId={appointment.appointmentId} invite={outlook.invite} /> : null}
           <dl className="facts-list">
             <div>
               <dt>Unit</dt>
@@ -129,6 +271,18 @@ export function TicketDetail({ appointment, actions }: { appointment: Appointmen
               <dt>Session</dt>
               <dd>{session ? `${session.startTime} to ${session.endTime}` : "Loading"}</dd>
             </div>
+            {outlook && waitingNow ? (
+              <>
+                <div>
+                  <dt>Ahead of you</dt>
+                  <dd>{outlook.next ? "No one, you are next" : outlook.ahead === 1 ? "1 patient" : `${outlook.ahead} patients`}</dd>
+                </div>
+                <div>
+                  <dt>Likely to be seen around</dt>
+                  <dd>{clock.time(outlook.expectedStartAt)}, an estimate that updates here</dd>
+                </div>
+              </>
+            ) : null}
             {waiting ? (
               <div>
                 <dt>If the queue moves</dt>

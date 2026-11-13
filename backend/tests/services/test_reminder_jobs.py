@@ -712,3 +712,65 @@ class TestSecondLead:
     def test_the_lead_is_read_and_bounded(self, value, hours):
         found = reminders.second_lead_for({"secondReminderHours": value})
         assert found == (dt.timedelta(hours=hours) if hours else None)
+
+
+class TestFeeInReminders:
+    """The reminder says what the visit will cost at the hospital (cost transparency)."""
+
+    def priced(self, repository, *, band="fb-gp", amounts=(("2026-01-01", 5000),)):
+        repository.put(
+            keys.appointment_type(TENANT, "at-spec-first"),
+            {
+                "type": "APPOINTMENT_TYPE",
+                "appointmentTypeId": "at-spec-first",
+                "tenantId": TENANT,
+                "name": "First specialist consultation",
+                **({"feeBandId": band} if band else {}),
+            },
+        )
+        for effective_from, amount in amounts:
+            repository.put(
+                keys.fee_band(TENANT, "fb-gp", effective_from),
+                {
+                    "type": "FEE_BAND",
+                    "feeBandId": "fb-gp",
+                    "tenantId": TENANT,
+                    "baseAmountMinor": amount,
+                    "effectiveFrom": effective_from,
+                },
+            )
+
+    def reminder_text(self, world):
+        repository, clinician, fakes = world
+        put_appointment(repository, clinician)
+        run(reminders.SCHEDULE)
+        fire(fakes)
+        return fakes["sns"].published[-1]["Message"]
+
+    def test_the_sms_reminder_states_the_fee_band_in_force(self, world):
+        self.priced(world[0])
+        assert "Fee: 5,000 XAF." in self.reminder_text(world)
+
+    def test_the_fee_is_the_one_in_force_on_the_day_of_the_visit(self, world):
+        # A later change must not rewrite what a booked visit was told.
+        self.priced(world[0], amounts=(("2026-01-01", 5000), ("2026-06-01", 9000)))
+        text = self.reminder_text(world)
+        assert "5,000 XAF" in text
+        assert "9,000" not in text
+
+    def test_a_zero_fee_band_says_free(self, world):
+        self.priced(world[0], amounts=(("2026-01-01", 0),))
+        assert "Fee: free." in self.reminder_text(world)
+
+    def test_a_type_without_a_fee_band_says_nothing_about_a_fee(self, world):
+        self.priced(world[0], band=None)
+        text = self.reminder_text(world)
+        assert "Fee" not in text
+        assert "XAF" not in text
+
+    def test_the_confirmation_by_sms_states_the_fee_too(self, world):
+        repository, clinician, fakes = world
+        self.priced(repository)
+        put_appointment(repository, clinician, start=SOON)
+        run(reminders.SCHEDULE)
+        assert any("Fee: 5,000 XAF." in p["Message"] for p in fakes["sns"].published)

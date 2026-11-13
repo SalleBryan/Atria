@@ -12,7 +12,16 @@ import { AtriaPdf, type Cell } from "./export/pdf";
 import { AtriaWorkbook, type SheetCell } from "./export/sheet";
 import { fileName, madeAt } from "./export/tokens";
 
+/** What differs from an earlier period (core/report.change). A difference, never a cause. */
+export interface ReportComparison {
+  from: string;
+  to: string;
+  counts: Record<"booked" | "attended" | "noShow" | "cancelled" | "lateCancelled", { before: number; after: number; change: number }>;
+  attendance: { before: number | null; after: number | null; points: number | null };
+}
+
 export interface ReportFigures {
+  comparison?: ReportComparison;
   booked: number;
   attended: number;
   noShow: number;
@@ -77,6 +86,37 @@ export function attendanceOf(f: { attended: number; noShow: number; attendance?:
 }
 const percent = (rate: number | null | undefined) => (rate == null ? "Not yet" : `${Math.round(rate * 100)}%`);
 
+export const signed = (n: number) => (n > 0 ? `up ${n}` : n < 0 ? `down ${-n}` : "no change");
+
+/** "was 63%, up 12.5 points", or why there is nothing to compare. */
+export function attendanceChange({ before, points }: ReportComparison["attendance"]): string {
+  if (points == null) return "No earlier figure to compare";
+  return `was ${percent(before)}, ${points === 0 ? "no change" : `${points > 0 ? "up" : "down"} ${Math.abs(points)} points`}`;
+}
+
+const COMPARED: [keyof ReportComparison["counts"], string][] = [
+  ["booked", "Booked"],
+  ["attended", "Attended"],
+  ["noShow", "No-show"],
+  ["cancelled", "Cancelled"],
+  ["lateCancelled", "Late cancelled"],
+];
+
+/** The comparison as rows: what it is, the earlier count, this period's, and the change in words. */
+function comparisonRows(f: ReportFigures) {
+  const c = f.comparison;
+  if (!c) return [];
+  return [
+    ...COMPARED.map(([key, label]) => [label, c.counts[key].before, c.counts[key].after, signed(c.counts[key].change)] as const),
+    [
+      "Attendance",
+      percent(c.attendance.before),
+      percent(c.attendance.after),
+      attendanceChange(c.attendance).replace(/^was [^,]*, /, ""),
+    ] as const,
+  ];
+}
+
 /** Every table the report holds, in the page's order, for all three formats. */
 function tables(f: ReportFigures) {
   // Three different percentages, kept apart (audit F18): the share of booked
@@ -108,7 +148,17 @@ function tables(f: ReportFigures) {
   const units = (f.units ?? []).map(
     (u) => [u.clinicName || "Unnamed unit", u.booked, u.attended, u.noShow, u.cancelled, attendanceOf(u)] as const,
   );
-  return { outcomes: [...outcomes, stillOpen], channels, bookers, reminders, currency, refunds, bands, units };
+  return {
+    outcomes: [...outcomes, stillOpen],
+    comparison: comparisonRows(f),
+    channels,
+    bookers,
+    reminders,
+    currency,
+    refunds,
+    bands,
+    units,
+  };
 }
 
 const tone = (rate: number | null | undefined): Cell =>
@@ -169,6 +219,22 @@ export async function exportReportPdf(f: ReportFigures, context: ReportContext) 
     ],
     t.outcomes.map(([label, visits, ofBooked, ofClosed]) => [label, count(visits), ofBooked, ofClosed]),
   );
+  if (f.comparison) {
+    pdf.heading(
+      next(),
+      "Compared with the earlier period",
+      `${f.comparison.from} to ${f.comparison.to}. A difference is shown, not a reason for it.`,
+    );
+    pdf.table(
+      [
+        { label: "Figure", width: 3 },
+        { label: "Earlier", width: 1.2, align: "right" },
+        { label: "This period", width: 1.4, align: "right" },
+        { label: "Change", width: 1.6, align: "right" },
+      ],
+      t.comparison.map(([label, before, after, change]) => [label, String(before), String(after), change]),
+    );
+  }
   pdf.heading(next(), "How patients booked", "How this period's bookings reached the unit, and how many of each came.");
   pdf.table(
     [
@@ -284,6 +350,25 @@ export async function exportReportExcel(f: ReportFigures, context: ReportContext
     );
   }
 
+  if (f.comparison) {
+    const sheet = book.sheet("Comparison", [28, 16, 16, 22]);
+    sheet.heading(
+      "00",
+      "Compared with the earlier period",
+      `${f.comparison.from} to ${f.comparison.to}. A difference is shown, not a reason for it.`,
+    );
+    sheet.table(
+      [
+        { label: "Figure", width: 28 },
+        { label: "Earlier", width: 16 },
+        { label: "This period", width: 16 },
+        { label: "Change", width: 22 },
+      ],
+      t.comparison.map(([label, before, after, change]) => [label, String(before), String(after), change]),
+      { filter: false },
+    );
+  }
+
   const groups = book.sheet("Attendance", [28, 13, 13, 13, 16]);
   const columns = (label: string) =>
     [
@@ -346,6 +431,16 @@ export function reportCsv(f: ReportFigures): { head: string[]; rows: (string | n
       "",
       "",
       `${ofBooked} of booked; ${ofClosed} of closed`,
+    ]),
+    ...t.comparison.map(([label, before, after, change]) => [
+      "Compared with the earlier period",
+      label,
+      after,
+      "",
+      "",
+      "",
+      "",
+      `was ${before}, ${change}`,
     ]),
     ...t.channels.map(([label, booked, came, missed, r]) => ["How patients booked", label, booked, came, missed, "", "", percent(r)]),
     ...t.bookers.map(([label, booked, came, missed, r]) => ["Who booked", label, booked, came, missed, "", "", percent(r)]),

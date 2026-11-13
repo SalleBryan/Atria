@@ -33,10 +33,12 @@ from botocore.exceptions import ClientError
 
 from atria.core import notices, reminders
 from atria.core.errors import Conflict
+from atria.data import keys
 from atria.data.booking import Booking
 from atria.data.messages import SCHEDULED, Messages
 from atria.data.people import People
 from atria.data.repository import Item, Repository
+from atria.data.settings import Settings
 from atria.services.notify import push
 
 logger = Logger(service="atria-sender")
@@ -193,6 +195,29 @@ def zone_for(tenant_id: str) -> Any:
     return booking().zone(tenant_id)
 
 
+def appointment_fee(tenant_id: str, appointment: Item) -> tuple[int, str] | None:
+    """The fee a patient will be asked for this visit, or None when it has no fee band.
+
+    The band in force on the local day of the visit, in whole currency units, with
+    the tenant's currency from its region pack. Nothing here moves money (AD-07).
+    """
+    repository = booking().repository
+    type_id = appointment.get("appointmentTypeId")
+    if not type_id:
+        return None
+    kind = repository.get(keys.appointment_type(tenant_id, str(type_id))) or {}
+    band_id = kind.get("feeBandId")
+    if not band_id:
+        return None
+    day = notices.local(str(appointment.get("startAt", "")), zone=zone_for(tenant_id))
+    band = Settings(repository).fee_band_on(tenant_id, str(band_id), day.date().isoformat())
+    if not band or band.get("baseAmountMinor") is None:
+        return None
+    tenant = repository.get(keys.tenant(tenant_id)) or {}
+    pack = repository.get(keys.region_pack(str(tenant.get("regionPackCode") or "CM"))) or {}
+    return int(str(band["baseAmountMinor"])), str(pack.get("currency") or "XAF")
+
+
 def compose_for(
     tenant_id: str, appointment: Item, person: Item, kind: str, channel: str
 ) -> notices.Notice:
@@ -214,6 +239,7 @@ def compose_for(
         zone=zone,
         channel=channel,
         app_url=APP_URL,
+        fee=appointment_fee(tenant_id, appointment),
     )
 
 

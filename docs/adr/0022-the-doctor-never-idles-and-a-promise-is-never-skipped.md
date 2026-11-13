@@ -1,6 +1,6 @@
 # 0022. The doctor never idles, and a promise is never skipped
 
-Status: proposed (needs the owner's approval before any code)
+Status: accepted 2026-11-13 by the owner. Built in slices: (1) rules and the call; (2) desk console guard and urgent marking; (3) early-call invitations, messages and tenant settings.
 Constraints: C-01 staffing, C-04 connectivity, AD-02 book a place in a session, AD-10 fair queues
 Lane: pain lane (pain point 1, waiting without knowing)
 
@@ -75,9 +75,11 @@ an on-time patient is the remaining time of one consultation that began while th
 cost before choosing (R5).
 
 ### Data (proposal; check `spec/atria_spec/lifecycle.py` and `keys.py` first)
-Ticket fields: `dueAt` (window start), `arrivedAt`, `bypassCount`, `lateAt`, `urgent` plus `urgentReason`,
-`inviteReplyAt`, `inviteEta`. Appointment event kinds: `CONSULTATION_ENDED` (so durations are measured),
-`QUEUE_BYPASS`, `QUEUE_LATE`, `QUEUE_URGENT`, `EARLY_CALL_INVITED`, `EARLY_CALL_REPLIED`.
+As built in slice 1: ticket (appointment) fields `bypassCount`, `holdStartedAt`, `lateAt`, `urgent`, and on the consultation
+`bypassedAppointmentIds` and `bypassOverrideReason`. Consultation length is derived from the existing `consultationStartedAt`
+and `completedAt` stamps, so no new event is needed for it. Still to come: `urgentReason`, `inviteReplyAt`, `inviteEta` and the
+invitation events. `core/queue.py::next_call` is the one pure function that decides who is called; `services/booking/queue.py`
+only persists its decision.
 Tenant settings (defaults above): `holdMinutes`, `lateGraceMinutes`, `inviteLeadMinutes`, `inviteFanout`,
 `earlyCallInvites` on or off. Change `spec/` first, then run `python spec/generate.py`.
 

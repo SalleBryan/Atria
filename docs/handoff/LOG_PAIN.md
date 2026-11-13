@@ -72,3 +72,8 @@ Branch `pain/offline-recovery`, web only. Audit F16 done for the web client; F15
 
 ## 2026-11-13 (PR integration)
 - PR 29 clears button ripple timers on unmount to fix the failing web check.
+
+## 2026-11-13 (deploy fix, pitch, cost model)
+- Root cause of the failed dev deploys: booking function resource policy over 20,480 bytes (two statements per API method). Fix on `fix/lambda-policy-size`: one API invoke statement per function, with a test.
+- Ran every pain point flow in the dev preview on the PR 36 code: desk guard, hold and Call anyway, urgent, rules dialog, fee on every place, patient join and live ticket, language switch (Home, Account, Edit details are translated; other screens are still English), offline notice and recovery, phone width.
+- Pitch deck published as an artifact; cost model in `docs/reference/research/atria_cost_model.py`.

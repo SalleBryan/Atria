@@ -1050,6 +1050,23 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
       400,
     );
   }
+  if (method === "GET" && path === "/messages/usage") {
+    const month = url.searchParams.get("month") ?? clinicDate(new Date()).slice(0, 7);
+    return json(200, {
+      month,
+      from: `${month}-01`,
+      to: `${month}-28`,
+      messages: 120,
+      lines: [
+        { clinicId: "u-rhb-opd", kind: "APPOINTMENT_REMINDER", channel: "SMS", state: "SENT", count: 70 },
+        { clinicId: "u-rhb-opd", kind: "QUEUE_MOVED", channel: "SMS", state: "SENT", count: 20 },
+        { clinicId: "u-rhb-paeds", kind: "BOOKING_CONFIRMATION", channel: "EMAIL", state: "DELIVERED", count: 30 },
+      ],
+      byKind: { APPOINTMENT_REMINDER: 70, BOOKING_CONFIRMATION: 30, QUEUE_MOVED: 20 },
+      byChannel: { EMAIL: 30, SMS: 90 },
+      byState: { DELIVERED: 30, SENT: 90 },
+    });
+  }
   if (method === "GET" && path === "/messages/delivery") {
     const count = Number(url.searchParams.get("days") ?? "14");
     const today = clinicDate(new Date());

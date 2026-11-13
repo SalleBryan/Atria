@@ -84,6 +84,7 @@ export const KIND_LABEL: Record<string, string> = {
   BOOKING_RESCHEDULED: "Visit moved",
   BOOKING_DISRUPTED: "Visit disrupted",
   QUEUE_MOVED: "Queue moved",
+  EARLY_CALL_INVITE: "Come earlier",
   BOOKING_DECLINED: "Request declined",
   TICKET_CONFIRMATION: "Queue ticket",
 };

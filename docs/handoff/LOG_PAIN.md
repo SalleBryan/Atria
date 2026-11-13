@@ -65,6 +65,10 @@ Branch `pain/offline-recovery`, web only. Audit F16 done for the web client; F15
 - Decision to confirm: ADR 0022 R4 says a YES records an ETA and moves nothing, the task brief said a YES checks the patient in. The ADR wins, so a YES will not check anyone in; the patient arrives and checks in normally. The fallback for `earlyCallInvites` is `desk`.
 - Next: PR 2 the `EARLY_CALL_INVITE` notice, sender and outbox; PR 3 the desk invite route and the patient reply route; PR 4 the desk screen and the settings fields.
 
+## 2026-11-13 (slice 3, PR 2 of 4)
+- Branch `pain/early-call-notice` (stacked on `pain/early-call`): `EARLY_CALL_INVITE` is a new message kind, SMS only, one segment, plain ASCII, English and French wording (French stays off behind `OFFERED`). Added to `core/notices.py` (`KINDS`, `SMS_TEXT`, `invite_minutes`), `services/notify/outbox.py` (an `inviteSentAt` written on a waiting ticket owes one SMS), `services/notify/sender.py` (still true only while the ticket is waiting and the invitation is open and unanswered; it pushes itself) and the web message log label. The message log row carries the kind, so the business lane's metering counts it with no change.
+- Not touched: `language_for`, `OFFERED`, Flutter (the `oversight.dart` kind label is left for the Flutter slice).
+
 ## 2026-11-13 (fee on the desk)
 - Branch `pain/desk-fee` from `origin/main`: the live queue shows the fee each place will be asked for ("Fee 5,000 XAF", "Free", nothing when the type has no band) and the walk-in dialog states the walk-in fee. Backend `FeeLookup` (one band read per type, band in force on the session date). Touched `services/booking/queue.py` only in `live_queue` and a small `walk_in_fee` helper, plus the queue view in `Queue.tsx`, so the early-call work should rebase cleanly.
 - `pain/fee-in-reminders` was not merged yet (its work was uncommitted in another worktree). To avoid two copies of the band logic, that branch should call `FeeLookup` instead of its own `appointment_fee` lookup when it rebases.

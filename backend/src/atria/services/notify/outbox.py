@@ -113,6 +113,25 @@ def jobs_due(record: dict[str, Any]) -> list[dict[str, Any]]:
         and old.get("arrivalWindowStart") != new.get("arrivalWindowStart")
         and to_state in ("BOOKED", "CONFIRMED")
     )
+    # An early-call invitation was just written on a waiting ticket (ADR 0022 R4).
+    invited = (
+        bool(old)
+        and bool(new.get("sessionId"))
+        and bool(new.get("inviteSentAt"))
+        and old.get("inviteSentAt") != new.get("inviteSentAt")
+        and to_state in ("BOOKED", "CONFIRMED")
+    )
+    if invited:
+        return [
+            {
+                "tenantId": new.get("tenantId"),
+                "appointmentId": new.get("appointmentId"),
+                "fromState": from_state,
+                "toState": to_state,
+                "kind": notices.EARLY_CALL_INVITE,
+                "channel": "SMS",
+            }
+        ]
     if queue_moved:
         base = {
             "tenantId": new.get("tenantId"),

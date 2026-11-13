@@ -79,12 +79,18 @@ const percent = (rate: number | null | undefined) => (rate == null ? "Not yet" :
 
 /** Every table the report holds, in the page's order, for all three formats. */
 function tables(f: ReportFigures) {
+  // Three different percentages, kept apart (audit F18): the share of booked
+  // visits, the share of closed outcomes, and attendance (attended of attended
+  // plus no-show). A visit not yet closed counts in the first and not the second.
+  const closed = f.attended + f.noShow + f.cancelled + f.lateCancelled;
+  const open = Math.max(0, f.booked - closed);
   const outcomes = [
-    ["Attended", f.attended, share(f.attended, f.booked)],
-    ["No-show", f.noShow, share(f.noShow, f.booked)],
-    ["Cancelled", f.cancelled, share(f.cancelled, f.booked)],
-    ["Late cancelled", f.lateCancelled, share(f.lateCancelled, f.booked)],
-  ] as const;
+    ["Attended", f.attended],
+    ["No-show", f.noShow],
+    ["Cancelled", f.cancelled],
+    ["Late cancelled", f.lateCancelled],
+  ].map(([label, n]) => [label as string, n as number, share(n as number, f.booked), share(n as number, closed)] as const);
+  const stillOpen = ["Still open", open, share(open, f.booked), "Not closed"] as const;
   const channels = (f.byChannel ?? []).map(
     (c) => [CHANNEL_LABEL[c.channel] ?? c.channel, c.booked, c.attended, c.noShow, c.attendance] as const,
   );
@@ -102,7 +108,7 @@ function tables(f: ReportFigures) {
   const units = (f.units ?? []).map(
     (u) => [u.clinicName || "Unnamed unit", u.booked, u.attended, u.noShow, u.cancelled, attendanceOf(u)] as const,
   );
-  return { outcomes, channels, bookers, reminders, currency, refunds, bands, units };
+  return { outcomes: [...outcomes, stillOpen], channels, bookers, reminders, currency, refunds, bands, units };
 }
 
 const tone = (rate: number | null | undefined): Cell =>
@@ -153,14 +159,15 @@ export async function exportReportPdf(f: ReportFigures, context: ReportContext) 
       ]),
     );
   }
-  pdf.heading(next(), "How visits ended", "Attended, missed or cancelled, as a share of the visits booked.");
+  pdf.heading(next(), "How visits ended", "Every booked visit, as a share of the visits booked and of those closed.");
   pdf.table(
     [
       { label: "Outcome", width: 3 },
       { label: "Visits", width: 1, align: "right" },
-      { label: "Share", width: 1, align: "right" },
+      { label: "Share of booked", width: 1.4, align: "right" },
+      { label: "Share of closed", width: 1.4, align: "right" },
     ],
-    t.outcomes.map(([label, visits, part]) => [label, count(visits), part]),
+    t.outcomes.map(([label, visits, ofBooked, ofClosed]) => [label, count(visits), ofBooked, ofClosed]),
   );
   pdf.heading(next(), "How patients booked", "How this period's bookings reached the unit, and how many of each came.");
   pdf.table(
@@ -231,6 +238,10 @@ export async function exportReportExcel(f: ReportFigures, context: ReportContext
   });
   const rate = (r: number | null | undefined): SheetCell => (r == null ? "Not yet" : Math.round(r * 100) / 100);
   const share = (part: number) => (f.booked ? Math.round((part / f.booked) * 100) / 100 : 0);
+  const sheetShare = (part: number, g: ReportFigures) => {
+    const closed = g.attended + g.noShow + g.cancelled + g.lateCancelled;
+    return closed ? Math.round((part / closed) * 100) / 100 : 0;
+  };
 
   // Summary: the figures as tiles, then how the visits ended.
   const summary = book.sheet("Summary", [22, 18, 18, 18, 18]);
@@ -244,14 +255,15 @@ export async function exportReportExcel(f: ReportFigures, context: ReportContext
       ? { label: "Attendance", value: "Not yet", accent: true }
       : { label: "Attendance", value: attendance, accent: true, percent: true },
   ]);
-  summary.heading("01", "How visits ended", "Attended, missed or cancelled, as a share of the visits booked.");
+  summary.heading("01", "How visits ended", "Every booked visit, as a share of the visits booked and of those closed.");
   summary.table(
     [
       { label: "Outcome", width: 22 },
       { label: "Visits", width: 18, kind: "number" },
-      { label: "Share", width: 18, kind: "percent" },
+      { label: "Share of booked", width: 18, kind: "percent" },
+      { label: "Share of closed", width: 18, kind: "percent" },
     ],
-    t.outcomes.map(([label, visits]) => [label, visits, share(visits)]),
+    t.outcomes.map(([label, visits]) => [label, visits, share(visits), label === "Still open" ? "Not closed" : sheetShare(visits, f)]),
     { filter: false },
   );
   summary.note("Attendance counts the visits that were due: those who came, of those who came or did not.");
@@ -325,7 +337,16 @@ export function reportCsv(f: ReportFigures): { head: string[]; rows: (string | n
       "",
       percent(r),
     ]),
-    ...t.outcomes.map(([label, visits, part]) => ["How visits ended", label, visits, "", "", "", "", part]),
+    ...t.outcomes.map(([label, visits, ofBooked, ofClosed]) => [
+      "How visits ended",
+      label,
+      visits,
+      "",
+      "",
+      "",
+      "",
+      `${ofBooked} of booked; ${ofClosed} of closed`,
+    ]),
     ...t.channels.map(([label, booked, came, missed, r]) => ["How patients booked", label, booked, came, missed, "", "", percent(r)]),
     ...t.bookers.map(([label, booked, came, missed, r]) => ["Who booked", label, booked, came, missed, "", "", percent(r)]),
     ...t.reminders.map(([label, booked, came, missed, r]) => ["Attendance by reminder", label, booked, came, missed, "", "", percent(r)]),

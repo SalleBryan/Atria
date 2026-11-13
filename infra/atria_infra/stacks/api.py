@@ -550,12 +550,14 @@ class ApiStack(Stack):
             authorizer=self.request_authoriser,
             authorization_type=apigateway.AuthorizationType.CUSTOM,
         )
-        messages.add_resource("delivery").add_method(
-            "GET",
-            directory_integration,
-            authorizer=self.request_authoriser,
-            authorization_type=apigateway.AuthorizationType.CUSTOM,
-        )
+        # The month's usage statement (ADR 0031), also the administrator's.
+        for path in ("delivery", "usage"):
+            messages.add_resource(path).add_method(
+                "GET",
+                directory_integration,
+                authorizer=self.request_authoriser,
+                authorization_type=apigateway.AuthorizationType.CUSTOM,
+            )
 
         # The administrator's settings (services/admin/settings.py). Each route
         # is its own permission, checked in the service.

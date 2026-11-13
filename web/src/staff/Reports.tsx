@@ -323,7 +323,7 @@ export function Reports() {
             >
               <DonutChart
                 title="How visits ended"
-                subtitle="Attended, missed or cancelled, as a share of the visits booked."
+                subtitle="Every visit booked in the period, including those not closed yet."
                 segments={[
                   {
                     id: "attended",
@@ -343,6 +343,16 @@ export function Reports() {
                     value: found.cancelled,
                     color: "#f59e0b",
                   },
+                  ...(found.booked - (found.attended + found.noShow + found.cancelled + found.lateCancelled) > 0
+                    ? [
+                        {
+                          id: "open",
+                          label: "Still open",
+                          value: found.booked - (found.attended + found.noShow + found.cancelled + found.lateCancelled),
+                          color: "#94a3b8",
+                        },
+                      ]
+                    : []),
                   ...(found.lateCancelled > 0
                     ? [
                         {

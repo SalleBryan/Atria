@@ -328,3 +328,50 @@ class TestDeliveryFigures:
 
     def test_the_range_is_bounded(self, week):
         assert get("/messages/delivery", ADMIN, query={"days": "90"})["statusCode"] == 400
+
+
+class TestUsageStatement:
+    """ADR 0031: a month of messages counted by unit, kind, channel and state."""
+
+    @pytest.fixture
+    def month(self, reported):
+        send("a-1")
+        send("a-2")
+        send("a-1", "SMS")
+        status.handler(ses_event("Delivery", "ses-0001", delivery={}), None)
+        status.handler(ses_event("Bounce", "ses-0002", bounce={"bounceType": "Permanent"}), None)
+
+    def read(self, context=ADMIN, month="2026-03"):
+        return get("/messages/usage", context, query={"month": month})
+
+    def test_messages_are_counted_by_unit_channel_and_state(self, month):
+        found = body_of(self.read())
+        assert (found["month"], found["from"], found["to"]) == (
+            "2026-03",
+            "2026-03-01",
+            "2026-03-01",
+        )
+        assert found["messages"] == 3
+        assert found["byChannel"] == {"EMAIL": 2, "SMS": 1}
+        assert found["byState"] == {"DELIVERED": 1, "FAILED": 1, "SENT": 1}
+        email_failed = [
+            line
+            for line in found["lines"]
+            if (line["channel"], line["state"]) == ("EMAIL", "FAILED")
+        ]
+        assert [(line["clinicId"], line["count"]) for line in email_failed] == [(DOUALA, 1)]
+
+    def test_another_month_is_empty(self, month):
+        assert body_of(self.read(month="2026-02"))["messages"] == 0
+
+    def test_a_month_that_has_not_begun_is_refused(self, month):
+        assert self.read(month="2026-04")["statusCode"] == 400
+
+    def test_a_bad_month_is_refused(self, month):
+        assert self.read(month="march")["statusCode"] == 400
+
+    def test_no_price_is_stated(self, month):
+        assert "usd" not in json.dumps(body_of(self.read())).lower()
+
+    def test_a_unit_manager_is_refused(self, month):
+        assert self.read({**DESK, "roles": "CLINIC_MANAGER"})["statusCode"] == 403

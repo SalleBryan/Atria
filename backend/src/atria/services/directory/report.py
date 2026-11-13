@@ -37,27 +37,50 @@ def period_days(
     granularity = (requests.query_parameter(event, "granularity") or "week").lower()
     raw = requests.query_parameter(event, "date") or requests.query_parameter(event, "week")
     target = schedule.parse_date(raw, name="date") if raw else today
-
-    if granularity == "day":
-        start = end = target
-    elif granularity == "month":
-        start = target.replace(day=1)
-        next_month = (start.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
-        end = next_month - dt.timedelta(days=1)
-    elif granularity == "year":
-        start = dt.date(target.year, 1, 1)
-        end = dt.date(target.year, 12, 31)
-    else:  # week
-        start = target - dt.timedelta(days=target.weekday())
-        end = start + dt.timedelta(days=6)
+    start, end = span(target, granularity)
 
     if start > today:
         msg = (
             "that week has not started" if granularity == "week" else "that period has not started"
         )
         raise Invalid(msg)
-    days = [start + dt.timedelta(days=n) for n in range((end - start).days + 1)]
-    return start, end, days
+    return start, end, _days(start, end)
+
+
+def span(target: dt.date, granularity: str) -> tuple[dt.date, dt.date]:
+    """The first and last day of the day, week, month or year holding `target`."""
+    if granularity == "day":
+        return target, target
+    if granularity == "month":
+        start = target.replace(day=1)
+        next_month = (start.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+        return start, next_month - dt.timedelta(days=1)
+    if granularity == "year":
+        return dt.date(target.year, 1, 1), dt.date(target.year, 12, 31)
+    start = target - dt.timedelta(days=target.weekday())  # week
+    return start, start + dt.timedelta(days=6)
+
+
+def _days(start: dt.date, end: dt.date) -> list[dt.date]:
+    return [start + dt.timedelta(days=n) for n in range((end - start).days + 1)]
+
+
+def earlier_period(
+    principal: Principal, event: dict[str, Any], data: Booking, start: dt.date
+) -> tuple[dt.date, dt.date, list[dt.date]] | None:
+    """The period named by `before`, the same length of time as the report's, or None.
+
+    It must end before the report's period begins: a comparison of overlapping
+    periods would count the same visits twice.
+    """
+    raw = requests.query_parameter(event, "before")
+    if not raw:
+        return None
+    granularity = (requests.query_parameter(event, "granularity") or "week").lower()
+    first, last = span(schedule.parse_date(raw, name="before"), granularity)
+    if last >= start:
+        raise Invalid("the period to compare with must end before this one begins")
+    return first, last, _days(first, last)
 
 
 def monday_of(principal: Principal, event: dict[str, Any], data: Booking) -> dt.date:
@@ -108,15 +131,27 @@ def one_unit(principal: Principal, event: dict[str, Any], *, data: Booking) -> d
         principal, "report.read", Subject(tenant_id=principal.tenant_id, clinic_id=clinic_id)
     )
     start, end, days = period_days(principal, event, data)
-    return {
+    figures = unit_period(data, principal.tenant_id, clinic_id, days)
+    report = {
         "clinicId": clinic_id,
         "clinicName": clinic.get("name"),
         "week": start.isoformat(),
         "from": start.isoformat(),
         "to": end.isoformat(),
         "firstDay": first_day(data, principal.tenant_id),
-        **unit_period(data, principal.tenant_id, clinic_id, days),
+        **figures,
     }
+    earlier = earlier_period(principal, event, data, start)
+    if earlier:
+        was = unit_period(data, principal.tenant_id, clinic_id, earlier[2])
+        report["comparison"] = _comparison(earlier, was, figures)
+    return report
+
+
+def _comparison(
+    earlier: tuple[dt.date, dt.date, list[dt.date]], was: dict[str, Any], now: dict[str, Any]
+) -> dict[str, Any]:
+    return {"from": earlier[0].isoformat(), "to": earlier[1].isoformat()} | rules.change(was, now)
 
 
 def every_unit(principal: Principal, event: dict[str, Any], *, data: Booking) -> dict[str, Any]:
@@ -129,19 +164,31 @@ def every_unit(principal: Principal, event: dict[str, Any], *, data: Booking) ->
         figures = unit_period(data, principal.tenant_id, str(clinic["clinicId"]), days)
         units.append({"clinicId": clinic["clinicId"], "clinicName": clinic.get("name"), **figures})
     units.sort(key=lambda u: -int(u["booked"]))
-    return {
+    report = {
         "week": start.isoformat(),
         "from": start.isoformat(),
         "to": end.isoformat(),
         "firstDay": first_day(data, principal.tenant_id),
         "units": units,
-        "booked": sum(int(u["booked"]) for u in units),
-        "attended": sum(int(u["attended"]) for u in units),
-        "noShow": sum(int(u["noShow"]) for u in units),
-        "cancelled": sum(int(u["cancelled"]) for u in units),
-        "lateCancelled": sum(int(u["lateCancelled"]) for u in units),
+        **_totals(units),
         # The breakdowns a unit's report shows, for the whole hospital.
         **rules.hospital_figures(units),
+    }
+    earlier = earlier_period(principal, event, data, start)
+    if earlier:
+        was_units = [
+            unit_period(data, principal.tenant_id, str(c["clinicId"]), earlier[2])
+            for c in Catalogue(data.repository).clinics(principal.tenant_id)
+        ]
+        was = _totals(was_units) | rules.hospital_figures(was_units)
+        report["comparison"] = _comparison(earlier, was, report)
+    return report
+
+
+def _totals(units: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        name: sum(int(u[name]) for u in units)
+        for name in ("booked", "attended", "noShow", "cancelled", "lateCancelled", "open")
     }
 
 

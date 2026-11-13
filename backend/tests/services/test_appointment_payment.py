@@ -1,8 +1,8 @@
-"""Pay an appointment's fee in the Fapshi sandbox; the desk sees that it was paid.
+"""Pay an appointment's fee by mobile money through Fapshi; the desk sees that it was paid.
 
-Sandbox only (ADR 0007, 0030): the amount is the fee band in force on the visit
-day, the provider's answer is checked against it, and the booking table and fee
-ledger are only read.
+ADR 0023: the payer gives a number, Fapshi prompts that phone, and the amount is the
+fee band in force on the visit day whatever the request says. The provider's answer
+is checked against it, and the booking table and fee ledger are only read.
 """
 
 from __future__ import annotations
@@ -27,9 +27,9 @@ TENANT = "t-cm-001"
 CLINIC = "c-douala-01"
 PATIENT = "pp-1"
 ATTEMPT = "0b6f3c2e-6a41-4d0b-9a57-3f4f8f3c1a20"
-REFERENCE = REFERENCE_PREFIX + hashlib.sha256(f"{TENANT}:{ATTEMPT}".encode()).hexdigest()
+REFERENCE = REFERENCE_PREFIX + hashlib.sha256(f"{TENANT}:a-1:{ATTEMPT}".encode()).hexdigest()
 TRANS_ID = "ll7J2fl4"
-CHECKOUT = "https://checkout.fapshi.com/payment/test"
+PROMPTED = {"message": "Request sent", "transId": "ll7J2fl4", "dateInitiated": "2026-11-13"}
 SECRET_NAME = "atria/sandbox/fapshi"
 CREDENTIALS = {
     "apiuser": "test-api-user",
@@ -160,23 +160,93 @@ def call(method, caller, *, appointment_id="a-1", body=None):
     return result["statusCode"], json.loads(result["body"])
 
 
-def start(caller=PATIENT_CALLER, **kw):
-    return call("POST", caller, body={"attemptId": ATTEMPT}, **kw)
+def start(caller=PATIENT_CALLER, phone="6 70 00 00 00", **kw):
+    return call("POST", caller, body={"attemptId": ATTEMPT, "phone": phone}, **kw)
 
 
 class TestPayingAnAppointment:
-    def test_the_patient_starts_a_checkout_for_the_visits_fee(self, world, provider):
-        reply(provider, {"transId": TRANS_ID, "link": CHECKOUT})
+    def test_the_payer_is_prompted_for_exactly_the_visits_fee(self, world, provider):
+        reply(provider, PROMPTED)
         code, view = start()
         assert code == 201
-        assert (view["amount"], view["currency"], view["checkoutUrl"]) == (1500, "XAF", CHECKOUT)
+        assert (view["amount"], view["currency"], view["status"]) == (1500, "XAF", "PENDING")
         assert view["paid"] is False
-        assert view["sandbox"] is True
+        assert view["payerPhone"] == "6.. ... 000"
+        sent = json.loads(provider.return_value.request.call_args.args[2])
+        assert provider.return_value.request.call_args.args[1] == "/direct-pay"
+        assert (sent["amount"], sent["phone"]) == (1500, "670000000")
+
+    def test_the_amount_is_the_fee_whatever_the_request_says(self, world, provider):
+        reply(provider, PROMPTED)
+        call(
+            "POST", PATIENT_CALLER, body={"attemptId": ATTEMPT, "phone": "670000000", "amount": 10}
+        )
         sent = json.loads(provider.return_value.request.call_args.args[2])
         assert sent["amount"] == 1500
 
+    def test_a_number_with_the_country_code_is_accepted(self, world, provider):
+        reply(provider, PROMPTED)
+        start(phone="+237 670 00 00 00")
+        sent = json.loads(provider.return_value.request.call_args.args[2])
+        assert sent["phone"] == "670000000"
+
+    def test_a_number_that_is_not_a_cameroon_mobile_is_refused(self, world, provider):
+        assert start(phone="12345")[0] == 400
+        provider.return_value.request.assert_not_called()
+
+    def test_a_prompt_still_waiting_is_not_sent_twice(self, world, provider):
+        reply(provider, PROMPTED)
+        start()
+        reply(provider, paid(status="PENDING"))
+        code, _ = call(
+            "POST",
+            PATIENT_CALLER,
+            body={"attemptId": "9d1c0f5e-7b2a-4c3d-8e9f-0a1b2c3d4e5f", "phone": "670000000"},
+        )
+        assert code == 409
+
+    def test_a_second_prompt_cannot_start_while_the_first_request_is_in_flight(
+        self, world, provider
+    ):
+        reply(provider, PROMPTED)
+        second = []
+
+        def while_sending(method, path, *args, **kwargs):
+            if method == "POST":
+                second.append(
+                    call(
+                        "POST",
+                        PATIENT_CALLER,
+                        body={
+                            "attemptId": "9d1c0f5e-7b2a-4c3d-8e9f-0a1b2c3d4e5f",
+                            "phone": "670000000",
+                        },
+                    )[0]
+                )
+
+        provider.return_value.request.side_effect = while_sending
+        assert start()[0] == 201
+        assert second == [409]
+        assert sum(c.args[0] == "POST" for c in provider.return_value.request.call_args_list) == 1
+
+    def test_failed_direct_pay_is_final_and_allows_a_new_prompt(self, world, provider):
+        reply(provider, PROMPTED)
+        assert start()[0] == 201
+        reply(provider, paid(status="FAILED"))
+        assert call("GET", PATIENT_CALLER)[1]["status"] == "FAILED"
+        count = provider.return_value.request.call_count
+        assert call("GET", DESK)[1]["status"] == "FAILED"
+        assert provider.return_value.request.call_count == count
+        reply(provider, PROMPTED)
+        code, view = call(
+            "POST",
+            PATIENT_CALLER,
+            body={"attemptId": "9d1c0f5e-7b2a-4c3d-8e9f-0a1b2c3d4e5f", "phone": "670000000"},
+        )
+        assert (code, view["status"]) == (201, "PENDING")
+
     def test_the_desk_sees_the_full_amount_paid(self, world, provider):
-        reply(provider, {"transId": TRANS_ID, "link": CHECKOUT})
+        reply(provider, PROMPTED)
         start()
         reply(provider, paid())
         code, view = call("GET", DESK)
@@ -185,7 +255,7 @@ class TestPayingAnAppointment:
         assert (view["status"], view["amount"]) == ("SUCCESSFUL", 1500)
 
     def test_a_short_payment_is_never_shown_as_paid(self, world, provider):
-        reply(provider, {"transId": TRANS_ID, "link": CHECKOUT})
+        reply(provider, PROMPTED)
         start()
         reply(provider, paid(amount=500))
         code, view = call("GET", DESK)
@@ -198,12 +268,13 @@ class TestPayingAnAppointment:
         assert (view["status"], view["paid"], view["amount"]) == ("NONE", False, 1500)
 
     def test_a_paid_visit_is_not_charged_twice(self, world, provider):
-        reply(provider, {"transId": TRANS_ID, "link": CHECKOUT})
+        reply(provider, PROMPTED)
         start()
         reply(provider, paid())
-        call("GET", PATIENT_CALLER)
         code, _ = call(
-            "POST", PATIENT_CALLER, body={"attemptId": "9d1c0f5e-7b2a-4c3d-8e9f-0a1b2c3d4e5f"}
+            "POST",
+            PATIENT_CALLER,
+            body={"attemptId": "9d1c0f5e-7b2a-4c3d-8e9f-0a1b2c3d4e5f", "phone": "670000000"},
         )
         assert code == 409
 
@@ -227,5 +298,18 @@ class TestPayingAnAppointment:
         assert call("GET", elsewhere)[0] == 403
 
     def test_an_attempt_needs_a_uuid4(self, world, provider):
-        code, _ = call("POST", PATIENT_CALLER, body={"attemptId": "not-a-uuid"})
+        code, _ = call(
+            "POST", PATIENT_CALLER, body={"attemptId": "not-a-uuid", "phone": "670000000"}
+        )
         assert code == 400
+
+
+class TestEnvironment:
+    def test_a_test_key_is_refused_on_live(self, world, provider, monkeypatch):
+        monkeypatch.setenv("FAPSHI_HOST", "live.fapshi.com")
+        assert start()[0] == 503
+        provider.return_value.request.assert_not_called()
+
+    def test_an_unknown_host_is_refused(self, world, provider, monkeypatch):
+        monkeypatch.setenv("FAPSHI_HOST", "evil.example.com")
+        assert start()[0] == 503

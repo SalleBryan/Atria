@@ -926,21 +926,25 @@
   color: var(--ink-650);
 }
 
-/* Fee payment in the Fapshi sandbox (components/SandboxPayment.tsx). */
+/* Fee payment by mobile money (components/SandboxPayment.tsx). */
 .pay-fee {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
 }
-.pay-fee .tonal-button,
-.pay-fee .outline-button {
+.pay-fee .field {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.pay-fee .tonal-button {
   flex: 1 1 100%;
   justify-content: center;
   text-align: center;
   text-decoration: none;
 }
 .pay-fee-note {
+  margin: 0;
   flex-basis: 100%;
   font-size: 12px;
   line-height: 1.45;

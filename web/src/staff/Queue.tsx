@@ -310,6 +310,7 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
     [directory, me?.clinicId],
   );
   const iAmDoctor = role === "CLINICIAN";
+  const needsDoctor = !iAmDoctor && !doctors.some((d) => d.clinicianProfileId === doctorId);
   const calls = can(role, "queue.assign_next");
 
   async function step(path: string, message: string, body?: unknown, settle?: (queue: LiveQueue) => LiveQueue) {
@@ -427,36 +428,46 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
           </button>
         )}
         {calls && (
-          <span className="queue-call">
+          <div className="queue-call">
             {!iAmDoctor && (
               <SelectMenu
                 label="Doctor"
+                placeholder={doctors.length ? "Choose a doctor" : "No doctors available"}
+                disabled={doctors.length === 0}
                 value={doctorId}
                 width={260}
                 options={doctors.map((d) => ({ id: d.clinicianProfileId, label: doctor(d) }))}
                 onChange={setDoctorId}
               />
             )}
-            <button
-              type="button"
-              className="staff-primary"
-              disabled={!found?.arrived || busy !== null || (!iAmDoctor && !doctorId) || hold !== null}
-              onClick={() => (preview?.wouldBreachWindow ? setAsking({ kind: "confirm" }) : void callNext())}
-            >
-              {iAmDoctor ? "Call my next patient" : "Call next patient"}
-            </button>
-          </span>
+            {!hold && (
+              <button
+                type="button"
+                className="staff-primary"
+                disabled={!found?.arrived || busy !== null || needsDoctor}
+                onClick={() => (preview?.wouldBreachWindow ? setAsking({ kind: "confirm" }) : void callNext())}
+              >
+                {iAmDoctor ? "Call my next patient" : "Call next patient"}
+              </button>
+            )}
+          </div>
         )}
       </div>
       {calls && hold && (
-        <Notice tone="info">
-          <strong>The doctor is held for {nameOf(hold.appointmentId)}</strong>, place {hold.position}, who was passed over once and has not
-          arrived. {holdMinutes > 0 ? `${holdMinutes} min left.` : "The hold is ending."} Phone them. If they are not coming, call the next
-          patient anyway.{" "}
+        <Notice tone="info" className="queue-hold">
+          <div className="queue-hold-copy">
+            <strong>
+              The doctor is held for {nameOf(hold.appointmentId)} (place {hold.position}).
+            </strong>
+            <p>
+              {holdMinutes > 0 ? `${holdMinutes} min left.` : "The hold is ending."} This patient has not arrived. Phone them before calling
+              the next patient.{needsDoctor ? " Choose a doctor above to continue." : ""}
+            </p>
+          </div>
           <button
             type="button"
-            className="outline-button queue-arrive"
-            disabled={busy !== null || (!iAmDoctor && !doctorId)}
+            className="outline-button queue-hold-action"
+            disabled={!found?.arrived || busy !== null || needsDoctor}
             onClick={() => setAsking({ kind: "override" })}
           >
             Call anyway

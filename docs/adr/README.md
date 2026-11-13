@@ -29,6 +29,7 @@ these updates the record in the same pull request.
 | [0020](0020-every-email-shares-the-platform-look.md) | Every email shares the platform's look | project |
 | [0021](0021-the-app-talks-to-cognito-directly.md) | The app talks to Cognito directly | project |
 | [0022](0022-the-doctor-never-idles-and-a-promise-is-never-skipped.md) | The doctor never idles, and a promise is never skipped (accepted) | project |
+| [0023](0023-visit-fees-by-mobile-money.md) | Visit fees by mobile money (accepted) | project |
 | [0030](0030-commercial-scope-moves-into-phase-3.md) | Commercial scope moves into Phase 3 (proposed) | project, business lane |
 | [0031](0031-usage-metering-reads-the-message-log.md) | Usage metering reads the message log | project, business lane |
 

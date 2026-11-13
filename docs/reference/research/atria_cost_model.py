@@ -153,11 +153,12 @@ for label, per_visit in SMS_PER_VISIT.items():
     msgs = VISITS * per_visit
     out["sms"][label] = {"messages": round(msgs), "xaf": {rate_label: round(msgs * rate) for rate_label, rate in SMS_RATES_XAF.items()}}
 
-# payments: a facility subscription paid by mobile money through an aggregator (Fapshi), fee range unverified
+# Visit fee collections through Fapshi Direct Pay.
+# https://docs.fapshi.com/en/api-reference/preliminary-knowledge/transaction-handling
 out["payments"] = {
     "fapshi_sandbox_numbers": {"success": "670000000", "failure": "670000001"},
-    "fee_range_percent_unverified": [0.5, 3.5],
-    "per_100000_xaf_subscription_xaf": {"0.5%": 500, "1.5%": 1500, "3.5%": 3500},
+    "fapshi_collection_fee_percent": 3,
+    "fee_per_100000_xaf_collected": 3000,
 }
 
 # maintenance: AWS plus pass-through SMS plus support time (labelled assumption)

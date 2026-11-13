@@ -1,4 +1,4 @@
-"""Dev API resources for synthetic Fapshi transactions."""
+"""API resources for Fapshi payments."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import pathlib
 
 from atria_spec.payment_sandbox import (
     APPOINTMENT_PAYMENT_PATH,
+    HOST_ENV,
     PAYMENT_PATH,
     SECRET_ENV,
     TABLE_ENV,
@@ -23,6 +24,7 @@ from constructs import Construct
 from atria_infra.config import Environment
 from atria_infra.stacks.platform import service_function
 
+LIVE_SECRET_NAME = "atria/production/fapshi"  # noqa: S105  Secrets Manager reference only
 SECRET_NAME = "atria/sandbox/fapshi"  # noqa: S105  Secrets Manager reference only
 
 
@@ -41,14 +43,19 @@ class PaymentSandbox(Construct):
         main_key: kms.IKey,
     ) -> None:
         super().__init__(scope, construct_id)
-        credentials = secretsmanager.Secret.from_secret_name_v2(self, "Credentials", SECRET_NAME)
+        credentials = secretsmanager.Secret.from_secret_name_v2(
+            self, "Credentials", SECRET_NAME if settings.payment_sandbox_enabled else LIVE_SECRET_NAME
+        )
         payments = dynamodb.Table(
             self,
             "Payments",
             partition_key=dynamodb.Attribute(name="pk", type=dynamodb.AttributeType.STRING),
             sort_key=dynamodb.Attribute(name="sk", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=RemovalPolicy.DESTROY,
+            removal_policy=RemovalPolicy.DESTROY
+            if settings.payment_sandbox_enabled
+            else RemovalPolicy.RETAIN,
+            deletion_protection=not settings.payment_sandbox_enabled,
         )
         service = service_function(
             self,
@@ -57,10 +64,11 @@ class PaymentSandbox(Construct):
             build_dir=build_dir,
             layer=layer,
             handler="atria.services.payment_sandbox.handler.handler",
-            description="Creates and verifies synthetic Fapshi sandbox payments",
+            description="Starts and verifies Fapshi payments",
             environment={
                 TABLE_ENV: payments.table_name,
                 SECRET_ENV: credentials.secret_name,
+                HOST_ENV: settings.fapshi_host,
                 # Read only: an appointment and its fee band, to price its checkout.
                 "MAIN_TABLE": main_table.table_name,
             },
@@ -87,14 +95,15 @@ class PaymentSandbox(Construct):
         from atria_infra.stacks.api import proxy_integration
 
         integration = proxy_integration(api, service)
-        payment = api.root.resource_for_path(PAYMENT_PATH)
-        for method in ("POST", "GET"):
-            payment.add_method(
-                method,
-                integration,
-                authorizer=authorizer,
-                authorization_type=apigateway.AuthorizationType.CUSTOM,
-            )
+        if settings.payment_sandbox_enabled:
+            payment = api.root.resource_for_path(PAYMENT_PATH)
+            for method in ("POST", "GET"):
+                payment.add_method(
+                    method,
+                    integration,
+                    authorizer=authorizer,
+                    authorization_type=apigateway.AuthorizationType.CUSTOM,
+                )
         appointment_payment = api.root.resource_for_path(APPOINTMENT_PAYMENT_PATH)
         for method in ("POST", "GET"):
             appointment_payment.add_method(

@@ -1,144 +1,167 @@
-/**
- * Paying a visit's fee in the Fapshi sandbox (development only), and the desk
- * confirming it was paid.
- *
- * The patient starts a test checkout for exactly the fee the booking page, the
- * desk and the reminder state, opens Fapshi's test page, then checks. The desk
- * sees the same record on the visit page: paid in full, owed, or started and not
- * confirmed. Paid is only ever true for the full amount, as the API verified it.
- *
- * Nothing shows where the sandbox is not deployed, or the visit has no fee: the
- * read fails or says nothing is owed, and this stays out of the way. Synthetic
- * money only; bookings and the fee ledger are not touched (ADR 0007, 0030).
- */
-
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import { api } from "../api/client";
-import { LoadingIndicator } from "./LoadingIndicator";
+import { startPolling } from "../api/network";
 
-export interface AppointmentPayment {
+interface AppointmentPayment {
   appointmentId: string;
-  sandbox: true;
   status: string;
   paid: boolean;
   amount: number | null;
   currency: string | null;
-  attemptId?: string;
-  checkoutUrl?: string;
-  startedAt?: string;
+  payerPhone?: string;
 }
 
 const money = (amount: number, currency: string | null) => `${new Intl.NumberFormat("en-GB").format(amount)} ${currency ?? "XAF"}`;
-
 const OPEN = ["INITIATING", "CREATED", "PENDING", "INITIATION_UNKNOWN"];
+const RETRY = ["FAILED", "EXPIRED", "INITIATION_REJECTED"];
 
-function usePayment(appointmentId: string) {
-  const [payment, setPayment] = useState<AppointmentPayment | null>(null);
+function usePayment(appointmentId: string, poll = false) {
+  const path = `/appointments/${encodeURIComponent(appointmentId)}/payment`;
+  const [loaded, setLoaded] = useState<AppointmentPayment | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-
-  const check = useCallback(async () => {
-    setBusy(true);
-    setFailure(null);
-    try {
-      setPayment(await api<AppointmentPayment>(`/appointments/${encodeURIComponent(appointmentId)}/payment`));
-    } catch {
-      setFailure("The payment could not be checked. Try again in a few seconds.");
-    } finally {
-      setBusy(false);
-    }
-  }, [appointmentId]);
+  const payment = loaded?.appointmentId === appointmentId ? loaded : null;
+  const open = !!payment && !payment.paid && OPEN.includes(payment.status);
+  const read = useCallback(() => api<AppointmentPayment>(path), [path]);
 
   useEffect(() => {
     let live = true;
-    api<AppointmentPayment>(`/appointments/${encodeURIComponent(appointmentId)}/payment`)
-      .then((found) => live && setPayment(found))
+    void read()
+      .then((found) => live && setLoaded(found))
       .catch(() => undefined);
     return () => {
       live = false;
     };
-  }, [appointmentId]);
+  }, [read]);
 
-  async function start() {
+  useEffect(() => {
+    if (!poll || !open) return;
+    let live = true;
+    const stop = startPolling(async () => {
+      const found = await read();
+      if (live) setLoaded(found);
+    }, 5000);
+    return () => {
+      live = false;
+      stop();
+    };
+  }, [open, poll, read]);
+
+  async function check() {
     setBusy(true);
     setFailure(null);
     try {
-      setPayment(
-        await api<AppointmentPayment>(`/appointments/${encodeURIComponent(appointmentId)}/payment`, {
-          method: "POST",
-          json: { attemptId: crypto.randomUUID() },
-        }),
-      );
-    } catch (caught) {
-      setFailure(caught instanceof Error && caught.message ? caught.message : "The test checkout could not be started.");
+      setLoaded(await read());
+    } catch {
+      setFailure("We could not check the payment. Try again in a few seconds.");
     } finally {
       setBusy(false);
     }
   }
 
-  return { payment, busy, failure, check, start };
+  async function start(phone: string) {
+    setBusy(true);
+    setFailure(null);
+    try {
+      setLoaded(await api<AppointmentPayment>(path, { method: "POST", json: { attemptId: crypto.randomUUID(), phone } }));
+    } catch (caught) {
+      // A prompt can be sent even when the POST response is lost.
+      const found = await read().catch(() => null);
+      if (found) setLoaded(found);
+      if (!found?.paid && !OPEN.includes(found?.status ?? "")) {
+        setFailure(caught instanceof Error && caught.message ? caught.message : "We could not start the payment.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return { payment, open, busy, failure, check, start };
 }
 
-/** The patient's side: pay the fee in the sandbox, then check it went through. */
 export function PayFee({ appointmentId }: { appointmentId: string }) {
-  const { payment, busy, failure, check, start } = usePayment(appointmentId);
+  const { payment, open, busy, failure, start } = usePayment(appointmentId, true);
+  const [phone, setPhone] = useState("");
+  const field = useId();
   if (!payment || payment.amount == null || payment.amount <= 0) return null;
   const owed = money(payment.amount, payment.currency);
-
-  if (payment.paid) {
+  if (payment.paid)
     return (
       <p className="pay-fee-paid" role="status">
-        Fee paid, {owed}. Test payment.
+        Fee paid, {owed}.
+      </p>
+    );
+  if (open) {
+    const sent = payment.status === "PENDING" || payment.status === "CREATED";
+    return (
+      <p className="pay-fee-note" role="status">
+        {sent
+          ? `Approve the payment on your phone.${payment.payerPhone ? ` We sent a prompt to ${payment.payerPhone}.` : ""}`
+          : "We are checking whether the payment prompt was sent."}
       </p>
     );
   }
-  const open = OPEN.includes(payment.status) && payment.checkoutUrl;
+  if (payment.amount < 100) return null;
+
   return (
-    <div className="pay-fee">
-      {open ? (
-        <>
-          <a className="tonal-button" href={payment.checkoutUrl} target="_blank" rel="noreferrer">
-            Open the test checkout
-          </a>
-          <button type="button" className="outline-button" disabled={busy} aria-busy={busy || undefined} onClick={() => void check()}>
-            {busy ? <LoadingIndicator size={20} label="Checking" /> : null}
-            {busy ? "Checking" : "I have paid, check"}
-          </button>
-        </>
-      ) : (
-        <button type="button" className="tonal-button" disabled={busy} aria-busy={busy || undefined} onClick={() => void start()}>
-          {busy ? <LoadingIndicator size={20} label="Starting" /> : null}
-          {busy ? "Starting" : `Pay ${owed} now`}
-        </button>
+    <form
+      className="pay-fee"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!busy) void start(phone.trim());
+      }}
+    >
+      {RETRY.includes(payment.status) && (
+        <p className="pay-fee-note" role="status">
+          The payment did not go through. You can try again.
+        </p>
       )}
-      <small className="pay-fee-note">Test payment in the Fapshi sandbox. No real money moves.</small>
+      <div className="field">
+        <label className="field-label" htmlFor={field}>
+          Mobile money number
+        </label>
+        <input
+          className="input"
+          id={field}
+          type="tel"
+          autoComplete="tel"
+          required
+          disabled={busy}
+          value={phone}
+          onChange={(event) => setPhone(event.target.value)}
+          aria-describedby={`${field}-hint`}
+        />
+        <p className="field-hint" id={`${field}-hint`}>
+          Enter a Cameroon mobile number, for example 6 70 00 00 00.
+        </p>
+      </div>
+      <button type="submit" className="tonal-button" disabled={busy || !phone.trim()} aria-busy={busy || undefined}>
+        {busy ? "Sending payment prompt..." : `Pay ${owed} with mobile money`}
+      </button>
       {failure && (
-        <small className="pay-fee-note" role="alert">
+        <p className="field-error" role="alert">
           {failure}
-        </small>
+        </p>
       )}
-    </div>
+    </form>
   );
 }
 
-/** The desk's side: rows for the visit page's facts list. */
 export function FeePayment({ appointmentId }: { appointmentId: string }) {
-  const { payment, busy, failure, check } = usePayment(appointmentId);
+  const { payment, open, busy, failure, check } = usePayment(appointmentId);
   if (!payment || payment.amount == null || payment.amount <= 0) return null;
   const owed = money(payment.amount, payment.currency);
   const said = payment.paid
-    ? `Paid in full, ${owed}`
-    : payment.status === "NONE"
-      ? `Not paid, ${owed} owed`
-      : OPEN.includes(payment.status)
-        ? `Started, not confirmed yet (${owed})`
-        : `Not paid (${payment.status.toLowerCase().replace(/_/g, " ")}), ${owed} owed`;
+    ? `Paid in full, ${owed} by mobile money${payment.payerPhone ? ` (${payment.payerPhone})` : ""}`
+    : open
+      ? "Waiting for the payer to approve"
+      : `Not paid, ${owed} owed`;
   return (
     <div>
       <dt>Fee payment</dt>
       <dd>
-        <span className={payment.paid ? "fee-paid" : undefined}>{said}</span>. Fapshi sandbox, test money.{" "}
+        <span className={payment.paid ? "fee-paid" : undefined}>{said}</span>.{" "}
         {!payment.paid && (
           <button type="button" className="link-button" disabled={busy} onClick={() => void check()}>
             {busy ? "Checking" : "Check again"}

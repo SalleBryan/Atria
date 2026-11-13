@@ -56,6 +56,7 @@ def test_sandbox_routes_and_permissions() -> None:
         SECRET_ENV: "atria/sandbox/fapshi",  # noqa: S105  Secrets Manager reference only
         TABLE_ENV: {"Ref": table_id},
         "MAIN_TABLE": Match.any_value(),
+        "FAPSHI_HOST": "sandbox.fapshi.com",
     }
     template.has_resource_properties(
         "AWS::Lambda::Function",
@@ -84,6 +85,11 @@ def test_sandbox_routes_and_permissions() -> None:
     assert ":secret:atria/sandbox/fapshi-??????" in json.dumps(secret_grant["Resource"])
     assert "AWSCURRENT" in json.dumps(secret_grant["Condition"])
     template.has_output("FapshiWebhookUrl", {"Value": Match.any_value()})
+
+
+def test_each_environment_has_its_own_fapshi_host() -> None:
+    assert config.DEV.fapshi_host == "sandbox.fapshi.com"
+    assert replace(config.DEV, name="production").fapshi_host == "live.fapshi.com"
 
 
 def test_only_development_can_enable_the_sandbox() -> None:

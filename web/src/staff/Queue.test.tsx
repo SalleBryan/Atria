@@ -267,7 +267,7 @@ describe("The desk sees the cost of a call and who is held for (ADR 0022)", () =
     });
     renderAt("/console/queue", GP);
     expect(await screen.findByText(/The doctor is held for Chantal Ekambi/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Call my next patient" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Call my next patient" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Call anyway" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByRole("button", { name: "Call anyway" })).toBeDisabled();

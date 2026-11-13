@@ -7,6 +7,7 @@ import hmac
 import logging
 import os
 import re
+import time
 from typing import Any
 from uuid import UUID
 
@@ -125,10 +126,15 @@ def _create(
     return saved, True
 
 
+def _terminal(row: Item) -> bool:
+    # Direct pay is final on failure. Hosted checkouts can still be retried on the same link.
+    return row["status"] in TERMINAL or bool(row.get("directPay") and row["status"] == "FAILED")
+
+
 def _apply(repo: Repository, key: Key, row: Item, transaction: Transaction | None) -> Item:
     if transaction is None:
         return row
-    while row["status"] not in TERMINAL:
+    while not _terminal(row):
         if row.get("transId", transaction.trans_id) != transaction.trans_id:
             raise ProviderError()
         if row.get("transId") == transaction.trans_id and row["status"] == transaction.status:
@@ -143,8 +149,28 @@ def _apply(repo: Repository, key: Key, row: Item, transaction: Transaction | Non
 
 def _status(repo: Repository, key: Key) -> Item:
     row = repo.require(key, what="sandbox payment", consistent=True)
-    if row["status"] in TERMINAL:
+    if _terminal(row):
         return row
+    if row.get("directPay"):
+        # Fapshi allows six status reads per minute per transaction. Reserve a
+        # window across browser tabs and Lambda instances; the webhook can still reconcile.
+        now = int(time.time())
+        previous = int(row.get("providerCheckedAt", 0))
+        if now - previous < 12:
+            return row
+        try:
+            if not previous:
+                if not repo.set_if_absent(key, "providerCheckedAt", now):
+                    return repo.require(key, what="payment", consistent=True)
+            else:
+                repo.update_existing(
+                    key,
+                    set_values={"providerCheckedAt": now},
+                    expect=("providerCheckedAt", previous),
+                    what="payment",
+                )
+        except Conflict:
+            return repo.require(key, what="payment", consistent=True)
     provider = Fapshi(Credentials.load())
     trans_id = row.get("transId")
     amount = int(row.get("amount", TEST_AMOUNT))
@@ -171,11 +197,7 @@ def _webhook(event: dict[str, Any], repo: Repository) -> dict[str, Any]:
         raise Invalid("the Fapshi webhook transaction ID is invalid")
     key = Key(reference, "PAYMENT")
     row = repo.get(key, consistent=True)
-    if (
-        row is not None
-        and row["status"] not in TERMINAL
-        and row.get("transId", trans_id) == trans_id
-    ):
+    if row is not None and not _terminal(row) and row.get("transId", trans_id) == trans_id:
         # Treat the webhook as a signal. Only the authenticated status API can
         # supply the state and confirm the identity, type and amount.
         verified = Fapshi(credentials).status(

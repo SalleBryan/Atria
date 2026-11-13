@@ -651,7 +651,7 @@ class ApiStack(Stack):
                 authorization_type=apigateway.AuthorizationType.CUSTOM,
             )
 
-        if settings.payment_sandbox_enabled:
+        if settings.fapshi_payments_enabled:
             PaymentSandbox(
                 self,
                 "PaymentSandbox",

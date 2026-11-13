@@ -104,3 +104,9 @@ Branch `pain/offline-recovery`, web only. Audit F16 done for the web client; F15
 - Pitch deck published as an artifact; cost model in `docs/reference/research/atria_cost_model.py`.
 
 - PR 35 integrates the fee and invitation templates with all three message languages.
+
+## 2026-11-13 pain lane: visit payments by mobile money and queue display
+
+- Recovered the unmerged Direct Pay backend on a branch from main after PR 38. Completed patient phone entry and polling, desk status, preview, API contract, ADR 0023 and the runbook. A single atomic claim protects a visit from overlapping prompts.
+- Grouped the queue actions, clarified the doctor selector and gave the hold override its own place in the notice. Queue rows keep enough height for their fee and status.
+- Observed the queue at desktop and phone widths, and a failed synthetic prompt followed by a successful retry and desk confirmation. No provider transaction, deployment or Flutter check. No demo video.

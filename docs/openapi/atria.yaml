@@ -1550,39 +1550,38 @@ paths:
       - $ref: "#/components/parameters/AppointmentId"
     post:
       tags: [Settings]
-      operationId: payAppointmentInSandbox
-      summary: Start a Fapshi sandbox checkout for this visit's fee (development only)
+      operationId: payAppointment
+      summary: Send a mobile money payment prompt for this visit's fee
       description: |
-        Sandbox only: synthetic money on Fapshi's sandbox. Whoever may read the
-        appointment (appointment.read: the patient, or the unit's staff) may start
-        one. The amount is the fee band in force on the visit day. A visit with no
-        fee, a free one, a cancelled one or one already paid is a 409. Replaying the
-        same attemptId returns the existing attempt. Bookings and the fee ledger are
-        only read (ADR 0007, 0030).
+        Atria sends one Fapshi Direct Pay prompt to the supplied Cameroon mobile
+        number. The fee band in force on the visit day sets the amount; the
+        request cannot change it. The patient or authorized staff may start an
+        attempt. Appointment and fee ledger records are read only (ADR 0023).
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [attemptId]
+              required: [attemptId, phone]
               properties:
-                attemptId: { type: string, format: uuid, description: A new random UUIDv4 for each checkout. }
+                attemptId: { type: string, format: uuid, description: A new random UUIDv4 for each payment attempt. }
+                phone: { type: string, description: Cameroon mobile money number in national or +237 format. }
       responses:
         "201": { $ref: "#/components/responses/AppointmentPayment" }
         "200": { $ref: "#/components/responses/AppointmentPayment" }
         "400": { $ref: "#/components/responses/Invalid" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
-        "409": { description: Nothing to pay, cancelled, or already paid. }
+        "409": { description: No eligible fee, cancelled, already paid, or a prompt is still pending. }
         "502": { description: Fapshi refused the request or the result is uncertain. }
-        "503": { description: Sandbox credentials are unavailable. }
+        "503": { description: Payment credentials are unavailable. }
     get:
       tags: [Settings]
       operationId: getAppointmentPayment
-      summary: Whether this visit's fee was paid in the sandbox
+      summary: Whether this visit's fee was paid
       description: |
-        The latest attempt, its status refreshed from Fapshi and checked against
+        The latest attempt, its status reconciled with Fapshi and checked against
         the expected amount; paid is true only for the full amount. With no attempt
         yet, status is NONE with the amount owed. For the desk to confirm payment.
       responses:
@@ -1590,13 +1589,13 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "502": { description: Fapshi status could not be verified. }
-        "503": { description: Sandbox credentials are unavailable. }
+        "503": { description: Payment credentials are unavailable. }
 
   /webhooks/fapshi:
     post:
       tags: [Settings]
       operationId: receiveFapshiSandboxWebhook
-      summary: Reconcile a sandbox checkout after a Fapshi notification
+      summary: Reconcile a payment after a Fapshi notification
       security:
         - fapshiWebhook: []
       requestBody:
@@ -3744,20 +3743,19 @@ components:
 
   responses:
     AppointmentPayment:
-      description: The visit's sandbox payment.
+      description: The visit's mobile money payment.
       content:
         application/json:
           schema:
             type: object
             properties:
               appointmentId: { type: string }
-              sandbox: { type: boolean, enum: [true] }
               attemptId: { type: string, format: uuid }
               status: { type: string, enum: [NONE, INITIATING, CREATED, PENDING, SUCCESSFUL, FAILED, EXPIRED, INITIATION_REJECTED, INITIATION_UNKNOWN] }
               paid: { type: boolean }
               amount: { type: integer, nullable: true, description: Whole XAF. }
               currency: { type: string, nullable: true }
-              checkoutUrl: { type: string, format: uri }
+              payerPhone: { type: string, description: Masked mobile money number. }
               transId: { type: string }
               startedAt: { type: string, format: date-time }
     SandboxPayment:

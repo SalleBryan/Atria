@@ -752,7 +752,8 @@ class TestWhoSetsTheQueueRules:
         policy = self.live(sid)["policy"]
         assert (policy["inviteFanout"], policy["earlyCallInvites"]) == (6, "auto")
         assert policy["source"]["inviteFanout"] == "tenant"
-        assert policy["inviteLeadMinutes"] == 5 and policy["inviteOpenMinutes"] == 20
+        assert policy["inviteLeadMinutes"] == 5
+        assert policy["inviteOpenMinutes"] == 20
         assert policy["source"]["inviteLeadMinutes"] == "default"
         body_of(self.patch_unit({"inviteFanout": 2, "inviteOpenMinutes": 45}))
         policy = self.live(sid)["policy"]

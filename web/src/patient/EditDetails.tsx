@@ -119,7 +119,13 @@ export function EditDetails({
       {editing === "name" && (
         <div className="edit-details-pair">
           <Field label={t("edit.given")} icon={User} value={given} onChange={(e) => setGiven(e.target.value)} autoComplete="given-name" />
-          <Field label={t("edit.family")} icon={User} value={family} onChange={(e) => setFamily(e.target.value)} autoComplete="family-name" />
+          <Field
+            label={t("edit.family")}
+            icon={User}
+            value={family}
+            onChange={(e) => setFamily(e.target.value)}
+            autoComplete="family-name"
+          />
         </div>
       )}
       {editing === "phone" && (

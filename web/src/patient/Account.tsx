@@ -19,7 +19,7 @@ import { SignOutMenu } from "../components/SignOutMenu";
 import { Notice } from "../components/controls";
 import { Bell, Calendar, CheckMark, ChevronLeft, ChevronRight, Close, Globe, Mail, Phone, Pin, Shield, User } from "../components/icons";
 import { EditDetails, type Editing, shownDateIn } from "./EditDetails";
-import { useLanguage } from "../i18n/LanguageSwitcher";
+import { OFFERED, useLanguage } from "../i18n/LanguageProvider";
 import { SelectMenu } from "../components/Pickers";
 import { DeleteAccountDialog } from "../components/DeleteAccountDialog";
 import { api } from "../api/client";
@@ -36,12 +36,6 @@ const SECTIONS: { id: Section; icon: ComponentType<{ size?: number }> }[] = [
   { id: "details", icon: User },
   { id: "notifications", icon: Bell },
   { id: "clinics", icon: Pin },
-];
-
-const LANGUAGES = [
-  { id: "en", label: "English" },
-  { id: "fr", label: "Français" },
-  { id: "pcm", label: "Pidgin" },
 ];
 
 // The SMS reminder is worded by atria.core.notices in the patient's language,
@@ -194,8 +188,8 @@ export function Account() {
                   <SelectMenu
                     label={t("details.language")}
                     value={language}
-                    options={LANGUAGES}
-                    onChange={(id) => void setLanguage(id as typeof language)}
+                    options={OFFERED.map((id) => ({ id, label: t(`common:languages.${id}`) }))}
+                    onChange={(id) => setLanguage(id as typeof language)}
                     width={170}
                   />
                 }
@@ -338,7 +332,8 @@ function Notifications() {
           </span>
           <span>
             <span className="sms-preview-label">
-              {t("notifications.preview")}{reminderAt ? ` · ${clock.day(reminderAt).toUpperCase()}, ${clock.time(reminderAt)}` : ""}
+              {t("notifications.preview")}
+              {reminderAt ? ` · ${clock.day(reminderAt).toUpperCase()}, ${clock.time(reminderAt)}` : ""}
             </span>
             <span className="sms-preview-text">{sample}</span>
           </span>

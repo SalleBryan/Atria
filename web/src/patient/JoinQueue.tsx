@@ -14,6 +14,8 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { api } from "../api/client";
+import { describeFailure } from "../api/failure";
+import { useOnReconnect } from "../api/network";
 import { Notice } from "../components/controls";
 import { DatePickerMenu } from "../components/DatePickerMenu";
 import { ArrowLeft, Clock, Info, Stethoscope, Users } from "../components/icons";
@@ -60,6 +62,9 @@ export function JoinQueue() {
   const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const [again, setAgain] = useState(0);
+  // The sessions are read again when the connection returns.
+  useOnReconnect(() => setAgain((n) => n + 1));
 
   useEffect(() => {
     if (!unit) return;
@@ -67,6 +72,7 @@ export function JoinQueue() {
     api<{ sessions: Session[] }>(`/clinics/${encodeURIComponent(unit.clinicId)}/sessions`)
       .then((found) => {
         if (!live) return;
+        setFailure(null);
         setSessions(found.sessions);
         setDay((current) => current ?? found.sessions.find((s) => s.remaining > 0)?.sessionDate ?? null);
       })
@@ -74,7 +80,7 @@ export function JoinQueue() {
     return () => {
       live = false;
     };
-  }, [unit]);
+  }, [unit, again]);
 
   const days = useMemo(() => [...new Set((sessions ?? []).map((s) => s.sessionDate))], [sessions]);
   const onDay = (sessions ?? []).filter((s) => s.sessionDate === day);
@@ -90,7 +96,14 @@ export function JoinQueue() {
       await reload();
       navigate(`/visits/${made.appointmentId}`);
     } catch (caught) {
-      setFailure(`${sentence(caught instanceof Error ? caught.message : "That did not go through")} No place was taken.`);
+      const failed = describeFailure(caught, { write: true });
+      setFailure(
+        failed.outcomeUnknown
+          ? `${failed.text} Look in My visits before you try again, so you do not take two places.`
+          : failed.kind === "offline" || failed.kind === "server"
+            ? `${failed.text} No place was taken. Your choice is kept.`
+            : `${sentence(failed.text)} No place was taken.`,
+      );
       setBusy(false);
     }
   }
@@ -249,7 +262,14 @@ export function RequestProcedure() {
       await reload();
       navigate(`/visits/${made.appointmentId}`);
     } catch (caught) {
-      setFailure(`${sentence(caught instanceof Error ? caught.message : "That did not go through")} Nothing was sent.`);
+      const failed = describeFailure(caught, { write: true });
+      setFailure(
+        failed.outcomeUnknown
+          ? `${failed.text} Look in My visits before you send it again. What you wrote is kept here.`
+          : failed.kind === "offline" || failed.kind === "server"
+            ? `${failed.text} Nothing was sent. What you wrote is kept.`
+            : `${sentence(failed.text)} Nothing was sent.`,
+      );
       setBusy(false);
     }
   }

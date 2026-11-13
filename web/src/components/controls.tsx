@@ -166,10 +166,21 @@ export function Checkbox({
   );
 }
 
-export function Notice({ tone = "info", children }: { tone?: "info" | "error" | "success"; children: ReactNode }) {
+export function Notice({
+  tone = "info",
+  children,
+  role,
+  className = "",
+}: {
+  tone?: "info" | "error" | "success";
+  children: ReactNode;
+  /** Announced at once ("alert", the error default) or politely ("status"). */
+  role?: "alert" | "status";
+  className?: string;
+}) {
   const IconComponent = tone === "error" ? Alert : tone === "success" ? CheckMark : Info;
   return (
-    <div className={`notice notice-${tone}`} role={tone === "error" ? "alert" : "status"}>
+    <div className={`notice notice-${tone}${className ? ` ${className}` : ""}`} role={role ?? (tone === "error" ? "alert" : "status")}>
       <IconComponent size={17} />
       <div>{children}</div>
     </div>

@@ -18,6 +18,7 @@ import { createPortal } from "react-dom";
 import { Link, Navigate } from "react-router-dom";
 
 import { api } from "../api/client";
+import { startPolling } from "../api/network";
 import { useSession } from "../auth/session";
 import { Notice } from "../components/controls";
 import { Close, Plus, Users } from "../components/icons";
@@ -253,11 +254,11 @@ function LiveQueueCard({ sessions, onDone }: { sessions: Session[]; onDone: (mes
         setFailure(null);
       })
       .catch((error: unknown) => live && setFailure(error instanceof Error ? sentence(error.message) : "The queue could not be loaded."));
-    // The queue moves while the desk watches it.
-    const every = window.setInterval(load, 30000);
+    // The queue moves while the desk watches it. Paused offline or in a hidden tab (audit F16).
+    const stopPolling = startPolling(load, 30000);
     return () => {
       live = false;
-      window.clearInterval(every);
+      stopPolling();
     };
   }, [sessionId, fresh, load]);
 

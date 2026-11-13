@@ -1533,3 +1533,67 @@
   line-height: 1.6;
   color: var(--ink-700);
 }
+
+/* ------------------------------------------------- connection banner (F16) */
+
+/* Floats over the screen so nothing underneath moves; clicks pass through the slot. */
+.connection-slot {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  z-index: 45;
+  transform: translateX(-50%);
+  width: min(640px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.connection-banner {
+  pointer-events: auto;
+  background: linear-gradient(rgba(214, 72, 90, 0.1), rgba(214, 72, 90, 0.1)), var(--surface-white);
+  box-shadow: 0 10px 26px rgba(13, 27, 52, 0.16);
+  animation:
+    rise var(--move-fast) both,
+    fade-in var(--fade) both;
+}
+.connection-banner > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.connection-words {
+  flex: 1;
+  min-width: 0;
+}
+.connection-retry {
+  flex: none;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid currentColor;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--fade-fast);
+}
+.connection-retry:hover:not(:disabled) {
+  background: rgba(214, 72, 90, 0.1);
+}
+.connection-retry:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+@media (max-width: 767px) {
+  .connection-slot {
+    top: calc(10px + env(safe-area-inset-top));
+  }
+  .connection-banner > div {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .connection-retry {
+    align-self: flex-end;
+  }
+}

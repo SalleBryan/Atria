@@ -8,14 +8,42 @@
 
 import { fetchAuthSession } from "aws-amplify/auth";
 
+import { deviceOnline, reportReachable } from "./network";
+
+/**
+ * A failed request. Status 0 means no response ever came back: the device is
+ * offline or Atria did not answer. `outcomeUnknown` is then true for a write
+ * that left the device, since the server may have acted before the link broke.
+ */
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
     readonly detail?: unknown,
+    readonly outcomeUnknown = false,
   ) {
     super(message);
     this.name = "ApiError";
+  }
+}
+
+/**
+ * Reads (GET) that fail for want of a connection, or because the gateway had
+ * a moment of trouble, are asked again after these pauses. Nothing else is
+ * ever retried by the client: a write that is repeated could book twice or
+ * cancel twice, so a person retries it on purpose.
+ */
+export const READ_RETRY_PAUSES_MS = [600, 1800];
+const GATEWAY_TROUBLE = new Set([502, 503, 504]);
+const pause = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+
+/** The body as JSON; a gateway's HTML error page is not a reason to crash on parse. */
+function parsed(text: string): unknown {
+  if (!text) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
   }
 }
 
@@ -46,11 +74,36 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
     headers.set("Content-Type", "application/json");
     body = JSON.stringify(init.json);
   }
-  const response = await fetch(`/api${path}`, { ...init, headers, body });
-  const text = await response.text();
-  const data: unknown = text ? JSON.parse(text) : undefined;
+  const method = (init.method ?? "GET").toUpperCase();
+  const isRead = method === "GET";
+  const wasOnline = deviceOnline();
+  let response: Response;
+  let text: string;
+  for (let tries = 0; ; tries += 1) {
+    try {
+      response = await fetch(`/api${path}`, { ...init, headers, body });
+      text = await response.text();
+    } catch {
+      reportReachable(false);
+      if (isRead && wasOnline && deviceOnline() && tries < READ_RETRY_PAUSES_MS.length) {
+        await pause(READ_RETRY_PAUSES_MS[tries]!);
+        continue;
+      }
+      throw new ApiError(0, "Atria could not be reached.", undefined, !isRead && wasOnline);
+    }
+    if (isRead && GATEWAY_TROUBLE.has(response.status) && tries < READ_RETRY_PAUSES_MS.length) {
+      await pause(READ_RETRY_PAUSES_MS[tries]!);
+      continue;
+    }
+    break;
+  }
+  // Any answer, even an error, means Atria can be reached.
+  reportReachable(true);
+  const data = parsed(text);
   if (!response.ok) {
-    throw new ApiError(response.status, messageOf(response.status, data), (data as { detail?: unknown } | undefined)?.detail);
+    // A gateway that timed out on a write may have passed it on first.
+    const ambiguous = !isRead && (response.status === 502 || response.status === 504);
+    throw new ApiError(response.status, messageOf(response.status, data), (data as { detail?: unknown } | undefined)?.detail, ambiguous);
   }
   return data as T;
 }
@@ -64,7 +117,14 @@ export async function apiFile(path: string): Promise<{ blob: Blob; name: string 
   const token = session?.tokens?.accessToken?.toString();
   const headers = new Headers();
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const response = await fetch(`/api${path}`, { headers });
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, { headers });
+  } catch {
+    reportReachable(false);
+    throw new ApiError(0, "Atria could not be reached.");
+  }
+  reportReachable(true);
   if (!response.ok) {
     const data = (await response.json().catch(() => undefined)) as { message?: string; detail?: unknown } | undefined;
     throw new ApiError(response.status, messageOf(response.status, data), data?.detail);

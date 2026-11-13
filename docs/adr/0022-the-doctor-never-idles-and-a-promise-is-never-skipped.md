@@ -87,8 +87,16 @@ manager), unit (`PATCH /clinics/{id}/queue-policy`, permission `queue.configure`
 administrator for any), tenant (administrator, through `PATCH /admin/settings`: `queueHoldMinutes`,
 `queueLateGraceMinutes`, `queueMaxBypass`), then the built-in fallback (hold 5, late grace 15, bypass 1). Limits: hold 0
 to 30 (0 never holds), late grace 0 to 60, bypass 0 to 3 (0 holds at once). `null` clears an override. The live queue
-returns the policy in force with the level that set each knob. Still to come in slice 3: `inviteLeadMinutes`,
-`inviteFanout`, `earlyCallInvites`, on the same three levels.
+returns the policy in force with the level that set each knob. Slice 3 adds four knobs on the same three levels:
+`inviteLeadMinutes` (0 to 30, default 5), `inviteFanout` (0 to 10, default 3, 0 sends none), `inviteOpenMinutes`
+(5 to 120, default 20: how long an invitation is open and the time the patient is asked to arrive within) and
+`earlyCallInvites` (`desk` or `auto`, default `desk`). Tenant fields are `queueInviteLeadMinutes`, `queueInviteFanout`,
+`queueInviteOpenMinutes` and `queueEarlyCallInvites`. The fallback is `desk` because every invitation is a metered
+message and production SMS is not switched on yet; the administrator may choose `auto`.
+Invitation state lives on the ticket: `inviteSentAt`, `inviteExpiresAt`, `inviteAnswer` (YES or NO), `inviteReplyAt`,
+`inviteEta`. `core/queue.py::invite_targets` is the one pure function that says who may be invited now. A YES records
+the patient's reply and an ETA and nothing else (R4 as written: it moves nothing by itself, so the doctor is never
+sent for someone who is not here). The patient then arrives and is checked in as any arrival is.
 
 ### Messages
 New kinds `EARLY_CALL_INVITE` and `QUEUE_MOVED` in `core/notices.py`. The invite is time critical, so prefer the push

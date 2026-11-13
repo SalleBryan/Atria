@@ -2175,7 +2175,8 @@ paths:
         unit, the administrator for any. Send only the rules to change; null
         clears an override so the tenant's default applies again. The tenant's
         defaults are set through PATCH /admin/settings (queueHoldMinutes,
-        queueLateGraceMinutes, queueMaxBypass).
+        queueLateGraceMinutes, queueMaxBypass, queueInviteLeadMinutes,
+        queueInviteFanout, queueInviteOpenMinutes, queueEarlyCallInvites).
       parameters:
         - name: id
           in: path
@@ -2670,12 +2671,20 @@ components:
         holdMinutes: { type: [integer, "null"], minimum: 0, maximum: 30, description: How long the next free doctor is held for a booked patient already passed over. 0 never holds. }
         lateGraceMinutes: { type: [integer, "null"], minimum: 0, maximum: 60, description: Minutes after a window ends before an absent patient is late. }
         maxBypass: { type: [integer, "null"], minimum: 0, maximum: 3, description: Consultations that may start ahead of a due, absent patient before the doctor is held. }
+        inviteLeadMinutes: { type: [integer, "null"], minimum: 0, maximum: 30, description: How many minutes before a doctor is expected to be free that early-call invitations may go out (ADR 0022 R4). }
+        inviteFanout: { type: [integer, "null"], minimum: 0, maximum: 10, description: How many invitations may be out at once. 0 sends none. }
+        inviteOpenMinutes: { type: [integer, "null"], minimum: 5, maximum: 120, description: How long an invitation stays open, and the time the patient is asked to arrive within. }
+        earlyCallInvites: { type: [string, "null"], enum: [desk, auto, null], description: "desk: only the desk sends invitations. auto: the system sends them when a doctor is about to be free and nobody is here." }
     QueuePolicy:
       type: object
       properties:
         holdMinutes: { type: integer }
         lateGraceMinutes: { type: integer }
         maxBypass: { type: integer }
+        inviteLeadMinutes: { type: integer }
+        inviteFanout: { type: integer }
+        inviteOpenMinutes: { type: integer }
+        earlyCallInvites: { type: string, enum: [desk, auto] }
         source:
           type: object
           description: Which level set each rule (session, unit, tenant or default).
@@ -2690,6 +2699,10 @@ components:
         reminderLeadHours: { type: integer, minimum: 1, maximum: 72 }
         secondReminderHours: { type: integer, minimum: 0, maximum: 12, description: "0 is off" }
         queueMoveThresholdMinutes: { type: integer, minimum: 10, maximum: 120 }
+        queueInviteLeadMinutes: { type: integer, minimum: 0, maximum: 30 }
+        queueInviteFanout: { type: integer, minimum: 0, maximum: 10 }
+        queueInviteOpenMinutes: { type: integer, minimum: 5, maximum: 120 }
+        queueEarlyCallInvites: { type: string, enum: [desk, auto] }
         noShowStrikeThreshold: { type: integer, minimum: 0, maximum: 10, description: "0 is off" }
         noShowStrikeWindowDays: { type: integer, minimum: 30, maximum: 365 }
         qualityProgrammeEnabled: { type: boolean }

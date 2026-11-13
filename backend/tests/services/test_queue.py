@@ -888,3 +888,43 @@ class TestReadingTheUnitsRules:
             path={"id": DOUALA},
         )
         assert got["statusCode"] == 403
+
+
+class TestTicketOutlook:
+    def outlook(self, appointment_id, context=None):
+        return call(
+            "GET",
+            "/appointments/{id}/ticket",
+            context=context or patient_context(),
+            path={"id": appointment_id},
+        )
+
+    def test_a_patient_sees_how_many_are_ahead_and_no_one_else(self, opd):
+        session = body_of(publish())
+        first = body_of(ticket(session["sessionId"]))
+        second = body_of(
+            ticket(
+                session["sessionId"],
+                context=staff_context(),
+                patientProfileId="pp-2",
+                channel="WALK_IN",
+            )
+        )
+        mine = body_of(self.outlook(first["appointmentId"]))
+        assert (mine["ahead"], mine["position"], mine["issuedTickets"]) == (0, 1, 2)
+        # The wording of the response names no other patient, only counts and times.
+        assert "pp-2" not in json.dumps(mine)
+        staff_view = body_of(self.outlook(second["appointmentId"], context=staff_context()))
+        assert staff_view["ahead"] == 1
+
+    def test_the_estimate_is_a_five_minute_time_and_never_before_the_window(self, opd):
+        session = body_of(publish())
+        first = body_of(ticket(session["sessionId"]))
+        found = body_of(self.outlook(first["appointmentId"]))
+        start = dt.datetime.fromisoformat(found["expectedStartAt"].replace("Z", "+00:00"))
+        assert start.minute % 5 == 0
+        assert start.second == 0
+        assert found["expectedStartAt"] >= first["arrivalWindowStart"]
+
+    def test_a_booking_that_is_not_a_queue_place_is_not_found(self, opd):
+        assert self.outlook("a-missing")["statusCode"] == 404

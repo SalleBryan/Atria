@@ -422,6 +422,13 @@ class ApiStack(Stack):
                 authorizer=self.request_authoriser,
                 authorization_type=apigateway.AuthorizationType.CUSTOM,
             )
+        # The patient's own live place in a queue (services/booking/queue.py).
+        one_appointment.add_resource("ticket").add_method(
+            "GET",
+            booking_integration,
+            authorizer=self.request_authoriser,
+            authorization_type=apigateway.AuthorizationType.CUSTOM,
+        )
         # What happens after booking (services/booking/visits.py): one resource
         # per action, so a mistyped action is API Gateway's 403, not a handler's.
         for action in VISIT_ACTIONS:

@@ -358,3 +358,48 @@ def expected_consult_minutes(tickets: list[dict[str, object]], *, per_hour: floa
     spans.sort()
     middle = len(spans) // 2
     return round(spans[middle] if len(spans) % 2 else (spans[middle - 1] + spans[middle]) / 2, 1)
+
+
+def outlook(
+    tickets: list[dict[str, object]],
+    mine: dict[str, object],
+    now: dt.datetime,
+    *,
+    per_hour: float,
+    clinicians: int = 1,
+) -> dict[str, object]:
+    """What one patient may be told about their place: counts and times, never people.
+
+    Ahead is everyone waiting or here with an earlier place, so a patient called
+    out of order by the rules (bypass, urgent) can wait a little more or less than
+    this says; the time is an estimate and is given rounded up to five minutes.
+    """
+    here = str(mine.get("appointmentId", ""))
+    ahead = [
+        t
+        for t in tickets
+        if str(t.get("appointmentId", "")) != here
+        and t.get("state") in (*WAITING, "ARRIVED")
+        and _position(t) < _position(mine)
+    ]
+    lanes = max(1, clinicians)
+    busy = sum(1 for t in tickets if t.get("state") == "IN_CONSULTATION")
+    minutes = expected_consult_minutes(tickets, per_hour=per_hour)
+    wait = len(ahead) / lanes * minutes
+    if busy >= lanes:
+        wait += minutes / 2
+    start = now + dt.timedelta(minutes=wait)
+    opens = _instant(mine.get("arrivalWindowStart"))
+    if opens and start < opens:
+        start = opens
+    rounded = start.replace(second=0, microsecond=0)
+    if start > rounded:
+        rounded += dt.timedelta(minutes=1)
+    rounded += dt.timedelta(minutes=(-rounded.minute) % 5)
+    return {
+        "ahead": len(ahead),
+        "inConsultation": busy,
+        "consultationMinutes": minutes,
+        "expectedStartAt": rounded.astimezone(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "next": not ahead and mine.get("state") == "ARRIVED",
+    }

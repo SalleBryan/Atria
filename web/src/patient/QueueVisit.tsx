@@ -42,9 +42,40 @@ export function useSession(sessionId: string | null | undefined) {
   return found;
 }
 
+/** How often a waiting patient's place is read again. */
+const TICKET_REFRESH_MS = 30_000;
+
+interface Outlook {
+  ahead: number;
+  expectedStartAt: string;
+  next: boolean;
+}
+
+/** The patient's own place, live: patients ahead and when they are likely to be seen. */
+export function useOutlook(appointmentId: string, active: boolean) {
+  const [found, setFound] = useState<Outlook | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    let live = true;
+    const read = () =>
+      api<Outlook>(`/appointments/${encodeURIComponent(appointmentId)}/ticket`)
+        .then((data) => live && setFound(data))
+        .catch(() => undefined);
+    void read();
+    const timer = window.setInterval(() => void read(), TICKET_REFRESH_MS);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [appointmentId, active]);
+  return found;
+}
+
 export function TicketDetail({ appointment, actions }: { appointment: Appointment; actions: React.ReactNode }) {
   const { state } = usePatientData();
   const session = useSession(appointment.sessionId);
+  const waitingNow = ticketWaits(appointment.state) || appointment.state === "ARRIVED";
+  const outlook = useOutlook(appointment.appointmentId, waitingNow);
   if (state.status !== "ready") return null;
   const { clinic, type } = join(state.data, appointment);
   const status = stateLabel(appointment.state);
@@ -129,6 +160,18 @@ export function TicketDetail({ appointment, actions }: { appointment: Appointmen
               <dt>Session</dt>
               <dd>{session ? `${session.startTime} to ${session.endTime}` : "Loading"}</dd>
             </div>
+            {outlook && waitingNow ? (
+              <>
+                <div>
+                  <dt>Ahead of you</dt>
+                  <dd>{outlook.next ? "No one, you are next" : outlook.ahead === 1 ? "1 patient" : `${outlook.ahead} patients`}</dd>
+                </div>
+                <div>
+                  <dt>Likely to be seen around</dt>
+                  <dd>{clock.time(outlook.expectedStartAt)}, an estimate that updates here</dd>
+                </div>
+              </>
+            ) : null}
             {waiting ? (
               <div>
                 <dt>If the queue moves</dt>

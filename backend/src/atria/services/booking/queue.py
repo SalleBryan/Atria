@@ -37,6 +37,7 @@ from atria.data.sessions import Sessions, window_of
 from atria.http import requests
 from atria.http.views import appointment_view
 from atria.services.booking.appointments import booking, no_shows, role_used, subject_of
+from atria.services.booking.fees import FeeLookup
 
 logger = Logger(service="atria-queue")
 
@@ -181,6 +182,14 @@ def general_type(tenant_id: str, clinic_id: str) -> dict[str, Any]:
         if kind.get("serviceLine") == "GENERAL" and setting_rules.offered_at(kind, clinic_id):
             return kind
     raise NotFound("this unit runs no general consultation queue")
+
+
+def walk_in_fee(tenant_id: str, clinic_id: str, fees: FeeLookup) -> dict[str, Any] | None:
+    """The fee a walk-in will be asked for: that of the unit's general consultation."""
+    try:
+        return fees.for_type(general_type(tenant_id, clinic_id).get("appointmentTypeId"))
+    except NotFound:
+        return None
 
 
 def issue(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
@@ -353,11 +362,18 @@ def live_queue(principal: Principal, event: dict[str, Any], *, people: People) -
         0.0, (min(booking().now(), window.closes_at) - window.opens_at).total_seconds() / 3600
     )
     rostered = int(session.get("rosteredClinicianCount") or 1)
+    fees = FeeLookup(booking().repository, principal.tenant_id, str(session["sessionDate"]))
     return {
         **session_view(session),
         "appointments": [
-            {**appointment_view(t), **ticket_flags(t, booking().now())} for t in tickets
+            {
+                **appointment_view(t),
+                **ticket_flags(t, booking().now()),
+                "fee": fees.for_type(t.get("appointmentTypeId")),
+            }
+            for t in tickets
         ],
+        "walkInFee": walk_in_fee(principal.tenant_id, str(session["clinicId"]), fees),
         "patients": people.patient_names(
             principal.tenant_id, [str(t["patientProfileId"]) for t in tickets]
         ),

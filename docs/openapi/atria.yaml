@@ -2041,7 +2041,12 @@ paths:
         Permission queue.read at clinic scope, staff only. Recalculates
         arrival windows first, then lists every ticket with the patients'
         names, the counts waiting, arrived and in consultation, and the planned
-        against the actual pace so far.
+        against the actual pace so far. Each ticket carries the fee it will be
+        asked for at the hospital, from the fee band in force on the session
+        date (looked up once per appointment type), and walkInFee is the same
+        for the unit's general consultation, which is what a walk-in takes.
+        A fee is a plain amount: it carries no rating or score, and nothing
+        in Atria collects it.
       parameters:
         - name: id
           in: path
@@ -2069,6 +2074,8 @@ paths:
                                 late: { type: boolean, description: Past its window and grace, or its hold ran out. Lateness forfeits priority. }
                                 bypassCount: { type: integer, description: Consultations started ahead of this ticket while it was due and absent. }
                                 urgent: { type: boolean }
+                                fee: { $ref: "#/components/schemas/DeskFee" }
+                      walkInFee: { $ref: "#/components/schemas/DeskFee" }
                       patients: { $ref: "#/components/schemas/PatientNames" }
                       waiting: { type: integer }
                       arrived: { type: integer }
@@ -3122,6 +3129,16 @@ components:
           type: string
           description: Recorded on the appointment's first event.
 
+    DeskFee:
+      type: [object, "null"]
+      description: |
+        The fee a visit will be asked for at the hospital, from the band in
+        force on the day, in whole currency units; zero is free. Null when the
+        visit's type has no fee band. A plain amount: no rating or score
+        touches it, and Atria collects nothing.
+      properties:
+        amountMinor: { type: integer, minimum: 0 }
+        currency: { type: string, description: The region pack's currency, for example XAF. }
     PatientNames:
       type: object
       description: |

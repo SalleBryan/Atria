@@ -254,7 +254,7 @@
 /* Every notification count is red, on any background, so it reads as
    something waiting for you (feedback 2026-09-25). */
 /* The language button: in the sidebar from tablet up, floating at the top on phones. */
-.lang-float {
+.icon-button.lang-float {
   display: none;
 }
 .side-me {
@@ -1159,7 +1159,8 @@
   .side-margin {
     display: none;
   }
-  .lang-float {
+  .icon-button.lang-float {
+    display: grid;
     position: fixed;
     top: 10px;
     right: 10px;

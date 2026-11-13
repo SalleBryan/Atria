@@ -8,7 +8,7 @@
  * what the level above says or is set here. The server says which level set each rule.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { api } from "../api/client";
@@ -23,15 +23,20 @@ export interface QueuePolicy {
   holdMinutes: number;
   lateGraceMinutes: number;
   maxBypass: number;
+  inviteLeadMinutes: number;
+  inviteFanout: number;
+  inviteOpenMinutes: number;
+  earlyCallInvites: "desk" | "auto";
   source: Record<string, string>;
 }
 
-type Knob = "holdMinutes" | "lateGraceMinutes" | "maxBypass";
+type NumberKnob = "holdMinutes" | "lateGraceMinutes" | "maxBypass" | "inviteLeadMinutes" | "inviteFanout" | "inviteOpenMinutes";
+type Knob = NumberKnob | "earlyCallInvites";
 type Level = "unit" | "session";
 
 const INHERIT = "inherit";
 
-export const KNOBS: { name: Knob; title: string; help: string; values: number[]; show: (n: number) => string }[] = [
+export const KNOBS: { name: NumberKnob; title: string; help: string; values: number[]; show: (n: number) => string }[] = [
   {
     name: "holdMinutes",
     title: "Hold the doctor for a booked patient",
@@ -53,7 +58,60 @@ export const KNOBS: { name: Knob; title: string; help: string; values: number[];
     values: [0, 1, 2, 3],
     show: (n) => (n === 0 ? "Never, hold at once" : n === 1 ? "Once" : n === 2 ? "Twice" : "Three times"),
   },
+  {
+    name: "inviteLeadMinutes",
+    title: "Invite early this long before a doctor is free",
+    help: "A booked patient who is not here is asked to come earlier when a doctor is free, or will be within this long, and nobody is waiting.",
+    values: [0, 3, 5, 10, 15, 20, 30],
+    show: (n) => (n === 0 ? "Only when free" : `${n} min`),
+  },
+  {
+    name: "inviteFanout",
+    title: "Invitations out at once",
+    help: "How many booked patients may be invited at the same time. None means no invitations are sent.",
+    values: [0, 1, 2, 3, 4, 5, 8, 10],
+    show: (n) => (n === 0 ? "None" : String(n)),
+  },
+  {
+    name: "inviteOpenMinutes",
+    title: "How long an invitation stays open",
+    help: "The time the patient is asked to arrive within. An answer after it is refused; nobody loses their place either way.",
+    values: [5, 10, 15, 20, 30, 45, 60, 90, 120],
+    show: (n) => `${n} min`,
+  },
 ];
+
+/** Who sends invitations: the one rule that is a choice and not a number. */
+export const INVITE_MODE = {
+  name: "earlyCallInvites" as const,
+  title: "Who sends invitations",
+  help: "The desk sends them with a button, or the system sends them by itself when its rules allow. Either way the doctor is never held and nobody is moved.",
+  options: [
+    { id: "desk", label: "The desk sends them" },
+    { id: "auto", label: "Automatically" },
+  ],
+};
+
+/** Every rule the dialog edits, numbers first and the invitation mode last, in one shape. */
+const RULES: { name: Knob; title: string; help: string; options: { id: string; label: string }[]; show: (v: number | string) => string }[] =
+  [
+    ...KNOBS.map((k) => ({
+      name: k.name as Knob,
+      title: k.title,
+      help: k.help,
+      options: k.values.map((n) => ({ id: String(n), label: k.show(n) })),
+      show: k.show as (v: number | string) => string,
+    })),
+    {
+      name: INVITE_MODE.name,
+      title: INVITE_MODE.title,
+      help: INVITE_MODE.help,
+      options: INVITE_MODE.options,
+      show: ((v: string) => INVITE_MODE.options.find((o) => o.id === v)?.label ?? v) as (v: number | string) => string,
+    },
+  ];
+const ALL = RULES.map((r) => r.name);
+const blank = () => Object.fromEntries(ALL.map((name) => [name, INHERIT])) as Record<Knob, string>;
 
 const LEVEL_NAMES: Record<string, string> = {
   session: "this session",
@@ -80,7 +138,7 @@ export function QueueRulesDialog({
   onDone: (message: string) => void;
 }) {
   const [policy, setPolicy] = useState<QueuePolicy | null>(initial ?? null);
-  const [chosen, setChosen] = useState<Record<Knob, string>>({ holdMinutes: INHERIT, lateGraceMinutes: INHERIT, maxBypass: INHERIT });
+  const [chosen, setChosen] = useState<Record<Knob, string>>(() => blank());
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -98,18 +156,21 @@ export function QueueRulesDialog({
   // What each rule is set to at this level now: its own value, or inherited.
   const current = useMemo<Record<Knob, string>>(() => {
     const own = (name: Knob) => (policy && policy.source[name] === level ? String(policy[name]) : INHERIT);
-    return { holdMinutes: own("holdMinutes"), lateGraceMinutes: own("lateGraceMinutes"), maxBypass: own("maxBypass") };
+    return Object.fromEntries(ALL.map((name) => [name, own(name)])) as Record<Knob, string>;
   }, [policy, level]);
   useEffect(() => setChosen(current), [current]);
 
-  const changed = KNOBS.filter((k) => chosen[k.name] !== current[k.name]);
+  const changed = ALL.filter((name) => chosen[name] !== current[name]);
 
   async function save() {
     setBusy(true);
     setFailure(null);
     try {
-      const body: Record<string, number | null> = {};
-      for (const k of changed) body[k.name] = chosen[k.name] === INHERIT ? null : Number(chosen[k.name]);
+      const body: Record<string, number | string | null> = {};
+      for (const name of changed) {
+        const value = chosen[name];
+        body[name] = value === INHERIT ? null : name === "earlyCallInvites" ? value : Number(value);
+      }
       await api(path, { method: "PATCH", json: body });
       onDone(level === "session" ? "The rules for this session are saved." : "The unit's queue rules are saved.");
     } catch (caught) {
@@ -144,23 +205,28 @@ export function QueueRulesDialog({
             <LoadingPane label="Loading the rules" />
           ) : (
             <div className="settings-dialog-form">
-              {KNOBS.map((k) => {
+              {RULES.map((k, index) => {
                 const inherited = chosen[k.name] === INHERIT;
                 const above = policy.source[k.name] === level ? "the level above" : LEVEL_NAMES[policy.source[k.name] ?? "default"];
                 return (
-                  <div key={k.name} className="off-field">
-                    <span>{k.title}</span>
-                    <SelectMenu
-                      label={k.title}
-                      value={chosen[k.name]}
-                      width={260}
-                      options={[{ id: INHERIT, label: "Use the default" }, ...k.values.map((n) => ({ id: String(n), label: k.show(n) }))]}
-                      onChange={(id) => setChosen((c) => ({ ...c, [k.name]: id }))}
-                    />
-                    <small className="queue-rule-help">
-                      {k.help} {inherited ? `Now ${k.show(policy[k.name])}, set by ${above}.` : ""}
-                    </small>
-                  </div>
+                  <Fragment key={k.name}>
+                    {index === KNOBS.findIndex((x) => x.name === "inviteLeadMinutes") && (
+                      <p className="settings-label queue-rules-group">Early-call invitations</p>
+                    )}
+                    <div className="off-field">
+                      <span>{k.title}</span>
+                      <SelectMenu
+                        label={k.title}
+                        value={chosen[k.name]}
+                        width={260}
+                        options={[{ id: INHERIT, label: "Use the default" }, ...k.options]}
+                        onChange={(id) => setChosen((c) => ({ ...c, [k.name]: id }))}
+                      />
+                      <small className="queue-rule-help">
+                        {k.help} {inherited ? `Now ${k.show(policy[k.name])}, set by ${above}.` : ""}
+                      </small>
+                    </div>
+                  </Fragment>
                 );
               })}
               {failure && <Notice tone="error">{failure}</Notice>}

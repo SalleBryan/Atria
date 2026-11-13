@@ -16,6 +16,7 @@ import { api } from "../api/client";
 import { startPolling } from "../api/network";
 import { Notice } from "../components/controls";
 import { Alert, Bell, CheckMark, Clock, Close, Mail } from "../components/icons";
+import { LoadingIndicator } from "../components/LoadingIndicator";
 import { type Appointment, clock, join, stateLabel, ticketWaits, usePatientData } from "./data";
 
 interface SessionSummary {
@@ -47,10 +48,19 @@ export function useSession(sessionId: string | null | undefined) {
 /** How often a waiting patient's place is read again. */
 const TICKET_REFRESH_MS = 30_000;
 
+/** An early-call invitation to come sooner (ADR 0022 R4). Answering moves nobody. */
+interface Invite {
+  status: "open" | "accepted" | "declined" | "expired";
+  expiresAt: string;
+  answer: "YES" | "NO" | null;
+  eta: string | null;
+}
+
 interface Outlook {
   ahead: number;
   expectedStartAt: string;
   next: boolean;
+  invite?: Invite | null;
 }
 
 /**
@@ -92,6 +102,77 @@ export function useOutlook(appointmentId: string, active: boolean) {
     };
   }, [appointmentId, active]);
   return { found, asOf, stale };
+}
+
+/** The patient's answer to "can you come sooner?": a button, never a free-text reply. */
+function InviteReply({ appointmentId, invite }: { appointmentId: string; invite: Invite }) {
+  const [shown, setShown] = useState(invite);
+  const [busy, setBusy] = useState<"YES" | "NO" | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  useEffect(() => setShown(invite), [invite]);
+
+  async function answer(choice: "YES" | "NO") {
+    setBusy(choice);
+    setFailure(null);
+    try {
+      const done = await api<{ invite: Invite }>(`/appointments/${encodeURIComponent(appointmentId)}/invite-reply`, {
+        method: "POST",
+        json: { answer: choice },
+      });
+      setShown(done.invite);
+    } catch {
+      setFailure("That did not go through. Try again, or tell the desk when you arrive.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (shown.status === "expired") return null;
+  return (
+    <div className="queue-invite" role="group" aria-label="A doctor is free sooner">
+      {shown.status === "open" ? (
+        <>
+          <p className="queue-note">
+            <Bell size={16} />A doctor is free sooner. Can you be at the desk by {clock.time(shown.expiresAt)}? Your place does not change
+            whatever you answer.
+          </p>
+          <div className="queue-invite-actions">
+            <button
+              type="button"
+              className="tonal-button"
+              disabled={busy !== null}
+              aria-busy={busy === "YES" || undefined}
+              onClick={() => void answer("YES")}
+            >
+              {busy === "YES" ? <LoadingIndicator size={18} label="Sending" /> : null}
+              Yes, I am coming
+            </button>
+            <button
+              type="button"
+              className="outline-button"
+              disabled={busy !== null}
+              aria-busy={busy === "NO" || undefined}
+              onClick={() => void answer("NO")}
+            >
+              {busy === "NO" ? <LoadingIndicator size={18} label="Sending" /> : null}
+              No, keep my place
+            </button>
+          </div>
+          {failure && <p className="queue-note queue-note-declined">{failure}</p>}
+        </>
+      ) : shown.status === "accepted" ? (
+        <p className="queue-note">
+          <CheckMark size={16} />
+          Thank you. We expect you by {clock.time(shown.eta ?? shown.expiresAt)}. Check in at the desk when you arrive.
+        </p>
+      ) : (
+        <p className="queue-note">
+          <CheckMark size={16} />
+          Understood. Your place is unchanged.
+        </p>
+      )}
+    </div>
+  );
 }
 
 export function TicketDetail({ appointment, actions }: { appointment: Appointment; actions: React.ReactNode }) {
@@ -176,6 +257,7 @@ export function TicketDetail({ appointment, actions }: { appointment: Appointmen
               keep trying, and come to the desk as planned if you are unsure.
             </Notice>
           ) : null}
+          {outlook?.invite && waiting ? <InviteReply appointmentId={appointment.appointmentId} invite={outlook.invite} /> : null}
           <dl className="facts-list">
             <div>
               <dt>Unit</dt>

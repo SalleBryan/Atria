@@ -292,3 +292,74 @@ class TestSms:
     def test_a_cancellation_is_not_sent_by_sms(self):
         with pytest.raises(Invalid):
             compose(notices.BOOKING_CANCELLATION, channel="SMS")
+
+
+class TestFee:
+    """The fee is stated in the notices that tell a patient about a visit (cost transparency)."""
+
+    FEE = (15000, "XAF")
+
+    def test_the_reminder_sms_states_the_fee(self):
+        text = compose(
+            notices.APPOINTMENT_REMINDER, channel="SMS", language="en", fee=self.FEE
+        ).body
+        assert "Fee: 15,000 XAF." in text
+
+    def test_french_groups_thousands_with_a_space_and_stays_ascii(self):
+        text = compose(
+            notices.APPOINTMENT_REMINDER, channel="SMS", language="fr", fee=self.FEE
+        ).body
+        assert "Tarif: 15 000 XAF." in text
+        assert text.isascii()
+
+    def test_a_fee_of_nothing_says_free(self):
+        en = compose(
+            notices.BOOKING_CONFIRMATION, channel="SMS", language="en", fee=(0, "XAF")
+        ).body
+        fr = compose(
+            notices.BOOKING_CONFIRMATION, channel="SMS", language="fr", fee=(0, "XAF")
+        ).body
+        assert "Fee: free." in en
+        assert "Tarif: gratuit." in fr
+
+    def test_a_visit_with_no_fee_band_says_nothing_about_a_fee(self):
+        for channel in ("SMS", "EMAIL"):
+            text = compose(notices.APPOINTMENT_REMINDER, channel=channel, language="en").body
+            assert "Fee" not in text
+            assert "XAF" not in text
+
+    def test_the_longest_reminder_and_confirmation_still_fit_one_segment_with_a_fee(self):
+        for language in notices.LANGUAGES:
+            for kind in (notices.APPOINTMENT_REMINDER, notices.BOOKING_CONFIRMATION):
+                text = compose(
+                    kind,
+                    channel="SMS",
+                    language=language,
+                    clinic_name="Hopital General de Douala",
+                    clinician_name="Dr Marie-Claire Nkengfack",
+                    fee=(150000, "XAF"),
+                ).body
+                assert len(text) <= notices.SMS_SEGMENT, (kind, language, len(text))
+
+    def test_the_email_lists_the_fee_in_text_and_html(self):
+        for kind in (notices.APPOINTMENT_REMINDER, notices.BOOKING_CONFIRMATION):
+            notice = compose(kind, language="en", fee=self.FEE)
+            assert "Fee: 15,000 XAF" in notice.body
+            assert "15,000 XAF" in notice.html
+
+    def test_a_queue_place_states_the_fee_too(self):
+        ticket = {**APPOINTMENT, "sessionId": "s-1", "position": 3}
+        notice = compose(
+            notices.APPOINTMENT_REMINDER, appointment=ticket, language="en", fee=self.FEE
+        )
+        assert "Fee: 15,000 XAF" in notice.body
+
+    def test_other_notices_do_not_carry_a_fee(self):
+        for kind in (notices.BOOKING_CANCELLATION, notices.BOOKING_RESCHEDULED):
+            assert "XAF" not in compose(kind, language="en", fee=self.FEE).body
+
+    def test_a_fee_carries_no_rating_or_score(self):
+        text = compose(
+            notices.APPOINTMENT_REMINDER, channel="SMS", language="en", fee=self.FEE
+        ).body
+        assert "rating" not in text.lower()

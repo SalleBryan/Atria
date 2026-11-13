@@ -1,0 +1,140 @@
+{
+  "color": {
+    "primary": {
+      "100": "#E3EDFE",
+      "200": "#BFD5FE",
+      "400": "#7AA8FA",
+      "500": "#4A83F0",
+      "600": "#2F6BE4",
+      "700": "#2461DB",
+      "800": "#1B4FB8",
+      "900": "#0B2B6B"
+    },
+    "neutral": {
+      "ink": "#0D1B34",
+      "ink2": "#2C3D60",
+      "muted": "#5A6C8E",
+      "label": "#647596",
+      "hairline": "#DFE7F7",
+      "ground": "#E9F0FD",
+      "surface": "#FFFFFF",
+      "field": "#EDF2FB"
+    },
+    "status": {
+      "confirmed": "#0E9C6B",
+      "confirmedInk": "#0B7A53",
+      "awaiting": "#D98324",
+      "awaitingInk": "#9B5E0E",
+      "cancelled": "#D6485A",
+      "cancelledInk": "#B93B4C",
+      "booked": "#2F6BE4",
+      "bookedInk": "#2A5BC2"
+    },
+    "admin": {
+      "500": "#8B5CF0",
+      "700": "#5B34C4",
+      "ink": "#3E2A78"
+    }
+  },
+  "font": {
+    "display": "Outfit",
+    "text": "Plus Jakarta Sans",
+    "mono": "IBM Plex Mono"
+  },
+  "type": {
+    "display": {
+      "font": "display",
+      "size": 31,
+      "weight": 700,
+      "tracking": -0.026
+    },
+    "headline": {
+      "font": "display",
+      "size": 23,
+      "weight": 600,
+      "tracking": -0.02
+    },
+    "title": {
+      "font": "display",
+      "size": 16,
+      "weight": 600,
+      "tracking": -0.012
+    },
+    "body": {
+      "font": "text",
+      "size": 14,
+      "weight": 500,
+      "lineHeight": 1.55
+    },
+    "label": {
+      "font": "text",
+      "size": 11.5,
+      "weight": 700,
+      "tracking": 0.06,
+      "case": "upper"
+    },
+    "caption": {
+      "font": "text",
+      "size": 11,
+      "weight": 500
+    }
+  },
+  "radius": {
+    "sm": 14,
+    "md": 22,
+    "lg": 30,
+    "xl": 38,
+    "full": 999
+  },
+  "space": [
+    4,
+    6,
+    8,
+    10,
+    12,
+    14,
+    16,
+    18,
+    20,
+    22,
+    24,
+    28
+  ],
+  "blur": {
+    "panel": 26,
+    "control": 20,
+    "onAccent": 14
+  },
+  "saturate": {
+    "panel": 1.85,
+    "control": 1.75,
+    "onAccent": 1.5
+  },
+  "shadow": {
+    "panel": "0 4px 22px rgba(16,42,94,.10)",
+    "raised": "0 10px 30px rgba(16,42,94,.16)",
+    "primary": "0 10px 22px rgba(36,97,219,.32)",
+    "danger": "0 10px 22px rgba(200,56,74,.30)"
+  },
+  "motion": {
+    "spring": [
+      0.2,
+      0.9,
+      0.25,
+      1.15
+    ],
+    "standard": [
+      0.2,
+      0,
+      0,
+      1
+    ],
+    "pressMs": [
+      320,
+      360
+    ],
+    "sheetMs": 460,
+    "staggerMs": 60
+  },
+  "touchTargetMin": 46
+}

@@ -5604,3 +5604,11 @@ body:has(.admin-app) .sheet-icon:not(.sheet-icon-done) {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* The markers on a queue ticket (ADR 0022): state, urgent, late, not here yet, passed over. */
+.queue-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}

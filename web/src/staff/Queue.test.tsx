@@ -201,3 +201,114 @@ describe("The queue and requests", () => {
     expect(declined?.init?.json).toEqual({ reason: "Needs a surgical review first" });
   });
 });
+
+/** The live queue with extra fields on the server's answer, as ADR 0022 adds them. */
+function queueWith(extra: Record<string, unknown>) {
+  const base = api.getMockImplementation()!;
+  api.mockImplementation(async (path: string, init?: { method?: string; json?: unknown }) => {
+    const answer = (await base(path, init)) as Record<string, unknown>;
+    return path === "/sessions/se-1/queue" ? { ...answer, ...extra } : answer;
+  });
+}
+
+const DESK = { ...GP, roles: ["RECEPTIONIST"], staffId: "s-desk", personId: "p-desk" } as unknown as Me;
+const soon = (minutes: number) => new Date(Date.now() + minutes * 60000).toISOString();
+
+describe("The desk sees the cost of a call and who is held for (ADR 0022)", () => {
+  beforeEach(respond);
+
+  it("says who a call passes over and how long a consultation takes here", async () => {
+    queueWith({
+      callPreview: {
+        candidate: "a-1",
+        bypassed: [{ appointmentId: "a-2", position: 2, windowEnd: soon(20) }],
+        hold: null,
+        expectedConsultMinutes: 15,
+        wouldBreachWindow: false,
+      },
+    });
+    renderAt("/console/queue", GP);
+    expect(await screen.findByText(/passes over/)).toHaveTextContent(/Chantal Ekambi \(place 2/);
+    expect(screen.getByText(/takes about 15 min/)).toBeInTheDocument();
+  });
+
+  it("holds the doctor for a booked patient, and the desk may call anyway with a reason", async () => {
+    const user = userEvent.setup();
+    queueWith({
+      callPreview: {
+        candidate: null,
+        bypassed: [],
+        hold: { appointmentId: "a-2", position: 2, until: soon(4) },
+        expectedConsultMinutes: 15,
+        wouldBreachWindow: false,
+      },
+    });
+    renderAt("/console/queue", GP);
+    expect(await screen.findByText(/The doctor is held for Chantal Ekambi/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Call my next patient" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Call anyway" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("button", { name: "Call anyway" })).toBeDisabled();
+    await user.type(within(dialog).getByRole("textbox", { name: "Reason" }), "Phoned: not coming today");
+    await user.click(within(dialog).getByRole("button", { name: "Call anyway" }));
+    const next = sent.find((s) => s.path === "/sessions/se-1/next");
+    expect(next?.init?.json).toEqual({ overrideHold: true, reason: "Phoned: not coming today" });
+  });
+
+  it("asks for a confirm when the call would run past a bypassed patient's window", async () => {
+    const user = userEvent.setup();
+    queueWith({
+      callPreview: {
+        candidate: "a-1",
+        bypassed: [{ appointmentId: "a-2", position: 2, windowEnd: soon(5) }],
+        hold: null,
+        expectedConsultMinutes: 20,
+        wouldBreachWindow: true,
+      },
+    });
+    renderAt("/console/queue", GP);
+    await user.click(await screen.findByRole("button", { name: "Call my next patient" }));
+    expect(sent.some((s) => s.path === "/sessions/se-1/next")).toBe(false);
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Call now" }));
+    expect(sent.some((s) => s.path === "/sessions/se-1/next" && s.init?.method === "POST")).toBe(true);
+  });
+
+  it("marks tickets that are late, urgent, not here yet or passed over", async () => {
+    queueWith({
+      appointments: [
+        { ...ticket(1, "ARRIVED"), urgent: true, due: false, late: false, bypassCount: 0 },
+        { ...ticket(2, "BOOKED"), due: true, late: false, bypassCount: 1 },
+        { ...ticket(3, "BOOKED"), due: true, late: true, bypassCount: 0 },
+      ],
+    });
+    renderAt("/console/queue", GP);
+    const list = await screen.findByRole("region", { name: "Today's queue" });
+    expect(await within(list).findByText("Urgent")).toBeInTheDocument();
+    expect(within(list).getByText("Passed over")).toBeInTheDocument();
+    expect(within(list).getByText("Late")).toBeInTheDocument();
+    expect(within(list).getByText("Not here yet")).toBeInTheDocument();
+  });
+});
+
+describe("Only the receptionist marks a place urgent (ADR 0022, owner decision)", () => {
+  beforeEach(respond);
+
+  it("gives the receptionist an Urgent button that needs a reason", async () => {
+    const user = userEvent.setup();
+    renderAt("/console/queue", DESK);
+    await user.click((await screen.findAllByRole("button", { name: "Urgent" }))[0]!);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("button", { name: "Mark urgent" })).toBeDisabled();
+    await user.type(within(dialog).getByRole("textbox", { name: "Reason" }), "Bleeding");
+    await user.click(within(dialog).getByRole("button", { name: "Mark urgent" }));
+    const marked = sent.find((s) => s.path === "/appointments/a-1/urgent");
+    expect(marked?.init?.json).toEqual({ reason: "Bleeding" });
+  });
+
+  it("gives a clinician no Urgent button", async () => {
+    renderAt("/console/queue", GP);
+    await screen.findByText("Brice Tagne");
+    expect(screen.queryByRole("button", { name: "Urgent" })).not.toBeInTheDocument();
+  });
+});

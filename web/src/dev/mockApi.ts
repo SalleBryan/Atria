@@ -128,6 +128,11 @@ const feeBands = FEE_BANDS.map((b) => ({
   scheduleReference: "Atria fair rates, 2026-09-26",
   effectiveFrom: "2026-09-26",
 }));
+// The fee in force for a type, as the live queue shows the desk (services/booking/fees.py).
+const deskFee = (typeId: unknown) => {
+  const band = feeBands.find((b) => b.feeBandId === types.find((t) => t.appointmentTypeId === typeId)?.feeBandId);
+  return band ? { amountMinor: band.baseAmountMinor, currency: "XAF" } : null;
+};
 const regionPack = {
   code: "CM",
   currency: "XAF",
@@ -1017,7 +1022,8 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
         200,
         {
           ...sessionView(session),
-          appointments: tickets.map((t) => ({ ...t, ...ticketFlags(t, Date.now()) })),
+          appointments: tickets.map((t) => ({ ...t, ...ticketFlags(t, Date.now()), fee: deskFee(t.appointmentTypeId) })),
+          walkInFee: deskFee(types.find((x) => x.serviceLine === "GENERAL")?.appointmentTypeId),
           callPreview: (() => {
             const decision = mockNextCall(tickets, Date.now(), false);
             const minutes = 15;

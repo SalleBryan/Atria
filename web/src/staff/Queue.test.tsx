@@ -300,6 +300,41 @@ describe("The desk sees the cost of a call and who is held for (ADR 0022)", () =
   });
 });
 
+describe("The desk sees the fee each place will be asked for", () => {
+  beforeEach(respond);
+
+  it("shows the fee, Free, or nothing when the visit has no fee band", async () => {
+    queueWith({
+      appointments: [
+        { ...ticket(1, "ARRIVED"), fee: { amountMinor: 5000, currency: "XAF" } },
+        { ...ticket(2, "BOOKED"), fee: { amountMinor: 0, currency: "XAF" } },
+        { ...ticket(3, "BOOKED"), fee: null },
+      ],
+    });
+    renderAt("/console/queue", GP);
+    const list = await screen.findByRole("region", { name: "Today's queue" });
+    expect(await within(list).findByText(/Fee 5,000 XAF/)).toBeInTheDocument();
+    expect(within(list).getByText("Free")).toBeInTheDocument();
+    expect(within(list).getByText("Online · APT-3")).toBeInTheDocument();
+    expect(within(list).queryByText(/Fee 0/)).not.toBeInTheDocument();
+  });
+
+  it("tells the receptionist the walk-in fee in the dialog", async () => {
+    const user = userEvent.setup();
+    queueWith({ walkInFee: { amountMinor: 1500, currency: "XAF" } });
+    renderAt("/console/queue", DESK);
+    await user.click(await screen.findByRole("button", { name: "Add a walk-in" }));
+    expect(await within(screen.getByRole("dialog")).findByText(/Fee 1,500 XAF, asked for at the hospital/)).toBeInTheDocument();
+  });
+
+  it("says nothing about a fee in the dialog when the type has none", async () => {
+    const user = userEvent.setup();
+    renderAt("/console/queue", DESK);
+    await user.click(await screen.findByRole("button", { name: "Add a walk-in" }));
+    expect(within(screen.getByRole("dialog")).queryByText(/Fee|free/)).not.toBeInTheDocument();
+  });
+});
+
 describe("Only the receptionist marks a place urgent (ADR 0022, owner decision)", () => {
   beforeEach(respond);
 

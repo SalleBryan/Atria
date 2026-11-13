@@ -7,7 +7,7 @@ import ExcelJS from "exceljs";
 
 import { AtriaWorkbook } from "./export/sheet";
 import { INK } from "./export/tokens";
-import { type ReportFigures, reportCsv } from "./reportExport";
+import { type ReportFigures, reportCsv, spanText } from "./reportExport";
 
 const WEEK: ReportFigures = {
   booked: 5,
@@ -75,6 +75,43 @@ describe("comparison in the export", () => {
 
   it("adds nothing without a comparison", () => {
     expect(reportCsv(WEEK).rows.some((r) => r[0] === "Compared with the earlier period")).toBe(false);
+  });
+});
+
+describe("spanText", () => {
+  it("reads minutes below an hour, then hours and minutes", () => {
+    expect([spanText(0), spanText(38.4), spanText(59.6), spanText(60), spanText(125)]).toEqual([
+      "0 min",
+      "38 min",
+      "1 h 00 min",
+      "1 h 00 min",
+      "2 h 05 min",
+    ]);
+    expect(spanText(null)).toBe("Not available here");
+  });
+});
+
+describe("the queue in the CSV", () => {
+  it("adds the queue rows in the page's words", () => {
+    const queue = {
+      tickets: 20,
+      seen: 16,
+      byChannel: { ONLINE: 12, WALK_IN: 8 },
+      medianWaitMinutes: 38,
+      medianConsultationMinutes: 24,
+      arrivedInWindow: 10,
+      promiseBreached: 3,
+      medianBreachMinutes: 14,
+      longestBreachMinutes: 72,
+      bypassed: 2,
+      urgent: 1,
+      late: 2,
+      doctorIdleWhileWaitingMinutes: 55,
+    };
+    const rows = reportCsv({ ...WEEK, queue }).rows.filter((r) => r[0] === "The general queue");
+    expect(rows.find((r) => r[1] === "Typical wait after arriving")?.[7]).toBe("38 min");
+    expect(rows.find((r) => r[1] === "Taken online booking")?.[7]).toBe("12");
+    expect(reportCsv(WEEK).rows.some((r) => r[0] === "The general queue")).toBe(false);
   });
 });
 

@@ -102,6 +102,9 @@ ROUTES: dict[tuple[str, str], Route] = {
     ("PUT", "/appointments/{id}/care-context"): Route(
         "care_context.write", WRITE, "APPOINTMENT", "id"
     ),
+    ("GET", "/appointments/{id}/ticket"): Route(
+        "queue.ticket_read", READ, "APPOINTMENT", "id", refreshes=True
+    ),
     ("GET", "/sessions/{id}/queue"): Route("queue.read", READ, "SESSION", "id", refreshes=True),
     ("POST", "/sessions/{id}/tickets"): Route("queue.ticket", WRITE, "SESSION", "id"),
     ("POST", "/sessions/{id}/next"): Route("queue.call_next", WRITE, "SESSION", "id"),

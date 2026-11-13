@@ -950,6 +950,39 @@ function answer(method: string, url: URL, body: unknown): Promise<Response> {
     }
     return json(200, policyView(), 300);
   }
+  const ticketRoute = path.match(/^\/appointments\/([^/]+)\/ticket$/);
+  if (ticketRoute && method === "GET") {
+    const all = [...todayQueue, ...appointments];
+    const mine = all.find((a) => a.appointmentId === ticketRoute[1]);
+    if (!mine?.sessionId) return json(404, { code: "not_found", message: "this booking is not a place in a queue" });
+    const same = all.filter((a) => a.sessionId === mine.sessionId);
+    const ahead = same.filter(
+      (t) =>
+        t.appointmentId !== mine.appointmentId &&
+        ["BOOKED", "CONFIRMED", "RESCHEDULED", "ARRIVED"].includes(String(t.state)) &&
+        Number(t.position) < Number(mine.position),
+    ).length;
+    const minutes = 15;
+    const start = Math.ceil((Date.now() + (ahead * minutes + minutes / 2) * 60000) / 300000) * 300000;
+    return json(
+      200,
+      {
+        appointmentId: mine.appointmentId,
+        state: mine.state,
+        position: mine.position,
+        sessionStatus: "OPEN",
+        issuedTickets: same.length,
+        arrivalWindowStart: mine.arrivalWindowStart,
+        arrivalWindowEnd: mine.arrivalWindowEnd,
+        ahead,
+        inConsultation: same.filter((t) => t.state === "IN_CONSULTATION").length,
+        consultationMinutes: minutes,
+        expectedStartAt: new Date(start).toISOString().replace(/\.\d{3}Z$/, "Z"),
+        next: ahead === 0 && mine.state === "ARRIVED",
+      },
+      300,
+    );
+  }
   const urgentRoute = path.match(/^\/appointments\/([^/]+)\/urgent$/);
   if (urgentRoute && method === "POST") {
     // Only the receptionist marks a place urgent (ADR 0022, owner decision 2026-11-13).

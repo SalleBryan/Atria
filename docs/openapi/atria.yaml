@@ -1125,6 +1125,42 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/WrongState" }
 
+  /appointments/{id}/ticket:
+    get:
+      tags: [Queue and requests]
+      operationId: getTicketOutlook
+      summary: A patient's own live place in a queue
+      description: |
+        For the patient polling their ticket. Counts and times only, never another
+        patient. Allowed to whoever may read the appointment. Not a booking in a
+        queue is a 404. The start time is an estimate from this session's measured
+        consultation length, rounded up to five minutes, and the rules (bypass,
+        urgent) can change the order, so ahead is "about".
+      parameters:
+        - $ref: "#/components/parameters/AppointmentId"
+      responses:
+        "200":
+          description: The place now.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  appointmentId: { type: string }
+                  state: { type: string }
+                  position: { type: integer }
+                  sessionStatus: { type: string }
+                  issuedTickets: { type: integer }
+                  arrivalWindowStart: { type: string, format: date-time }
+                  arrivalWindowEnd: { type: string, format: date-time }
+                  ahead: { type: integer, description: Patients waiting or here with an earlier place. }
+                  inConsultation: { type: integer }
+                  consultationMinutes: { type: number }
+                  expectedStartAt: { type: string, format: date-time }
+                  next: { type: boolean, description: Here and nobody ahead. }
+        "404":
+          description: The booking is not a place in a queue.
+
   /appointments/{id}/urgent:
     post:
       tags: [Queue and requests]

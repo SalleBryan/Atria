@@ -5,6 +5,7 @@
     GET  /sessions/{id}                 one session, with how full it is
     POST /sessions/{id}/tickets         a place in the queue, for oneself or at the desk
     GET  /sessions/{id}/queue           the desk's live queue, in position order
+    GET  /appointments/{id}/ticket      the patient's own place: patients ahead, expected start
     POST /sessions/{id}/next            a doctor takes the next patient who has arrived
     POST /sessions/{id}/close           the manager closes it, recording what it achieved
 
@@ -35,7 +36,7 @@ from atria.data.people import People
 from atria.data.sessions import Sessions, window_of
 from atria.http import requests
 from atria.http.views import appointment_view
-from atria.services.booking.appointments import booking, no_shows, role_used
+from atria.services.booking.appointments import booking, no_shows, role_used, subject_of
 
 logger = Logger(service="atria-queue")
 
@@ -374,6 +375,45 @@ def live_queue(principal: Principal, event: dict[str, Any], *, people: People) -
     }
 
 
+def ticket_outlook(principal: Principal, event: dict[str, Any]) -> dict[str, Any]:
+    """The patient's own place, live: how many are ahead and when they are likely seen.
+
+    Only counts and times leave here, never another patient (FR-BKG-11). The
+    caller must be allowed to read this appointment, the same as reading it.
+    """
+    appointment_id = requests.path_parameter(event, "id")
+    appointment = booking().appointment(principal.tenant_id, appointment_id)
+    subject = subject_of(appointment)
+    caller = permissions.effective_principal(principal, subject)
+    permissions.require(caller, "appointment.read", subject)
+    session_id = appointment.get("sessionId")
+    if not session_id:
+        raise NotFound("this booking is not a place in a queue")
+    store = sessions()
+    session = store.session(principal.tenant_id, str(session_id))
+    tickets = store.tickets(principal.tenant_id, str(session_id))
+    mine = next((t for t in tickets if t.get("appointmentId") == appointment_id), appointment)
+    per_hour = float(
+        str(session.get("expectedThroughputPerHour") or queue.SEEDED_THROUGHPUT_PER_HOUR)
+    )
+    return {
+        "appointmentId": appointment_id,
+        "state": mine.get("state"),
+        "position": mine.get("position"),
+        "sessionStatus": session.get("status"),
+        "issuedTickets": session.get("issuedTickets"),
+        "arrivalWindowStart": mine.get("arrivalWindowStart"),
+        "arrivalWindowEnd": mine.get("arrivalWindowEnd"),
+        **queue.outlook(
+            tickets,
+            mine,
+            booking().now(),
+            per_hour=per_hour,
+            clinicians=int(session.get("rosteredClinicianCount") or 1),
+        ),
+    }
+
+
 def ticket_flags(ticket: dict[str, Any], now: dt.datetime) -> dict[str, Any]:
     """What the desk needs to see about a ticket beside its state (ADR 0022)."""
     waiting = ticket.get("state") in queue.WAITING
@@ -625,6 +665,8 @@ def route(principal: Principal, event: dict[str, Any], *, people: People) -> dic
         return issue(principal, event)
     if method == "GET" and resource.endswith("/sessions/{id}/queue"):
         return live_queue(principal, event, people=people)
+    if method == "GET" and resource.endswith("/appointments/{id}/ticket"):
+        return ticket_outlook(principal, event)
     if method == "POST" and resource.endswith("/sessions/{id}/next"):
         return call_next(principal, event)
     if method == "POST" and resource.endswith("/sessions/{id}/close"):

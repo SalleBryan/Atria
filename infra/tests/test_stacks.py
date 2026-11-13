@@ -456,6 +456,7 @@ class TestApiStack:
     def test_the_care_context_routes_exist(self, synthesised):
         served = routes(template_for(synthesised, "api"))
         assert ("/appointments/{id}/care-context", "GET") in served
+        assert ("/appointments/{id}/ticket", "GET") in served
         assert ("/appointments/{id}/care-context", "PUT") in served
         assert ("/admin/intake-forms", "GET") in served
         assert ("/admin/intake-forms", "POST") in served

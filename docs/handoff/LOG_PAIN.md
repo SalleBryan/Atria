@@ -21,3 +21,10 @@ Append status notes here. Only the pain lane edits this file.
 ## Codex
 
 ## Codex requests
+
+## 2026-11-13 (live ticket)
+- Branch `pain/live-ticket` (stacked on `pain/queue-desk`): `GET /appointments/{id}/ticket`, `core/queue.py::outlook`, patient ticket screen shows patients ahead and the likely time, refreshed every 30 seconds. Added X5 (Flutter patient screen) to the Codex list.
+- Checked Codex: five local worktrees, nothing committed or pushed, no Codex log entry. Status table and the split of the unclaimed audit items are in the handoff, section 1, "Where Codex ended". F16, F15 stay with Claude; F04, F13, F08, F14, F12 and the usage and comparison screens are proposed to the business lane.
+
+## 2026-11-13 (Codex left)
+- Codex is no longer working on the repo; the two Claude accounts split what is left (handoff, section 1, "Who does what now"). Its unfinished edits were saved as patches outside the repo and are to be adopted only after review and the full CI set. The "Codex" headings above are history.
